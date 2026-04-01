@@ -1,0 +1,172 @@
+import { useState } from 'react';
+import { useHedgeOrders } from '@/hooks/useHedgeOrders';
+import { useMarketData } from '@/hooks/useMarketData';
+import { useMtmSnapshots, useSaveMtmSnapshot } from '@/hooks/useMtmSnapshots';
+import { useAuth } from '@/contexts/AuthContext';
+import { callApi } from '@/lib/api';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { toast } from 'sonner';
+import { Calculator } from 'lucide-react';
+
+const MTM = () => {
+  const { data: orders, isLoading: loadingOrders } = useHedgeOrders({ status: 'EXECUTED' });
+  const { data: marketData } = useMarketData();
+  const { data: mtmSnapshots } = useMtmSnapshots();
+  const saveMtm = useSaveMtmSnapshot();
+  const { user } = useAuth();
+  const [physicalPrices, setPhysicalPrices] = useState<Record<string, string>>({});
+  const [calculating, setCalculating] = useState(false);
+  const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
+
+  const handleCalculate = async () => {
+    if (!orders?.length || !marketData?.length) {
+      toast.error('Dados insuficientes');
+      return;
+    }
+    setCalculating(true);
+    try {
+      const marketPayload: Record<string, unknown> = {};
+      marketData.forEach((m) => {
+        marketPayload[m.ticker] = { price: m.price, exchange_rate: m.exchange_rate };
+      });
+
+      const operationsPayload = orders.map((o) => ({
+        operation_id: o.operation_id,
+        commodity: o.commodity,
+        volume_sacks: o.volume_sacks,
+        origination_price_brl: o.origination_price_brl,
+        legs: o.legs,
+        physical_price_current: parseFloat(physicalPrices[o.operation_id] || '0'),
+      }));
+
+      const result = await callApi<{ results: Record<string, unknown>[] }>('/mtm/run', {
+        market_data: marketPayload,
+        operations: operationsPayload,
+      });
+
+      if (result?.results) {
+        setResults(result.results);
+        // Save each to Supabase
+        for (const r of result.results) {
+          await saveMtm.mutateAsync({
+            operation_id: r.operation_id as string,
+            volume_sacks: r.volume_sacks as number,
+            physical_price_current: r.physical_price_current as number,
+            futures_price_current: r.futures_price_current as number,
+            spot_rate_current: (r.spot_rate_current as number) ?? null,
+            mtm_physical_brl: r.mtm_physical_brl as number,
+            mtm_futures_brl: r.mtm_futures_brl as number,
+            mtm_ndf_brl: (r.mtm_ndf_brl as number) ?? 0,
+            mtm_option_brl: (r.mtm_option_brl as number) ?? 0,
+            mtm_total_brl: r.mtm_total_brl as number,
+            mtm_per_sack_brl: r.mtm_per_sack_brl as number,
+            total_exposure_brl: r.total_exposure_brl as number,
+            calculated_by: user?.id ?? null,
+          });
+        }
+        toast.success('MTM calculado e salvo');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao calcular MTM');
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  const loading = loadingOrders;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Mark-to-Market</h2>
+        <Button onClick={handleCalculate} disabled={calculating || !orders?.length}>
+          <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
+          {calculating ? 'Calculando...' : 'Calcular MTM'}
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+      ) : !orders?.length ? (
+        <p className="text-center text-muted-foreground py-12">Nenhuma ordem executada encontrada.</p>
+      ) : (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Operações Ativas</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Operação</TableHead>
+                  <TableHead>Commodity</TableHead>
+                  <TableHead>Volume</TableHead>
+                  <TableHead>Preço Orig.</TableHead>
+                  <TableHead>Preço Físico Atual (R$/sc)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orders.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
+                    <TableCell>{o.commodity}</TableCell>
+                    <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
+                    <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-8 w-28"
+                        placeholder="0.00"
+                        value={physicalPrices[o.operation_id] || ''}
+                        onChange={(e) => setPhysicalPrices((p) => ({ ...p, [o.operation_id]: e.target.value }))}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {results && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Resultado MTM</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Operação</TableHead>
+                  <TableHead>Físico</TableHead>
+                  <TableHead>Futuros</TableHead>
+                  <TableHead>NDF</TableHead>
+                  <TableHead>Opção</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Por Saca</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {results.map((r, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
+                    <TableCell>R$ {((r.mtm_physical_brl as number) ?? 0).toFixed(2)}</TableCell>
+                    <TableCell>R$ {((r.mtm_futures_brl as number) ?? 0).toFixed(2)}</TableCell>
+                    <TableCell>R$ {((r.mtm_ndf_brl as number) ?? 0).toFixed(2)}</TableCell>
+                    <TableCell>R$ {((r.mtm_option_brl as number) ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="font-bold">R$ {((r.mtm_total_brl as number) ?? 0).toFixed(2)}</TableCell>
+                    <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default MTM;
