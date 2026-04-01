@@ -14,289 +14,384 @@ export type Database = {
   }
   public: {
     Tables: {
-      app_settings: {
+      hedge_orders: {
         Row: {
+          commodity: string
+          confirmation_message: string | null
+          created_at: string
+          created_by: string | null
+          exchange: string
           id: string
-          key: string
-          updated_at: string | null
-          value: Json | null
+          legs: Json
+          operation_id: string
+          order_message: string | null
+          origination_price_brl: number
+          status: string
+          stonex_confirmation_text: string | null
+          volume_sacks: number
         }
         Insert: {
+          commodity: string
+          confirmation_message?: string | null
+          created_at?: string
+          created_by?: string | null
+          exchange: string
           id?: string
-          key: string
-          updated_at?: string | null
-          value?: Json | null
+          legs?: Json
+          operation_id: string
+          order_message?: string | null
+          origination_price_brl: number
+          status?: string
+          stonex_confirmation_text?: string | null
+          volume_sacks: number
         }
         Update: {
+          commodity?: string
+          confirmation_message?: string | null
+          created_at?: string
+          created_by?: string | null
+          exchange?: string
           id?: string
-          key?: string
-          updated_at?: string | null
-          value?: Json | null
+          legs?: Json
+          operation_id?: string
+          order_message?: string | null
+          origination_price_brl?: number
+          status?: string
+          stonex_confirmation_text?: string | null
+          volume_sacks?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hedge_orders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hedge_orders_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_data: {
+        Row: {
+          commodity: string
+          created_at: string
+          currency: string
+          date: string
+          exchange_rate: number | null
+          id: string
+          price: number
+          source: string
+          ticker: string
+          updated_at: string
+        }
+        Insert: {
+          commodity: string
+          created_at?: string
+          currency: string
+          date: string
+          exchange_rate?: number | null
+          id?: string
+          price: number
+          source?: string
+          ticker: string
+          updated_at?: string
+        }
+        Update: {
+          commodity?: string
+          created_at?: string
+          currency?: string
+          date?: string
+          exchange_rate?: number | null
+          id?: string
+          price?: number
+          source?: string
+          ticker?: string
+          updated_at?: string
         }
         Relationships: []
+      }
+      mtm_snapshots: {
+        Row: {
+          calculated_at: string
+          calculated_by: string | null
+          futures_price_current: number
+          id: string
+          mtm_futures_brl: number
+          mtm_ndf_brl: number
+          mtm_option_brl: number
+          mtm_per_sack_brl: number
+          mtm_physical_brl: number
+          mtm_total_brl: number
+          operation_id: string
+          physical_price_current: number
+          spot_rate_current: number | null
+          total_exposure_brl: number
+          volume_sacks: number
+        }
+        Insert: {
+          calculated_at?: string
+          calculated_by?: string | null
+          futures_price_current: number
+          id?: string
+          mtm_futures_brl: number
+          mtm_ndf_brl?: number
+          mtm_option_brl?: number
+          mtm_per_sack_brl: number
+          mtm_physical_brl: number
+          mtm_total_brl: number
+          operation_id: string
+          physical_price_current: number
+          spot_rate_current?: number | null
+          total_exposure_brl: number
+          volume_sacks: number
+        }
+        Update: {
+          calculated_at?: string
+          calculated_by?: string | null
+          futures_price_current?: number
+          id?: string
+          mtm_futures_brl?: number
+          mtm_ndf_brl?: number
+          mtm_option_brl?: number
+          mtm_per_sack_brl?: number
+          mtm_physical_brl?: number
+          mtm_total_brl?: number
+          operation_id?: string
+          physical_price_current?: number
+          spot_rate_current?: number | null
+          total_exposure_brl?: number
+          volume_sacks?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mtm_snapshots_calculated_by_fkey"
+            columns: ["calculated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mtm_snapshots_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       operations: {
         Row: {
-          breakeven_basis_brl: number | null
-          commodity: string | null
-          created_at: string | null
-          created_by: string
-          display_name: string | null
-          gross_price_brl: number | null
+          commodity: string
+          created_at: string
+          created_by: string | null
           id: string
           notes: string | null
-          origination_price_brl: number | null
-          payment_date: string | null
-          pricing_run_item_id: string | null
-          purchased_basis_brl: number | null
-          raw_data: Json | null
-          sale_date: string | null
-          status: string | null
-          ticker: string | null
-          updated_at: string | null
-          warehouse_id: string | null
+          pricing_snapshot_id: string | null
+          status: string
+          updated_at: string
+          volume_sacks: number
+          warehouse_id: string
         }
         Insert: {
-          breakeven_basis_brl?: number | null
-          commodity?: string | null
-          created_at?: string | null
-          created_by: string
-          display_name?: string | null
-          gross_price_brl?: number | null
+          commodity: string
+          created_at?: string
+          created_by?: string | null
           id?: string
           notes?: string | null
-          origination_price_brl?: number | null
-          payment_date?: string | null
-          pricing_run_item_id?: string | null
-          purchased_basis_brl?: number | null
-          raw_data?: Json | null
-          sale_date?: string | null
-          status?: string | null
-          ticker?: string | null
-          updated_at?: string | null
-          warehouse_id?: string | null
+          pricing_snapshot_id?: string | null
+          status?: string
+          updated_at?: string
+          volume_sacks: number
+          warehouse_id: string
         }
         Update: {
-          breakeven_basis_brl?: number | null
-          commodity?: string | null
-          created_at?: string | null
-          created_by?: string
-          display_name?: string | null
-          gross_price_brl?: number | null
+          commodity?: string
+          created_at?: string
+          created_by?: string | null
           id?: string
           notes?: string | null
-          origination_price_brl?: number | null
-          payment_date?: string | null
-          pricing_run_item_id?: string | null
-          purchased_basis_brl?: number | null
-          raw_data?: Json | null
-          sale_date?: string | null
-          status?: string | null
-          ticker?: string | null
-          updated_at?: string | null
-          warehouse_id?: string | null
+          pricing_snapshot_id?: string | null
+          status?: string
+          updated_at?: string
+          volume_sacks?: number
+          warehouse_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "operations_pricing_run_item_id_fkey"
-            columns: ["pricing_run_item_id"]
+            foreignKeyName: "operations_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "pricing_run_items"
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operations_pricing_snapshot_id_fkey"
+            columns: ["pricing_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operations_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
       }
-      pricing_run_items: {
+      pricing_snapshots: {
         Row: {
-          additional_discount_brl: number | null
-          benchmark: string | null
-          breakeven_basis_brl: number | null
-          commodity: string | null
-          costs: Json | null
-          created_at: string | null
-          created_by: string
-          display_name: string | null
-          futures_price_brl: number | null
-          grain_reception_date: string | null
-          gross_price_brl: number | null
+          additional_discount_brl: number
+          benchmark: string
+          commodity: string
+          created_at: string
+          created_by: string | null
+          exchange_rate: number | null
+          futures_price_brl: number
+          grain_reception_date: string
           id: string
-          insurance: Json | null
-          origination_price_brl: number | null
-          payment_date: string | null
-          pricing_id: string | null
-          pricing_run_id: string
-          purchased_basis_brl: number | null
-          sale_date: string | null
-          target_basis_brl: number | null
-          ticker: string | null
-          trade_date_used: string | null
-          updated_at: string | null
-          warehouse_id: string | null
+          inputs_json: Json
+          insurance_json: Json
+          origination_price_brl: number
+          outputs_json: Json
+          payment_date: string
+          sale_date: string
+          target_basis_brl: number
+          ticker: string
+          trade_date: string
+          warehouse_id: string
         }
         Insert: {
-          additional_discount_brl?: number | null
-          benchmark?: string | null
-          breakeven_basis_brl?: number | null
-          commodity?: string | null
-          costs?: Json | null
-          created_at?: string | null
-          created_by: string
-          display_name?: string | null
-          futures_price_brl?: number | null
-          grain_reception_date?: string | null
-          gross_price_brl?: number | null
+          additional_discount_brl?: number
+          benchmark: string
+          commodity: string
+          created_at?: string
+          created_by?: string | null
+          exchange_rate?: number | null
+          futures_price_brl: number
+          grain_reception_date: string
           id?: string
-          insurance?: Json | null
-          origination_price_brl?: number | null
-          payment_date?: string | null
-          pricing_id?: string | null
-          pricing_run_id: string
-          purchased_basis_brl?: number | null
-          sale_date?: string | null
-          target_basis_brl?: number | null
-          ticker?: string | null
-          trade_date_used?: string | null
-          updated_at?: string | null
-          warehouse_id?: string | null
+          inputs_json?: Json
+          insurance_json?: Json
+          origination_price_brl: number
+          outputs_json?: Json
+          payment_date: string
+          sale_date: string
+          target_basis_brl: number
+          ticker: string
+          trade_date: string
+          warehouse_id: string
         }
         Update: {
-          additional_discount_brl?: number | null
-          benchmark?: string | null
-          breakeven_basis_brl?: number | null
-          commodity?: string | null
-          costs?: Json | null
-          created_at?: string | null
-          created_by?: string
-          display_name?: string | null
-          futures_price_brl?: number | null
-          grain_reception_date?: string | null
-          gross_price_brl?: number | null
+          additional_discount_brl?: number
+          benchmark?: string
+          commodity?: string
+          created_at?: string
+          created_by?: string | null
+          exchange_rate?: number | null
+          futures_price_brl?: number
+          grain_reception_date?: string
           id?: string
-          insurance?: Json | null
-          origination_price_brl?: number | null
-          payment_date?: string | null
-          pricing_id?: string | null
-          pricing_run_id?: string
-          purchased_basis_brl?: number | null
-          sale_date?: string | null
-          target_basis_brl?: number | null
-          ticker?: string | null
-          trade_date_used?: string | null
-          updated_at?: string | null
-          warehouse_id?: string | null
+          inputs_json?: Json
+          insurance_json?: Json
+          origination_price_brl?: number
+          outputs_json?: Json
+          payment_date?: string
+          sale_date?: string
+          target_basis_brl?: number
+          ticker?: string
+          trade_date?: string
+          warehouse_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "pricing_run_items_pricing_run_id_fkey"
-            columns: ["pricing_run_id"]
+            foreignKeyName: "pricing_snapshots_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "pricing_runs"
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_snapshots_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
       }
-      pricing_runs: {
+      users: {
         Row: {
-          api_response: Json | null
-          created_at: string | null
-          created_by: string
+          active: boolean
+          created_at: string
+          full_name: string
           id: string
-          notes: string | null
-          request_payload: Json
-          status: string | null
-          updated_at: string | null
+          roles: string[]
+          warehouse_id: string
         }
         Insert: {
-          api_response?: Json | null
-          created_at?: string | null
-          created_by: string
-          id?: string
-          notes?: string | null
-          request_payload: Json
-          status?: string | null
-          updated_at?: string | null
+          active?: boolean
+          created_at?: string
+          full_name: string
+          id: string
+          roles?: string[]
+          warehouse_id: string
         }
         Update: {
-          api_response?: Json | null
-          created_at?: string | null
-          created_by?: string
+          active?: boolean
+          created_at?: string
+          full_name?: string
           id?: string
-          notes?: string | null
-          request_payload?: Json
-          status?: string | null
-          updated_at?: string | null
+          roles?: string[]
+          warehouse_id?: string
         }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          created_at: string | null
-          email: string | null
-          full_name: string | null
-          id: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          email?: string | null
-          full_name?: string | null
-          id: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          email?: string | null
-          full_name?: string | null
-          id?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      user_roles: {
-        Row: {
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Update: {
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       warehouses: {
         Row: {
-          active: boolean | null
-          commodity: string
-          created_at: string | null
+          active: boolean
+          basis_config: Json
+          city: string | null
+          created_at: string
           display_name: string
           id: string
-          updated_at: string | null
-          warehouse_id: string
+          state: string | null
+          type: string
         }
         Insert: {
-          active?: boolean | null
-          commodity: string
-          created_at?: string | null
+          active?: boolean
+          basis_config?: Json
+          city?: string | null
+          created_at?: string
           display_name: string
-          id?: string
-          updated_at?: string | null
-          warehouse_id: string
+          id: string
+          state?: string | null
+          type: string
         }
         Update: {
-          active?: boolean | null
-          commodity?: string
-          created_at?: string | null
+          active?: boolean
+          basis_config?: Json
+          city?: string | null
+          created_at?: string
           display_name?: string
           id?: string
-          updated_at?: string | null
-          warehouse_id?: string
+          state?: string | null
+          type?: string
         }
         Relationships: []
       }
