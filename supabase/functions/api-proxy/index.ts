@@ -3,12 +3,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const ALLOWED_ENDPOINTS = [
+const ALLOWED_POST_ENDPOINTS = [
   '/pricing/table',
   '/orders/build',
   '/orders/validate',
   '/mtm/run',
-  '/market/fetch',
+]
+
+const ALLOWED_GET_ENDPOINTS = [
+  '/market/quotes',
 ]
 
 const API_BASE = 'https://safra-segura-api.onrender.com'
@@ -19,11 +22,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { endpoint, body } = await req.json()
+    const { endpoint, body, method: reqMethod, query } = await req.json()
+    const method = (reqMethod || 'POST').toUpperCase()
 
-    if (!ALLOWED_ENDPOINTS.includes(endpoint)) {
+    const isAllowed =
+      (method === 'POST' && ALLOWED_POST_ENDPOINTS.includes(endpoint)) ||
+      (method === 'GET' && ALLOWED_GET_ENDPOINTS.some(e => endpoint.startsWith(e)))
+
+    if (!isAllowed) {
       return new Response(
-        JSON.stringify({ error: `Endpoint não permitido: ${endpoint}` }),
+        JSON.stringify({ error: `Endpoint não permitido: ${method} ${endpoint}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -37,17 +45,28 @@ Deno.serve(async (req) => {
     }
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 120000) // 2min timeout
+    const timeout = setTimeout(() => controller.abort(), 120000)
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      method: 'POST',
+    let url = `${API_BASE}${endpoint}`
+    if (method === 'GET' && query) {
+      const params = new URLSearchParams(query)
+      url += `?${params.toString()}`
+    }
+
+    const fetchOptions: RequestInit = {
+      method,
       headers: {
         'Content-Type': 'application/json',
         'X-API-Key': apiKey,
       },
-      body: JSON.stringify(body),
       signal: controller.signal,
-    })
+    }
+
+    if (method === 'POST' && body) {
+      fetchOptions.body = JSON.stringify(body)
+    }
+
+    const response = await fetch(url, fetchOptions)
 
     clearTimeout(timeout)
 
