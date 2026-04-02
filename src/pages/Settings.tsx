@@ -4,6 +4,7 @@ import { CalendarIcon, Plus, Edit2, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWarehouses, useUpsertWarehouse, useActiveArmazens } from '@/hooks/useWarehouses';
 import { usePricingCombinations, useUpsertPricingCombination, useTogglePricingCombinationActive } from '@/hooks/usePricingCombinations';
+import { useMarketData } from '@/hooks/useMarketData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,6 +126,7 @@ function DateField({ label, value, onChange }: { label: string; value: string | 
 function CombinationsTab() {
   const { data: combinations, isLoading } = usePricingCombinations();
   const { data: warehouses } = useActiveArmazens();
+  const { data: marketData } = useMarketData();
   const upsert = useUpsertPricingCombination();
   const toggleActive = useTogglePricingCombinationActive();
   const [editing, setEditing] = useState<Partial<PricingCombination> | null>(null);
@@ -205,7 +207,21 @@ function CombinationsTab() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Ticker</Label>
-                    <Input value={editing.ticker ?? ''} onChange={(e) => setEditing({ ...editing, ticker: e.target.value })} placeholder="ZSQ26" />
+                    <Select value={editing.ticker ?? ''} onValueChange={(v) => setEditing({ ...editing, ticker: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione o ticker" /></SelectTrigger>
+                      <SelectContent>
+                        {marketData
+                          ?.filter((m) => {
+                            const commodity = editing.commodity ?? 'soybean';
+                            if (commodity === 'soybean') return m.commodity === 'SOJA';
+                            if (commodity === 'corn') return m.commodity === 'MILHO_CBOT';
+                            return false;
+                          })
+                          .map((m) => (
+                            <SelectItem key={m.ticker} value={m.ticker}>{m.ticker}{m.exp_date ? ` (${m.exp_date})` : ''}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
