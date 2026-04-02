@@ -18,6 +18,12 @@ export interface MarketData {
   date: string;
   exchange_rate: number | null;
   source: string;
+  price_unit: string | null;
+  exp_date: string | null;
+  ndf_spot: number | null;
+  ndf_estimated: number | null;
+  ndf_spread: number | null;
+  ndf_override: number | null;
   created_at: string;
   updated_at: string;
 }

@@ -84,8 +84,14 @@ export type Database = {
           currency: string
           date: string
           exchange_rate: number | null
+          exp_date: string | null
           id: string
+          ndf_estimated: number | null
+          ndf_override: number | null
+          ndf_spot: number | null
+          ndf_spread: number | null
           price: number
+          price_unit: string | null
           source: string
           ticker: string
           updated_at: string
@@ -96,8 +102,14 @@ export type Database = {
           currency: string
           date: string
           exchange_rate?: number | null
+          exp_date?: string | null
           id?: string
+          ndf_estimated?: number | null
+          ndf_override?: number | null
+          ndf_spot?: number | null
+          ndf_spread?: number | null
           price: number
+          price_unit?: string | null
           source?: string
           ticker: string
           updated_at?: string
@@ -108,8 +120,14 @@ export type Database = {
           currency?: string
           date?: string
           exchange_rate?: number | null
+          exp_date?: string | null
           id?: string
+          ndf_estimated?: number | null
+          ndf_override?: number | null
+          ndf_spot?: number | null
+          ndf_spread?: number | null
           price?: number
+          price_unit?: string | null
           source?: string
           ticker?: string
           updated_at?: string
