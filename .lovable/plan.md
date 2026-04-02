@@ -1,49 +1,44 @@
 
 
-# Fix: "API retornou 0 snapshots" + Ticker dropdown
+# Tarefa 1 — Corrigir dropdown storage_cost_type + atualizar registro
 
-## Problema 1 — API retorna `results`, não `snapshots`
+## Correção no formulário (Settings.tsx, linhas 268-271)
 
-O teste direto da API confirmou: a resposta usa `{ results: [...] }`, mas o frontend procura `result.snapshots`. Por isso sempre mostra "API retornou 0 snapshots".
+Substituir as opções do Select de "Tipo armazenagem":
 
-Além disso, os campos retornados pela API diferem do que o `saveSnapshots` espera para inserir em `pricing_snapshots`. Mapeamento necessário:
+**De:**
+```
+<SelectItem value="per_sack">Por saca</SelectItem>
+<SelectItem value="percentage">Percentual</SelectItem>
+```
 
-| API response field | pricing_snapshots column |
-|---|---|
-| `target_basis_brl` | `target_basis_brl` ✓ |
-| `origination_price_brl` | `origination_price_brl` ✓ |
-| `futures_price_brl` | `futures_price_brl` ✓ |
-| `trade_date_used` | `trade_date` |
-| `costs` (object) | parte de `outputs_json` |
-| `insurance` (object) | `insurance_json` |
-| `purchased_basis_brl`, `gross_price_brl`, `breakeven_basis_brl` | `outputs_json` |
-| `exchange_rate` | não retornado — precisa injetar do payload |
-| `inputs_json` | não retornado — montar do payload original |
+**Para:**
+```
+<SelectItem value="fixed">Fixo (R$/saca)</SelectItem>
+<SelectItem value="monthly">Mensal (R$/mês)</SelectItem>
+```
 
-### Correção em `GeneratePricingModal.tsx`:
+O placeholder "Herdar do armazém" já salva `null` corretamente (linha 268: `v || null`).
 
-1. Ler `result.results` em vez de `result.snapshots`
-2. Para cada item retornado, mapear para o schema de `pricing_snapshots`:
-   - `trade_date` = `trade_date_used`
-   - `exchange_rate` = do payload original (spotRate)
-   - `inputs_json` = objeto com campos de entrada (futures_price, exchange_rate, target_basis, etc.)
-   - `outputs_json` = `{ costs, purchased_basis_brl, gross_price_brl, breakeven_basis_brl }`
-   - `insurance_json` = `insurance`
-   - `additional_discount_brl` = do resultado
-   - Demais campos diretos: warehouse_id, ticker, commodity, benchmark, payment_date, sale_date, grain_reception_date, target_basis_brl, origination_price_brl, futures_price_brl
+## Correção do registro com erro
 
-## Problema 2 — Ticker como input de texto
+Usar `supabase--insert` para executar:
+```sql
+UPDATE pricing_combinations 
+SET storage_cost_type = NULL 
+WHERE id = '05d549ea-be43-491b-85d8-462b63358b1e';
+```
 
-Atualmente o campo Ticker é um `<Input>` livre. Trocar por `<Select>` populado com os tickers de `market_data`, filtrados pela commodity selecionada:
-- `soybean` → tickers onde `commodity = 'SOJA'`
-- `corn` → tickers onde `commodity = 'MILHO_CBOT'`
+## Tarefa 2 — Salvar regras de domínio na memória
 
-Usar `useMarketData()` no `CombinationsTab` para buscar os tickers disponíveis.
+Criar `mem://features/pricing-combinations-contract` com todas as regras de campos restritos informadas pelo usuário (commodity, benchmark, storage_cost_type, campos de custo null vs 0, target_basis, is_spot, grain_reception_date). Atualizar o index.
 
 ## Arquivos modificados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/components/GeneratePricingModal.tsx` | Ler `results` em vez de `snapshots`, mapear campos para schema do DB |
-| `src/pages/Settings.tsx` | Importar `useMarketData`, trocar Input do ticker por Select filtrado por commodity |
+| `src/pages/Settings.tsx` | Substituir 2 SelectItems do storage_cost_type |
+| `pricing_combinations` (DB) | UPDATE registro com id específico para `storage_cost_type = NULL` |
+| `mem://features/pricing-combinations-contract` | Novo — regras de domínio dos campos |
+| `mem://index.md` | Adicionar referência ao novo arquivo de memória |
 
