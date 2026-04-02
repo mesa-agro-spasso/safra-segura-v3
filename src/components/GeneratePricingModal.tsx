@@ -99,6 +99,15 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         return (basisConfig as Record<string, unknown>)[basisField] ?? null;
       };
 
+      // Resolver exchange_rate por commodity/benchmark
+      let exchangeRate: number | null = null;
+      if (combo.commodity === 'soybean') {
+        exchangeRate = market.ndf_estimated ?? spotRate;
+      } else if (combo.commodity === 'corn' && combo.benchmark === 'cbot') {
+        exchangeRate = spotRate;
+      }
+      // corn + b3: não envia exchange_rate (null)
+
       payload.push({
         warehouse_id: combo.warehouse_id,
         display_name: warehouse.display_name,
@@ -111,7 +120,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         grain_reception_date: grainReceptionDate,
         target_basis: combo.target_basis,
         futures_price: market.price,
-        exchange_rate: spotRate,
+        exchange_rate: exchangeRate,
         additional_discount_brl: combo.additional_discount_brl,
         interest_rate: inheritCost('interest_rate', 'interest_rate'),
         storage_cost: inheritCost('storage_cost', 'storage_cost'),
