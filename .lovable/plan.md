@@ -1,24 +1,46 @@
 
 
-# Correção de erro + reteste do fluxo de mercado
+# Plano revisado — Gerar Tabela com resolução de basis
 
-## Item 3 — Confirmado
-Os valores `SOJA`, `MILHO_CBOT`, `MILHO`, `FX` no frontend já batem com o constraint atualizado. Nenhuma alteração.
+Nenhuma alteração estrutural ao plano anterior. Apenas confirmação dos dois pontos e detalhamento da função de resolução de basis.
 
-## Item 4 — Melhorar exibição de erro
-Em `src/pages/Market.tsx`, no `catch` do `handleAutoFetch`, trocar:
-```typescript
-// DE:
-toast.error(err instanceof Error ? err.message : 'Erro ao buscar dados');
+## Ponto 1 — Confirmado
 
-// PARA:
-const msg = err instanceof Error ? err.message : typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : JSON.stringify(err);
-toast.error(`Erro ao atualizar mercado: ${msg}`);
+Mapeamento de commodity para chave do `basis_config`:
+- Ticker com `commodity = SOJA` → acessa `basis_config.soybean`
+- Ticker com `commodity = MILHO_CBOT` → acessa `basis_config.corn`
+
+## Ponto 2 — Função de resolução recursiva de basis
+
+A função `resolveBasis` recebe o warehouse, a chave da commodity (`soybean` | `corn`), e um mapa de todos os warehouses. Resolve recursivamente até encontrar um `fixed`, com limite de profundidade para evitar loops infinitos.
+
+```text
+resolveBasis(warehouseId, commodityKey, warehouseMap, depth=0)
+  if depth > 5 → throw "Ciclo detectado"
+  config = warehouseMap[warehouseId].basis_config[commodityKey]
+  if !config → return null (warehouse sem basis para essa commodity)
+  if config.mode === "fixed" → return config.value
+  if config.mode === "reference_delta"
+    refBasis = resolveBasis(config.reference_warehouse_id, commodityKey, warehouseMap, depth+1)
+    if refBasis === null → return null
+    return refBasis + config.delta_brl
 ```
 
-## Item 5 — Reteste
-Após a alteração, usar `supabase--curl_edge_functions` para chamar o `api-proxy` com endpoint `/market/quotes` via GET, confirmar resposta 200. Em seguida, navegar para `/mercado` no browser, clicar "Atualizar Automático", e verificar via `supabase--read_query` que `market_data` tem linhas com commodity `FX`, `SOJA`, `MILHO_CBOT`. Por fim, screenshot para confirmar renderização nas tabelas.
+Com os dados reais:
+- Alta Floresta soja: resolve matupa (fixed -30) + delta -1 = **-31**
+- Alta Floresta milho: resolve matupa (fixed -25) + delta -1.5 = **-26.5**
+- Sede Madcap: basis_config vazio → **excluída** das combinations (sem basis = sem pricing)
 
-## Arquivos modificados
-- `src/pages/Market.tsx` — apenas o bloco catch (~1 linha)
+## Arquivos
+
+Mesmo plano anterior — dois arquivos:
+- **`src/components/GeneratePricingModal.tsx`** — novo. Contém a função `resolveBasis`, o modal com DatePickers e seleção de tickers, e a lógica de montagem do payload completo.
+- **`src/pages/PricingTable.tsx`** — atualizado. Remove `handleGenerate` inline, substitui pelo modal.
+
+## Regras mantidas
+
+- Zero cálculo financeiro no frontend — `resolveBasis` é apenas lookup/soma de configuração, não pricing
+- Warehouses sem `basis_config` para a commodity são silenciosamente ignorados
+- `exchange_rate` vem do registro USD/BRL em market_data
+- Commodity enviada à API: `soybean` / `corn` (não `SOJA` / `MILHO_CBOT`)
 
