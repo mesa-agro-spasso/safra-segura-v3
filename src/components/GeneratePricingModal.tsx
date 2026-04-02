@@ -130,18 +130,53 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
     setGenerating(true);
     try {
-      const result = await callApi<{ snapshots: Record<string, unknown>[] }>('/pricing/table', {
+      const result = await callApi<{ results: Record<string, unknown>[] }>('/pricing/table', {
         combinations: payload,
       });
 
-      if (result?.snapshots?.length) {
-        await saveSnapshots.mutateAsync(
-          result.snapshots.map((s: Record<string, unknown>) => ({
-            ...(s as Omit<PricingSnapshot, 'id' | 'created_at'>),
+      const apiResults = result?.results;
+      if (apiResults?.length) {
+        // Build a lookup from payload index to original payload for injecting inputs
+        const snapshots = apiResults.map((r: Record<string, unknown>, idx: number) => {
+          const orig = payload[idx] ?? {};
+          return {
+            warehouse_id: r.warehouse_id ?? orig.warehouse_id,
+            commodity: r.commodity ?? orig.commodity,
+            benchmark: r.benchmark ?? orig.benchmark,
+            ticker: r.ticker ?? orig.ticker,
+            trade_date: r.trade_date_used ?? format(new Date(), 'yyyy-MM-dd'),
+            sale_date: r.sale_date ?? orig.sale_date,
+            payment_date: r.payment_date ?? orig.payment_date,
+            grain_reception_date: r.grain_reception_date ?? orig.grain_reception_date,
+            exchange_rate: orig.exchange_rate ?? spotRate,
+            target_basis_brl: r.target_basis_brl ?? 0,
+            futures_price_brl: r.futures_price_brl ?? 0,
+            origination_price_brl: r.origination_price_brl ?? 0,
+            additional_discount_brl: r.additional_discount_brl ?? orig.additional_discount_brl ?? 0,
+            inputs_json: {
+              futures_price: orig.futures_price,
+              exchange_rate: orig.exchange_rate,
+              target_basis: orig.target_basis,
+              interest_rate: orig.interest_rate,
+              storage_cost: orig.storage_cost,
+              storage_cost_type: orig.storage_cost_type,
+              reception_cost: orig.reception_cost,
+              brokerage_per_contract: orig.brokerage_per_contract,
+              desk_cost_pct: orig.desk_cost_pct,
+              shrinkage_rate_monthly: orig.shrinkage_rate_monthly,
+            },
+            outputs_json: {
+              costs: r.costs ?? {},
+              purchased_basis_brl: r.purchased_basis_brl,
+              gross_price_brl: r.gross_price_brl,
+              breakeven_basis_brl: r.breakeven_basis_brl,
+            },
+            insurance_json: r.insurance ?? {},
             created_by: user?.id ?? null,
-          }))
-        );
-        toast.success(`Tabela gerada: ${result.snapshots.length} preços calculados`);
+          } as Omit<PricingSnapshot, 'id' | 'created_at'>;
+        });
+        await saveSnapshots.mutateAsync(snapshots);
+        toast.success(`Tabela gerada: ${apiResults.length} preços calculados`);
         onOpenChange(false);
       } else {
         toast.warning('API retornou 0 snapshots');

@@ -207,7 +207,21 @@ function CombinationsTab() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Ticker</Label>
-                    <Input value={editing.ticker ?? ''} onChange={(e) => setEditing({ ...editing, ticker: e.target.value })} placeholder="ZSQ26" />
+                    <Select value={editing.ticker ?? ''} onValueChange={(v) => setEditing({ ...editing, ticker: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione o ticker" /></SelectTrigger>
+                      <SelectContent>
+                        {marketData
+                          ?.filter((m) => {
+                            const commodity = editing.commodity ?? 'soybean';
+                            if (commodity === 'soybean') return m.commodity === 'SOJA';
+                            if (commodity === 'corn') return m.commodity === 'MILHO_CBOT';
+                            return false;
+                          })
+                          .map((m) => (
+                            <SelectItem key={m.ticker} value={m.ticker}>{m.ticker}{m.exp_date ? ` (${m.exp_date})` : ''}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
