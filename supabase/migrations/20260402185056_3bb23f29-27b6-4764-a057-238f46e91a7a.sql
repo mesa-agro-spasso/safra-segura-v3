@@ -1,0 +1,1 @@
+UPDATE pricing_combinations SET storage_cost_type = NULL WHERE id = '05d549ea-be43-491b-85d8-462b63358b1e';
