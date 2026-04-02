@@ -265,9 +265,13 @@ function CombinationsTab() {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Tipo armazenagem</Label>
-                        <Select value={editing.storage_cost_type ?? ''} onValueChange={(v) => setEditing({ ...editing, storage_cost_type: v || null })}>
+                        <Select value={editing.storage_cost_type ?? 'inherit'} onValueChange={(v) => setEditing({ ...editing, storage_cost_type: v === 'inherit' ? null : v })}>
                           <SelectTrigger><SelectValue placeholder="Herdar do armazém" /></SelectTrigger>
-                          <SelectContent><SelectItem value="per_sack">Por saca</SelectItem><SelectItem value="percentage">Percentual</SelectItem></SelectContent>
+                          <SelectContent>
+                            <SelectItem value="inherit">Herdar do armazém</SelectItem>
+                            <SelectItem value="fixed">Fixo (R$/saca)</SelectItem>
+                            <SelectItem value="monthly">Mensal (R$/mês)</SelectItem>
+                          </SelectContent>
                         </Select>
                       </div>
                       {numField('Custo recepção', 'reception_cost')}
