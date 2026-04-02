@@ -132,10 +132,12 @@ const Market = () => {
   };
 
   // Group saved market data
-  const soybeanRows = marketData?.filter(m => m.commodity === 'SOJA') ?? [];
-  const cornCbotRows = marketData?.filter(m => m.commodity === 'MILHO_CBOT') ?? [];
+  const sortByExpDate = (a: { exp_date?: string | null }, b: { exp_date?: string | null }) =>
+    (a.exp_date ?? '').localeCompare(b.exp_date ?? '');
+  const soybeanRows = (marketData?.filter(m => m.commodity === 'SOJA') ?? []).sort(sortByExpDate);
+  const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT') ?? []).sort(sortByExpDate);
   const fxRow = dataMap['USD/BRL'];
-  const cornB3Rows = marketData?.filter(m => m.commodity === 'MILHO') ?? [];
+  const cornB3Rows = (marketData?.filter(m => m.commodity === 'MILHO') ?? []).sort(sortByExpDate);
 
   const renderEditCell = (ticker: string, currentPrice?: number) => {
     if (editingTicker === ticker) {
