@@ -157,7 +157,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             sale_date: r.sale_date ?? orig.sale_date,
             payment_date: r.payment_date ?? orig.payment_date,
             grain_reception_date: r.grain_reception_date ?? orig.grain_reception_date,
-            exchange_rate: orig.exchange_rate ?? spotRate,
+            exchange_rate: orig.exchange_rate ?? null,
             target_basis_brl: r.target_basis_brl ?? 0,
             futures_price_brl: r.futures_price_brl ?? 0,
             origination_price_brl: r.origination_price_brl ?? 0,
