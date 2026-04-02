@@ -98,7 +98,26 @@ export interface MtmSnapshot {
 }
 
 export interface PricingCombination {
+  id: string;
   warehouse_id: string;
   commodity: string;
-  payment_date: string;
+  benchmark: string;
+  ticker: string;
+  exp_date: string | null;
+  sale_date: string;
+  payment_date: string | null;
+  is_spot: boolean;
+  grain_reception_date: string | null;
+  target_basis: number;
+  interest_rate: number | null;
+  storage_cost: number | null;
+  storage_cost_type: string | null;
+  reception_cost: number | null;
+  brokerage_per_contract: number | null;
+  desk_cost_pct: number | null;
+  shrinkage_rate_monthly: number | null;
+  additional_discount_brl: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
 }
