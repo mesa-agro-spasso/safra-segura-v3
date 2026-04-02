@@ -99,6 +99,15 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         return (basisConfig as Record<string, unknown>)[basisField] ?? null;
       };
 
+      // Resolver exchange_rate por commodity/benchmark
+      let exchangeRate: number | null = null;
+      if (combo.commodity === 'soybean') {
+        exchangeRate = market.ndf_estimated ?? spotRate;
+      } else if (combo.commodity === 'corn' && combo.benchmark === 'cbot') {
+        exchangeRate = spotRate;
+      }
+      // corn + b3: não envia exchange_rate (null)
+
       payload.push({
         warehouse_id: combo.warehouse_id,
         display_name: warehouse.display_name,
@@ -111,7 +120,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         grain_reception_date: grainReceptionDate,
         target_basis: combo.target_basis,
         futures_price: market.price,
-        exchange_rate: spotRate,
+        exchange_rate: exchangeRate,
         additional_discount_brl: combo.additional_discount_brl,
         interest_rate: inheritCost('interest_rate', 'interest_rate'),
         storage_cost: inheritCost('storage_cost', 'storage_cost'),
@@ -148,14 +157,14 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             sale_date: r.sale_date ?? orig.sale_date,
             payment_date: r.payment_date ?? orig.payment_date,
             grain_reception_date: r.grain_reception_date ?? orig.grain_reception_date,
-            exchange_rate: orig.exchange_rate ?? spotRate,
+            exchange_rate: orig.exchange_rate ?? null,
             target_basis_brl: r.target_basis_brl ?? 0,
             futures_price_brl: r.futures_price_brl ?? 0,
             origination_price_brl: r.origination_price_brl ?? 0,
             additional_discount_brl: r.additional_discount_brl ?? orig.additional_discount_brl ?? 0,
             inputs_json: {
               futures_price: orig.futures_price,
-              exchange_rate: orig.exchange_rate,
+              exchange_rate: orig.exchange_rate ?? null,
               target_basis: orig.target_basis,
               interest_rate: orig.interest_rate,
               storage_cost: orig.storage_cost,
