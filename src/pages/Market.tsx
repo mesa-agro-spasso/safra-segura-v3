@@ -105,7 +105,8 @@ const Market = () => {
 
       toast.success('Dados de mercado atualizados');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao buscar dados');
+      const msg = err instanceof Error ? err.message : typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : JSON.stringify(err);
+      toast.error(`Erro ao atualizar mercado: ${msg}`);
     } finally {
       setFetching(false);
     }
