@@ -1,52 +1,24 @@
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
-import { CalendarIcon, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { callApi } from '@/lib/api';
 import { useSavePricingSnapshots } from '@/hooks/usePricingSnapshots';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useMarketData } from '@/hooks/useMarketData';
+import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Warehouse, MarketData, PricingSnapshot } from '@/types';
+import type { Warehouse, MarketData, PricingSnapshot, PricingCombination } from '@/types';
 
-interface BasisConfig {
-  mode: 'fixed' | 'reference_delta';
-  value?: number;
-  reference_warehouse_id?: string;
-  delta_brl?: number;
-}
-
-const COMMODITY_MAP: Record<string, { apiCommodity: string; basisKey: string }> = {
-  SOJA: { apiCommodity: 'soybean', basisKey: 'soybean' },
-  MILHO_CBOT: { apiCommodity: 'corn', basisKey: 'corn' },
-};
-
-function resolveBasis(
-  warehouseId: string,
-  commodityKey: string,
-  warehouseMap: Record<string, Warehouse>,
-  depth = 0
-): number | null {
-  if (depth > 5) throw new Error(`Ciclo detectado ao resolver basis para ${warehouseId}`);
-  const warehouse = warehouseMap[warehouseId];
-  if (!warehouse) return null;
-  const config = (warehouse.basis_config as Record<string, BasisConfig>)?.[commodityKey];
-  if (!config) return null;
-  if (config.mode === 'fixed') return config.value ?? null;
-  if (config.mode === 'reference_delta') {
-    if (!config.reference_warehouse_id) return null;
-    const refBasis = resolveBasis(config.reference_warehouse_id, commodityKey, warehouseMap, depth + 1);
-    if (refBasis === null) return null;
-    return refBasis + (config.delta_brl ?? 0);
-  }
-  return null;
+function getNextTuesday(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const daysUntilTuesday = day === 2 ? 7 : (2 - day + 7) % 7 || 7;
+  d.setDate(d.getDate() + daysUntilTuesday);
+  return d;
 }
 
 interface GeneratePricingModalProps {
@@ -57,81 +29,109 @@ interface GeneratePricingModalProps {
 export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModalProps) {
   const { data: warehouses } = useActiveArmazens();
   const { data: marketData } = useMarketData();
+  const { data: combinations } = usePricingCombinations(true);
   const saveSnapshots = useSavePricingSnapshots();
   const { user } = useAuth();
-
-  const [saleDate, setSaleDate] = useState<Date>();
-  const [paymentDate, setPaymentDate] = useState<Date>();
-  const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
-
-  // Group tickers by commodity
-  const tickerGroups = useMemo(() => {
-    if (!marketData) return { soja: [], milho: [] };
-    return {
-      soja: marketData.filter((m) => m.commodity === 'SOJA'),
-      milho: marketData.filter((m) => m.commodity === 'MILHO_CBOT'),
-    };
-  }, [marketData]);
 
   const spotRate = useMemo(() => {
     return marketData?.find((m) => m.ticker === 'USD/BRL')?.price ?? null;
   }, [marketData]);
 
-  const toggleTicker = (ticker: string) => {
-    setSelectedTickers((prev) => {
-      const next = new Set(prev);
-      if (next.has(ticker)) next.delete(ticker);
-      else next.add(ticker);
-      return next;
-    });
-  };
+  const marketMap = useMemo(() => {
+    const m: Record<string, MarketData> = {};
+    marketData?.forEach((md) => { m[md.ticker] = md; });
+    return m;
+  }, [marketData]);
 
-  const canGenerate = saleDate && paymentDate && selectedTickers.size > 0 && spotRate !== null;
+  const warehouseMap = useMemo(() => {
+    const m: Record<string, Warehouse> = {};
+    warehouses?.forEach((w) => { m[w.id] = w; });
+    return m;
+  }, [warehouses]);
+
+  const uniqueWarehouses = useMemo(() => {
+    if (!combinations) return 0;
+    return new Set(combinations.map((c) => c.warehouse_id)).size;
+  }, [combinations]);
+
+  const canGenerate = (combinations?.length ?? 0) > 0 && spotRate !== null;
 
   const handleGenerate = async () => {
-    if (!canGenerate || !warehouses || !marketData) return;
+    if (!canGenerate || !combinations || !marketData || !warehouses) return;
 
-    const warehouseMap: Record<string, Warehouse> = {};
-    warehouses.forEach((w) => { warehouseMap[w.id] = w; });
+    const payload: Record<string, unknown>[] = [];
 
-    const selectedMarket = marketData.filter((m) => selectedTickers.has(m.ticker));
-    const combinations: Record<string, unknown>[] = [];
-
-    for (const market of selectedMarket) {
-      const mapping = COMMODITY_MAP[market.commodity];
-      if (!mapping) continue;
-
-      for (const warehouse of warehouses) {
-        const basis = resolveBasis(warehouse.id, mapping.basisKey, warehouseMap);
-        if (basis === null) continue; // skip warehouses without basis config
-
-        combinations.push({
-          warehouse_id: warehouse.id,
-          display_name: warehouse.display_name,
-          commodity: mapping.apiCommodity,
-          benchmark: 'cbot',
-          payment_date: format(paymentDate, 'yyyy-MM-dd'),
-          sale_date: format(saleDate, 'yyyy-MM-dd'),
-          grain_reception_date: format(paymentDate, 'yyyy-MM-dd'),
-          target_basis: basis,
-          ticker: market.ticker,
-          exp_date: market.exp_date,
-          futures_price: market.price,
-          exchange_rate: spotRate,
-        });
+    for (const combo of combinations) {
+      const market = marketMap[combo.ticker];
+      if (!market) {
+        toast.warning(`Ticker ${combo.ticker} não encontrado em market_data — pulando`);
+        continue;
       }
+
+      const warehouse = warehouseMap[combo.warehouse_id];
+      if (!warehouse) continue;
+
+      const basisConfig = (warehouse.basis_config ?? {}) as Record<string, unknown>;
+
+      // Resolve exp_date
+      const expDate = combo.exp_date ?? market.exp_date ?? null;
+
+      // Resolve payment_date
+      let paymentDate: string;
+      if (combo.is_spot) {
+        paymentDate = format(getNextTuesday(new Date()), 'yyyy-MM-dd');
+      } else {
+        if (!combo.payment_date) {
+          toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} sem payment_date — pulando`);
+          continue;
+        }
+        paymentDate = combo.payment_date;
+      }
+
+      // Resolve grain_reception_date
+      const grainReceptionDate = combo.grain_reception_date ?? paymentDate;
+
+      // Cost inheritance: combination overrides warehouse
+      const inheritCost = (field: keyof PricingCombination, basisField: string) => {
+        const val = combo[field];
+        if (val != null) return val;
+        return (basisConfig as Record<string, unknown>)[basisField] ?? null;
+      };
+
+      payload.push({
+        warehouse_id: combo.warehouse_id,
+        display_name: warehouse.display_name,
+        commodity: combo.commodity,
+        benchmark: combo.benchmark,
+        ticker: combo.ticker,
+        exp_date: expDate,
+        payment_date: paymentDate,
+        sale_date: combo.sale_date,
+        grain_reception_date: grainReceptionDate,
+        target_basis: combo.target_basis,
+        futures_price: market.price,
+        exchange_rate: spotRate,
+        additional_discount_brl: combo.additional_discount_brl,
+        interest_rate: inheritCost('interest_rate', 'interest_rate'),
+        storage_cost: inheritCost('storage_cost', 'storage_cost'),
+        storage_cost_type: inheritCost('storage_cost_type', 'storage_cost_type'),
+        reception_cost: inheritCost('reception_cost', 'reception_cost'),
+        brokerage_per_contract: inheritCost('brokerage_per_contract', 'brokerage_per_contract'),
+        desk_cost_pct: inheritCost('desk_cost_pct', 'desk_cost_pct'),
+        shrinkage_rate_monthly: inheritCost('shrinkage_rate_monthly', 'shrinkage_rate_monthly'),
+      });
     }
 
-    if (combinations.length === 0) {
-      toast.error('Nenhuma combinação válida — verifique basis_config dos armazéns');
+    if (payload.length === 0) {
+      toast.error('Nenhuma combinação válida — verifique tickers e market_data');
       return;
     }
 
     setGenerating(true);
     try {
       const result = await callApi<{ snapshots: Record<string, unknown>[] }>('/pricing/table', {
-        combinations,
+        combinations: payload,
       });
 
       if (result?.snapshots?.length) {
@@ -156,76 +156,29 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Gerar Tabela de Preços</DialogTitle>
-          <DialogDescription>Selecione as datas e os contratos para gerar a tabela.</DialogDescription>
+          <DialogDescription>
+            A tabela será gerada com base nas combinações ativas cadastradas em Configurações.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Sale Date */}
-          <div className="space-y-1.5">
-            <Label>Data de venda</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !saleDate && 'text-muted-foreground')}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {saleDate ? format(saleDate, 'dd/MM/yyyy') : 'Selecione'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={saleDate} onSelect={setSaleDate} initialFocus className="p-3 pointer-events-auto" />
-              </PopoverContent>
-            </Popover>
-          </div>
+        <div className="space-y-3 py-2">
+          <p className="text-sm">
+            <span className="font-semibold">{combinations?.length ?? 0}</span> combinações ativas para{' '}
+            <span className="font-semibold">{uniqueWarehouses}</span> armazéns
+          </p>
 
-          {/* Payment Date */}
-          <div className="space-y-1.5">
-            <Label>Data de pagamento</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !paymentDate && 'text-muted-foreground')}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {paymentDate ? format(paymentDate, 'dd/MM/yyyy') : 'Selecione'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} initialFocus className="p-3 pointer-events-auto" />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Spot Rate Display */}
           {spotRate !== null ? (
             <p className="text-xs text-muted-foreground">USD/BRL: {spotRate.toFixed(4)}</p>
           ) : (
             <p className="text-xs text-destructive">USD/BRL não disponível — atualize dados de mercado primeiro</p>
           )}
 
-          {/* Ticker Selection */}
-          <div className="space-y-2">
-            <Label>Contratos Soja CBOT</Label>
-            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-auto">
-              {tickerGroups.soja.map((m) => (
-                <label key={m.ticker} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox checked={selectedTickers.has(m.ticker)} onCheckedChange={() => toggleTicker(m.ticker)} />
-                  {m.ticker} ({m.exp_date})
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Contratos Milho CBOT</Label>
-            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-auto">
-              {tickerGroups.milho.map((m) => (
-                <label key={m.ticker} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox checked={selectedTickers.has(m.ticker)} onCheckedChange={() => toggleTicker(m.ticker)} />
-                  {m.ticker} ({m.exp_date})
-                </label>
-              ))}
-            </div>
-          </div>
+          {combinations?.length === 0 && (
+            <p className="text-xs text-destructive">Nenhuma combinação ativa. Cadastre combinações em Configurações → Combinações.</p>
+          )}
         </div>
 
         <DialogFooter>
