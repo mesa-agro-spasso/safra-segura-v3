@@ -264,6 +264,89 @@ export type Database = {
           },
         ]
       }
+      pricing_combinations: {
+        Row: {
+          active: boolean
+          additional_discount_brl: number
+          benchmark: string
+          brokerage_per_contract: number | null
+          commodity: string
+          created_at: string
+          desk_cost_pct: number | null
+          exp_date: string | null
+          grain_reception_date: string | null
+          id: string
+          interest_rate: number | null
+          is_spot: boolean
+          payment_date: string | null
+          reception_cost: number | null
+          sale_date: string
+          shrinkage_rate_monthly: number | null
+          storage_cost: number | null
+          storage_cost_type: string | null
+          target_basis: number
+          ticker: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          active?: boolean
+          additional_discount_brl?: number
+          benchmark: string
+          brokerage_per_contract?: number | null
+          commodity: string
+          created_at?: string
+          desk_cost_pct?: number | null
+          exp_date?: string | null
+          grain_reception_date?: string | null
+          id?: string
+          interest_rate?: number | null
+          is_spot?: boolean
+          payment_date?: string | null
+          reception_cost?: number | null
+          sale_date: string
+          shrinkage_rate_monthly?: number | null
+          storage_cost?: number | null
+          storage_cost_type?: string | null
+          target_basis: number
+          ticker: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          active?: boolean
+          additional_discount_brl?: number
+          benchmark?: string
+          brokerage_per_contract?: number | null
+          commodity?: string
+          created_at?: string
+          desk_cost_pct?: number | null
+          exp_date?: string | null
+          grain_reception_date?: string | null
+          id?: string
+          interest_rate?: number | null
+          is_spot?: boolean
+          payment_date?: string | null
+          reception_cost?: number | null
+          sale_date?: string
+          shrinkage_rate_monthly?: number | null
+          storage_cost?: number | null
+          storage_cost_type?: string | null
+          target_basis?: number
+          ticker?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_combinations_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_snapshots: {
         Row: {
           additional_discount_brl: number
