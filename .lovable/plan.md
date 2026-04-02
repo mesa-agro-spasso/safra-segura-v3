@@ -1,44 +1,50 @@
 
 
-# Tarefa 1 — Corrigir dropdown storage_cost_type + atualizar registro
+# Correção: NDF estimado como taxa de câmbio + atualização de memória
 
-## Correção no formulário (Settings.tsx, linhas 268-271)
+## Mudança no código
 
-Substituir as opções do Select de "Tipo armazenagem":
+**Arquivo: `src/components/GeneratePricingModal.tsx`**, linha 114.
 
-**De:**
-```
-<SelectItem value="per_sack">Por saca</SelectItem>
-<SelectItem value="percentage">Percentual</SelectItem>
-```
+Substituir `exchange_rate: spotRate` por lógica condicional:
 
-**Para:**
-```
-<SelectItem value="fixed">Fixo (R$/saca)</SelectItem>
-<SelectItem value="monthly">Mensal (R$/mês)</SelectItem>
-```
-
-O placeholder "Herdar do armazém" já salva `null` corretamente (linha 268: `v || null`).
-
-## Correção do registro com erro
-
-Usar `supabase--insert` para executar:
-```sql
-UPDATE pricing_combinations 
-SET storage_cost_type = NULL 
-WHERE id = '05d549ea-be43-491b-85d8-462b63358b1e';
+```typescript
+// Resolver exchange_rate por commodity/benchmark
+let exchangeRate: number | null = null;
+if (combo.commodity === 'soybean') {
+  exchangeRate = market.ndf_estimated ?? spotRate;
+} else if (combo.commodity === 'corn' && combo.benchmark === 'cbot') {
+  exchangeRate = spotRate;
+}
+// corn + b3: não envia exchange_rate (null)
 ```
 
-## Tarefa 2 — Salvar regras de domínio na memória
+E no payload: `exchange_rate: exchangeRate`
 
-Criar `mem://features/pricing-combinations-contract` com todas as regras de campos restritos informadas pelo usuário (commodity, benchmark, storage_cost_type, campos de custo null vs 0, target_basis, is_spot, grain_reception_date). Atualizar o index.
+Remover o `spotRate` do bloco `inputs_json` também — usar o mesmo `exchangeRate` resolvido.
+
+## Atualização de memória
+
+**Arquivo: `mem://features/pricing-combinations-contract`** — adicionar seção:
+
+```
+## exchange_rate (resolução)
+
+- soybean (CBOT): usar ndf_estimated do market_data do ticker. Fallback: USD/BRL spot.
+- corn (CBOT): usar USD/BRL spot.
+- corn (B3): não enviar exchange_rate.
+
+## Futuro: ndf_rate_override
+
+- Campo ainda não existe em pricing_combinations.
+- Quando implementado: ndf_rate_override prevalece sobre ndf_estimated. Quando null, usa ndf_estimated.
+- NÃO implementar agora — apenas documentar.
+```
 
 ## Arquivos modificados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/Settings.tsx` | Substituir 2 SelectItems do storage_cost_type |
-| `pricing_combinations` (DB) | UPDATE registro com id específico para `storage_cost_type = NULL` |
-| `mem://features/pricing-combinations-contract` | Novo — regras de domínio dos campos |
-| `mem://index.md` | Adicionar referência ao novo arquivo de memória |
+| `src/components/GeneratePricingModal.tsx` | Resolver exchange_rate por commodity/benchmark |
+| `mem://features/pricing-combinations-contract` | Adicionar regras de exchange_rate e nota sobre ndf_rate_override futuro |
 
