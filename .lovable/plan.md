@@ -1,46 +1,72 @@
 
 
-# Plano revisado — Gerar Tabela com resolução de basis
+# Combinações de Precificação — Plano de Implementação
 
-Nenhuma alteração estrutural ao plano anterior. Apenas confirmação dos dois pontos e detalhamento da função de resolução de basis.
+## Escopo
 
-## Ponto 1 — Confirmado
+4 arquivos: tipo atualizado, hook novo, Settings com aba Combinações, GeneratePricingModal refatorado.
 
-Mapeamento de commodity para chave do `basis_config`:
-- Ticker com `commodity = SOJA` → acessa `basis_config.soybean`
-- Ticker com `commodity = MILHO_CBOT` → acessa `basis_config.corn`
+## 1. Atualizar `src/types/index.ts`
 
-## Ponto 2 — Função de resolução recursiva de basis
+Substituir `PricingCombination` pelo tipo completo com todos os campos da tabela (id, warehouse_id, commodity, benchmark, ticker, exp_date, sale_date, payment_date, is_spot, grain_reception_date, target_basis, campos de custo opcionais, additional_discount_brl, active, created_at, updated_at).
 
-A função `resolveBasis` recebe o warehouse, a chave da commodity (`soybean` | `corn`), e um mapa de todos os warehouses. Resolve recursivamente até encontrar um `fixed`, com limite de profundidade para evitar loops infinitos.
+## 2. Criar `src/hooks/usePricingCombinations.ts`
 
-```text
-resolveBasis(warehouseId, commodityKey, warehouseMap, depth=0)
-  if depth > 5 → throw "Ciclo detectado"
-  config = warehouseMap[warehouseId].basis_config[commodityKey]
-  if !config → return null (warehouse sem basis para essa commodity)
-  if config.mode === "fixed" → return config.value
-  if config.mode === "reference_delta"
-    refBasis = resolveBasis(config.reference_warehouse_id, commodityKey, warehouseMap, depth+1)
-    if refBasis === null → return null
-    return refBasis + config.delta_brl
+- `usePricingCombinations(activeOnly?: boolean)` — SELECT * com filtro opcional `active = true`
+- `useUpsertPricingCombination()` — upsert mutation
+- `useTogglePricingCombinationActive()` — update apenas o campo `active`
+
+## 3. Refatorar `src/pages/Settings.tsx`
+
+Adicionar `Tabs` (Armazéns | Combinações).
+
+**Aba Combinações:**
+- Tabela com colunas: Armazém, Commodity, Ticker, Benchmark, Sale Date, Payment/Spot, Basis, Status, Ações
+- Filtro toggle ativo/inativo
+- Botão "Nova Combinação" abre Dialog
+- Edit e Toggle ativo inline por linha
+
+**Formulário:**
+- Select warehouse (dos ativos), Select commodity (soybean/corn), Select benchmark (cbot/b3)
+- Input ticker, exp_date (opcional), DatePicker sale_date
+- DatePicker payment_date (desabilitado quando is_spot=true), Switch is_spot
+- DatePicker grain_reception_date (opcional), Input target_basis, Input additional_discount_brl
+- Seção colapsável "Sobrescrever custos do armazém": interest_rate, storage_cost, storage_cost_type, reception_cost, brokerage_per_contract, desk_cost_pct, shrinkage_rate_monthly — todos opcionais com placeholder "Herdar do armazém"
+
+## 4. Refatorar `src/components/GeneratePricingModal.tsx`
+
+Remover DatePickers, seleção de tickers, e `resolveBasis`. O modal agora:
+
+1. Busca `pricing_combinations` ativas
+2. Busca `market_data` e `warehouses`
+3. Mostra resumo: "X combinações ativas para Y armazéns"
+4. Para cada combinação monta o payload:
+   - `exp_date`: da combinação ou fallback do market_data pelo ticker
+   - `payment_date`: se `is_spot=true`, `getNextTuesday(today)` (sempre T+7, nunca hoje); senão da combinação
+   - `grain_reception_date`: da combinação ou fallback para payment_date
+   - `exchange_rate`: USD/BRL de market_data
+   - `futures_price`: market_data.price pelo ticker
+   - `display_name`: do warehouse
+   - Campos de custo: da combinação quando não-null, senão do warehouse.basis_config
+5. Botão "Gerar" chama POST /pricing/table
+
+**Função `getNextTuesday`:**
+```typescript
+function getNextTuesday(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const daysUntilTuesday = day === 2 ? 7 : (2 - day + 7) % 7 || 7;
+  d.setDate(d.getDate() + daysUntilTuesday);
+  return d;
+}
 ```
-
-Com os dados reais:
-- Alta Floresta soja: resolve matupa (fixed -30) + delta -1 = **-31**
-- Alta Floresta milho: resolve matupa (fixed -25) + delta -1.5 = **-26.5**
-- Sede Madcap: basis_config vazio → **excluída** das combinations (sem basis = sem pricing)
 
 ## Arquivos
 
-Mesmo plano anterior — dois arquivos:
-- **`src/components/GeneratePricingModal.tsx`** — novo. Contém a função `resolveBasis`, o modal com DatePickers e seleção de tickers, e a lógica de montagem do payload completo.
-- **`src/pages/PricingTable.tsx`** — atualizado. Remove `handleGenerate` inline, substitui pelo modal.
-
-## Regras mantidas
-
-- Zero cálculo financeiro no frontend — `resolveBasis` é apenas lookup/soma de configuração, não pricing
-- Warehouses sem `basis_config` para a commodity são silenciosamente ignorados
-- `exchange_rate` vem do registro USD/BRL em market_data
-- Commodity enviada à API: `soybean` / `corn` (não `SOJA` / `MILHO_CBOT`)
+| Arquivo | Ação |
+|---|---|
+| `src/types/index.ts` | Atualizar PricingCombination |
+| `src/hooks/usePricingCombinations.ts` | Novo |
+| `src/pages/Settings.tsx` | Tabs + aba Combinações CRUD |
+| `src/components/GeneratePricingModal.tsx` | Refatorar para usar combinações |
 
