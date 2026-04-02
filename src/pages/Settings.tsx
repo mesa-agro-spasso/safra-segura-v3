@@ -126,6 +126,7 @@ function DateField({ label, value, onChange }: { label: string; value: string | 
 function CombinationsTab() {
   const { data: combinations, isLoading } = usePricingCombinations();
   const { data: warehouses } = useActiveArmazens();
+  const { data: marketData } = useMarketData();
   const upsert = useUpsertPricingCombination();
   const toggleActive = useTogglePricingCombinationActive();
   const [editing, setEditing] = useState<Partial<PricingCombination> | null>(null);
