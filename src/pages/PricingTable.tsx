@@ -12,6 +12,13 @@ import { GeneratePricingModal } from '@/components/GeneratePricingModal';
 
 const B3_CORN_TICKERS = ['CCMF27', 'CCMK27'];
 
+const formatDate = (d: string | null | undefined) => {
+  if (!d) return '-';
+  const parts = d.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return d;
+};
+
 const PricingTable = () => {
   const { data: snapshots, isLoading: loadingSnapshots } = usePricingSnapshots();
   const { data: marketData, isLoading: loadingMarket } = useMarketData();
@@ -28,27 +35,31 @@ const PricingTable = () => {
   const staleCorn = useMemo(() => staleTickers.filter((t) => B3_CORN_TICKERS.includes(t.ticker)), [staleTickers]);
   const staleOther = useMemo(() => staleTickers.filter((t) => !B3_CORN_TICKERS.includes(t.ticker)), [staleTickers]);
 
-  const latestSnapshot = snapshots?.[0];
-  const lastUpdated = latestSnapshot ? new Date(latestSnapshot.created_at) : null;
-
-  const grouped = useMemo(() => {
-    if (!snapshots?.length) return { warehouseIds: [], columns: [], matrix: {} };
-    const latest = snapshots[0].created_at;
-    const batch = snapshots.filter((s) => s.created_at === latest);
-    const warehouseIds = [...new Set(batch.map((s) => s.warehouse_id))];
-    const columns = [...new Set(batch.map((s) => `${s.commodity}|${s.ticker}|${s.payment_date}`))].sort();
-    const matrix: Record<string, typeof batch[0]> = {};
-    batch.forEach((s) => { matrix[`${s.warehouse_id}|${s.commodity}|${s.ticker}|${s.payment_date}`] = s; });
-    return { warehouseIds, columns, matrix };
-  }, [snapshots]);
-
   const warehouseMap = useMemo(() => {
     const map: Record<string, string> = {};
     warehouses?.forEach((w) => { map[w.id] = w.display_name; });
     return map;
   }, [warehouses]);
 
+  // Get latest batch of snapshots, sorted by warehouse > commodity > ticker
+  const rows = useMemo(() => {
+    if (!snapshots?.length) return [];
+    const latest = snapshots[0].created_at;
+    const batch = snapshots.filter((s) => s.created_at === latest);
+    return batch.sort((a, b) => {
+      const wA = warehouseMap[a.warehouse_id] ?? a.warehouse_id;
+      const wB = warehouseMap[b.warehouse_id] ?? b.warehouse_id;
+      if (wA !== wB) return wA.localeCompare(wB);
+      if (a.commodity !== b.commodity) return a.commodity.localeCompare(b.commodity);
+      return a.ticker.localeCompare(b.ticker);
+    });
+  }, [snapshots, warehouseMap]);
+
+  const lastUpdated = snapshots?.[0] ? new Date(snapshots[0].created_at) : null;
   const loading = loadingSnapshots || loadingMarket;
+
+  // Track which warehouse names have already been shown for row grouping
+  let lastWarehouse = '';
 
   return (
     <div className="space-y-4">
@@ -110,7 +121,7 @@ const PricingTable = () => {
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
-          ) : grouped.columns.length === 0 ? (
+          ) : rows.length === 0 ? (
             <p className="text-center text-muted-foreground py-12">Nenhum snapshot disponível. Clique em "Gerar Tabela".</p>
           ) : (
             <div className="overflow-auto">
@@ -118,45 +129,73 @@ const PricingTable = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Praça</TableHead>
-                    {grouped.columns.map((col) => {
-                      const [commodity, ticker, date] = col.split('|');
-                      return (
-                        <TableHead key={col} className="text-center">
-                          {commodity}<br />
-                          <span className="text-xs font-normal">{ticker} · {date}</span>
-                        </TableHead>
-                      );
-                    })}
+                    <TableHead>Commodity</TableHead>
+                    <TableHead>Ticker</TableHead>
+                    <TableHead className="text-center">Recepção</TableHead>
+                    <TableHead className="text-center">Pagamento</TableHead>
+                    <TableHead className="text-center">Venda</TableHead>
+                    <TableHead className="text-right">Basis Alvo</TableHead>
+                    <TableHead className="text-right">Futuros (BRL)</TableHead>
+                    <TableHead className="text-right">Câmbio</TableHead>
+                    <TableHead className="text-right">Preço Originação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {grouped.warehouseIds.map((wId) => (
-                    <TableRow key={wId}>
-                      <TableCell className="font-medium">{warehouseMap[wId] || wId}</TableCell>
-                      {grouped.columns.map((col) => {
-                        const [commodity, ticker, date] = col.split('|');
-                        const snap = grouped.matrix[`${wId}|${commodity}|${ticker}|${date}`];
-                        if (!snap) return <TableCell key={col} className="text-center">-</TableCell>;
-                        return (
-                          <TableCell key={col} className="text-center">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button className="font-bold text-primary hover:underline cursor-pointer">
-                                  R$ {snap.origination_price_brl.toFixed(2)}
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs text-left space-y-1">
-                                <p className="font-semibold">Detalhes</p>
-                                <p>Basis alvo: R$ {snap.target_basis_brl.toFixed(2)}</p>
-                                <p>Futuros: R$ {snap.futures_price_brl.toFixed(2)}</p>
-                                <p>Câmbio: {snap.exchange_rate?.toFixed(4) ?? '-'}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))}
+                  {rows.map((snap) => {
+                    const wName = warehouseMap[snap.warehouse_id] ?? snap.warehouse_id;
+                    const showWarehouse = wName !== lastWarehouse;
+                    lastWarehouse = wName;
+
+                    const outputs = snap.outputs_json as Record<string, any> | null;
+                    const costs = outputs?.costs as Record<string, any> | null;
+                    const totalCosts = costs?.total_brl ?? null;
+
+                    return (
+                      <TableRow key={snap.id} className={showWarehouse ? 'border-t-2 border-border' : ''}>
+                        <TableCell className="font-medium">
+                          {showWarehouse ? wName : ''}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${snap.commodity === 'soybean' ? 'bg-primary/10 text-primary' : 'bg-accent text-accent-foreground'}`}>
+                            {snap.commodity === 'soybean' ? 'Soja' : 'Milho'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{snap.ticker}</TableCell>
+                        <TableCell className="text-center text-xs">{formatDate(snap.grain_reception_date)}</TableCell>
+                        <TableCell className="text-center text-xs">{formatDate(snap.payment_date)}</TableCell>
+                        <TableCell className="text-center text-xs">{formatDate(snap.sale_date)}</TableCell>
+                        <TableCell className="text-right tabular-nums">R$ {snap.target_basis_brl.toFixed(2)}</TableCell>
+                        <TableCell className="text-right tabular-nums">R$ {snap.futures_price_brl.toFixed(2)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{snap.exchange_rate?.toFixed(4) ?? '-'}</TableCell>
+                        <TableCell className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button className="font-bold text-primary hover:underline cursor-pointer tabular-nums">
+                                R$ {snap.origination_price_brl.toFixed(2)}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs text-left space-y-1">
+                              <p className="font-semibold">Breakdown de Custos</p>
+                              {costs && (
+                                <>
+                                  {costs.financial_brl != null && <p>Financeiro: R$ {Number(costs.financial_brl).toFixed(2)}</p>}
+                                  {costs.storage_brl != null && <p>Armazenagem: R$ {Number(costs.storage_brl).toFixed(2)}</p>}
+                                  {costs.brokerage_brl != null && <p>Corretagem: R$ {Number(costs.brokerage_brl).toFixed(2)}</p>}
+                                  {costs.desk_brl != null && <p>Mesa: R$ {Number(costs.desk_brl).toFixed(2)}</p>}
+                                  {costs.reception_brl != null && <p>Recepção: R$ {Number(costs.reception_brl).toFixed(2)}</p>}
+                                  {totalCosts != null && <p className="font-semibold border-t border-border pt-1">Total: R$ {Number(totalCosts).toFixed(2)}</p>}
+                                </>
+                              )}
+                              <p className="border-t border-border pt-1">Basis alvo: R$ {snap.target_basis_brl.toFixed(2)}</p>
+                              <p>Futuros: R$ {snap.futures_price_brl.toFixed(2)}</p>
+                              <p>Câmbio: {snap.exchange_rate?.toFixed(4) ?? '-'}</p>
+                              {snap.additional_discount_brl > 0 && <p>Desconto: R$ {snap.additional_discount_brl.toFixed(2)}</p>}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

@@ -217,6 +217,7 @@ function CombinationsTab() {
                             if (commodity === 'corn') return m.commodity === 'MILHO_CBOT';
                             return false;
                           })
+                          .sort((a, b) => (a.exp_date ?? '').localeCompare(b.exp_date ?? ''))
                           .map((m) => (
                             <SelectItem key={m.ticker} value={m.ticker}>{m.ticker}{m.exp_date ? ` (${m.exp_date})` : ''}</SelectItem>
                           ))}
