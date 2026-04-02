@@ -1,72 +1,49 @@
 
 
-# Combinações de Precificação — Plano de Implementação
+# Fix: "API retornou 0 snapshots" + Ticker dropdown
 
-## Escopo
+## Problema 1 — API retorna `results`, não `snapshots`
 
-4 arquivos: tipo atualizado, hook novo, Settings com aba Combinações, GeneratePricingModal refatorado.
+O teste direto da API confirmou: a resposta usa `{ results: [...] }`, mas o frontend procura `result.snapshots`. Por isso sempre mostra "API retornou 0 snapshots".
 
-## 1. Atualizar `src/types/index.ts`
+Além disso, os campos retornados pela API diferem do que o `saveSnapshots` espera para inserir em `pricing_snapshots`. Mapeamento necessário:
 
-Substituir `PricingCombination` pelo tipo completo com todos os campos da tabela (id, warehouse_id, commodity, benchmark, ticker, exp_date, sale_date, payment_date, is_spot, grain_reception_date, target_basis, campos de custo opcionais, additional_discount_brl, active, created_at, updated_at).
-
-## 2. Criar `src/hooks/usePricingCombinations.ts`
-
-- `usePricingCombinations(activeOnly?: boolean)` — SELECT * com filtro opcional `active = true`
-- `useUpsertPricingCombination()` — upsert mutation
-- `useTogglePricingCombinationActive()` — update apenas o campo `active`
-
-## 3. Refatorar `src/pages/Settings.tsx`
-
-Adicionar `Tabs` (Armazéns | Combinações).
-
-**Aba Combinações:**
-- Tabela com colunas: Armazém, Commodity, Ticker, Benchmark, Sale Date, Payment/Spot, Basis, Status, Ações
-- Filtro toggle ativo/inativo
-- Botão "Nova Combinação" abre Dialog
-- Edit e Toggle ativo inline por linha
-
-**Formulário:**
-- Select warehouse (dos ativos), Select commodity (soybean/corn), Select benchmark (cbot/b3)
-- Input ticker, exp_date (opcional), DatePicker sale_date
-- DatePicker payment_date (desabilitado quando is_spot=true), Switch is_spot
-- DatePicker grain_reception_date (opcional), Input target_basis, Input additional_discount_brl
-- Seção colapsável "Sobrescrever custos do armazém": interest_rate, storage_cost, storage_cost_type, reception_cost, brokerage_per_contract, desk_cost_pct, shrinkage_rate_monthly — todos opcionais com placeholder "Herdar do armazém"
-
-## 4. Refatorar `src/components/GeneratePricingModal.tsx`
-
-Remover DatePickers, seleção de tickers, e `resolveBasis`. O modal agora:
-
-1. Busca `pricing_combinations` ativas
-2. Busca `market_data` e `warehouses`
-3. Mostra resumo: "X combinações ativas para Y armazéns"
-4. Para cada combinação monta o payload:
-   - `exp_date`: da combinação ou fallback do market_data pelo ticker
-   - `payment_date`: se `is_spot=true`, `getNextTuesday(today)` (sempre T+7, nunca hoje); senão da combinação
-   - `grain_reception_date`: da combinação ou fallback para payment_date
-   - `exchange_rate`: USD/BRL de market_data
-   - `futures_price`: market_data.price pelo ticker
-   - `display_name`: do warehouse
-   - Campos de custo: da combinação quando não-null, senão do warehouse.basis_config
-5. Botão "Gerar" chama POST /pricing/table
-
-**Função `getNextTuesday`:**
-```typescript
-function getNextTuesday(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const daysUntilTuesday = day === 2 ? 7 : (2 - day + 7) % 7 || 7;
-  d.setDate(d.getDate() + daysUntilTuesday);
-  return d;
-}
-```
-
-## Arquivos
-
-| Arquivo | Ação |
+| API response field | pricing_snapshots column |
 |---|---|
-| `src/types/index.ts` | Atualizar PricingCombination |
-| `src/hooks/usePricingCombinations.ts` | Novo |
-| `src/pages/Settings.tsx` | Tabs + aba Combinações CRUD |
-| `src/components/GeneratePricingModal.tsx` | Refatorar para usar combinações |
+| `target_basis_brl` | `target_basis_brl` ✓ |
+| `origination_price_brl` | `origination_price_brl` ✓ |
+| `futures_price_brl` | `futures_price_brl` ✓ |
+| `trade_date_used` | `trade_date` |
+| `costs` (object) | parte de `outputs_json` |
+| `insurance` (object) | `insurance_json` |
+| `purchased_basis_brl`, `gross_price_brl`, `breakeven_basis_brl` | `outputs_json` |
+| `exchange_rate` | não retornado — precisa injetar do payload |
+| `inputs_json` | não retornado — montar do payload original |
+
+### Correção em `GeneratePricingModal.tsx`:
+
+1. Ler `result.results` em vez de `result.snapshots`
+2. Para cada item retornado, mapear para o schema de `pricing_snapshots`:
+   - `trade_date` = `trade_date_used`
+   - `exchange_rate` = do payload original (spotRate)
+   - `inputs_json` = objeto com campos de entrada (futures_price, exchange_rate, target_basis, etc.)
+   - `outputs_json` = `{ costs, purchased_basis_brl, gross_price_brl, breakeven_basis_brl }`
+   - `insurance_json` = `insurance`
+   - `additional_discount_brl` = do resultado
+   - Demais campos diretos: warehouse_id, ticker, commodity, benchmark, payment_date, sale_date, grain_reception_date, target_basis_brl, origination_price_brl, futures_price_brl
+
+## Problema 2 — Ticker como input de texto
+
+Atualmente o campo Ticker é um `<Input>` livre. Trocar por `<Select>` populado com os tickers de `market_data`, filtrados pela commodity selecionada:
+- `soybean` → tickers onde `commodity = 'SOJA'`
+- `corn` → tickers onde `commodity = 'MILHO_CBOT'`
+
+Usar `useMarketData()` no `CombinationsTab` para buscar os tickers disponíveis.
+
+## Arquivos modificados
+
+| Arquivo | Mudança |
+|---|---|
+| `src/components/GeneratePricingModal.tsx` | Ler `results` em vez de `snapshots`, mapear campos para schema do DB |
+| `src/pages/Settings.tsx` | Importar `useMarketData`, trocar Input do ticker por Select filtrado por commodity |
 
