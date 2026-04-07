@@ -55,7 +55,25 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     return new Set(combinations.map((c) => c.warehouse_id)).size;
   }, [combinations]);
 
-  const canGenerate = (combinations?.length ?? 0) > 0 && spotRate !== null;
+  const { cbotCombos, b3Combos, b3MissingPrice } = useMemo(() => {
+    const cbot: PricingCombination[] = [];
+    const b3: PricingCombination[] = [];
+    const missing: string[] = [];
+    for (const c of combinations ?? []) {
+      if (c.commodity === 'corn' && c.benchmark === 'b3') {
+        b3.push(c);
+        const m = marketMap[c.ticker];
+        if (!m || m.price == null) missing.push(c.ticker);
+      } else {
+        cbot.push(c);
+      }
+    }
+    return { cbotCombos: cbot, b3Combos: b3, b3MissingPrice: missing };
+  }, [combinations, marketMap]);
+
+  const needsSpot = cbotCombos.length > 0;
+  const canGenerate = (combinations?.length ?? 0) > 0
+    && (!needsSpot || spotRate !== null);
 
   const handleGenerate = async () => {
     if (!canGenerate || !combinations || !marketData || !warehouses) return;
@@ -64,6 +82,12 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
     for (const combo of combinations) {
       const market = marketMap[combo.ticker];
+
+      // B3 combo without price — already warned in modal UI, skip silently
+      if (combo.commodity === 'corn' && combo.benchmark === 'b3' && (!market || market.price == null)) {
+        continue;
+      }
+
       if (!market) {
         toast.warning(`Ticker ${combo.ticker} não encontrado em market_data — pulando`);
         continue;
@@ -221,10 +245,28 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             <span className="font-semibold">{uniqueWarehouses}</span> armazéns
           </p>
 
-          {spotRate !== null ? (
-            <p className="text-xs text-muted-foreground">USD/BRL: {spotRate.toFixed(4)}</p>
+          {needsSpot ? (
+            spotRate !== null ? (
+              <p className="text-xs text-muted-foreground">USD/BRL: {spotRate.toFixed(4)}</p>
+            ) : (
+              <p className="text-xs text-destructive">USD/BRL não disponível — atualize dados de mercado primeiro</p>
+            )
           ) : (
-            <p className="text-xs text-destructive">USD/BRL não disponível — atualize dados de mercado primeiro</p>
+            <p className="text-xs text-muted-foreground">Câmbio não necessário (apenas combinações B3)</p>
+          )}
+
+          {b3MissingPrice.length > 0 && (
+            <div className="rounded border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-1">
+              <p className="text-xs font-semibold text-yellow-500">
+                ⚠ {b3MissingPrice.length} ticker(s) B3 sem preço — serão pulados:
+              </p>
+              <ul className="text-xs text-yellow-400 list-disc pl-4">
+                {b3MissingPrice.map(t => <li key={t}>{t}</li>)}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Preencha os preços na aba Mercado → Milho B3 antes de gerar.
+              </p>
+            </div>
           )}
 
           {combinations?.length === 0 && (

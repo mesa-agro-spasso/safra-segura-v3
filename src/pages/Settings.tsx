@@ -193,16 +193,23 @@ function CombinationsTab() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Commodity</Label>
-                    <Select value={editing.commodity ?? 'soybean'} onValueChange={(v) => setEditing({ ...editing, commodity: v })}>
+                    <Select value={editing.commodity ?? 'soybean'} onValueChange={(v) => {
+                      const updates: Record<string, unknown> = { ...editing, commodity: v, ticker: '' };
+                      if (v === 'soybean' && editing.benchmark === 'b3') updates.benchmark = 'cbot';
+                      setEditing(updates as typeof editing);
+                    }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent><SelectItem value="soybean">Soja (soybean)</SelectItem><SelectItem value="corn">Milho (corn)</SelectItem></SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Benchmark</Label>
-                    <Select value={editing.benchmark ?? 'cbot'} onValueChange={(v) => setEditing({ ...editing, benchmark: v })}>
+                    <Select value={editing.benchmark ?? 'cbot'} onValueChange={(v) => setEditing({ ...editing, benchmark: v, ticker: '' })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="cbot">CBOT</SelectItem><SelectItem value="b3">B3</SelectItem></SelectContent>
+                      <SelectContent>
+                        <SelectItem value="cbot">CBOT</SelectItem>
+                        {(editing.commodity ?? 'soybean') !== 'soybean' && <SelectItem value="b3">B3</SelectItem>}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
@@ -213,8 +220,10 @@ function CombinationsTab() {
                         {marketData
                           ?.filter((m) => {
                             const commodity = editing.commodity ?? 'soybean';
-                            if (commodity === 'soybean') return m.commodity === 'SOJA';
-                            if (commodity === 'corn') return m.commodity === 'MILHO_CBOT';
+                            const benchmark = editing.benchmark ?? 'cbot';
+                            if (commodity === 'soybean' && benchmark === 'cbot') return m.commodity === 'SOJA';
+                            if (commodity === 'corn' && benchmark === 'cbot') return m.commodity === 'MILHO_CBOT';
+                            if (commodity === 'corn' && benchmark === 'b3') return m.commodity === 'MILHO';
                             return false;
                           })
                           .sort((a, b) => (a.exp_date ?? '').localeCompare(b.exp_date ?? ''))
