@@ -119,7 +119,7 @@ const Market = () => {
     try {
       await upsertMarket.mutateAsync({
         ticker,
-        commodity: existing?.commodity ?? 'UNKNOWN',
+        commodity: existing?.commodity ?? (ticker.startsWith('CCM') ? 'MILHO' : 'UNKNOWN'),
         price,
         currency: existing?.currency ?? 'BRL',
         source: 'manual',
