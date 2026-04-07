@@ -24,7 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
@@ -35,41 +35,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         console.error('Error fetching profile:', error.message);
         setProfile(null);
-        return;
+        return null;
       }
 
-      setProfile(data as UserProfile | null);
+      const p = data as UserProfile | null;
+      setProfile(p);
+      return p;
     } catch {
       setProfile(null);
+      return null;
     }
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+
     // Set up auth listener BEFORE getting session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // Use setTimeout to avoid Supabase deadlock
-        setTimeout(() => fetchProfile(session.user.id), 0);
+        await fetchProfile(session.user.id);
       } else {
         setProfile(null);
       }
-      setLoading(false);
+      if (mounted) setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setLoading(false);
+        await fetchProfile(session.user.id);
       }
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const refreshProfile = useCallback(async () => {
