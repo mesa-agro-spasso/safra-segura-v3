@@ -82,6 +82,12 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
     for (const combo of combinations) {
       const market = marketMap[combo.ticker];
+
+      // B3 combo without price — already warned in modal UI, skip silently
+      if (combo.commodity === 'corn' && combo.benchmark === 'b3' && (!market || market.price == null)) {
+        continue;
+      }
+
       if (!market) {
         toast.warning(`Ticker ${combo.ticker} não encontrado em market_data — pulando`);
         continue;
