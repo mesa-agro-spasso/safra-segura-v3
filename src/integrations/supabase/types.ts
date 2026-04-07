@@ -428,6 +428,45 @@ export type Database = {
           },
         ]
       }
+      user_profiles: {
+        Row: {
+          access_level: string
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          is_admin: boolean
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          access_level?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          is_admin?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_level?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          is_admin?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           active: boolean
@@ -501,6 +540,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_status: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -508,6 +548,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"
