@@ -119,7 +119,7 @@ const Market = () => {
     try {
       await upsertMarket.mutateAsync({
         ticker,
-        commodity: existing?.commodity ?? 'UNKNOWN',
+        commodity: existing?.commodity ?? (ticker.startsWith('CCM') ? 'MILHO' : 'UNKNOWN'),
         price,
         currency: existing?.currency ?? 'BRL',
         source: 'manual',
@@ -137,7 +137,22 @@ const Market = () => {
   const soybeanRows = (marketData?.filter(m => m.commodity === 'SOJA') ?? []).sort(sortByExpDate);
   const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT') ?? []).sort(sortByExpDate);
   const fxRow = dataMap['USD/BRL'];
-  const cornB3Rows = (marketData?.filter(m => m.commodity === 'MILHO') ?? []).sort(sortByExpDate);
+  const cornB3Saved = (marketData?.filter(m => m.commodity === 'MILHO') ?? []);
+  const cornB3SavedMap = Object.fromEntries(cornB3Saved.map(r => [r.ticker, r]));
+
+  const B3_TICKERS = [
+    { ticker: 'CCMK26', exp_date: '2026-05-01' },
+    { ticker: 'CCMN26', exp_date: '2026-07-01' },
+    { ticker: 'CCMU26', exp_date: '2026-09-01' },
+    { ticker: 'CCMF27', exp_date: '2027-01-01' },
+    { ticker: 'CCMH27', exp_date: '2027-03-01' },
+    { ticker: 'CCMK27', exp_date: '2027-05-01' },
+  ];
+
+  const cornB3Rows = B3_TICKERS.map(t => ({
+    ...t,
+    saved: cornB3SavedMap[t.ticker] ?? null,
+  }));
 
   const renderEditCell = (ticker: string, currentPrice?: number) => {
     if (editingTicker === ticker) {
@@ -285,39 +300,41 @@ const Market = () => {
             </CardContent>
           </Card>
 
-          {/* Corn B3 manual */}
-          {cornB3Rows.length > 0 && (
-            <Card className="border-[hsl(var(--warning))]">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Milho B3 (Manual)</CardTitle>
-                <p className="text-xs text-[hsl(var(--warning))] font-medium">Atualização manual obrigatória</p>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Ticker</TableHead>
-                      <TableHead className="text-right">Preço (R$)</TableHead>
-                      <TableHead className="text-right">Atualizado</TableHead>
-                      <TableHead></TableHead>
+          {/* Corn B3 manual — always visible */}
+          <Card className="border-[hsl(var(--warning))]">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Milho B3 (Manual)</CardTitle>
+              <p className="text-xs text-[hsl(var(--warning))] font-medium">Atualização manual obrigatória</p>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ticker</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead className="text-right">Preço (R$/sc)</TableHead>
+                    <TableHead className="text-right">Atualizado</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cornB3Rows.map((row) => (
+                    <TableRow key={row.ticker}>
+                      <TableCell className="font-medium">{row.ticker}</TableCell>
+                      <TableCell>{row.exp_date}</TableCell>
+                      <TableCell className="text-right">
+                        {row.saved ? `R$ ${row.saved.price.toFixed(2)}` : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className={`text-right text-xs ${row.saved ? (getHoursAgo(row.saved.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground') : 'text-[hsl(var(--warning))]'}`}>
+                        {row.saved ? `${getHoursAgo(row.saved.updated_at)}h · ${row.saved.source}` : 'Sem dados'}
+                      </TableCell>
+                      <TableCell>{renderEditCell(row.ticker, row.saved?.price)}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {cornB3Rows.map((row) => (
-                      <TableRow key={row.ticker}>
-                        <TableCell className="font-medium">{row.ticker}</TableCell>
-                        <TableCell className="text-right">R$ {row.price.toFixed(2)}</TableCell>
-                        <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
-                          {getHoursAgo(row.updated_at)}h · {row.source}
-                        </TableCell>
-                        <TableCell>{renderEditCell(row.ticker, row.price)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>
