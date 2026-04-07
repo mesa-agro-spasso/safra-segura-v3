@@ -48,17 +48,23 @@ const AdminUsers = () => {
     fetchProfiles();
   }, []);
 
-  const updateProfile = async (id: string, updates: Partial<UserProfile>) => {
-    const { error } = await supabase
-      .from('user_profiles')
-      .update(updates)
-      .eq('id', id);
+  const updateProfile = async (id: string, updates: Record<string, unknown>) => {
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update(updates as never)
+        .eq('id', id);
 
-    if (error) {
-      toast.error('Erro ao atualizar usuário: ' + error.message);
+      if (error) {
+        toast.error('Erro ao atualizar usuário: ' + error.message);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+      toast.error('Erro ao atualizar: ' + msg);
       return false;
     }
-    return true;
   };
 
   const handleApprove = async (id: string) => {
