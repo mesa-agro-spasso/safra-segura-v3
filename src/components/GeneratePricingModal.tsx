@@ -239,10 +239,28 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             <span className="font-semibold">{uniqueWarehouses}</span> armazéns
           </p>
 
-          {spotRate !== null ? (
-            <p className="text-xs text-muted-foreground">USD/BRL: {spotRate.toFixed(4)}</p>
+          {needsSpot ? (
+            spotRate !== null ? (
+              <p className="text-xs text-muted-foreground">USD/BRL: {spotRate.toFixed(4)}</p>
+            ) : (
+              <p className="text-xs text-destructive">USD/BRL não disponível — atualize dados de mercado primeiro</p>
+            )
           ) : (
-            <p className="text-xs text-destructive">USD/BRL não disponível — atualize dados de mercado primeiro</p>
+            <p className="text-xs text-muted-foreground">Câmbio não necessário (apenas combinações B3)</p>
+          )}
+
+          {b3MissingPrice.length > 0 && (
+            <div className="rounded border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-1">
+              <p className="text-xs font-semibold text-yellow-500">
+                ⚠ {b3MissingPrice.length} ticker(s) B3 sem preço — serão pulados:
+              </p>
+              <ul className="text-xs text-yellow-400 list-disc pl-4">
+                {b3MissingPrice.map(t => <li key={t}>{t}</li>)}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Preencha os preços na aba Mercado → Milho B3 antes de gerar.
+              </p>
+            </div>
           )}
 
           {combinations?.length === 0 && (
