@@ -193,7 +193,11 @@ function CombinationsTab() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Commodity</Label>
-                    <Select value={editing.commodity ?? 'soybean'} onValueChange={(v) => setEditing({ ...editing, commodity: v })}>
+                    <Select value={editing.commodity ?? 'soybean'} onValueChange={(v) => {
+                      const updates: Record<string, unknown> = { ...editing, commodity: v, ticker: '' };
+                      if (v === 'soybean' && editing.benchmark === 'b3') updates.benchmark = 'cbot';
+                      setEditing(updates as typeof editing);
+                    }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent><SelectItem value="soybean">Soja (soybean)</SelectItem><SelectItem value="corn">Milho (corn)</SelectItem></SelectContent>
                     </Select>
