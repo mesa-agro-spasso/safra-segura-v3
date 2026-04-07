@@ -210,13 +210,14 @@ function CombinationsTab() {
                     <Select value={editing.ticker ?? ''} onValueChange={(v) => setEditing({ ...editing, ticker: v })}>
                       <SelectTrigger><SelectValue placeholder="Selecione o ticker" /></SelectTrigger>
                       <SelectContent>
-                        {marketData
-                          ?.filter((m) => {
-                            const commodity = editing.commodity ?? 'soybean';
-                            if (commodity === 'soybean') return m.commodity === 'SOJA';
-                            if (commodity === 'corn') return m.commodity === 'MILHO_CBOT';
-                            return false;
-                          })
+                        {(() => {
+                          const commodity = editing.commodity ?? 'soybean';
+                          const benchmark = editing.benchmark ?? 'cbot';
+                          if (commodity === 'soybean') return marketData?.filter(m => m.commodity === 'SOJA');
+                          if (commodity === 'corn' && benchmark === 'b3') return marketData?.filter(m => m.commodity === 'MILHO');
+                          if (commodity === 'corn') return marketData?.filter(m => m.commodity === 'MILHO_CBOT');
+                          return [];
+                        })()
                           .sort((a, b) => (a.exp_date ?? '').localeCompare(b.exp_date ?? ''))
                           .map((m) => (
                             <SelectItem key={m.ticker} value={m.ticker}>{m.ticker}{m.exp_date ? ` (${m.exp_date})` : ''}</SelectItem>
