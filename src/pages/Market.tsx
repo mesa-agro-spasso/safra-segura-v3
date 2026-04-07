@@ -137,7 +137,22 @@ const Market = () => {
   const soybeanRows = (marketData?.filter(m => m.commodity === 'SOJA') ?? []).sort(sortByExpDate);
   const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT') ?? []).sort(sortByExpDate);
   const fxRow = dataMap['USD/BRL'];
-  const cornB3Rows = (marketData?.filter(m => m.commodity === 'MILHO') ?? []).sort(sortByExpDate);
+  const cornB3Saved = (marketData?.filter(m => m.commodity === 'MILHO') ?? []);
+  const cornB3SavedMap = Object.fromEntries(cornB3Saved.map(r => [r.ticker, r]));
+
+  const B3_TICKERS = [
+    { ticker: 'CCMK26', exp_date: '2026-05-01' },
+    { ticker: 'CCMN26', exp_date: '2026-07-01' },
+    { ticker: 'CCMU26', exp_date: '2026-09-01' },
+    { ticker: 'CCMF27', exp_date: '2027-01-01' },
+    { ticker: 'CCMH27', exp_date: '2027-03-01' },
+    { ticker: 'CCMK27', exp_date: '2027-05-01' },
+  ];
+
+  const cornB3Rows = B3_TICKERS.map(t => ({
+    ...t,
+    saved: cornB3SavedMap[t.ticker] ?? null,
+  }));
 
   const renderEditCell = (ticker: string, currentPrice?: number) => {
     if (editingTicker === ticker) {
