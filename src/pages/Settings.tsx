@@ -204,9 +204,12 @@ function CombinationsTab() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Benchmark</Label>
-                    <Select value={editing.benchmark ?? 'cbot'} onValueChange={(v) => setEditing({ ...editing, benchmark: v })}>
+                    <Select value={editing.benchmark ?? 'cbot'} onValueChange={(v) => setEditing({ ...editing, benchmark: v, ticker: '' })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="cbot">CBOT</SelectItem><SelectItem value="b3">B3</SelectItem></SelectContent>
+                      <SelectContent>
+                        <SelectItem value="cbot">CBOT</SelectItem>
+                        {(editing.commodity ?? 'soybean') !== 'soybean' && <SelectItem value="b3">B3</SelectItem>}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
