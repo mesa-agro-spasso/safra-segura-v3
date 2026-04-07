@@ -55,7 +55,25 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     return new Set(combinations.map((c) => c.warehouse_id)).size;
   }, [combinations]);
 
-  const canGenerate = (combinations?.length ?? 0) > 0 && spotRate !== null;
+  const { cbotCombos, b3Combos, b3MissingPrice } = useMemo(() => {
+    const cbot: PricingCombination[] = [];
+    const b3: PricingCombination[] = [];
+    const missing: string[] = [];
+    for (const c of combinations ?? []) {
+      if (c.commodity === 'corn' && c.benchmark === 'b3') {
+        b3.push(c);
+        const m = marketMap[c.ticker];
+        if (!m || m.price == null) missing.push(c.ticker);
+      } else {
+        cbot.push(c);
+      }
+    }
+    return { cbotCombos: cbot, b3Combos: b3, b3MissingPrice: missing };
+  }, [combinations, marketMap]);
+
+  const needsSpot = cbotCombos.length > 0;
+  const canGenerate = (combinations?.length ?? 0) > 0
+    && (!needsSpot || spotRate !== null);
 
   const handleGenerate = async () => {
     if (!canGenerate || !combinations || !marketData || !warehouses) return;
