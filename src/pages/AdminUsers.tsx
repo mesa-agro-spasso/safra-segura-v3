@@ -185,7 +185,7 @@ const AdminUsers = () => {
                   <TableCell>
                     <Select
                       value={p.access_level}
-                      onValueChange={(val) => handleChangeAccessLevel(p.id, val)}
+                      onValueChange={(val) => handleChangeAccessLevel(p.id, val as 'limited' | 'full')}
                     >
                       <SelectTrigger className="w-24 h-8 text-xs">
                         <SelectValue />
