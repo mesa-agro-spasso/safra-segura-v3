@@ -97,6 +97,19 @@ export interface MtmSnapshot {
   calculated_at: string;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  status: 'pending' | 'active' | 'disabled';
+  access_level: 'limited' | 'full';
+  is_admin: boolean;
+  created_at: string;
+  updated_at: string;
+  approved_at: string | null;
+  approved_by: string | null;
+}
+
 export interface PricingCombination {
   id: string;
   warehouse_id: string;
