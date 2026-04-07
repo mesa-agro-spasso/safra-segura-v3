@@ -139,6 +139,13 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
     setGenerating(true);
     try {
+      // Warm-up ping to wake Render from cold start
+      try {
+        await callApi('/market/quotes', undefined, { method: 'GET', query: { tickers: 'USD/BRL' } });
+      } catch {
+        // Ignore warm-up errors — server may already be awake
+      }
+
       const result = await callApi<{ results: Record<string, unknown>[] }>('/pricing/table', {
         combinations: payload,
       });
