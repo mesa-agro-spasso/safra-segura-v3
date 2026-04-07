@@ -101,7 +101,7 @@ const AdminUsers = () => {
     }
   };
 
-  const handleChangeAccessLevel = async (id: string, level: string) => {
+  const handleChangeAccessLevel = async (id: string, level: 'limited' | 'full') => {
     const ok = await updateProfile(id, { access_level: level });
     if (ok) {
       toast.success('Nível de acesso alterado');
