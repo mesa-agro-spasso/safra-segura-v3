@@ -220,8 +220,10 @@ function CombinationsTab() {
                         {marketData
                           ?.filter((m) => {
                             const commodity = editing.commodity ?? 'soybean';
-                            if (commodity === 'soybean') return m.commodity === 'SOJA';
-                            if (commodity === 'corn') return m.commodity === 'MILHO_CBOT';
+                            const benchmark = editing.benchmark ?? 'cbot';
+                            if (commodity === 'soybean' && benchmark === 'cbot') return m.commodity === 'SOJA';
+                            if (commodity === 'corn' && benchmark === 'cbot') return m.commodity === 'MILHO_CBOT';
+                            if (commodity === 'corn' && benchmark === 'b3') return m.commodity === 'MILHO';
                             return false;
                           })
                           .sort((a, b) => (a.exp_date ?? '').localeCompare(b.exp_date ?? ''))
