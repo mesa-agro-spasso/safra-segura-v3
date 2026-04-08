@@ -1,40 +1,102 @@
 
 
-# Milho B3 — Plano Final Confirmado
+# Integração Milho B3 — Pricing Combinations, Modal de Geração e Ordens
 
-## Alteração: apenas `src/pages/Market.tsx`
+## Arquivos alterados
 
-### Novos estados
-- `b3Tickers`: array de `{ ticker, exp_date }` do endpoint
-- `b3Prices`: `Record<string, { price: number | null, updated_at: string, source: string }>` do Supabase
-- `b3Loading`, `b3Error`: controle de estados
+| Arquivo | Mudança |
+|---|---|
+| `src/pages/Settings.tsx` | Filtro ticker + bloqueio soybean+b3 + limpar ticker ao mudar commodity/benchmark |
+| `src/components/GeneratePricingModal.tsx` | canGenerate relaxado, aviso prévio de B3 sem preço |
+| `src/pages/Orders.tsx` | Label do snapshot com benchmark |
+| `mem://features/b3-corn-pricing-integration` | Novo — contrato do feature |
 
-### useEffect no mount
-1. Chamar `callApi<B3Response>('/market/b3-corn-quotes', undefined, { method: 'GET', query: { quantity: '10' } })`
-2. Com os tickers retornados, consultar Supabase direto: `supabase.from('market_data').select('ticker, price, updated_at, source').eq('commodity', 'MILHO').in('ticker', tickers)`
-3. Mesclar em `b3Prices`
+## Fase 1 — Settings.tsx (dropdown de ticker)
 
-### SELECT inclui `updated_at` e `source`
-Confirmado necessário — usados para exibir freshness e alerta 24h (mesmo padrão da seção atual).
+### 1a. Bloqueio soybean + b3
+Linhas 201-206: quando `commodity === 'soybean'`, o dropdown de benchmark só mostra `CBOT` (remover o `SelectItem value="b3"`). Implementar condicionalmente:
 
-### Substituição das linhas 288-320
-Remover bloco condicional `cornB3Rows.length > 0`. Substituir por Card sempre renderizada:
-- Título "Milho B3 (Manual)" + aviso amarelo
-- Colunas: Ticker | Vencimento | Preço (BRL/saca) | Atualizado | Ação
-- Preço: Input editável (number, step 0.01)
-- Atualizado: freshness com alerta 24h (mesmo padrão existente)
-- Ação: botão salvar usando `renderEditCell` existente
-- Upsert com contrato fixo: `commodity:'MILHO', currency:'BRL', price_unit:'BRL/sack', source:'manual', exchange_rate:null, ndf_*:null`
+```tsx
+<SelectContent>
+  <SelectItem value="cbot">CBOT</SelectItem>
+  {(editing.commodity ?? 'soybean') !== 'soybean' && (
+    <SelectItem value="b3">B3</SelectItem>
+  )}
+</SelectContent>
+```
 
-### Estados UI
-- Loading: spinner
-- Erro API: "Aguardando servidor acordar..." (mesmo padrão)
-- Zero tickers: "Nenhum contrato B3 disponível"
-- Preço vazio: sem ação (sem delete)
+Adicionalmente, no `onValueChange` de commodity: se mudar para `soybean` e benchmark atual é `b3`, resetar benchmark para `cbot`.
 
-### Não alterado
-- `cornB3Rows` filter removido (não mais necessário — tickers vêm da API)
-- Tabelas Soja CBOT e Milho CBOT intocadas
-- Hook `useMarketData` e `useUpsertMarketData` reutilizados sem mudança
-- Nenhuma Edge Function, SQL ou schema alterado
+### 1b. Filtro de ticker com benchmark
+Linhas 213-219: substituir filtro por versão com benchmark:
+
+```tsx
+.filter((m) => {
+  const commodity = editing.commodity ?? 'soybean';
+  const benchmark = editing.benchmark ?? 'cbot';
+  if (commodity === 'soybean' && benchmark === 'cbot') return m.commodity === 'SOJA';
+  if (commodity === 'corn' && benchmark === 'cbot') return m.commodity === 'MILHO_CBOT';
+  if (commodity === 'corn' && benchmark === 'b3') return m.commodity === 'MILHO';
+  return false;
+})
+```
+
+### 1c. Limpar ticker ao mudar commodity ou benchmark
+No `onValueChange` de commodity e benchmark, adicionar `ticker: ''` ao `setEditing`.
+
+## Fase 2 — GeneratePricingModal.tsx
+
+### 2a. Classificar combinações
+Adicionar `useMemo` que separa combinações em `cbotCombos` e `b3Combos`, e identifica `b3MissingPrice` (tickers B3 cujo `market.price` é null/undefined ou cujo ticker não existe em `marketMap`).
+
+### 2b. canGenerate relaxado
+Substituir linha 58:
+
+```tsx
+const hasCbot = cbotCombos.length > 0;
+const hasB3 = b3Combos.length > 0;
+const needsSpot = hasCbot; // CBOT combos need spotRate
+const canGenerate = (combinations?.length ?? 0) > 0
+  && (!needsSpot || spotRate !== null);
+```
+
+### 2c. Aviso prévio de B3 sem preço
+No corpo do modal (entre o resumo e o footer), adicionar bloco condicional:
+
+```tsx
+{b3MissingPrice.length > 0 && (
+  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3 space-y-1">
+    <p className="text-xs font-semibold text-yellow-500">
+      ⚠ {b3MissingPrice.length} ticker(s) B3 sem preço — serão pulados:
+    </p>
+    <ul className="text-xs text-yellow-400 list-disc pl-4">
+      {b3MissingPrice.map(t => <li key={t}>{t}</li>)}
+    </ul>
+    <p className="text-xs text-muted-foreground">
+      Preencha os preços na aba Mercado → Milho B3 antes de gerar.
+    </p>
+  </div>
+)}
+```
+
+### 2d. Mensagem de spotRate condicional
+Se `needsSpot` é false (só B3), não mostrar alerta de USD/BRL como erro — mostrar como info: "Câmbio não necessário (apenas combinações B3)".
+
+### 2e. handleGenerate — pular B3 sem preço
+No loop `for (const combo of combinations)`, após obter `market`, adicionar check:
+- Se `combo.commodity === 'corn' && combo.benchmark === 'b3' && (!market || market.price == null)`, pular com `continue` (sem toast, já avisou no modal).
+
+## Fase 3 — Orders.tsx (label do snapshot)
+
+Linha 153: melhorar label do dropdown de snapshots para incluir benchmark:
+
+```tsx
+{s.commodity} - {s.benchmark?.toUpperCase() ?? 'CBOT'} - {s.warehouse_id} - R${s.origination_price_brl.toFixed(2)}
+```
+
+O payload de `/orders/build` já envia `pricing_snapshot_id` e a API resolve tudo server-side. Nenhuma mudança de lógica necessária — a API já suporta B3.
+
+## Fase 4 — Memória
+
+Criar `mem://features/b3-corn-pricing-integration` com o contrato de tradução commodity/benchmark → market_data.commodity e as regras de exchange_rate (null para B3). Atualizar `mem://index.md`.
 
