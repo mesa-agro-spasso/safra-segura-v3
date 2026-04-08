@@ -110,22 +110,25 @@ const Orders = () => {
     const snap = filteredSnapshots.find(s => s.id === selectedSnapshot);
     const ticker = snap?.ticker ?? '';
     const vol = parseFloat(volume);
+
     const calculateContracts = (ct: string, v: number): string => {
-      if (ct === 'soybean|cbot') {
-        return ((v * 2.20462) / 5000).toFixed(2);
-      } else if (ct === 'corn|b3') {
-        return (v / 450).toFixed(2);
-      } else {
-        return ((v * 2.3622) / 5000).toFixed(2);
-      }
+      if (ct === 'soybean|cbot') return String(Math.round((v * 2.20462) / 5000 * 100) / 100);
+      if (ct === 'corn|b3') return String(Math.round(v / 450 * 100) / 100);
+      return String(Math.round((v * 2.3622) / 5000 * 100) / 100);
     };
+
     const contracts = calculateContracts(commodityType, vol);
+    const futuresPrice = snap?.futures_price_brl ? String(snap.futures_price_brl.toFixed(2)) : '';
+    const ndfRate = snap?.exchange_rate ? String(snap.exchange_rate.toFixed(4)) : '';
+
     if (commodityType === 'corn|b3') {
-      setLegs([{ leg_type: 'futures', direction: 'sell', ticker, contracts, price: '' }]);
+      setLegs([
+        { leg_type: 'futures', direction: 'sell', ticker, contracts, price: futuresPrice },
+      ]);
     } else {
       setLegs([
-        { leg_type: 'futures', direction: 'sell', ticker, contracts, price: '' },
-        { leg_type: 'ndf', direction: 'sell', ticker, contracts, price: '', ndf_rate: '' },
+        { leg_type: 'futures', direction: 'sell', ticker, contracts, price: futuresPrice },
+        { leg_type: 'ndf', direction: 'sell', ticker, contracts, price: '', ndf_rate: ndfRate },
       ]);
     }
   }, [selectedSnapshot, commodityType, volume]);
@@ -403,7 +406,7 @@ const Orders = () => {
                       {leg.leg_type === 'ndf' && (
                         <div className="flex gap-2 pl-4 items-end">
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Taxa NDF (perna {i + 1})</Label>
+                            <Label className="text-[10px] text-muted-foreground">Taxa NDF — câmbio forward (R$/USD)</Label>
                             <Input className="h-8 text-xs w-24" type="number" step="0.0001" value={leg.ndf_rate ?? ''} onChange={(e) => updateLeg(i, 'ndf_rate', e.target.value)} />
                           </div>
                         </div>
@@ -421,11 +424,11 @@ const Orders = () => {
                             </Select>
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Strike</Label>
+                            <Label className="text-[10px] text-muted-foreground">Strike — preço de exercício</Label>
                             <Input className="h-8 text-xs w-24" type="number" step="0.01" value={leg.strike ?? ''} onChange={(e) => updateLeg(i, 'strike', e.target.value)} />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Prêmio</Label>
+                            <Label className="text-[10px] text-muted-foreground">Prêmio pago (R$/sc)</Label>
                             <Input className="h-8 text-xs w-24" type="number" step="0.01" value={leg.premium ?? ''} onChange={(e) => updateLeg(i, 'premium', e.target.value)} />
                           </div>
                         </div>
