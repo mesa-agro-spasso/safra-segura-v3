@@ -385,7 +385,7 @@ const Orders = () => {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] text-muted-foreground">Contr.</Label>
-                        <Input className="h-8 text-xs" type="number" value={leg.contracts} onChange={(e) => updateLeg(i, 'contracts', e.target.value)} />
+                        <Input className="h-8 text-xs w-20 min-w-[5rem]" type="number" step="0.01" value={leg.contracts} onChange={(e) => updateLeg(i, 'contracts', e.target.value)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] text-muted-foreground">Preço</Label>
