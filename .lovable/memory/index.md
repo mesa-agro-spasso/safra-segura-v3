@@ -19,3 +19,4 @@ Sidebar com 5 abas + admin condicional. Cadastro com aprovação admin.
 - [B3 corn market table](mem://features/b3-corn-market-table) — Field contract for B3 corn manual price entries in market_data
 - [B3 corn pricing integration](mem://features/b3-corn-pricing-integration) — Mapping commodity/benchmark→market_data, exchange_rate rules, UI constraints
 - [Pricing table UI](mem://features/pricing-table-ui) — Ticker badges collapsed by default, semaphore status line
+- [Pricing detail dialog](mem://features/pricing-detail-dialog) — Modal detalhamento, desk_cost_brl (não desk_brl), insurance_json níveis

@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { GeneratePricingModal } from '@/components/GeneratePricingModal';
@@ -27,6 +29,7 @@ const PricingTable = () => {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
+  const [detailSnap, setDetailSnap] = useState<any>(null);
 
   const staleTickers = useMemo(() => {
     if (!marketData) return [];
@@ -188,7 +191,7 @@ const PricingTable = () => {
                         <TableCell className="text-right">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <button className="font-bold text-primary hover:underline cursor-pointer tabular-nums">
+                              <button className="font-bold text-primary hover:underline cursor-pointer tabular-nums" onClick={(e) => { e.stopPropagation(); setDetailSnap(snap); }}>
                                 R$ {snap.origination_price_brl.toFixed(2)}
                               </button>
                             </TooltipTrigger>
@@ -220,6 +223,108 @@ const PricingTable = () => {
           )}
         </CardContent>
       </Card>
+
+      {detailSnap && (() => {
+        const outputs = detailSnap.outputs_json as Record<string, any> | null;
+        const costs = outputs?.costs as Record<string, any> | null;
+        const insurance = detailSnap.insurance_json as Record<string, any> | null;
+        const insuranceLevels = [
+          { key: 'atm', label: 'ATM' },
+          { key: 'otm_5', label: 'OTM 5%' },
+          { key: 'otm_10', label: 'OTM 10%' },
+        ];
+        const hasInsurance = insurance && insuranceLevels.some((l) => insurance[l.key]);
+
+        const DetailRow = ({ label, value }: { label: string; value: string }) => (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">{label}</span>
+            <span>{value}</span>
+          </div>
+        );
+
+        return (
+          <Dialog open={!!detailSnap} onOpenChange={(o) => { if (!o) setDetailSnap(null); }}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  Detalhamento — {detailSnap.ticker} / {warehouseMap[detailSnap.warehouse_id] ?? detailSnap.warehouse_id}
+                </DialogTitle>
+              </DialogHeader>
+
+              <h4 className="font-semibold text-sm mt-2">Identificação</h4>
+              <DetailRow label="Praça" value={warehouseMap[detailSnap.warehouse_id] ?? '-'} />
+              <DetailRow label="Commodity" value={detailSnap.commodity === 'soybean' ? 'Soja CBOT' : 'Milho B3'} />
+              <DetailRow label="Ticker" value={detailSnap.ticker} />
+              <DetailRow label="Trade date" value={formatDate(detailSnap.trade_date)} />
+
+              <Separator />
+              <h4 className="font-semibold text-sm">Datas</h4>
+              <DetailRow label="Recepção do grão" value={formatDate(detailSnap.grain_reception_date)} />
+              <DetailRow label="Pagamento" value={formatDate(detailSnap.payment_date)} />
+              <DetailRow label="Venda" value={formatDate(detailSnap.sale_date)} />
+
+              <Separator />
+              <h4 className="font-semibold text-sm">Preços e Basis</h4>
+              <DetailRow label="Futuros (BRL)" value={`R$ ${detailSnap.futures_price_brl.toFixed(2)}`} />
+              <DetailRow label="Câmbio" value={detailSnap.exchange_rate?.toFixed(4) ?? '-'} />
+              <DetailRow label="Basis alvo" value={`R$ ${detailSnap.target_basis_brl.toFixed(2)}`} />
+              <DetailRow label="Purchased basis" value={(outputs?.purchased_basis_brl as number) != null ? `R$ ${(outputs!.purchased_basis_brl as number).toFixed(2)}` : '-'} />
+              <DetailRow label="Breakeven basis" value={(outputs?.breakeven_basis_brl as number) != null ? `R$ ${(outputs!.breakeven_basis_brl as number).toFixed(2)}` : '-'} />
+              <DetailRow label="Preço bruto" value={(outputs?.gross_price_brl as number) != null ? `R$ ${(outputs!.gross_price_brl as number).toFixed(2)}` : '-'} />
+              <DetailRow label="Desconto adicional" value={`R$ ${detailSnap.additional_discount_brl.toFixed(2)}`} />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Preço de originação</span>
+                <span className="font-bold text-primary">R$ {detailSnap.origination_price_brl.toFixed(2)}</span>
+              </div>
+
+              <Separator />
+              <h4 className="font-semibold text-sm">Custos</h4>
+              {costs ? (
+                <>
+                  {costs.financial_brl != null && <DetailRow label="Financeiro" value={`R$ ${Number(costs.financial_brl).toFixed(2)}`} />}
+                  {costs.storage_brl != null && <DetailRow label="Armazenagem" value={`R$ ${Number(costs.storage_brl).toFixed(2)}`} />}
+                  {costs.brokerage_brl != null && <DetailRow label="Corretagem" value={`R$ ${Number(costs.brokerage_brl).toFixed(2)}`} />}
+                  {costs.desk_cost_brl != null && <DetailRow label="Mesa" value={`R$ ${Number(costs.desk_cost_brl).toFixed(2)}`} />}
+                  {costs.reception_brl != null && <DetailRow label="Recepção" value={`R$ ${Number(costs.reception_brl).toFixed(2)}`} />}
+                  {costs.total_brl != null && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total custos</span>
+                      <span className="font-bold">R$ {Number(costs.total_brl).toFixed(2)}</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sem dados de custos</p>
+              )}
+
+              {hasInsurance && (
+                <>
+                  <Separator />
+                  <h4 className="font-semibold text-sm">Seguro</h4>
+                  {insuranceLevels.map(({ key, label }) => {
+                    const ins = insurance![key] as Record<string, any> | undefined;
+                    if (!ins) return null;
+                    return (
+                      <div key={key} className="space-y-1 ml-2">
+                        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+                        {ins.strike_brl != null && <DetailRow label="Strike" value={`R$ ${Number(ins.strike_brl).toFixed(2)}`} />}
+                        {ins.premium_brl != null && <DetailRow label="Prêmio" value={`R$ ${Number(ins.premium_brl).toFixed(2)}`} />}
+                        {ins.carry_brl != null && <DetailRow label="Carry" value={`R$ ${Number(ins.carry_brl).toFixed(4)}`} />}
+                        {ins.total_cost_brl != null && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Custo total</span>
+                            <span className="font-bold">R$ {Number(ins.total_cost_brl).toFixed(2)}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
     </div>
