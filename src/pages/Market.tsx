@@ -74,46 +74,31 @@ const Market = () => {
     return map;
   }, [marketData]);
 
-  // Fetch B3 tickers + saved prices on mount
+  // Load B3 from Supabase cache on mount (no API call)
   useEffect(() => {
-    const fetchB3 = async () => {
+    const loadB3FromDb = async () => {
       setB3Loading(true);
-      setB3Error(null);
       try {
-        const result = await callApi<B3Response>(
-          '/market/b3-corn-quotes',
-          undefined,
-          { method: 'GET', query: { quantity: '10' } }
-        );
-        const tickers = result.corn_b3 ?? [];
+        const { data: saved } = await supabase
+          .from('market_data')
+          .select('ticker, price, updated_at, source, exp_date')
+          .eq('commodity', 'MILHO')
+          .order('exp_date');
+        const tickers: B3CornQuote[] = [];
+        const priceMap: Record<string, B3SavedPrice> = {};
+        (saved ?? []).forEach((row: any) => {
+          tickers.push({ ticker: row.ticker, exp_date: row.exp_date });
+          priceMap[row.ticker] = { price: row.price, updated_at: row.updated_at, source: row.source };
+        });
         setB3Tickers(tickers);
-
-        if (tickers.length > 0) {
-          const tickerNames = tickers.map(t => t.ticker);
-          const { data: saved } = await supabase
-            .from('market_data')
-            .select('ticker, price, updated_at, source')
-            .eq('commodity', 'MILHO')
-            .in('ticker', tickerNames);
-
-          const priceMap: Record<string, B3SavedPrice> = {};
-          (saved ?? []).forEach((row: any) => {
-            priceMap[row.ticker] = {
-              price: row.price,
-              updated_at: row.updated_at,
-              source: row.source,
-            };
-          });
-          setB3Prices(priceMap);
-        }
+        setB3Prices(priceMap);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setB3Error(msg);
+        setB3Error(err instanceof Error ? err.message : String(err));
       } finally {
         setB3Loading(false);
       }
     };
-    fetchB3();
+    loadB3FromDb();
   }, []);
 
   const handleAutoFetch = async () => {
@@ -166,6 +151,44 @@ const Market = () => {
       }
 
       toast.success('Dados de mercado atualizados');
+
+      // B3 ticker refresh — only insert NEW tickers, never overwrite prices
+      try {
+        const b3Result = await callApi<B3Response>(
+          '/market/b3-corn-quotes', undefined,
+          { method: 'GET', query: { quantity: '10' } }
+        );
+        const apiTickers = b3Result.corn_b3 ?? [];
+        const { data: existing } = await supabase
+          .from('market_data').select('ticker').eq('commodity', 'MILHO');
+        const existingSet = new Set((existing ?? []).map(r => r.ticker));
+        for (const t of apiTickers) {
+          if (!existingSet.has(t.ticker)) {
+            await supabase.from('market_data').insert({
+              ticker: t.ticker, commodity: 'MILHO', currency: 'BRL',
+              price: null, price_unit: 'BRL/sack', source: 'manual',
+              date: new Date().toISOString().split('T')[0], exp_date: t.exp_date,
+            });
+          }
+        }
+        // Reload B3 from DB
+        const { data: refreshed } = await supabase
+          .from('market_data')
+          .select('ticker, price, updated_at, source, exp_date')
+          .eq('commodity', 'MILHO').order('exp_date');
+        const tickers: B3CornQuote[] = [];
+        const priceMap: Record<string, B3SavedPrice> = {};
+        (refreshed ?? []).forEach((row: any) => {
+          tickers.push({ ticker: row.ticker, exp_date: row.exp_date });
+          priceMap[row.ticker] = { price: row.price, updated_at: row.updated_at, source: row.source };
+        });
+        setB3Tickers(tickers);
+        setB3Prices(priceMap);
+        toast.success('Tickers B3 atualizados');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Falha ao atualizar tickers B3: ${msg}`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : JSON.stringify(err);
       toast.error(`Erro ao atualizar mercado: ${msg}`);
@@ -320,11 +343,11 @@ const Market = () => {
                 <CardTitle className="text-sm">Dólar / Real (USD/BRL)</CardTitle>
               </CardHeader>
               <CardContent className="flex items-center gap-4">
-                <span className="text-2xl font-bold">R$ {fxRow.price.toFixed(4)}</span>
+                <span className="text-2xl font-bold">R$ {fxRow.price!.toFixed(4)}</span>
                 <span className={`text-xs ${getHoursAgo(fxRow.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
                   {getHoursAgo(fxRow.updated_at)}h atrás · {fxRow.source}
                 </span>
-                {renderEditCell('USD/BRL', fxRow.price)}
+                {renderEditCell('USD/BRL', fxRow.price ?? undefined)}
               </CardContent>
             </Card>
           )}
@@ -356,14 +379,14 @@ const Market = () => {
                       <TableRow key={row.ticker}>
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
-                        <TableCell className="text-right">{row.price.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{row.price!.toFixed(2)}</TableCell>
                         <TableCell className="text-right">{row.ndf_spot?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_estimated?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spread?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
                           {getHoursAgo(row.updated_at)}h · {row.source}
                         </TableCell>
-                        <TableCell>{renderEditCell(row.ticker, row.price)}</TableCell>
+                        <TableCell>{renderEditCell(row.ticker, row.price ?? undefined)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -396,11 +419,11 @@ const Market = () => {
                       <TableRow key={row.ticker}>
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
-                        <TableCell className="text-right">{row.price.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{row.price!.toFixed(2)}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
                           {getHoursAgo(row.updated_at)}h · {row.source}
                         </TableCell>
-                        <TableCell>{renderEditCell(row.ticker, row.price)}</TableCell>
+                        <TableCell>{renderEditCell(row.ticker, row.price ?? undefined)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -423,7 +446,7 @@ const Market = () => {
               ) : b3Error ? (
                 <p className="text-muted-foreground text-sm">Aguardando servidor acordar... ({b3Error})</p>
               ) : b3Tickers.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Nenhum contrato B3 disponível</p>
+                <p className="text-muted-foreground text-sm">Clique em "Atualizar Automático" para carregar os tickers B3.</p>
               ) : (
                 <Table>
                   <TableHeader>

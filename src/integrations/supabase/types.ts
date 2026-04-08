@@ -90,7 +90,7 @@ export type Database = {
           ndf_override: number | null
           ndf_spot: number | null
           ndf_spread: number | null
-          price: number
+          price: number | null
           price_unit: string | null
           source: string
           ticker: string
@@ -108,7 +108,7 @@ export type Database = {
           ndf_override?: number | null
           ndf_spot?: number | null
           ndf_spread?: number | null
-          price: number
+          price?: number | null
           price_unit?: string | null
           source?: string
           ticker: string
@@ -126,7 +126,7 @@ export type Database = {
           ndf_override?: number | null
           ndf_spot?: number | null
           ndf_spread?: number | null
-          price?: number
+          price?: number | null
           price_unit?: string | null
           source?: string
           ticker?: string

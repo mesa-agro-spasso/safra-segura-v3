@@ -26,7 +26,7 @@ export function useUpsertMarketData() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (item: {
-      ticker: string; commodity: string; price: number; currency: string; source: string;
+      ticker: string; commodity: string; price: number | null; currency: string; source: string;
       exchange_rate?: number | null; price_unit?: string | null; exp_date?: string | null;
       ndf_spot?: number | null; ndf_estimated?: number | null; ndf_spread?: number | null; ndf_override?: number | null;
     }) => {
