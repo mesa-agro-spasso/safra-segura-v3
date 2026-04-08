@@ -122,11 +122,17 @@ const PricingTable = () => {
                 ? Math.max(...marketData.map((m) => getHoursAgo(m.updated_at)))
                 : 0;
               const color = maxHoursAgo < 12 ? 'text-green-400' : maxHoursAgo < 24 ? 'text-yellow-400' : 'text-red-400';
+              const mostRecent = marketData?.length
+                ? new Date(Math.max(...marketData.map((m) => new Date(m.updated_at).getTime())))
+                : null;
+              const timeLabel = mostRecent
+                ? `${String(mostRecent.getDate()).padStart(2, '0')}/${String(mostRecent.getMonth() + 1).padStart(2, '0')} ${String(mostRecent.getHours()).padStart(2, '0')}:${String(mostRecent.getMinutes()).padStart(2, '0')}`
+                : '-';
               const label = maxHoursAgo < 12
-                ? 'Últimas atualizações: ok'
+                ? `Última atualização: ${timeLabel}`
                 : maxHoursAgo < 24
-                  ? `Últimas atualizações: atenção (${Math.round(maxHoursAgo)}h)`
-                  : `Últimas atualizações: desatualizado (${Math.round(maxHoursAgo)}h)`;
+                  ? `Última atualização: ${timeLabel} (${Math.round(maxHoursAgo)}h atrás)`
+                  : `Última atualização: ${timeLabel} — desatualizado (${Math.round(maxHoursAgo)}h)`;
               return (
                 <button
                   type="button"
