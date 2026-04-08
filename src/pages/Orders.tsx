@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useHedgeOrders, useCreateHedgeOrder } from '@/hooks/useHedgeOrders';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { usePricingSnapshots } from '@/hooks/usePricingSnapshots';
-import { useCreateOperation } from '@/hooks/useOperations';
+import { useCreateOperation, useOperations } from '@/hooks/useOperations';
 import { useAuth } from '@/contexts/AuthContext';
 import { callApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Copy, Plus, AlertTriangle } from 'lucide-react';
+import { Copy, Plus, AlertTriangle, Trash2 } from 'lucide-react';
+
+type Leg = {
+  leg_type: 'futures' | 'ndf' | 'option';
+  direction: 'buy' | 'sell';
+  ticker: string;
+  contracts: string;
+  price: string;
+  ndf_rate?: string;
+  strike?: string;
+  premium?: string;
+  option_type?: string;
+};
 
 /** Generate a short readable operation label: MTP_SOJA_260408_001 */
 function generateOperationLabel(warehouseId: string, commodity: string, seq: number): string {
@@ -28,6 +40,12 @@ function generateOperationLabel(warehouseId: string, commodity: string, seq: num
   return `${wh}_${com}_${yy}${mm}${dd}_${s}`;
 }
 
+function formatDate(d: string | null | undefined): string {
+  if (!d) return '--/--';
+  const date = new Date(d + 'T00:00:00');
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
 const Orders = () => {
   const [commodityFilter, setCommodityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -37,6 +55,7 @@ const Orders = () => {
   });
   const { data: warehouses } = useActiveArmazens();
   const { data: snapshots } = usePricingSnapshots();
+  const { data: operations } = useOperations();
   const createOrder = useCreateHedgeOrder();
   const createOperation = useCreateOperation();
   const { user } = useAuth();
@@ -49,6 +68,9 @@ const Orders = () => {
   const [buildResult, setBuildResult] = useState<Record<string, unknown> | null>(null);
   const [generatedLabel, setGeneratedLabel] = useState('');
   const [orderSeq, setOrderSeq] = useState(1);
+  const [commodityType, setCommodityType] = useState('');
+  const [legs, setLegs] = useState<Leg[]>([]);
+  const [linkedOperationId, setLinkedOperationId] = useState('');
 
   // Manual order form
   const [manualForm, setManualForm] = useState({
@@ -59,20 +81,61 @@ const Orders = () => {
     status: 'EXECUTED',
   });
 
-  // Derive commodity/warehouse from selected snapshot for auto-label preview
+  // Derive commodity/benchmark from commodityType
+  const [com, bench] = commodityType ? commodityType.split('|') : ['', ''];
+
+  // Filter snapshots by latest batch + commodity + benchmark + warehouse
+  const latestDate = snapshots?.[0]?.created_at;
+  const filteredSnapshots = useMemo(() => {
+    if (!com || !bench || !latestDate) return [];
+    return snapshots?.filter(s =>
+      s.created_at === latestDate &&
+      s.commodity === com &&
+      s.benchmark === bench &&
+      (!selectedWarehouse || s.warehouse_id === selectedWarehouse)
+    ) ?? [];
+  }, [snapshots, latestDate, com, bench, selectedWarehouse]);
+
   const selectedSnapshotData = useMemo(
-    () => snapshots?.find((s) => s.id === selectedSnapshot),
-    [snapshots, selectedSnapshot]
+    () => filteredSnapshots.find((s) => s.id === selectedSnapshot),
+    [filteredSnapshots, selectedSnapshot]
   );
 
+  // Auto-generate legs when snapshot changes
+  useEffect(() => {
+    if (!selectedSnapshot || !commodityType) { setLegs([]); return; }
+    const snap = filteredSnapshots.find(s => s.id === selectedSnapshot);
+    const ticker = snap?.ticker ?? '';
+    if (commodityType === 'corn|b3') {
+      setLegs([{ leg_type: 'futures', direction: 'sell', ticker, contracts: '', price: '' }]);
+    } else {
+      setLegs([
+        { leg_type: 'futures', direction: 'sell', ticker, contracts: '', price: '' },
+        { leg_type: 'ndf', direction: 'sell', ticker, contracts: '', price: '', ndf_rate: '' },
+      ]);
+    }
+  }, [selectedSnapshot, commodityType]);
+
   const previewLabel = useMemo(() => {
-    const wh = selectedWarehouse || selectedSnapshotData?.warehouse_id || 'XXX';
-    const com = selectedSnapshotData?.commodity || 'SOJA';
-    return generateOperationLabel(wh, com, orderSeq);
-  }, [selectedWarehouse, selectedSnapshotData, orderSeq]);
+    const wh = selectedWarehouse || 'XXX';
+    const commodity = com ? com.slice(0, 4).toUpperCase() : 'SOJA';
+    return generateOperationLabel(wh, commodity === 'SOYB' ? 'SOJA' : commodity === 'CORN' ? 'MILHO' : commodity, orderSeq);
+  }, [selectedWarehouse, com, orderSeq]);
+
+  const updateLeg = (index: number, field: keyof Leg, value: string) => {
+    setLegs(prev => prev.map((l, i) => i === index ? { ...l, [field]: value } : l));
+  };
+
+  const removeLeg = (index: number) => {
+    setLegs(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addLeg = () => {
+    setLegs(prev => [...prev, { leg_type: 'futures', direction: 'sell', ticker: '', contracts: '', price: '' }]);
+  };
 
   const handleBuildOrder = async () => {
-    if (!selectedWarehouse || !selectedSnapshot || !volume) {
+    if (!selectedWarehouse || !selectedSnapshot || !volume || !commodityType) {
       toast.error('Preencha todos os campos');
       return;
     }
@@ -80,13 +143,13 @@ const Orders = () => {
     setBuildResult(null);
     try {
       const snapshot = selectedSnapshotData;
-      const commodity = snapshot?.commodity ?? 'SOJA';
-      const label = generateOperationLabel(selectedWarehouse, commodity, orderSeq);
+      const commodity = com === 'soybean' ? 'soybean' : 'corn';
+      const label = generateOperationLabel(selectedWarehouse, commodity === 'soybean' ? 'SOJA' : 'MILHO', orderSeq);
       setGeneratedLabel(label);
       setOrderSeq((s) => s + 1);
 
       // 1. Create operation record
-      const operation = await createOperation.mutateAsync({
+      const opPayload: Record<string, unknown> = {
         warehouse_id: selectedWarehouse,
         commodity,
         volume_sacks: parseFloat(volume),
@@ -94,17 +157,30 @@ const Orders = () => {
         pricing_snapshot_id: selectedSnapshot,
         notes: label,
         created_by: user?.id ?? null,
-      });
-
-      const operationId = operation.id;
+      };
+      if (linkedOperationId) {
+        opPayload.parent_operation_id = linkedOperationId;
+      }
+      const operation = await createOperation.mutateAsync(opPayload as never);
+      const operationId = (operation as { id: string }).id;
 
       // 2. Call API to build order
+      const legsPayload = legs.map(l => ({
+        ...l,
+        contracts: l.contracts ? parseFloat(l.contracts) : 0,
+        price: l.price ? parseFloat(l.price) : 0,
+        ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
+        strike: l.strike ? parseFloat(l.strike) : undefined,
+        premium: l.premium ? parseFloat(l.premium) : undefined,
+      }));
+
       const result = await callApi<Record<string, unknown>>('/orders/build', {
         warehouse_id: selectedWarehouse,
         pricing_snapshot_id: selectedSnapshot,
         volume_sacks: parseFloat(volume),
         operation_id: operationId,
         commodity,
+        legs: legsPayload,
       });
       setBuildResult(result);
 
@@ -113,10 +189,10 @@ const Orders = () => {
         await createOrder.mutateAsync({
           operation_id: operationId,
           commodity: (result.commodity as string) ?? commodity,
-          exchange: (result.exchange as string) ?? 'CBOT',
+          exchange: (result.exchange as string) ?? bench.toUpperCase(),
           volume_sacks: parseFloat(volume),
           origination_price_brl: snapshot?.origination_price_brl ?? 0,
-          legs: (result.legs as unknown[]) ?? [],
+          legs: legsPayload as unknown[],
           status: 'GENERATED',
           order_message: (result.order_message as string) ?? null,
           confirmation_message: (result.confirmation_message as string) ?? null,
@@ -124,6 +200,12 @@ const Orders = () => {
           created_by: user?.id ?? null,
         });
         toast.success(`Ordem criada: ${label}`);
+        // Reset
+        setSelectedSnapshot('');
+        setCommodityType('');
+        setLegs([]);
+        setLinkedOperationId('');
+        setVolume('');
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao criar ordem');
@@ -139,7 +221,6 @@ const Orders = () => {
       return;
     }
     try {
-      // Create operation first
       const label = generateOperationLabel('MAN', commodity, orderSeq);
       setOrderSeq((s) => s + 1);
       const operation = await createOperation.mutateAsync({
@@ -157,7 +238,7 @@ const Orders = () => {
         exchange,
         volume_sacks: parseFloat(volume_sacks),
         origination_price_brl: parseFloat(origination_price_brl),
-        operation_id: operation.id,
+        operation_id: (operation as { id: string }).id,
         status,
         legs: [],
         order_message: null,
@@ -193,6 +274,7 @@ const Orders = () => {
             <CardHeader><CardTitle className="text-sm">Nova Ordem via API</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
+                {/* Row 1: Praça + Commodity */}
                 <div className="space-y-1">
                   <Label className="text-xs">Praça</Label>
                   <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
@@ -203,27 +285,146 @@ const Orders = () => {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Pricing Snapshot</Label>
-                  <Select value={selectedSnapshot} onValueChange={setSelectedSnapshot}>
+                  <Label className="text-xs">Commodity</Label>
+                  <Select value={commodityType} onValueChange={(v) => { setCommodityType(v); setSelectedSnapshot(''); setLegs([]); }}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      {snapshots?.slice(0, 20).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.commodity} - {s.benchmark?.toUpperCase() ?? 'CBOT'} - {s.warehouse_id} - R${s.origination_price_brl.toFixed(2)}</SelectItem>
+                      <SelectItem value="soybean|cbot">Soja CBOT</SelectItem>
+                      <SelectItem value="corn|b3">Milho B3</SelectItem>
+                      <SelectItem value="corn|cbot">Milho CBOT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Row 2: Preço de Referência (span 2) */}
+                <div className="space-y-1 col-span-2">
+                  <Label className="text-xs">Preço de Referência</Label>
+                  <Select value={selectedSnapshot} onValueChange={setSelectedSnapshot} disabled={!commodityType}>
+                    <SelectTrigger><SelectValue placeholder={!commodityType ? 'Selecione commodity primeiro' : 'Selecione'} /></SelectTrigger>
+                    <SelectContent>
+                      {filteredSnapshots.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {formatDate(s.payment_date)} pgto · {formatDate(s.sale_date)} venda · R${s.origination_price_brl.toFixed(2)}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Row 3: Volume + Vinculada à operação */}
                 <div className="space-y-1">
                   <Label className="text-xs">Volume (sacas)</Label>
                   <Input type="number" value={volume} onChange={(e) => setVolume(e.target.value)} />
                 </div>
                 <div className="space-y-1">
+                  <Label className="text-xs">Vinculada à operação</Label>
+                  <Select value={linkedOperationId} onValueChange={setLinkedOperationId}>
+                    <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      {operations?.map(op => (
+                        <SelectItem key={op.id} value={op.id}>{op.notes ?? op.id.slice(0, 8)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Row 4: ID auto (span 2) */}
+                <div className="space-y-1 col-span-2">
                   <Label className="text-xs">ID da Operação (auto)</Label>
                   <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-xs font-mono text-muted-foreground">
                     {generatedLabel || previewLabel}
                   </div>
                 </div>
               </div>
+
+              {/* Leg Editor */}
+              {legs.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <Label className="text-xs font-semibold">Pernas da Operação</Label>
+                  {legs.map((leg, i) => (
+                    <div key={i} className="grid grid-cols-[100px_80px_1fr_80px_80px_auto] gap-2 items-end">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Tipo</Label>
+                        <Select value={leg.leg_type} onValueChange={(v) => updateLeg(i, 'leg_type', v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="futures">Futuro</SelectItem>
+                            <SelectItem value="ndf">NDF</SelectItem>
+                            <SelectItem value="option">Opção</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Dir.</Label>
+                        <Select value={leg.direction} onValueChange={(v) => updateLeg(i, 'direction', v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sell">Sell</SelectItem>
+                            <SelectItem value="buy">Buy</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Ticker</Label>
+                        <Input className="h-8 text-xs" value={leg.ticker} onChange={(e) => updateLeg(i, 'ticker', e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Contr.</Label>
+                        <Input className="h-8 text-xs" type="number" value={leg.contracts} onChange={(e) => updateLeg(i, 'contracts', e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Preço</Label>
+                        <Input className="h-8 text-xs" type="number" step="0.01" value={leg.price} onChange={(e) => updateLeg(i, 'price', e.target.value)} />
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeLeg(i)}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  {/* Conditional NDF/Option fields for each leg */}
+                  {legs.map((leg, i) => (
+                    <div key={`extra-${i}`}>
+                      {leg.leg_type === 'ndf' && (
+                        <div className="flex gap-2 pl-4 items-end">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Taxa NDF (perna {i + 1})</Label>
+                            <Input className="h-8 text-xs w-24" type="number" step="0.0001" value={leg.ndf_rate ?? ''} onChange={(e) => updateLeg(i, 'ndf_rate', e.target.value)} />
+                          </div>
+                        </div>
+                      )}
+                      {leg.leg_type === 'option' && (
+                        <div className="flex gap-2 pl-4 items-end">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Tipo (perna {i + 1})</Label>
+                            <Select value={leg.option_type ?? 'call'} onValueChange={(v) => updateLeg(i, 'option_type', v)}>
+                              <SelectTrigger className="h-8 text-xs w-20"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="call">Call</SelectItem>
+                                <SelectItem value="put">Put</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Strike</Label>
+                            <Input className="h-8 text-xs w-24" type="number" step="0.01" value={leg.strike ?? ''} onChange={(e) => updateLeg(i, 'strike', e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Prêmio</Label>
+                            <Input className="h-8 text-xs w-24" type="number" step="0.01" value={leg.premium ?? ''} onChange={(e) => updateLeg(i, 'premium', e.target.value)} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  <Button variant="outline" size="sm" className="text-xs" onClick={addLeg}>
+                    <Plus className="h-3 w-3 mr-1" /> Adicionar Perna
+                  </Button>
+                </div>
+              )}
+
               <Button onClick={handleBuildOrder} disabled={building} className="w-full">
                 {building ? 'Construindo...' : 'Construir Ordem'}
               </Button>

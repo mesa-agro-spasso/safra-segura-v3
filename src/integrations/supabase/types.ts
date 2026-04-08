@@ -210,6 +210,7 @@ export type Database = {
           created_by: string | null
           id: string
           notes: string | null
+          parent_operation_id: string | null
           pricing_snapshot_id: string | null
           status: string
           updated_at: string
@@ -222,6 +223,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           notes?: string | null
+          parent_operation_id?: string | null
           pricing_snapshot_id?: string | null
           status?: string
           updated_at?: string
@@ -234,6 +236,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           notes?: string | null
+          parent_operation_id?: string | null
           pricing_snapshot_id?: string | null
           status?: string
           updated_at?: string
