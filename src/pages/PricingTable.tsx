@@ -30,8 +30,12 @@ const PricingTable = () => {
   const navigate = useNavigate();
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
   const [detailSnap, setDetailSnap] = useState<any>(null);
+  const [filterCommodity, setFilterCommodity] = useState<string>('all');
+  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
+  const [filterTicker, setFilterTicker] = useState<string>('all');
 
   const staleTickers = useMemo(() => {
     if (!marketData) return [];
