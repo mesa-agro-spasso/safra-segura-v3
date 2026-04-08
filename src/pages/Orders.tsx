@@ -406,7 +406,7 @@ const Orders = () => {
                       {leg.leg_type === 'ndf' && (
                         <div className="flex gap-2 pl-4 items-end">
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Taxa NDF (perna {i + 1})</Label>
+                            <Label className="text-[10px] text-muted-foreground">Taxa NDF — câmbio forward (R$/USD)</Label>
                             <Input className="h-8 text-xs w-24" type="number" step="0.0001" value={leg.ndf_rate ?? ''} onChange={(e) => updateLeg(i, 'ndf_rate', e.target.value)} />
                           </div>
                         </div>
