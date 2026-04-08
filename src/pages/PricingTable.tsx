@@ -7,10 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Download } from 'lucide-react';
 import { GeneratePricingModal } from '@/components/GeneratePricingModal';
+import { ExportPricingModal } from '@/components/ExportPricingModal';
 
 const B3_CORN_TICKERS = ['CCMF27', 'CCMK27'];
 
@@ -28,8 +30,12 @@ const PricingTable = () => {
   const navigate = useNavigate();
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
   const [detailSnap, setDetailSnap] = useState<any>(null);
+  const [filterCommodity, setFilterCommodity] = useState<string>('all');
+  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
+  const [filterTicker, setFilterTicker] = useState<string>('all');
 
   const staleTickers = useMemo(() => {
     if (!marketData) return [];
@@ -45,8 +51,8 @@ const PricingTable = () => {
     return map;
   }, [warehouses]);
 
-  // Get latest batch of snapshots, sorted by warehouse > commodity > ticker
-  const rows = useMemo(() => {
+  // Get latest batch of snapshots, sorted and filtered
+  const allRows = useMemo(() => {
     if (!snapshots?.length) return [];
     const latest = snapshots[0].created_at;
     const batch = snapshots.filter((s) => s.created_at === latest);
@@ -58,6 +64,20 @@ const PricingTable = () => {
       return a.ticker.localeCompare(b.ticker);
     });
   }, [snapshots, warehouseMap]);
+
+  const rows = useMemo(() => {
+    return allRows.filter((s) => {
+      if (filterCommodity !== 'all' && s.commodity !== filterCommodity) return false;
+      if (filterWarehouse !== 'all' && s.warehouse_id !== filterWarehouse) return false;
+      if (filterTicker !== 'all' && s.ticker !== filterTicker) return false;
+      return true;
+    });
+  }, [allRows, filterCommodity, filterWarehouse, filterTicker]);
+
+  // Unique values for filter dropdowns
+  const uniqueCommodities = useMemo(() => [...new Set(allRows.map((r) => r.commodity))], [allRows]);
+  const uniqueWarehouses = useMemo(() => [...new Set(allRows.map((r) => r.warehouse_id))], [allRows]);
+  const uniqueTickers = useMemo(() => [...new Set(allRows.map((r) => r.ticker))].sort(), [allRows]);
 
   const lastUpdated = snapshots?.[0] ? new Date(snapshots[0].created_at) : null;
   const loading = loadingSnapshots || loadingMarket;
@@ -119,10 +139,16 @@ const PricingTable = () => {
               );
             })()}
           </div>
-          <Button onClick={() => setModalOpen(true)} disabled={loading}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Gerar Tabela
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={loading || rows.length === 0}>
+              <Download className="mr-2 h-4 w-4" />
+              Exportar
+            </Button>
+            <Button onClick={() => setModalOpen(true)} disabled={loading}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Gerar Tabela
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {tickersExpanded && marketData && (
@@ -138,12 +164,48 @@ const PricingTable = () => {
             </div>
           )}
 
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 mb-4">
+            <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+              <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Commodity" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {uniqueCommodities.map((c) => (
+                  <SelectItem key={c} value={c}>{c === 'soybean' ? 'Soja' : 'Milho'}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Praça" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {uniqueWarehouses.map((w) => (
+                  <SelectItem key={w} value={w}>{warehouseMap[w] ?? w}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterTicker} onValueChange={setFilterTicker}>
+              <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Ticker" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {uniqueTickers.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(filterCommodity !== 'all' || filterWarehouse !== 'all' || filterTicker !== 'all') && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterCommodity('all'); setFilterWarehouse('all'); setFilterTicker('all'); }}>
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
           ) : rows.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12">Nenhum snapshot disponível. Clique em "Gerar Tabela".</p>
+            <p className="text-center text-muted-foreground py-12">{allRows.length === 0 ? 'Nenhum snapshot disponível. Clique em "Gerar Tabela".' : 'Nenhum resultado para os filtros selecionados.'}</p>
           ) : (
             <div className="overflow-auto">
               <Table>
@@ -327,6 +389,7 @@ const PricingTable = () => {
       })()}
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
+      <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} />
     </div>
   );
 };
