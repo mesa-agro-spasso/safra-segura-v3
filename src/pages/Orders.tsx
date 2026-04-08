@@ -150,7 +150,7 @@ const Orders = () => {
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {snapshots?.slice(0, 20).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.commodity} - {s.benchmark?.toUpperCase() ?? 'CBOT'} - {s.warehouse_id} - R${s.origination_price_brl.toFixed(2)}</SelectItem>
+                        <SelectItem key={s.id} value={s.id}>{s.commodity} - {s.warehouse_id} - R${s.origination_price_brl.toFixed(2)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
