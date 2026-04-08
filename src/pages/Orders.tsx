@@ -424,7 +424,7 @@ const Orders = () => {
                             </Select>
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Strike</Label>
+                            <Label className="text-[10px] text-muted-foreground">Strike — preço de exercício</Label>
                             <Input className="h-8 text-xs w-24" type="number" step="0.01" value={leg.strike ?? ''} onChange={(e) => updateLeg(i, 'strike', e.target.value)} />
                           </div>
                           <div className="space-y-1">
