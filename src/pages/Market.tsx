@@ -151,6 +151,44 @@ const Market = () => {
       }
 
       toast.success('Dados de mercado atualizados');
+
+      // B3 ticker refresh — only insert NEW tickers, never overwrite prices
+      try {
+        const b3Result = await callApi<B3Response>(
+          '/market/b3-corn-quotes', undefined,
+          { method: 'GET', query: { quantity: '10' } }
+        );
+        const apiTickers = b3Result.corn_b3 ?? [];
+        const { data: existing } = await supabase
+          .from('market_data').select('ticker').eq('commodity', 'MILHO');
+        const existingSet = new Set((existing ?? []).map(r => r.ticker));
+        for (const t of apiTickers) {
+          if (!existingSet.has(t.ticker)) {
+            await supabase.from('market_data').insert({
+              ticker: t.ticker, commodity: 'MILHO', currency: 'BRL',
+              price: null, price_unit: 'BRL/sack', source: 'manual',
+              date: new Date().toISOString().split('T')[0], exp_date: t.exp_date,
+            });
+          }
+        }
+        // Reload B3 from DB
+        const { data: refreshed } = await supabase
+          .from('market_data')
+          .select('ticker, price, updated_at, source, exp_date')
+          .eq('commodity', 'MILHO').order('exp_date');
+        const tickers: B3CornQuote[] = [];
+        const priceMap: Record<string, B3SavedPrice> = {};
+        (refreshed ?? []).forEach((row: any) => {
+          tickers.push({ ticker: row.ticker, exp_date: row.exp_date });
+          priceMap[row.ticker] = { price: row.price, updated_at: row.updated_at, source: row.source };
+        });
+        setB3Tickers(tickers);
+        setB3Prices(priceMap);
+        toast.success('Tickers B3 atualizados');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Falha ao atualizar tickers B3: ${msg}`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : JSON.stringify(err);
       toast.error(`Erro ao atualizar mercado: ${msg}`);
