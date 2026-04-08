@@ -16,16 +16,16 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Copy, Plus, AlertTriangle } from 'lucide-react';
 
-/** Generate a short readable operation label: MTP_SOJA_080425_001 */
-function generateOperationLabel(warehouseId: string, commodity: string, seq?: number): string {
+/** Generate a short readable operation label: MTP_SOJA_260408_001 */
+function generateOperationLabel(warehouseId: string, commodity: string, seq: number): string {
   const wh = warehouseId.slice(0, 3).toUpperCase();
   const com = commodity.slice(0, 4).toUpperCase();
   const now = new Date();
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
   const yy = String(now.getFullYear()).slice(-2);
-  const s = String(seq ?? Math.floor(Math.random() * 900) + 100).padStart(3, '0');
-  return `${wh}_${com}_${dd}${mm}${yy}_${s}`;
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const s = String(seq).padStart(3, '0');
+  return `${wh}_${com}_${yy}${mm}${dd}_${s}`;
 }
 
 const Orders = () => {
