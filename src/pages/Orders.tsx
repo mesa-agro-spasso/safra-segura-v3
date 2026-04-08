@@ -101,20 +101,34 @@ const Orders = () => {
     [filteredSnapshots, selectedSnapshot]
   );
 
-  // Auto-generate legs when snapshot changes
+  // Auto-generate legs when snapshot, commodity or volume changes
   useEffect(() => {
-    if (!selectedSnapshot || !commodityType) { setLegs([]); return; }
+    if (!selectedSnapshot || !commodityType || !volume || parseFloat(volume) <= 0) {
+      setLegs([]);
+      return;
+    }
     const snap = filteredSnapshots.find(s => s.id === selectedSnapshot);
     const ticker = snap?.ticker ?? '';
+    const vol = parseFloat(volume);
+    const calculateContracts = (ct: string, v: number): string => {
+      if (ct === 'soybean|cbot') {
+        return String(Math.floor((v * 2.20462) / 5000));
+      } else if (ct === 'corn|b3') {
+        return String(Math.floor(v / 450));
+      } else {
+        return String(Math.floor((v * 2.3622) / 5000));
+      }
+    };
+    const contracts = calculateContracts(commodityType, vol);
     if (commodityType === 'corn|b3') {
-      setLegs([{ leg_type: 'futures', direction: 'sell', ticker, contracts: '', price: '' }]);
+      setLegs([{ leg_type: 'futures', direction: 'sell', ticker, contracts, price: '' }]);
     } else {
       setLegs([
-        { leg_type: 'futures', direction: 'sell', ticker, contracts: '', price: '' },
-        { leg_type: 'ndf', direction: 'sell', ticker, contracts: '', price: '', ndf_rate: '' },
+        { leg_type: 'futures', direction: 'sell', ticker, contracts, price: '' },
+        { leg_type: 'ndf', direction: 'sell', ticker, contracts, price: '', ndf_rate: '' },
       ]);
     }
-  }, [selectedSnapshot, commodityType]);
+  }, [selectedSnapshot, commodityType, volume]);
 
   const previewLabel = useMemo(() => {
     const wh = selectedWarehouse || 'XXX';
