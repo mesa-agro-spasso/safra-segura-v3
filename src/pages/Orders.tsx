@@ -48,6 +48,7 @@ const Orders = () => {
   const [building, setBuilding] = useState(false);
   const [buildResult, setBuildResult] = useState<Record<string, unknown> | null>(null);
   const [generatedLabel, setGeneratedLabel] = useState('');
+  const [orderSeq, setOrderSeq] = useState(1);
 
   // Manual order form
   const [manualForm, setManualForm] = useState({
