@@ -112,11 +112,11 @@ const Orders = () => {
     const vol = parseFloat(volume);
     const calculateContracts = (ct: string, v: number): string => {
       if (ct === 'soybean|cbot') {
-        return String(Math.floor((v * 2.20462) / 5000));
+        return ((v * 2.20462) / 5000).toFixed(2);
       } else if (ct === 'corn|b3') {
-        return String(Math.floor(v / 450));
+        return (v / 450).toFixed(2);
       } else {
-        return String(Math.floor((v * 2.3622) / 5000));
+        return ((v * 2.3622) / 5000).toFixed(2);
       }
     };
     const contracts = calculateContracts(commodityType, vol);
