@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, AlertTriangle, Download } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Download, Filter } from 'lucide-react';
 import { GeneratePricingModal } from '@/components/GeneratePricingModal';
 import { ExportPricingModal } from '@/components/ExportPricingModal';
 
