@@ -62,53 +62,7 @@ function WarehousesTab() {
                 </div>
                 <div className="space-y-1"><Label className="text-xs">Tipo</Label><Input value={editing.type ?? ''} onChange={(e) => setEditing({ ...editing, type: e.target.value })} /></div>
                 <div className="flex items-center gap-2"><Switch checked={editing.active ?? true} onCheckedChange={(v) => setEditing({ ...editing, active: v })} /><Label className="text-xs">Ativo</Label></div>
-                <Collapsible>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="w-full justify-between text-xs">
-                      Custos Padrão <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-3 pt-2">
-                    {(() => {
-                      const bc = (editing.basis_config ?? {}) as Record<string, unknown>;
-                      const setBC = (key: string, val: unknown) => setEditing({ ...editing, basis_config: { ...bc, [key]: val } });
-                      const numBC = (label: string, key: string) => (
-                        <div className="space-y-1" key={key}>
-                          <Label className="text-xs">{label}</Label>
-                          <Input type="number" step="any" placeholder="—"
-                            value={bc[key] != null ? String(bc[key]) : ''}
-                            onChange={(e) => setBC(key, e.target.value === '' ? null : Number(e.target.value))} />
-                        </div>
-                      );
-                      return (
-                        <>
-                          <div className="grid grid-cols-2 gap-3">
-                            {numBC('Taxa de juros (%)', 'interest_rate')}
-                            {numBC('Custo armazenagem', 'storage_cost')}
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Tipo armazenagem</Label>
-                              <Select value={bc.storage_cost_type as string ?? ''} onValueChange={(v) => setBC('storage_cost_type', v || null)}>
-                                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="fixed">Fixo (R$/saca)</SelectItem>
-                                  <SelectItem value="monthly">Mensal (R$/mês)</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            {numBC('Custo recepção', 'reception_cost')}
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            {numBC('Corretagem/contrato', 'brokerage_per_contract')}
-                            {numBC('Custo mesa (%)', 'desk_cost_pct')}
-                          </div>
-                          {numBC('Quebra mensal (%)', 'shrinkage_rate_monthly')}
-                        </>
-                      );
-                    })()}
-                  </CollapsibleContent>
-                </Collapsible>
+                <div className="space-y-1"><Label className="text-xs">Basis Config (JSON)</Label><Input value={JSON.stringify(editing.basis_config ?? {})} onChange={(e) => { try { setEditing({ ...editing, basis_config: JSON.parse(e.target.value) }); } catch {} }} /></div>
                 <Button onClick={handleSave} className="w-full">Salvar</Button>
               </div>
             )}
@@ -177,7 +131,7 @@ function CombinationsTab() {
   const toggleActive = useTogglePricingCombinationActive();
   const [editing, setEditing] = useState<Partial<PricingCombination> | null>(null);
   const [open, setOpen] = useState(false);
-  const [showActiveOnly, setShowActiveOnly] = useState(false);
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [costsOpen, setCostsOpen] = useState(false);
 
   const warehouseMap = useMemo(() => {
