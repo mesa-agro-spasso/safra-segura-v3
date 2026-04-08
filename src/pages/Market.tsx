@@ -347,7 +347,7 @@ const Market = () => {
                 <span className={`text-xs ${getHoursAgo(fxRow.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
                   {getHoursAgo(fxRow.updated_at)}h atrás · {fxRow.source}
                 </span>
-                {renderEditCell('USD/BRL', fxRow.price)}
+                {renderEditCell('USD/BRL', fxRow.price ?? undefined)}
               </CardContent>
             </Card>
           )}
