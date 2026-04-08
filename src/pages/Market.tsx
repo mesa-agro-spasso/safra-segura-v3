@@ -419,7 +419,7 @@ const Market = () => {
                       <TableRow key={row.ticker}>
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
-                        <TableCell className="text-right">{row.price.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{row.price!.toFixed(2)}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
                           {getHoursAgo(row.updated_at)}h · {row.source}
                         </TableCell>
