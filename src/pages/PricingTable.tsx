@@ -191,7 +191,7 @@ const PricingTable = () => {
                         <TableCell className="text-right">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <button className="font-bold text-primary hover:underline cursor-pointer tabular-nums">
+                              <button className="font-bold text-primary hover:underline cursor-pointer tabular-nums" onClick={(e) => { e.stopPropagation(); setDetailSnap(snap); }}>
                                 R$ {snap.origination_price_brl.toFixed(2)}
                               </button>
                             </TooltipTrigger>
