@@ -446,7 +446,7 @@ const Market = () => {
               ) : b3Error ? (
                 <p className="text-muted-foreground text-sm">Aguardando servidor acordar... ({b3Error})</p>
               ) : b3Tickers.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Nenhum contrato B3 disponível</p>
+                <p className="text-muted-foreground text-sm">Clique em "Atualizar Automático" para carregar os tickers B3.</p>
               ) : (
                 <Table>
                   <TableHeader>

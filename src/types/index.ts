@@ -13,7 +13,7 @@ export interface MarketData {
   id: string;
   ticker: string;
   commodity: string;
-  price: number;
+  price: number | null;
   currency: string;
   date: string;
   exchange_rate: number | null;
