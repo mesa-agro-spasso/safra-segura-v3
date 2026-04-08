@@ -386,7 +386,7 @@ const Market = () => {
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
                           {getHoursAgo(row.updated_at)}h · {row.source}
                         </TableCell>
-                        <TableCell>{renderEditCell(row.ticker, row.price)}</TableCell>
+                        <TableCell>{renderEditCell(row.ticker, row.price ?? undefined)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
