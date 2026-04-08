@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useHedgeOrders, useCreateHedgeOrder } from '@/hooks/useHedgeOrders';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { usePricingSnapshots } from '@/hooks/usePricingSnapshots';
+import { useCreateOperation } from '@/hooks/useOperations';
 import { useAuth } from '@/contexts/AuthContext';
 import { callApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,25 +16,38 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Copy, Plus, AlertTriangle } from 'lucide-react';
 
+/** Generate a short readable operation label: MTP_SOJA_080425_001 */
+function generateOperationLabel(warehouseId: string, commodity: string, seq?: number): string {
+  const wh = warehouseId.slice(0, 3).toUpperCase();
+  const com = commodity.slice(0, 4).toUpperCase();
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yy = String(now.getFullYear()).slice(-2);
+  const s = String(seq ?? Math.floor(Math.random() * 900) + 100).padStart(3, '0');
+  return `${wh}_${com}_${dd}${mm}${yy}_${s}`;
+}
+
 const Orders = () => {
-  const [commodityFilter, setCommodityFilter] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [commodityFilter, setCommodityFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const { data: orders, isLoading } = useHedgeOrders({
-    commodity: commodityFilter || undefined,
-    status: statusFilter || undefined,
+    commodity: commodityFilter !== 'all' ? commodityFilter : undefined,
+    status: statusFilter !== 'all' ? statusFilter : undefined,
   });
   const { data: warehouses } = useActiveArmazens();
   const { data: snapshots } = usePricingSnapshots();
   const createOrder = useCreateHedgeOrder();
+  const createOperation = useCreateOperation();
   const { user } = useAuth();
 
   // Create order form
   const [selectedWarehouse, setSelectedWarehouse] = useState('');
   const [selectedSnapshot, setSelectedSnapshot] = useState('');
   const [volume, setVolume] = useState('');
-  const [operationId, setOperationId] = useState('');
   const [building, setBuilding] = useState(false);
   const [buildResult, setBuildResult] = useState<Record<string, unknown> | null>(null);
+  const [generatedLabel, setGeneratedLabel] = useState('');
 
   // Manual order form
   const [manualForm, setManualForm] = useState({
@@ -41,33 +55,62 @@ const Orders = () => {
     exchange: 'CBOT',
     volume_sacks: '',
     origination_price_brl: '',
-    operation_id: '',
     status: 'EXECUTED',
   });
 
+  // Derive commodity/warehouse from selected snapshot for auto-label preview
+  const selectedSnapshotData = useMemo(
+    () => snapshots?.find((s) => s.id === selectedSnapshot),
+    [snapshots, selectedSnapshot]
+  );
+
+  const previewLabel = useMemo(() => {
+    const wh = selectedWarehouse || selectedSnapshotData?.warehouse_id || 'XXX';
+    const com = selectedSnapshotData?.commodity || 'SOJA';
+    return generateOperationLabel(wh, com);
+  }, [selectedWarehouse, selectedSnapshotData]);
+
   const handleBuildOrder = async () => {
-    if (!selectedWarehouse || !selectedSnapshot || !volume || !operationId) {
+    if (!selectedWarehouse || !selectedSnapshot || !volume) {
       toast.error('Preencha todos os campos');
       return;
     }
     setBuilding(true);
     setBuildResult(null);
     try {
-      const snapshot = snapshots?.find((s) => s.id === selectedSnapshot);
+      const snapshot = selectedSnapshotData;
+      const commodity = snapshot?.commodity ?? 'SOJA';
+      const label = generateOperationLabel(selectedWarehouse, commodity);
+      setGeneratedLabel(label);
+
+      // 1. Create operation record
+      const operation = await createOperation.mutateAsync({
+        warehouse_id: selectedWarehouse,
+        commodity,
+        volume_sacks: parseFloat(volume),
+        status: 'RASCUNHO',
+        pricing_snapshot_id: selectedSnapshot,
+        notes: label,
+        created_by: user?.id ?? null,
+      });
+
+      const operationId = operation.id;
+
+      // 2. Call API to build order
       const result = await callApi<Record<string, unknown>>('/orders/build', {
         warehouse_id: selectedWarehouse,
         pricing_snapshot_id: selectedSnapshot,
         volume_sacks: parseFloat(volume),
         operation_id: operationId,
-        commodity: snapshot?.commodity ?? 'SOJA',
+        commodity,
       });
       setBuildResult(result);
 
-      // Auto-save to hedge_orders
+      // 3. Save hedge_order
       if (result) {
         await createOrder.mutateAsync({
           operation_id: operationId,
-          commodity: (result.commodity as string) ?? snapshot?.commodity ?? 'SOJA',
+          commodity: (result.commodity as string) ?? commodity,
           exchange: (result.exchange as string) ?? 'CBOT',
           volume_sacks: parseFloat(volume),
           origination_price_brl: snapshot?.origination_price_brl ?? 0,
@@ -78,7 +121,7 @@ const Orders = () => {
           stonex_confirmation_text: null,
           created_by: user?.id ?? null,
         });
-        toast.success('Ordem criada');
+        toast.success(`Ordem criada: ${label}`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao criar ordem');
@@ -88,18 +131,30 @@ const Orders = () => {
   };
 
   const handleManualSave = async () => {
-    const { commodity, exchange, volume_sacks, origination_price_brl, operation_id, status } = manualForm;
-    if (!volume_sacks || !origination_price_brl || !operation_id) {
+    const { commodity, exchange, volume_sacks, origination_price_brl, status } = manualForm;
+    if (!volume_sacks || !origination_price_brl) {
       toast.error('Preencha os campos obrigatórios');
       return;
     }
     try {
+      // Create operation first
+      const label = generateOperationLabel('MAN', commodity);
+      const operation = await createOperation.mutateAsync({
+        warehouse_id: 'hq',
+        commodity,
+        volume_sacks: parseFloat(volume_sacks),
+        status: 'RASCUNHO',
+        pricing_snapshot_id: null,
+        notes: label,
+        created_by: user?.id ?? null,
+      });
+
       await createOrder.mutateAsync({
         commodity,
         exchange,
         volume_sacks: parseFloat(volume_sacks),
         origination_price_brl: parseFloat(origination_price_brl),
-        operation_id,
+        operation_id: operation.id,
         status,
         legs: [],
         order_message: null,
@@ -107,8 +162,8 @@ const Orders = () => {
         stonex_confirmation_text: null,
         created_by: user?.id ?? null,
       });
-      toast.success('Ordem registrada manualmente');
-      setManualForm({ ...manualForm, volume_sacks: '', origination_price_brl: '', operation_id: '' });
+      toast.success(`Ordem registrada: ${label}`);
+      setManualForm({ ...manualForm, volume_sacks: '', origination_price_brl: '' });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro');
     }
@@ -160,8 +215,10 @@ const Orders = () => {
                   <Input type="number" value={volume} onChange={(e) => setVolume(e.target.value)} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Operation ID</Label>
-                  <Input value={operationId} onChange={(e) => setOperationId(e.target.value)} />
+                  <Label className="text-xs">ID da Operação (auto)</Label>
+                  <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-xs font-mono text-muted-foreground">
+                    {generatedLabel || previewLabel}
+                  </div>
                 </div>
               </div>
               <Button onClick={handleBuildOrder} disabled={building} className="w-full">
@@ -175,7 +232,7 @@ const Orders = () => {
               <CardHeader><CardTitle className="text-sm">Resultado</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 {(buildResult.alerts as { level: string; message: string }[])?.map((alert, i) => (
-                  <div key={i} className={`flex items-center gap-2 text-sm p-2 rounded ${alert.level === 'ERROR' ? 'bg-destructive/10 text-destructive' : 'bg-[hsl(var(--warning)/0.1)] text-[hsl(var(--warning))]'}`}>
+                  <div key={i} className={`flex items-center gap-2 text-sm p-2 rounded ${alert.level === 'ERROR' ? 'bg-destructive/10 text-destructive' : 'bg-yellow-500/10 text-yellow-400'}`}>
                     <AlertTriangle className="h-4 w-4" /> {alert.message}
                   </div>
                 ))}
@@ -207,7 +264,7 @@ const Orders = () => {
             <Select value={commodityFilter} onValueChange={setCommodityFilter}>
               <SelectTrigger className="w-40"><SelectValue placeholder="Commodity" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas</SelectItem>
+                <SelectItem value="all">Todas</SelectItem>
                 <SelectItem value="SOJA">Soja</SelectItem>
                 <SelectItem value="MILHO">Milho</SelectItem>
               </SelectContent>
@@ -215,7 +272,7 @@ const Orders = () => {
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="GENERATED">Gerada</SelectItem>
                 <SelectItem value="EXECUTED">Executada</SelectItem>
                 <SelectItem value="CANCELLED">Cancelada</SelectItem>
@@ -224,6 +281,8 @@ const Orders = () => {
           </div>
           {isLoading ? (
             <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+          ) : !orders?.length ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Nenhuma ordem encontrada.</p>
           ) : (
             <Table>
               <TableHeader>
@@ -238,15 +297,15 @@ const Orders = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders?.map((o) => (
+                {orders.map((o) => (
                   <TableRow key={o.id}>
-                    <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
+                    <TableCell className="font-mono text-xs">{o.operation_id?.slice(0, 8) ?? '-'}</TableCell>
                     <TableCell>{o.commodity}</TableCell>
                     <TableCell>{o.exchange}</TableCell>
-                    <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
-                    <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>
+                    <TableCell>{o.volume_sacks?.toLocaleString() ?? '-'}</TableCell>
+                    <TableCell>R$ {o.origination_price_brl?.toFixed(2) ?? '0.00'}</TableCell>
                     <TableCell><Badge variant={o.status === 'EXECUTED' ? 'default' : 'secondary'}>{o.status}</Badge></TableCell>
-                    <TableCell className="text-xs">{new Date(o.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                    <TableCell className="text-xs">{o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : '-'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -286,10 +345,6 @@ const Orders = () => {
                 <div className="space-y-1">
                   <Label className="text-xs">Preço originação (R$/sc)</Label>
                   <Input type="number" step="0.01" value={manualForm.origination_price_brl} onChange={(e) => setManualForm({ ...manualForm, origination_price_brl: e.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Operation ID</Label>
-                  <Input value={manualForm.operation_id} onChange={(e) => setManualForm({ ...manualForm, operation_id: e.target.value })} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Status</Label>
