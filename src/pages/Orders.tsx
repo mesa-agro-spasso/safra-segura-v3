@@ -313,8 +313,8 @@ const Orders = () => {
                 {/* Row 2: Preço de Referência (span 2) */}
                 <div className="space-y-1 col-span-2">
                   <Label className="text-xs">Preço de Referência</Label>
-                  <Select value={selectedSnapshot} onValueChange={setSelectedSnapshot} disabled={!commodityType}>
-                    <SelectTrigger><SelectValue placeholder={!commodityType ? 'Selecione commodity primeiro' : 'Selecione'} /></SelectTrigger>
+                  <Select value={selectedSnapshot} onValueChange={setSelectedSnapshot} disabled={!commodityType || !volume || parseFloat(volume) <= 0}>
+                    <SelectTrigger><SelectValue placeholder={!commodityType ? 'Selecione commodity primeiro' : (!volume || parseFloat(volume) <= 0) ? 'Preencha volume primeiro' : 'Selecione'} /></SelectTrigger>
                     <SelectContent>
                       {filteredSnapshots.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
