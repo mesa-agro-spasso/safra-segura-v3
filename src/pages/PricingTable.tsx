@@ -26,6 +26,7 @@ const PricingTable = () => {
   const navigate = useNavigate();
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
+  const [tickersExpanded, setTickersExpanded] = useState(false);
 
   const staleTickers = useMemo(() => {
     if (!marketData) return [];
@@ -92,11 +93,28 @@ const PricingTable = () => {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Tabela de Preços</CardTitle>
-            {lastUpdated && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Atualizado em {lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} de {lastUpdated.toLocaleDateString('pt-BR')}
-              </p>
-            )}
+            {(() => {
+              const maxHoursAgo = marketData?.length
+                ? Math.max(...marketData.map((m) => getHoursAgo(m.updated_at)))
+                : 0;
+              const color = maxHoursAgo < 12 ? 'text-green-400' : maxHoursAgo < 24 ? 'text-yellow-400' : 'text-red-400';
+              const label = maxHoursAgo < 12
+                ? 'Últimas atualizações: ok'
+                : maxHoursAgo < 24
+                  ? `Últimas atualizações: atenção (${Math.round(maxHoursAgo)}h)`
+                  : `Últimas atualizações: desatualizado (${Math.round(maxHoursAgo)}h)`;
+              return (
+                <button
+                  type="button"
+                  className={`flex items-center gap-1.5 text-xs mt-1 cursor-pointer hover:opacity-80 ${color}`}
+                  onClick={() => setTickersExpanded((v) => !v)}
+                >
+                  <span>●</span>
+                  <span>{label}</span>
+                  <span className="ml-1">{tickersExpanded ? '▾' : '▸'}</span>
+                </button>
+              );
+            })()}
           </div>
           <Button onClick={() => setModalOpen(true)} disabled={loading}>
             <RefreshCw className="mr-2 h-4 w-4" />
@@ -104,7 +122,7 @@ const PricingTable = () => {
           </Button>
         </CardHeader>
         <CardContent>
-          {marketData && (
+          {tickersExpanded && marketData && (
             <div className="flex flex-wrap gap-3 mb-4">
               {marketData.map((m) => {
                 const hours = getHoursAgo(m.updated_at);
