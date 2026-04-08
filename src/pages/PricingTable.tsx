@@ -164,12 +164,48 @@ const PricingTable = () => {
             </div>
           )}
 
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 mb-4">
+            <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+              <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Commodity" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {uniqueCommodities.map((c) => (
+                  <SelectItem key={c} value={c}>{c === 'soybean' ? 'Soja' : 'Milho'}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Praça" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {uniqueWarehouses.map((w) => (
+                  <SelectItem key={w} value={w}>{warehouseMap[w] ?? w}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterTicker} onValueChange={setFilterTicker}>
+              <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Ticker" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {uniqueTickers.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(filterCommodity !== 'all' || filterWarehouse !== 'all' || filterTicker !== 'all') && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterCommodity('all'); setFilterWarehouse('all'); setFilterTicker('all'); }}>
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
           ) : rows.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12">Nenhum snapshot disponível. Clique em "Gerar Tabela".</p>
+            <p className="text-center text-muted-foreground py-12">{allRows.length === 0 ? 'Nenhum snapshot disponível. Clique em "Gerar Tabela".' : 'Nenhum resultado para os filtros selecionados.'}</p>
           ) : (
             <div className="overflow-auto">
               <Table>
