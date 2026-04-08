@@ -1,76 +1,43 @@
 
 
-# Refatorar aba "Criar Ordem" — Plano de Implementação
+# Ajustes no fluxo de pernas — Orders.tsx
 
 ## Arquivos alterados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/types/index.ts` | Adicionar `parent_operation_id?: string \| null` ao tipo Operation (linha 79, antes do `}`) |
-| `src/pages/Orders.tsx` | Reestruturar aba "Criar Ordem" com commodity select, filtro de snapshots, pernas automáticas, editor de pernas, vinculação a operação |
+| `src/pages/Orders.tsx` | 2 edições cirúrgicas |
 
-## 1. `src/types/index.ts`
+## Ajuste 1 — disabled no Select "Preço de Referência" (linha 302)
 
-Adicionar campo na interface Operation (após `notes`, antes de `created_by`):
-
-```ts
-parent_operation_id?: string | null;
+Trocar:
+```tsx
+disabled={!commodityType}
+```
+Por:
+```tsx
+disabled={!commodityType || !volume || parseFloat(volume) <= 0}
 ```
 
-## 2. `src/pages/Orders.tsx` — mudanças na aba "Criar Ordem"
+Atualizar também o placeholder (linha 303) para refletir:
+```tsx
+placeholder={!commodityType ? 'Selecione commodity primeiro' : (!volume || parseFloat(volume) <= 0) ? 'Preencha volume primeiro' : 'Selecione'}
+```
 
-### Imports
+## Ajuste 2 — useEffect de geração de pernas (linhas 104-117)
 
-- Adicionar `useEffect` ao import do React
-- Adicionar `useOperations` ao import de `@/hooks/useOperations`
-- Adicionar `Trash2` ao import de lucide-react
+Substituir o bloco inteiro pelo novo useEffect que:
+- Guarda contra volume vazio/zero
+- Calcula contratos automaticamente via `calculateContracts(commodityType, vol)`:
+  - soybean|cbot → `floor((vol × 2.20462) / 5000)`
+  - corn|b3 → `floor(vol / 450)`
+  - corn|cbot → `floor((vol × 2.3622) / 5000)`
+- Preenche `contracts` em cada perna gerada
+- Dependency array: `[selectedSnapshot, commodityType, volume]`
 
-### Tipo local + novos estados
-
-Tipo `Leg` definido fora do componente (não exportado). Novos estados: `commodityType`, `legs`, `linkedOperationId`. Instanciar `useOperations()`.
-
-### Filtro de snapshots
-
-Substituir o Select atual de snapshots por lógica filtrada:
-- Extrair `com` e `bench` de `commodityType.split('|')`
-- `latestDate` = `snapshots?.[0]?.created_at`
-- `filteredSnapshots` via `useMemo` filtrando por `created_at === latestDate`, commodity, benchmark, warehouse
-
-### Geração automática de pernas
-
-`useEffect` que observa `selectedSnapshot` + `commodityType`:
-- `corn|b3` → 1 perna (futures sell)
-- Outros → 2 pernas (futures sell + NDF sell)
-- Preenche ticker do snapshot selecionado
-
-### Layout do formulário (grid 2 colunas)
-
-- Linha 1: Praça | Commodity (novo)
-- Linha 2: Preço de Referência (span 2, label: `DD/MM pgto · DD/MM venda · R$XX.XX`, disabled se commodityType vazio)
-- Linha 3: Volume | Vinculada à operação (Select de operations, default "Nenhuma")
-- Linha 4: ID da Operação auto (span 2, existente)
-
-### Editor de pernas
-
-Seção visível se `legs.length > 0`, com título "Pernas da Operação". Cada perna em row com selects (leg_type, direction) e inputs (ticker, contracts, price) + campos condicionais (ndf_rate, option_type/strike/premium). Botão Trash por perna. Botão "+ Adicionar Perna" ao final.
-
-### handleBuildOrder
-
-- Validar `commodityType` preenchido
-- Se `linkedOperationId` preenchido: incluir `parent_operation_id` no insert da operação
-- Incluir `legs` no payload da API e no insert do hedge_order
-- Reset completo ao final: selectedSnapshot, commodityType, legs, linkedOperationId, volume
-
-### previewLabel
-
-Atualizar para usar `com` derivado de `commodityType` (fallback 'SOJA').
+O campo `contracts` continua editável — o useEffect apenas preenche o valor inicial.
 
 ## O que NÃO muda
 
-- Abas "Ordens Existentes" e "Registro Manual" — intactas
-- Nenhum outro arquivo além dos dois listados
-
-## Memória
-
-Salvar em memória: contrato de `parent_operation_id` (referência lógica, não FK, operação anterior permanece intacta) e estrutura do tipo `Leg`.
+Tudo o mais: handleBuildOrder, handleManualSave, editor de pernas, abas "Ordens Existentes" e "Registro Manual".
 
