@@ -29,6 +29,7 @@ const PricingTable = () => {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
+  const [detailSnap, setDetailSnap] = useState<any>(null);
 
   const staleTickers = useMemo(() => {
     if (!marketData) return [];
