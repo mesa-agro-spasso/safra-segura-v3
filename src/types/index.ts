@@ -74,6 +74,7 @@ export interface Operation {
   status: string;
   pricing_snapshot_id: string | null;
   notes: string | null;
+  parent_operation_id?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
