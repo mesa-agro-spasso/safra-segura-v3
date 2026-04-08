@@ -140,7 +140,8 @@ const Orders = () => {
     }
     try {
       // Create operation first
-      const label = generateOperationLabel('MAN', commodity);
+      const label = generateOperationLabel('MAN', commodity, orderSeq);
+      setOrderSeq((s) => s + 1);
       const operation = await createOperation.mutateAsync({
         warehouse_id: 'hq',
         commodity,
