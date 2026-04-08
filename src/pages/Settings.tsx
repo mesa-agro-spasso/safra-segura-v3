@@ -131,7 +131,7 @@ function CombinationsTab() {
   const toggleActive = useTogglePricingCombinationActive();
   const [editing, setEditing] = useState<Partial<PricingCombination> | null>(null);
   const [open, setOpen] = useState(false);
-  const [showActiveOnly, setShowActiveOnly] = useState(true);
+  const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [costsOpen, setCostsOpen] = useState(false);
 
   const warehouseMap = useMemo(() => {
