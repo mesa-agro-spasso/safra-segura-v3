@@ -101,20 +101,34 @@ const Orders = () => {
     [filteredSnapshots, selectedSnapshot]
   );
 
-  // Auto-generate legs when snapshot changes
+  // Auto-generate legs when snapshot, commodity or volume changes
   useEffect(() => {
-    if (!selectedSnapshot || !commodityType) { setLegs([]); return; }
+    if (!selectedSnapshot || !commodityType || !volume || parseFloat(volume) <= 0) {
+      setLegs([]);
+      return;
+    }
     const snap = filteredSnapshots.find(s => s.id === selectedSnapshot);
     const ticker = snap?.ticker ?? '';
+    const vol = parseFloat(volume);
+    const calculateContracts = (ct: string, v: number): string => {
+      if (ct === 'soybean|cbot') {
+        return String(Math.floor((v * 2.20462) / 5000));
+      } else if (ct === 'corn|b3') {
+        return String(Math.floor(v / 450));
+      } else {
+        return String(Math.floor((v * 2.3622) / 5000));
+      }
+    };
+    const contracts = calculateContracts(commodityType, vol);
     if (commodityType === 'corn|b3') {
-      setLegs([{ leg_type: 'futures', direction: 'sell', ticker, contracts: '', price: '' }]);
+      setLegs([{ leg_type: 'futures', direction: 'sell', ticker, contracts, price: '' }]);
     } else {
       setLegs([
-        { leg_type: 'futures', direction: 'sell', ticker, contracts: '', price: '' },
-        { leg_type: 'ndf', direction: 'sell', ticker, contracts: '', price: '', ndf_rate: '' },
+        { leg_type: 'futures', direction: 'sell', ticker, contracts, price: '' },
+        { leg_type: 'ndf', direction: 'sell', ticker, contracts, price: '', ndf_rate: '' },
       ]);
     }
-  }, [selectedSnapshot, commodityType]);
+  }, [selectedSnapshot, commodityType, volume]);
 
   const previewLabel = useMemo(() => {
     const wh = selectedWarehouse || 'XXX';
@@ -299,8 +313,8 @@ const Orders = () => {
                 {/* Row 2: Preço de Referência (span 2) */}
                 <div className="space-y-1 col-span-2">
                   <Label className="text-xs">Preço de Referência</Label>
-                  <Select value={selectedSnapshot} onValueChange={setSelectedSnapshot} disabled={!commodityType}>
-                    <SelectTrigger><SelectValue placeholder={!commodityType ? 'Selecione commodity primeiro' : 'Selecione'} /></SelectTrigger>
+                  <Select value={selectedSnapshot} onValueChange={setSelectedSnapshot} disabled={!commodityType || !volume || parseFloat(volume) <= 0}>
+                    <SelectTrigger><SelectValue placeholder={!commodityType ? 'Selecione commodity primeiro' : (!volume || parseFloat(volume) <= 0) ? 'Preencha volume primeiro' : 'Selecione'} /></SelectTrigger>
                     <SelectContent>
                       {filteredSnapshots.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
