@@ -51,8 +51,8 @@ const PricingTable = () => {
     return map;
   }, [warehouses]);
 
-  // Get latest batch of snapshots, sorted by warehouse > commodity > ticker
-  const rows = useMemo(() => {
+  // Get latest batch of snapshots, sorted and filtered
+  const allRows = useMemo(() => {
     if (!snapshots?.length) return [];
     const latest = snapshots[0].created_at;
     const batch = snapshots.filter((s) => s.created_at === latest);
@@ -64,6 +64,20 @@ const PricingTable = () => {
       return a.ticker.localeCompare(b.ticker);
     });
   }, [snapshots, warehouseMap]);
+
+  const rows = useMemo(() => {
+    return allRows.filter((s) => {
+      if (filterCommodity !== 'all' && s.commodity !== filterCommodity) return false;
+      if (filterWarehouse !== 'all' && s.warehouse_id !== filterWarehouse) return false;
+      if (filterTicker !== 'all' && s.ticker !== filterTicker) return false;
+      return true;
+    });
+  }, [allRows, filterCommodity, filterWarehouse, filterTicker]);
+
+  // Unique values for filter dropdowns
+  const uniqueCommodities = useMemo(() => [...new Set(allRows.map((r) => r.commodity))], [allRows]);
+  const uniqueWarehouses = useMemo(() => [...new Set(allRows.map((r) => r.warehouse_id))], [allRows]);
+  const uniqueTickers = useMemo(() => [...new Set(allRows.map((r) => r.ticker))].sort(), [allRows]);
 
   const lastUpdated = snapshots?.[0] ? new Date(snapshots[0].created_at) : null;
   const loading = loadingSnapshots || loadingMarket;
