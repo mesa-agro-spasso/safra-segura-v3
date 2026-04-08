@@ -36,6 +36,7 @@ const PricingTable = () => {
   const [filterCommodity, setFilterCommodity] = useState<string>('all');
   const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
   const [filterTicker, setFilterTicker] = useState<string>('all');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const staleTickers = useMemo(() => {
     if (!marketData) return [];
