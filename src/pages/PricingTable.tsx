@@ -139,10 +139,16 @@ const PricingTable = () => {
               );
             })()}
           </div>
-          <Button onClick={() => setModalOpen(true)} disabled={loading}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Gerar Tabela
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={loading || rows.length === 0}>
+              <Download className="mr-2 h-4 w-4" />
+              Exportar
+            </Button>
+            <Button onClick={() => setModalOpen(true)} disabled={loading}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Gerar Tabela
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {tickersExpanded && marketData && (
