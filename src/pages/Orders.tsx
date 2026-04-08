@@ -81,8 +81,9 @@ const Orders = () => {
     try {
       const snapshot = selectedSnapshotData;
       const commodity = snapshot?.commodity ?? 'SOJA';
-      const label = generateOperationLabel(selectedWarehouse, commodity);
+      const label = generateOperationLabel(selectedWarehouse, commodity, orderSeq);
       setGeneratedLabel(label);
+      setOrderSeq((s) => s + 1);
 
       // 1. Create operation record
       const operation = await createOperation.mutateAsync({
