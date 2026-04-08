@@ -70,9 +70,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
 
       if (session?.user) {
+        // Set loading so ProtectedRoute shows spinner until profile loads
+        setLoading(true);
         // Use setTimeout to avoid blocking the auth state change processing
-        setTimeout(() => {
-          if (mounted) fetchProfile(session.user.id);
+        setTimeout(async () => {
+          if (mounted) {
+            await fetchProfile(session.user.id);
+            if (mounted) setLoading(false);
+          }
         }, 0);
       } else {
         setProfile(null);
