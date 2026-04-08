@@ -389,6 +389,7 @@ const PricingTable = () => {
       })()}
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
+      <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} />
     </div>
   );
 };
