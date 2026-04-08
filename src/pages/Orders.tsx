@@ -16,16 +16,16 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Copy, Plus, AlertTriangle } from 'lucide-react';
 
-/** Generate a short readable operation label: MTP_SOJA_080425_001 */
-function generateOperationLabel(warehouseId: string, commodity: string, seq?: number): string {
+/** Generate a short readable operation label: MTP_SOJA_260408_001 */
+function generateOperationLabel(warehouseId: string, commodity: string, seq: number): string {
   const wh = warehouseId.slice(0, 3).toUpperCase();
   const com = commodity.slice(0, 4).toUpperCase();
   const now = new Date();
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
   const yy = String(now.getFullYear()).slice(-2);
-  const s = String(seq ?? Math.floor(Math.random() * 900) + 100).padStart(3, '0');
-  return `${wh}_${com}_${dd}${mm}${yy}_${s}`;
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const s = String(seq).padStart(3, '0');
+  return `${wh}_${com}_${yy}${mm}${dd}_${s}`;
 }
 
 const Orders = () => {
@@ -48,6 +48,7 @@ const Orders = () => {
   const [building, setBuilding] = useState(false);
   const [buildResult, setBuildResult] = useState<Record<string, unknown> | null>(null);
   const [generatedLabel, setGeneratedLabel] = useState('');
+  const [orderSeq, setOrderSeq] = useState(1);
 
   // Manual order form
   const [manualForm, setManualForm] = useState({
@@ -67,8 +68,8 @@ const Orders = () => {
   const previewLabel = useMemo(() => {
     const wh = selectedWarehouse || selectedSnapshotData?.warehouse_id || 'XXX';
     const com = selectedSnapshotData?.commodity || 'SOJA';
-    return generateOperationLabel(wh, com);
-  }, [selectedWarehouse, selectedSnapshotData]);
+    return generateOperationLabel(wh, com, orderSeq);
+  }, [selectedWarehouse, selectedSnapshotData, orderSeq]);
 
   const handleBuildOrder = async () => {
     if (!selectedWarehouse || !selectedSnapshot || !volume) {
@@ -80,8 +81,9 @@ const Orders = () => {
     try {
       const snapshot = selectedSnapshotData;
       const commodity = snapshot?.commodity ?? 'SOJA';
-      const label = generateOperationLabel(selectedWarehouse, commodity);
+      const label = generateOperationLabel(selectedWarehouse, commodity, orderSeq);
       setGeneratedLabel(label);
+      setOrderSeq((s) => s + 1);
 
       // 1. Create operation record
       const operation = await createOperation.mutateAsync({
@@ -138,7 +140,8 @@ const Orders = () => {
     }
     try {
       // Create operation first
-      const label = generateOperationLabel('MAN', commodity);
+      const label = generateOperationLabel('MAN', commodity, orderSeq);
+      setOrderSeq((s) => s + 1);
       const operation = await createOperation.mutateAsync({
         warehouse_id: 'hq',
         commodity,
