@@ -68,8 +68,8 @@ const Orders = () => {
   const previewLabel = useMemo(() => {
     const wh = selectedWarehouse || selectedSnapshotData?.warehouse_id || 'XXX';
     const com = selectedSnapshotData?.commodity || 'SOJA';
-    return generateOperationLabel(wh, com);
-  }, [selectedWarehouse, selectedSnapshotData]);
+    return generateOperationLabel(wh, com, orderSeq);
+  }, [selectedWarehouse, selectedSnapshotData, orderSeq]);
 
   const handleBuildOrder = async () => {
     if (!selectedWarehouse || !selectedSnapshot || !volume) {
