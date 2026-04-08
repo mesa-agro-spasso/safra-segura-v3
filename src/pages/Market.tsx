@@ -74,46 +74,31 @@ const Market = () => {
     return map;
   }, [marketData]);
 
-  // Fetch B3 tickers + saved prices on mount
+  // Load B3 from Supabase cache on mount (no API call)
   useEffect(() => {
-    const fetchB3 = async () => {
+    const loadB3FromDb = async () => {
       setB3Loading(true);
-      setB3Error(null);
       try {
-        const result = await callApi<B3Response>(
-          '/market/b3-corn-quotes',
-          undefined,
-          { method: 'GET', query: { quantity: '10' } }
-        );
-        const tickers = result.corn_b3 ?? [];
+        const { data: saved } = await supabase
+          .from('market_data')
+          .select('ticker, price, updated_at, source, exp_date')
+          .eq('commodity', 'MILHO')
+          .order('exp_date');
+        const tickers: B3CornQuote[] = [];
+        const priceMap: Record<string, B3SavedPrice> = {};
+        (saved ?? []).forEach((row: any) => {
+          tickers.push({ ticker: row.ticker, exp_date: row.exp_date });
+          priceMap[row.ticker] = { price: row.price, updated_at: row.updated_at, source: row.source };
+        });
         setB3Tickers(tickers);
-
-        if (tickers.length > 0) {
-          const tickerNames = tickers.map(t => t.ticker);
-          const { data: saved } = await supabase
-            .from('market_data')
-            .select('ticker, price, updated_at, source')
-            .eq('commodity', 'MILHO')
-            .in('ticker', tickerNames);
-
-          const priceMap: Record<string, B3SavedPrice> = {};
-          (saved ?? []).forEach((row: any) => {
-            priceMap[row.ticker] = {
-              price: row.price,
-              updated_at: row.updated_at,
-              source: row.source,
-            };
-          });
-          setB3Prices(priceMap);
-        }
+        setB3Prices(priceMap);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setB3Error(msg);
+        setB3Error(err instanceof Error ? err.message : String(err));
       } finally {
         setB3Loading(false);
       }
     };
-    fetchB3();
+    loadB3FromDb();
   }, []);
 
   const handleAutoFetch = async () => {
