@@ -161,30 +161,101 @@ async function exportXlsx(cols: ExportColumn[], rows: PricingSnapshot[], wm: Rec
 }
 
 async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
-  // Build a simple HTML table and print to PDF via browser
-  const header = cols.map((c) => `<th style="border:1px solid #333;padding:4px 8px;background:#1a1a2e;color:#e0e0e0;font-size:11px;text-align:left">${c.label}</th>`).join('');
-  const body = rows.map((r) => {
-    const cells = cols.map((c) => `<td style="border:1px solid #333;padding:4px 8px;font-size:10px">${c.getValue(r, wm)}</td>`).join('');
-    return `<tr>${cells}</tr>`;
-  }).join('');
-
   const now = new Date();
   const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  const html = `
-    <html><head><title>Tabela de Preços</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 20px; color: #222; }
-      h2 { margin-bottom: 4px; }
-      .meta { font-size: 11px; color: #666; margin-bottom: 12px; }
-      table { border-collapse: collapse; width: 100%; }
-      th { background: #f0f0f0 !important; color: #222 !important; }
-      @media print { body { margin: 10px; } }
-    </style></head><body>
-    <h2>Safra Segura — Tabela de Preços</h2>
-    <p class="meta">Gerado em ${dateStr}</p>
-    <table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>
-    </body></html>`;
+  // Group rows by commodity
+  const grouped: Record<string, PricingSnapshot[]> = {};
+  for (const r of rows) {
+    const key = r.commodity;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(r);
+  }
+
+  const commodityMeta: Record<string, { label: string; icon: string; color: string }> = {
+    soybean: { label: 'SOJA', icon: '🌾', color: '#5a7a3a' },
+    corn: { label: 'MILHO', icon: '🌽', color: '#b8860b' },
+  };
+
+  let sections = '';
+  for (const [commodity, cRows] of Object.entries(grouped)) {
+    const meta = commodityMeta[commodity] ?? { label: commodity.toUpperCase(), icon: '📦', color: '#555' };
+
+    // Collect unique tickers for the header subtitle
+    const tickers = [...new Set(cRows.map((r) => r.ticker))].join(' · ');
+    const fxInfo = commodity === 'soybean' && cRows[0]?.exchange_rate
+      ? ` · USD ${cRows[0].exchange_rate.toFixed(4)}`
+      : '';
+
+    const headerRow = cols.map((c) =>
+      `<th>${c.label}</th>`
+    ).join('');
+
+    const bodyRows = cRows.map((r, i) => {
+      const cells = cols.map((c) => `<td>${c.getValue(r, wm)}</td>`).join('');
+      return `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">${cells}</tr>`;
+    }).join('');
+
+    sections += `
+      <div class="section">
+        <div class="section-header">
+          <span class="section-title"><span class="icon">${meta.icon}</span> <span style="color:${meta.color};font-weight:700;letter-spacing:0.5px">${meta.label}</span></span>
+          <span class="section-subtitle">${tickers}${fxInfo}</span>
+        </div>
+        <table>
+          <thead><tr>${headerRow}</tr></thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Tabela de Preços</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #333; background: #fff; padding: 32px 28px;
+  }
+  .brand {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid #e5e7eb;
+  }
+  .brand h1 { font-size: 18px; font-weight: 700; color: #111; letter-spacing: -0.3px; }
+  .brand .meta { font-size: 11px; color: #999; }
+  .section { background: #fafafa; border-radius: 10px; padding: 0; margin-bottom: 20px; overflow: hidden; border: 1px solid #e5e7eb; }
+  .section-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 20px; background: #fff; border-bottom: 1px solid #eee;
+  }
+  .section-title { font-size: 15px; display: flex; align-items: center; gap: 6px; }
+  .icon { font-size: 18px; }
+  .section-subtitle { font-size: 12px; color: #888; font-weight: 400; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: #f5f5f5; }
+  th {
+    padding: 10px 16px; font-size: 11px; font-weight: 600; color: #888;
+    text-align: left; text-transform: uppercase; letter-spacing: 0.4px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  td {
+    padding: 12px 16px; font-size: 13px; color: #333; font-weight: 500;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .row-even { background: #fff; }
+  .row-odd { background: #fafafa; }
+  tr:last-child td { border-bottom: none; }
+  @media print {
+    body { padding: 16px; }
+    .section { break-inside: avoid; }
+  }
+</style></head><body>
+  <div class="brand">
+    <h1>Safra Segura — Tabela de Preços</h1>
+    <span class="meta">Gerado em ${dateStr}</span>
+  </div>
+  ${sections}
+</body></html>`;
 
   const win = window.open('', '_blank');
   if (!win) {
@@ -192,7 +263,5 @@ async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Reco
   }
   win.document.write(html);
   win.document.close();
-  setTimeout(() => {
-    win.print();
-  }, 500);
+  setTimeout(() => { win.print(); }, 500);
 }
