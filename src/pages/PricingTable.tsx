@@ -171,39 +171,66 @@ const PricingTable = () => {
             </div>
           )}
 
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            <Select value={filterCommodity} onValueChange={setFilterCommodity}>
-              <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Commodity" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {uniqueCommodities.map((c) => (
-                  <SelectItem key={c} value={c}>{c === 'soybean' ? 'Soja' : 'Milho'}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
-              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Praça" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {uniqueWarehouses.map((w) => (
-                  <SelectItem key={w} value={w}>{warehouseMap[w] ?? w}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterTicker} onValueChange={setFilterTicker}>
-              <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Ticker" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {uniqueTickers.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {(filterCommodity !== 'all' || filterWarehouse !== 'all' || filterTicker !== 'all') && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterCommodity('all'); setFilterWarehouse('all'); setFilterTicker('all'); }}>
-                Limpar filtros
-              </Button>
+          {/* Filters toggle */}
+          <div className="mb-4">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => setFiltersExpanded((v) => !v)}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              <span>Filtros</span>
+              {(filterCommodity !== 'all' || filterWarehouse !== 'all' || filterTicker !== 'all') && (
+                <span className="bg-primary/20 text-primary text-[10px] px-1.5 rounded-full font-medium">ativo</span>
+              )}
+              <span className="ml-0.5">{filtersExpanded ? '▾' : '▸'}</span>
+            </button>
+            {filtersExpanded && (
+              <div className="flex flex-wrap gap-3 mt-2 pl-5">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Commodity</span>
+                  <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+                    <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Commodity" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {uniqueCommodities.map((c) => (
+                        <SelectItem key={c} value={c}>{c === 'soybean' ? 'Soja' : 'Milho'}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Praça</span>
+                  <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+                    <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Praça" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {uniqueWarehouses.map((w) => (
+                        <SelectItem key={w} value={w}>{warehouseMap[w] ?? w}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Ticker</span>
+                  <Select value={filterTicker} onValueChange={setFilterTicker}>
+                    <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Ticker" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {uniqueTickers.map((t) => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(filterCommodity !== 'all' || filterWarehouse !== 'all' || filterTicker !== 'all') && (
+                  <div className="flex items-end">
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterCommodity('all'); setFilterWarehouse('all'); setFilterTicker('all'); }}>
+                      Limpar filtros
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
