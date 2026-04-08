@@ -156,7 +156,7 @@ const PricingTable = () => {
                           {showWarehouse ? wName : ''}
                         </TableCell>
                         <TableCell>
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${snap.commodity === 'soybean' ? 'bg-primary/10 text-primary' : 'bg-accent text-accent-foreground'}`}>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${snap.commodity === 'soybean' ? 'bg-primary/10 text-primary' : 'bg-amber-700/20 text-amber-400'}`}>
                             {snap.commodity === 'soybean' ? 'Soja' : 'Milho'}
                           </span>
                         </TableCell>
