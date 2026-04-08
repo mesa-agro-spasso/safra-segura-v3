@@ -428,7 +428,7 @@ const Orders = () => {
                             <Input className="h-8 text-xs w-24" type="number" step="0.01" value={leg.strike ?? ''} onChange={(e) => updateLeg(i, 'strike', e.target.value)} />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Prêmio</Label>
+                            <Label className="text-[10px] text-muted-foreground">Prêmio pago (R$/sc)</Label>
                             <Input className="h-8 text-xs w-24" type="number" step="0.01" value={leg.premium ?? ''} onChange={(e) => updateLeg(i, 'premium', e.target.value)} />
                           </div>
                         </div>
