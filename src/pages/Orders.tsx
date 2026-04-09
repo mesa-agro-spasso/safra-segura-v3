@@ -1243,6 +1243,42 @@ const Orders = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Insurance selection modal */}
+      <Dialog open={insuranceModalLegIndex !== null} onOpenChange={handleInsuranceModalClose}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Selecionar Seguro</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const ins = (selectedSnapshotData?.insurance_json as Record<string, any>) ?? {};
+            const options = [
+              { key: 'atm', label: 'ATM', data: ins.atm },
+              { key: 'otm_5', label: 'OTM 5%', data: ins.otm_5 },
+              { key: 'otm_10', label: 'OTM 10%', data: ins.otm_10 },
+            ];
+            const hasData = options.some(o => o.data);
+            if (!hasData) {
+              return <p className="text-sm text-muted-foreground py-4">Snapshot sem dados de seguro.</p>;
+            }
+            return (
+              <div className="grid grid-cols-3 gap-3">
+                {options.map(opt => opt.data ? (
+                  <Card key={opt.key} className="cursor-pointer hover:border-primary transition-colors"
+                    onClick={() => handleInsuranceSelect(opt.data)}>
+                    <CardContent className="p-3 space-y-1 text-xs">
+                      <p className="font-semibold text-sm">{opt.label}</p>
+                      <p>Strike: R$ {(opt.data.strike_brl as number)?.toFixed(2)}</p>
+                      <p>Prêmio: R$ {(opt.data.premium_brl as number)?.toFixed(2)}</p>
+                      <p className="font-medium">Custo: R$ {(opt.data.total_cost_brl as number)?.toFixed(2)}</p>
+                    </CardContent>
+                  </Card>
+                ) : null)}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
