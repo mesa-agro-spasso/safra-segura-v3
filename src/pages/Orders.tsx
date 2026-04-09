@@ -16,9 +16,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Copy, Plus, AlertTriangle, Trash2, Filter, Send, Check, X as XIcon } from 'lucide-react';
+import { Copy, Plus, AlertTriangle, Trash2, Filter, Send, Check, X as XIcon, CalendarIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format, parse } from 'date-fns';
 import type { HedgeOrder } from '@/types';
 
 type Leg = {
@@ -315,7 +318,13 @@ const Orders = () => {
           strike: l.strike != null ? String(l.strike * mul) : undefined,
           premium: l.premium != null ? String(l.premium * mul) : undefined,
           option_type: l.option_type ?? undefined,
-          expiration_date: l.expiration_date ?? undefined,
+          expiration_date: l.expiration_date ?? (() => {
+            if (l.leg_type === 'option') {
+              const ij = (snap?.inputs_json as Record<string, unknown>) ?? {};
+              return (ij.exp_date as string) ?? undefined;
+            }
+            return undefined;
+          })(),
           notes: '',
           currency: l.currency ?? undefined,
           volume_units: l.volume_units ?? undefined,
@@ -869,12 +878,26 @@ const Orders = () => {
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <Label className="text-[10px] text-muted-foreground">Vencimento</Label>
-                                      <Input
-                                        className="h-7 text-xs w-36"
-                                        type="date"
-                                        value={leg.expiration_date ?? ''}
-                                        onChange={(e) => updateLeg(i, 'expiration_date', e.target.value)}
-                                      />
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button variant="outline" className="h-7 text-xs w-36 justify-start font-normal px-2">
+                                            <CalendarIcon className="mr-1 h-3 w-3" />
+                                            {leg.expiration_date ? format(parse(leg.expiration_date, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy') : 'Selecionar'}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                          <Calendar
+                                            mode="single"
+                                            selected={leg.expiration_date ? parse(leg.expiration_date, 'yyyy-MM-dd', new Date()) : undefined}
+                                            onSelect={(date) => {
+                                              if (date) {
+                                                updateLeg(i, 'expiration_date', format(date, 'yyyy-MM-dd'));
+                                              }
+                                            }}
+                                            initialFocus
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
                                     </div>
                                     <span className="text-[9px] text-muted-foreground">{getLegPriceLabel(leg)}</span>
                                   </div>
