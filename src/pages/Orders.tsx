@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useHedgeOrders, useCreateHedgeOrder, useUpdateHedgeOrder } from '@/hooks/useHedgeOrders';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { usePricingSnapshots } from '@/hooks/usePricingSnapshots';
