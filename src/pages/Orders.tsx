@@ -886,10 +886,10 @@ const Orders = () => {
 
               {/* Two buttons: Build + Save */}
               <div className="flex gap-2">
-                <Button onClick={handleBuildOrder} disabled={building} variant={apiOrder ? 'outline' : 'default'} className="flex-1">
-                  {building ? 'Construindo...' : 'Construir Ordem'}
+                <Button onClick={handleBuildOrder} disabled={building || !apiOrder || !legs.length} variant={buildResult ? 'outline' : 'default'} className="flex-1">
+                  {building ? 'Validando...' : 'Validar Ordem'}
                 </Button>
-                <Button onClick={handleSaveOrder} disabled={!apiOrder || saving} className="flex-1">
+                <Button onClick={handleSaveOrder} disabled={!apiOrder || !buildResult || (buildResult.has_errors === true) || saving} className="flex-1">
                   {saving ? 'Salvando...' : 'Salvar Ordem'}
                 </Button>
               </div>
