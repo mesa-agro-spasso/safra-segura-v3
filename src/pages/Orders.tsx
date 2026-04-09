@@ -198,12 +198,15 @@ const Orders = () => {
 
   const updateLeg = (index: number, field: keyof Leg, value: any) => {
     setLegs(prev => prev.map((l, i) => i === index ? { ...l, [field]: value } : l));
+    setBuildResult(null);
   };
   const addLeg = () => {
     setLegs(prev => [...prev, { leg_type: 'futures', direction: 'sell', ticker: '', contracts: '', price: '', notes: '' }]);
+    setBuildResult(null);
   };
   const removeLeg = (index: number) => {
     setLegs(prev => prev.filter((_, i) => i !== index));
+    setBuildResult(null);
   };
 
   const BUSHELS_PER_SACK_SOYBEAN = 2.20462;
