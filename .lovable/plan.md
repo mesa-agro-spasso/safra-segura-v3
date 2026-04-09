@@ -1,35 +1,39 @@
 
 
-# Correções na aba "Criar Ordem" — Orders.tsx
+# Correção de preço nas pernas — Orders.tsx
 
-## 3 edições no arquivo `src/pages/Orders.tsx`
+## Arquivo: `src/pages/Orders.tsx`
 
-### Correção 1 — sessionStorage (linhas 64-73)
+### Edição única — linhas 127-128
 
-Substituir os 5 estados (`selectedWarehouse`, `commodityType`, `selectedSnapshot`, `volume`, `linkedOperationId`) por versões que leem de `sessionStorage` no init e gravam a cada alteração via wrappers `set*Raw` + `set*`.
+Substituir:
+```tsx
+    const futuresPrice = snap?.futures_price_brl ? String(snap.futures_price_brl.toFixed(2)) : '';
+    const ndfRate = snap?.exchange_rate ? String(snap.exchange_rate.toFixed(4)) : '';
+```
 
-No reset após sucesso (linhas 236-240), adicionar 5 chamadas `sessionStorage.removeItem(...)`.
+Por:
+```tsx
+    const exchangeRate = snap?.exchange_rate ?? 1;
+    let futuresPrice = '';
+    if (commodityType === 'soybean|cbot' && snap?.futures_price_brl && exchangeRate) {
+      futuresPrice = (snap.futures_price_brl / exchangeRate / 2.20462).toFixed(4);
+    } else if (commodityType === 'corn|cbot' && snap?.futures_price_brl && exchangeRate) {
+      futuresPrice = (snap.futures_price_brl / exchangeRate / 2.3622 * 100).toFixed(2);
+    } else if (commodityType === 'corn|b3' && snap?.futures_price_brl) {
+      futuresPrice = snap.futures_price_brl.toFixed(2);
+    }
+    const ndfRate = snap?.exchange_rate ? String(snap.exchange_rate.toFixed(4)) : '';
+```
 
-### Correção 2 — reordenar campos (linhas 331-363)
+### Lógica
 
-Mover o bloco "Volume + Vinculada à operação" (linhas 346-362) para **antes** do bloco "Preço de Referência" (linhas 331-344). Ordem final:
-
-1. Praça | Commodity
-2. Volume | Vinculada à operação
-3. Preço de Referência (span 2)
-4. ID da Operação (span 2)
-
-Atualizar placeholder do Select de Preço de Referência: `'Preencha volume primeiro'` → `'Informe o volume primeiro'`.
-
-### Correção 3 — card Resultado (linhas 466-494)
-
-Substituir o card inteiro por versão que:
-- Título: "Resultado da Validação"
-- Se `alerts` vazio ou inexistente: mostra `✓ Ordem válida — nenhum alerta` em verde
-- Se há alerts: mostra cada um com ícone e cor por level
-- Labels traduzidos: "Mensagem de Ordem", "Mensagem de Confirmação"
+- **soybean|cbot**: BRL/saca → USD/bushel (÷ câmbio ÷ 2.20462), 4 decimais
+- **corn|cbot**: BRL/saca → USD cents/bushel (÷ câmbio ÷ 2.3622 × 100), 2 decimais
+- **corn|b3**: já em BRL/saca, sem conversão, 2 decimais
+- `ndfRate` inalterado
 
 ### O que NÃO muda
 
-Abas "Ordens Existentes" e "Registro Manual", `handleBuildOrder`, `handleManualSave`, editor de pernas.
+Tudo o mais: pernas geradas, editor, handleBuildOrder, outras abas.
 
