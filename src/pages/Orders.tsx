@@ -221,8 +221,8 @@ const Orders = () => {
 
   const handleLegTypeChange = (index: number, value: string) => {
     if (value === 'seguro') {
-      if (!apiOrder || !selectedSnapshotData) {
-        toast.error('Selecione um preço de referência e clique em Construir Ordem primeiro');
+      if (!selectedSnapshotData) {
+        toast.error('Selecione um preço de referência primeiro');
         return;
       }
       setPreviousLegType(legs[index].leg_type);
