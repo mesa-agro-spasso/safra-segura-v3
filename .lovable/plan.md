@@ -1,24 +1,28 @@
 
 
-# Duas correções cirúrgicas — PricingTable.tsx + Market.tsx
+# Refatorar aba "Ordens Existentes" — Orders.tsx
 
-## Arquivo 1: `src/pages/PricingTable.tsx`
+## Arquivo: `src/pages/Orders.tsx`
 
-### Edição — após linha 147 (fechamento do IIFE do semáforo)
+### Edição 1 — Imports (linha 17)
 
-Inserir o bloco IIFE da segunda linha de status (tabela gerada) logo após `})()}` na linha 147, antes do `</div>` na linha 148. Usa `lastUpdated` já existente (linha 83).
+Adicionar `Filter` ao import de lucide-react e novos imports de `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle` e `Separator`.
 
-## Arquivo 2: `src/pages/Market.tsx`
+### Edição 2 — Novos estados (após linha 51)
 
-### Edição 1 — novo estado `confirmingB3` + handler
+Adicionar `warehouseFilter`, `listFiltersExpanded`, `selectedOrder`. Renomear `data: orders` para `data: ordersRaw` e adicionar `useMemo` para filtro de warehouse via operations.
 
-Adicionar `const [confirmingB3, setConfirmingB3] = useState(false);` junto aos outros estados B3 (após linha ~67). Adicionar `handleConfirmB3Update` como função async no componente.
+### Edição 3 — Substituir TabsContent value="list" (linhas 527-579)
 
-### Edição 2 — substituir CardHeader do card Milho B3 (linhas 437-439)
+Substituir inteiro pelo novo layout:
+- Filtros colapsáveis com botão toggle (Filter icon + badge de filtros ativos)
+- 3 selects: Commodity, Status, Praça (usando warehouses)
+- Botão "Limpar filtros" condicional
+- Tabela com colunas: ID Operação, Commodity, Ticker, Volume, Preço orig., Pernas, Status, Data
+- Linhas clicáveis (`cursor-pointer`) que abrem modal
+- Modal Dialog com seções: Identificação, Volume/Preço, Pernas detalhadas, Mensagens
 
-Substituir o `<CardHeader>` simples pelo layout flex com título à esquerda e botão condicional à direita.
+### O que NÃO muda
 
-## O que NÃO muda
-
-Nenhum outro trecho de nenhum dos dois arquivos.
+Abas "Criar Ordem" e "Registro Manual", hooks, handlers.
 
