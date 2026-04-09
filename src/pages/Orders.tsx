@@ -251,7 +251,8 @@ const Orders = () => {
       premium: String(premium),
       expiration_date: (() => {
         const ij = (selectedSnapshotData?.inputs_json as Record<string, unknown>) ?? {};
-        return (ij.exp_date as string) ?? '';
+        const oj = (selectedSnapshotData?.outputs_json as Record<string, unknown>) ?? {};
+        return (ij.exp_date as string) ?? (oj.exp_date as string) ?? '';
       })(),
     } : l));
     setInsuranceModalLegIndex(null);
