@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useHedgeOrders, useCreateHedgeOrder, useUpdateHedgeOrder } from '@/hooks/useHedgeOrders';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { usePricingSnapshots } from '@/hooks/usePricingSnapshots';
@@ -124,20 +124,51 @@ const Orders = () => {
   const [volume, setVolumeRaw] = useState(() => sessionStorage.getItem('order_volume') ?? '');
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [buildResult, setBuildResult] = useState<Record<string, unknown> | null>(null);
-  const [apiOrder, setApiOrder] = useState<Record<string, unknown> | null>(null);
-  const [orderNotes, setOrderNotes] = useState('');
+  const [buildResult, setBuildResult] = useState<Record<string, unknown> | null>(() => {
+    const saved = sessionStorage.getItem('order_buildResult');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [apiOrder, setApiOrder] = useState<Record<string, unknown> | null>(() => {
+    const saved = sessionStorage.getItem('order_apiOrder');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [orderNotes, setOrderNotes] = useState(() => sessionStorage.getItem('order_notes') ?? '');
   const [commodityType, setCommodityTypeRaw] = useState(() => sessionStorage.getItem('order_commodity') ?? '');
-  const [legs, setLegs] = useState<Leg[]>([]);
+  const [legs, setLegs] = useState<Leg[]>(() => {
+    const saved = sessionStorage.getItem('order_legs');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [linkedOperationId, setLinkedOperationIdRaw] = useState(() => sessionStorage.getItem('order_linked') ?? '');
 
   // Clear API response when form inputs change
-  const clearApiOrder = () => { setApiOrder(null); setBuildResult(null); setLegs([]); };
+  const clearApiOrder = () => {
+    setApiOrder(null); setBuildResult(null); setLegs([]);
+    sessionStorage.removeItem('order_apiOrder');
+    sessionStorage.removeItem('order_buildResult');
+    sessionStorage.removeItem('order_legs');
+    sessionStorage.removeItem('order_notes');
+  };
   const setSelectedWarehouse = (v: string) => { setSelectedWarehouseRaw(v); sessionStorage.setItem('order_warehouse', v); clearApiOrder(); };
   const setCommodityType = (v: string) => { setCommodityTypeRaw(v); sessionStorage.setItem('order_commodity', v); setSelectedSnapshotRaw(''); sessionStorage.setItem('order_snapshot', ''); clearApiOrder(); };
   const setSelectedSnapshot = (v: string) => { setSelectedSnapshotRaw(v); sessionStorage.setItem('order_snapshot', v); clearApiOrder(); };
   const setVolume = (v: string) => { setVolumeRaw(v); sessionStorage.setItem('order_volume', v); clearApiOrder(); };
   const setLinkedOperationId = (v: string) => { setLinkedOperationIdRaw(v); sessionStorage.setItem('order_linked', v); };
+
+  // Sync build state to sessionStorage
+  useEffect(() => {
+    if (apiOrder) sessionStorage.setItem('order_apiOrder', JSON.stringify(apiOrder));
+    else sessionStorage.removeItem('order_apiOrder');
+  }, [apiOrder]);
+  useEffect(() => {
+    sessionStorage.setItem('order_legs', JSON.stringify(legs));
+  }, [legs]);
+  useEffect(() => {
+    sessionStorage.setItem('order_notes', orderNotes);
+  }, [orderNotes]);
+  useEffect(() => {
+    if (buildResult) sessionStorage.setItem('order_buildResult', JSON.stringify(buildResult));
+    else sessionStorage.removeItem('order_buildResult');
+  }, [buildResult]);
 
   // Manual order form
   const [manualForm, setManualForm] = useState({
@@ -198,11 +229,13 @@ const Orders = () => {
         use_custom_structure: false,
         legs: [],
       });
-      setBuildResult(result);
-      setApiOrder(result);
+      const apiOrderData = (result.order as Record<string, unknown>) ?? {};
+      const apiAlerts = (result.alerts as unknown[]) ?? [];
+      setBuildResult({ alerts: apiAlerts, has_errors: result.has_errors });
+      setApiOrder(apiOrderData);
 
       // Populate legs from API response
-      const apiLegs = (result.legs as any[]) ?? [];
+      const apiLegs = (apiOrderData.legs as any[]) ?? [];
       setLegs(apiLegs.map((l: any) => ({
         leg_type: l.leg_type ?? 'futures',
         direction: l.direction ?? 'sell',
@@ -271,8 +304,8 @@ const Orders = () => {
       try {
         await createOrder.mutateAsync({
           operation_id: operationId,
-          commodity: (apiOrder.commodity as string) ?? commodity,
-          exchange: (apiOrder.exchange as string) ?? bench.toUpperCase(),
+          commodity: apiOrder.commodity as string,
+          exchange: apiOrder.exchange as string,
           volume_sacks: parseFloat(volume),
           origination_price_brl: snap?.origination_price_brl ?? 0,
           legs: legsPayload as unknown[],
@@ -310,6 +343,10 @@ const Orders = () => {
       sessionStorage.removeItem('order_snapshot');
       sessionStorage.removeItem('order_volume');
       sessionStorage.removeItem('order_linked');
+      sessionStorage.removeItem('order_apiOrder');
+      sessionStorage.removeItem('order_buildResult');
+      sessionStorage.removeItem('order_legs');
+      sessionStorage.removeItem('order_notes');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao salvar ordem');
     } finally {
@@ -647,21 +684,21 @@ const Orders = () => {
                     </div>
                   ));
                 })()}
-                {buildResult.order_message && (
+                {apiOrder?.order_message && (
                   <div className="space-y-1">
                     <Label className="text-xs">Mensagem de Ordem</Label>
                     <div className="flex gap-2">
-                      <pre className="flex-1 bg-muted p-2 rounded text-xs overflow-auto">{buildResult.order_message as string}</pre>
-                      <Button size="icon" variant="ghost" onClick={() => copyToClipboard(buildResult.order_message as string)}><Copy className="h-4 w-4" /></Button>
+                      <pre className="flex-1 bg-muted p-2 rounded text-xs overflow-auto">{apiOrder.order_message as string}</pre>
+                      <Button size="icon" variant="ghost" onClick={() => copyToClipboard(apiOrder.order_message as string)}><Copy className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 )}
-                {buildResult.confirmation_message && (
+                {apiOrder?.confirmation_message && (
                   <div className="space-y-1">
                     <Label className="text-xs">Mensagem de Confirmação</Label>
                     <div className="flex gap-2">
-                      <pre className="flex-1 bg-muted p-2 rounded text-xs overflow-auto">{buildResult.confirmation_message as string}</pre>
-                      <Button size="icon" variant="ghost" onClick={() => copyToClipboard(buildResult.confirmation_message as string)}><Copy className="h-4 w-4" /></Button>
+                      <pre className="flex-1 bg-muted p-2 rounded text-xs overflow-auto">{apiOrder.confirmation_message as string}</pre>
+                      <Button size="icon" variant="ghost" onClick={() => copyToClipboard(apiOrder.confirmation_message as string)}><Copy className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 )}
