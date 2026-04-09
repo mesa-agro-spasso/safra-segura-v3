@@ -1,59 +1,35 @@
 
 
-# Correção do payload em handleBuildOrder — Orders.tsx
+# Correções na aba "Criar Ordem" — Orders.tsx
 
-## Arquivo: `src/pages/Orders.tsx`
+## 3 edições no arquivo `src/pages/Orders.tsx`
 
-### Edição única — linhas 184-201
+### Correção 1 — sessionStorage (linhas 64-73)
 
-Substituir o bloco de montagem de `legsPayload` e `callApi` (linhas 185-201) pelo novo código que:
+Substituir os 5 estados (`selectedWarehouse`, `commodityType`, `selectedSnapshot`, `volume`, `linkedOperationId`) por versões que leem de `sessionStorage` no init e gravam a cada alteração via wrappers `set*Raw` + `set*`.
 
-1. **Adiciona `currency`** a cada perna: `'USD'` para NDF; para as demais, `'USD'` se CBOT, `'BRL'` se B3
-2. **Expande campos do snapshot** no payload: `pricing_id`, `commodity`, `exchange`, `origination_price_brl`, `futures_price`, `exchange_rate`, `ticker`, `payment_date`, `sale_date`, `grain_reception_date`
-3. **Remove `warehouse_id` e `pricing_snapshot_id`** do payload da API (não existem no `BuildOrderRequest`)
+No reset após sucesso (linhas 236-240), adicionar 5 chamadas `sessionStorage.removeItem(...)`.
 
-Código substituto (linhas 184-201):
+### Correção 2 — reordenar campos (linhas 331-363)
 
-```tsx
-      // 2. Call API to build order
-      const snap = selectedSnapshotData;
-      const legCurrency = (commodityType === 'soybean|cbot' || commodityType === 'corn|cbot') ? 'USD' : 'BRL';
+Mover o bloco "Volume + Vinculada à operação" (linhas 346-362) para **antes** do bloco "Preço de Referência" (linhas 331-344). Ordem final:
 
-      const legsPayload = legs.map(l => ({
-        leg_type: l.leg_type,
-        direction: l.direction,
-        currency: l.leg_type === 'ndf' ? 'USD' : legCurrency,
-        ticker: l.ticker || undefined,
-        contracts: l.contracts ? parseFloat(l.contracts) : undefined,
-        price: l.price ? parseFloat(l.price) : undefined,
-        ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
-        strike: l.strike ? parseFloat(l.strike) : undefined,
-        premium: l.premium ? parseFloat(l.premium) : undefined,
-        option_type: l.option_type || undefined,
-      }));
+1. Praça | Commodity
+2. Volume | Vinculada à operação
+3. Preço de Referência (span 2)
+4. ID da Operação (span 2)
 
-      const result = await callApi<Record<string, unknown>>('/orders/build', {
-        pricing_id: snap?.id ?? null,
-        commodity: com,
-        exchange: bench,
-        origination_price_brl: snap?.origination_price_brl ?? 0,
-        futures_price: snap?.futures_price_brl ?? 0,
-        exchange_rate: snap?.exchange_rate ?? null,
-        ticker: snap?.ticker ?? '',
-        payment_date: snap?.payment_date ?? '',
-        sale_date: snap?.sale_date ?? '',
-        grain_reception_date: snap?.grain_reception_date ?? snap?.payment_date ?? '',
-        volume_sacks: parseFloat(volume),
-        operation_id: operationId,
-        use_custom_structure: true,
-        legs: legsPayload,
-      });
-```
+Atualizar placeholder do Select de Preço de Referência: `'Preencha volume primeiro'` → `'Informe o volume primeiro'`.
+
+### Correção 3 — card Resultado (linhas 466-494)
+
+Substituir o card inteiro por versão que:
+- Título: "Resultado da Validação"
+- Se `alerts` vazio ou inexistente: mostra `✓ Ordem válida — nenhum alerta` em verde
+- Se há alerts: mostra cada um com ícone e cor por level
+- Labels traduzidos: "Mensagem de Ordem", "Mensagem de Confirmação"
 
 ### O que NÃO muda
 
-- Insert da operação (linhas 168-182)
-- Insert do hedge_order (linhas 204-218)
-- Abas "Ordens Existentes" e "Registro Manual"
-- Nenhum outro arquivo
+Abas "Ordens Existentes" e "Registro Manual", `handleBuildOrder`, `handleManualSave`, editor de pernas.
 
