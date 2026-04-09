@@ -142,11 +142,9 @@ const Orders = () => {
 
   // Clear API response when form inputs change
   const clearApiOrder = () => {
-    setApiOrder(null); setBuildResult(null); setLegs([]);
+    setApiOrder(null); setBuildResult(null);
     sessionStorage.removeItem('order_apiOrder');
     sessionStorage.removeItem('order_buildResult');
-    sessionStorage.removeItem('order_legs');
-    sessionStorage.removeItem('order_notes');
   };
   const setSelectedWarehouse = (v: string) => { setSelectedWarehouseRaw(v); sessionStorage.setItem('order_warehouse', v); clearApiOrder(); };
   const setCommodityType = (v: string) => { setCommodityTypeRaw(v); sessionStorage.setItem('order_commodity', v); setSelectedSnapshotRaw(''); sessionStorage.setItem('order_snapshot', ''); clearApiOrder(); };
