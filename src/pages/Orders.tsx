@@ -14,7 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Copy, Plus, AlertTriangle, Trash2 } from 'lucide-react';
+import { Copy, Plus, AlertTriangle, Trash2, Filter } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 
 type Leg = {
   leg_type: 'futures' | 'ndf' | 'option';
@@ -49,7 +51,10 @@ function formatDate(d: string | null | undefined): string {
 const Orders = () => {
   const [commodityFilter, setCommodityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const { data: orders, isLoading } = useHedgeOrders({
+  const [warehouseFilter, setWarehouseFilter] = useState('all');
+  const [listFiltersExpanded, setListFiltersExpanded] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Record<string, unknown> | null>(null);
+  const { data: ordersRaw, isLoading } = useHedgeOrders({
     commodity: commodityFilter !== 'all' ? commodityFilter : undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
   });
@@ -59,6 +64,12 @@ const Orders = () => {
   const createOrder = useCreateHedgeOrder();
   const createOperation = useCreateOperation();
   const { user } = useAuth();
+  const orders = useMemo(() => {
+    if (!ordersRaw) return [];
+    if (warehouseFilter === 'all') return ordersRaw;
+    const warehouseOps = new Set(operations?.filter(op => op.warehouse_id === warehouseFilter).map(op => op.id) ?? []);
+    return ordersRaw.filter(o => o.operation_id && warehouseOps.has(o.operation_id));
+  }, [ordersRaw, warehouseFilter, operations]);
 
   // Create order form — persisted in sessionStorage
   const [selectedWarehouse, setSelectedWarehouseRaw] = useState(() => sessionStorage.getItem('order_warehouse') ?? '');
@@ -525,25 +536,71 @@ const Orders = () => {
         </TabsContent>
 
         <TabsContent value="list" className="space-y-4">
-          <div className="flex gap-3">
-            <Select value={commodityFilter} onValueChange={setCommodityFilter}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="Commodity" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                <SelectItem value="SOJA">Soja</SelectItem>
-                <SelectItem value="MILHO">Milho</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="GENERATED">Gerada</SelectItem>
-                <SelectItem value="EXECUTED">Executada</SelectItem>
-                <SelectItem value="CANCELLED">Cancelada</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Filtros colapsáveis */}
+          <div className="space-y-2">
+            <button
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setListFiltersExpanded(v => !v)}
+            >
+              <Filter className="h-4 w-4" />
+              Filtros
+              {(commodityFilter !== 'all' || statusFilter !== 'all' || warehouseFilter !== 'all') && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  {[commodityFilter !== 'all' ? (commodityFilter === 'soybean' ? 'Soja' : 'Milho') : null, statusFilter !== 'all' ? statusFilter : null, warehouseFilter !== 'all' ? (warehouses?.find(w => w.id === warehouseFilter)?.display_name ?? warehouseFilter) : null].filter(Boolean).join(' · ')}
+                </Badge>
+              )}
+              {listFiltersExpanded ? '▾' : '▸'}
+            </button>
+            {listFiltersExpanded && (
+              <div className="flex flex-wrap gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Commodity</Label>
+                  <Select value={commodityFilter} onValueChange={setCommodityFilter}>
+                    <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="soybean">Soja</SelectItem>
+                      <SelectItem value="corn">Milho</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="GENERATED">Gerada</SelectItem>
+                      <SelectItem value="SENT">Enviada</SelectItem>
+                      <SelectItem value="CONFIRMED">Confirmada</SelectItem>
+                      <SelectItem value="LINKED">Vinculada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Praça</Label>
+                  <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+                    <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {warehouses?.map(w => (
+                        <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(commodityFilter !== 'all' || statusFilter !== 'all' || warehouseFilter !== 'all') && (
+                  <div className="flex items-end">
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setCommodityFilter('all'); setStatusFilter('all'); setWarehouseFilter('all'); }}>
+                      Limpar filtros
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+
+          {/* Tabela */}
           {isLoading ? (
             <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
           ) : !orders?.length ? (
@@ -552,30 +609,108 @@ const Orders = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Operação</TableHead>
+                  <TableHead>ID Operação</TableHead>
                   <TableHead>Commodity</TableHead>
-                  <TableHead>Exchange</TableHead>
-                  <TableHead>Volume</TableHead>
-                  <TableHead>Preço</TableHead>
+                  <TableHead>Ticker</TableHead>
+                  <TableHead>Volume (sc)</TableHead>
+                  <TableHead>Preço orig.</TableHead>
+                  <TableHead>Pernas</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders.map((o) => (
-                  <TableRow key={o.id}>
-                    <TableCell className="font-mono text-xs">{o.operation_id?.slice(0, 8) ?? '-'}</TableCell>
-                    <TableCell>{o.commodity}</TableCell>
-                    <TableCell>{o.exchange}</TableCell>
-                    <TableCell>{o.volume_sacks?.toLocaleString() ?? '-'}</TableCell>
-                    <TableCell>R$ {o.origination_price_brl?.toFixed(2) ?? '0.00'}</TableCell>
-                    <TableCell><Badge variant={o.status === 'EXECUTED' ? 'default' : 'secondary'}>{o.status}</Badge></TableCell>
-                    <TableCell className="text-xs">{o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : '-'}</TableCell>
-                  </TableRow>
-                ))}
+                {orders.map((o) => {
+                  const legs = (o.legs as any[]) ?? [];
+                  return (
+                    <TableRow key={o.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedOrder(o as unknown as Record<string, unknown>)}>
+                      <TableCell className="font-mono text-xs">{o.operation_id?.slice(0, 8) ?? '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px]">
+                          {o.commodity === 'soybean' ? 'Soja' : 'Milho'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {legs.length > 0 ? legs.map((l: any) => l.ticker).filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(', ') : '-'}
+                      </TableCell>
+                      <TableCell>{o.volume_sacks?.toLocaleString('pt-BR') ?? '-'}</TableCell>
+                      <TableCell>R$ {o.origination_price_brl?.toFixed(2) ?? '0.00'}</TableCell>
+                      <TableCell className="text-xs">
+                        {legs.length > 0 ? legs.map((l: any) => `${l.leg_type}(${l.direction})`).join(' + ') : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={o.status === 'EXECUTED' || o.status === 'CONFIRMED' ? 'default' : 'secondary'}>{o.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">{o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : '-'}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
+
+          {/* Modal de detalhe da ordem */}
+          {selectedOrder && (() => {
+            const legs = (selectedOrder.legs as any[]) ?? [];
+            return (
+              <Dialog open={!!selectedOrder} onOpenChange={(o) => { if (!o) setSelectedOrder(null); }}>
+                <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Ordem — {(selectedOrder.operation_id as string)?.slice(0, 8) ?? (selectedOrder.id as string)?.slice(0, 8)}</DialogTitle>
+                  </DialogHeader>
+
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Identificação</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    <span className="text-muted-foreground">Commodity</span><span>{selectedOrder.commodity === 'soybean' ? 'Soja CBOT' : (selectedOrder.exchange as string) === 'b3' ? 'Milho B3' : 'Milho CBOT'}</span>
+                    <span className="text-muted-foreground">Exchange</span><span>{(selectedOrder.exchange as string)?.toUpperCase() ?? '-'}</span>
+                    <span className="text-muted-foreground">Status</span><span>{selectedOrder.status as string}</span>
+                    <span className="text-muted-foreground">Data criação</span><span>{selectedOrder.created_at ? new Date(selectedOrder.created_at as string).toLocaleDateString('pt-BR') : '-'}</span>
+                  </div>
+
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Volume e Preço</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    <span className="text-muted-foreground">Volume</span><span>{(selectedOrder.volume_sacks as number)?.toLocaleString('pt-BR')} sacas</span>
+                    <span className="text-muted-foreground">Preço originação</span><span>R$ {(selectedOrder.origination_price_brl as number)?.toFixed(2)}</span>
+                  </div>
+
+                  {legs.length > 0 && (
+                    <>
+                      <Separator />
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pernas ({legs.length})</p>
+                      {legs.map((leg: any, i: number) => (
+                        <div key={i} className="bg-muted/50 rounded p-2 space-y-1 text-sm">
+                          <p className="font-medium text-xs">{leg.leg_type} · {leg.direction}</p>
+                          {leg.ticker && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Ticker</span><span className="text-xs">{leg.ticker}</span></div>}
+                          {leg.contracts != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Contratos</span><span className="text-xs">{leg.contracts}</span></div>}
+                          {leg.price != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Preço</span><span className="text-xs">{leg.price}</span></div>}
+                          {leg.ndf_rate != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Taxa NDF</span><span className="text-xs">{leg.ndf_rate}</span></div>}
+                          {leg.strike != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Strike</span><span className="text-xs">{leg.strike}</span></div>}
+                          {leg.premium != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Prêmio</span><span className="text-xs">{leg.premium}</span></div>}
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {selectedOrder.order_message && (
+                    <>
+                      <Separator />
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Ordem</p>
+                      <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.order_message as string}</pre>
+                    </>
+                  )}
+                  {selectedOrder.confirmation_message && (
+                    <>
+                      <Separator />
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Confirmação</p>
+                      <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.confirmation_message as string}</pre>
+                    </>
+                  )}
+                </DialogContent>
+              </Dialog>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="manual" className="space-y-4">
