@@ -1,69 +1,80 @@
 
 
-# Fix futures_price_usd in Order Creation — 2 Files
+# Add "Seguro" to Leg Type Dropdown — Orders.tsx (Revised)
 
-## Answer to your question
+## File: `src/pages/Orders.tsx`
 
-The Lovable currently saves **only 4 selected fields** in `outputs_json` (lines 208-213 of `GeneratePricingModal.tsx`):
-- `costs`, `purchased_basis_brl`, `gross_price_brl`, `breakeven_basis_brl`
+### Edit 1 — Extend Leg type union (line 25)
+Add `'seguro'` to `leg_type` union.
 
-**`futures_price_usd` is NOT persisted.** So the fix requires both files.
-
----
-
-## File 1: `src/components/GeneratePricingModal.tsx` (lines 208-213)
-
-Persist the full engine result in `outputs_json` instead of cherry-picking fields. Replace:
-
+### Edit 2 — New state (after line 206)
 ```typescript
-outputs_json: {
-  costs: r.costs ?? {},
-  purchased_basis_brl: r.purchased_basis_brl,
-  gross_price_brl: r.gross_price_brl,
-  breakeven_basis_brl: r.breakeven_basis_brl,
-},
+const [insuranceModalLegIndex, setInsuranceModalLegIndex] = useState<number | null>(null);
+const [previousLegType, setPreviousLegType] = useState<Leg['leg_type'] | null>(null);
 ```
 
-With:
+### Edit 3 — handleLegTypeChange intercept
+If `'seguro'` selected: validate `apiOrder` + `selectedSnapshotData` exist (toast if not, don't change dropdown), store previous type, set leg to `'seguro'`, open modal. Otherwise: normal `updateLeg`.
 
+### Edit 4 — Add `<SelectItem value="seguro">Seguro</SelectItem>` after Option item
+
+### Edit 5 — Conversion helper
 ```typescript
-outputs_json: { ...r },
-```
-
-This spreads the entire API result object (`r`) into `outputs_json`, which includes `futures_price_usd`, `costs`, `purchased_basis_brl`, `gross_price_brl`, `breakeven_basis_brl`, and any other fields the engine returns. Future engine fields are automatically captured.
-
-The `insurance` field is already saved separately in `insurance_json`, so no duplication concern for that.
-
----
-
-## File 2: `src/pages/Orders.tsx` (line 227)
-
-Replace:
-
-```typescript
-futures_price: snap?.futures_price_brl ?? 0,
-```
-
-With:
-
-```typescript
-futures_price: (() => {
+const BUSHELS_PER_SACK_SOYBEAN = 2.20462;
+const brlSackToDisplayUnit = (brlSack: number): number => {
   const isCbotSoy = com === 'soybean' && bench === 'cbot';
-  if (isCbotSoy) {
-    const outputsJson = (snap?.outputs_json as Record<string, unknown>) ?? {};
-    return (outputsJson.futures_price_usd as number) ?? 0;
-  }
-  return snap?.futures_price_brl ?? 0;
-})(),
+  if (!isCbotSoy) return brlSack;
+  const outputsJson = (selectedSnapshotData?.outputs_json as Record<string, unknown>) ?? {};
+  const rate = (outputsJson.exchange_rate as number) ?? 0;
+  if (!rate) return 0;
+  return (brlSack / rate / BUSHELS_PER_SACK_SOYBEAN) * 100;
+};
 ```
 
-For soybean CBOT, reads `futures_price_usd` from `outputs_json` (USD/bushel, what the API expects). For corn B3, keeps `futures_price_brl` (BRL/sc).
+### Edit 6 — handleInsuranceSelect (single atomic setLegs)
+```typescript
+const handleInsuranceSelect = (insuranceOption: Record<string, unknown>) => {
+  if (insuranceModalLegIndex === null) return;
+  const strike = brlSackToDisplayUnit((insuranceOption.strike_brl as number) ?? 0);
+  const premium = brlSackToDisplayUnit((insuranceOption.premium_brl as number) ?? 0);
+  setLegs(prev => prev.map((l, i) => i === insuranceModalLegIndex ? {
+    ...l,
+    leg_type: 'option',
+    direction: 'buy',
+    option_type: 'call',
+    strike: String(strike),
+    premium: String(premium),
+  } : l));
+  setInsuranceModalLegIndex(null);
+  setPreviousLegType(null);
+};
+```
 
----
+### Edit 7 — handleInsuranceModalClose (single atomic setLegs)
+```typescript
+const handleInsuranceModalClose = (open: boolean) => {
+  if (!open && insuranceModalLegIndex !== null) {
+    const revertType = previousLegType ?? 'futures';
+    setLegs(prev => prev.map((l, i) => i === insuranceModalLegIndex ? {
+      ...l,
+      leg_type: revertType,
+    } : l));
+    setInsuranceModalLegIndex(null);
+    setPreviousLegType(null);
+  }
+};
+```
 
-## What does NOT change
+### Edit 8 — Insurance modal Dialog
+3-column card grid reading `selectedSnapshotData.insurance_json` (atm/otm_5/otm_10). Shows strike, prêmio, custo total in BRL. Click calls `handleInsuranceSelect`. Empty state: "Snapshot sem dados de seguro."
 
-- Two-click flow, sessionStorage, legs editing, execution modal
-- `PricingTable.tsx` detail dialog (already reads from `outputs_json` generically)
-- Any other file
+### Edit 9 — Safety filter in handleSaveOrder
+```typescript
+const legsPayload = legs.filter(l => l.leg_type !== 'seguro').map(l => { ... });
+```
+
+SessionStorage: `'seguro'` legs persist as-is. On restore, modal won't auto-reopen (state `insuranceModalLegIndex` is not in sessionStorage), so the user sees a row with type "seguro" and can re-select or change it. Acceptable.
+
+### What does NOT change
+Two-click flow, handleBuildOrder, handleSaveOrder conversion logic, execution modal, list tab, manual tab, no other files.
 
