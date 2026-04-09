@@ -67,6 +67,7 @@ const Market = () => {
   const [b3Prices, setB3Prices] = useState<Record<string, B3SavedPrice>>({});
   const [b3Loading, setB3Loading] = useState(true);
   const [b3Error, setB3Error] = useState<string | null>(null);
+  const [confirmingB3, setConfirmingB3] = useState(false);
 
   const dataMap = useMemo(() => {
     const map: Record<string, typeof marketData extends (infer T)[] ? T : never> = {};
