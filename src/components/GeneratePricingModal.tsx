@@ -196,6 +196,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             inputs_json: {
               futures_price: orig.futures_price,
               exchange_rate: orig.exchange_rate ?? null,
+              exp_date: orig.exp_date ?? null,
               target_basis: orig.target_basis,
               interest_rate: orig.interest_rate,
               storage_cost: orig.storage_cost,
