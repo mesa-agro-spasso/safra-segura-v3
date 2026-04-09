@@ -145,6 +145,25 @@ const PricingTable = () => {
                 </button>
               );
             })()}
+            {(() => {
+              const tableHoursAgo = lastUpdated
+                ? Math.floor((Date.now() - lastUpdated.getTime()) / 3_600_000)
+                : null;
+              if (tableHoursAgo === null) return null;
+              const tableColor = tableHoursAgo < 12 ? 'text-green-400' : tableHoursAgo < 24 ? 'text-yellow-400' : 'text-red-400';
+              const timeLabel = `${String(lastUpdated!.getDate()).padStart(2,'0')}/${String(lastUpdated!.getMonth()+1).padStart(2,'0')} ${String(lastUpdated!.getHours()).padStart(2,'0')}:${String(lastUpdated!.getMinutes()).padStart(2,'0')}`;
+              const tableLabel = tableHoursAgo < 12
+                ? `Tabela gerada: ${timeLabel}`
+                : tableHoursAgo < 24
+                  ? `Tabela gerada: ${timeLabel} (${tableHoursAgo}h atrás)`
+                  : `Tabela gerada: ${timeLabel} — desatualizada (${tableHoursAgo}h)`;
+              return (
+                <p className={`flex items-center gap-1.5 text-xs mt-0.5 ${tableColor}`}>
+                  <span>●</span>
+                  <span>{tableLabel}</span>
+                </p>
+              );
+            })()}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={loading || rows.length === 0}>
