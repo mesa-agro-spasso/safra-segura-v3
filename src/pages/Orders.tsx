@@ -60,17 +60,23 @@ const Orders = () => {
   const createOperation = useCreateOperation();
   const { user } = useAuth();
 
-  // Create order form
-  const [selectedWarehouse, setSelectedWarehouse] = useState('');
-  const [selectedSnapshot, setSelectedSnapshot] = useState('');
-  const [volume, setVolume] = useState('');
+  // Create order form — persisted in sessionStorage
+  const [selectedWarehouse, setSelectedWarehouseRaw] = useState(() => sessionStorage.getItem('order_warehouse') ?? '');
+  const [selectedSnapshot, setSelectedSnapshotRaw] = useState(() => sessionStorage.getItem('order_snapshot') ?? '');
+  const [volume, setVolumeRaw] = useState(() => sessionStorage.getItem('order_volume') ?? '');
   const [building, setBuilding] = useState(false);
   const [buildResult, setBuildResult] = useState<Record<string, unknown> | null>(null);
   const [generatedLabel, setGeneratedLabel] = useState('');
   const [orderSeq, setOrderSeq] = useState(1);
-  const [commodityType, setCommodityType] = useState('');
+  const [commodityType, setCommodityTypeRaw] = useState(() => sessionStorage.getItem('order_commodity') ?? '');
   const [legs, setLegs] = useState<Leg[]>([]);
-  const [linkedOperationId, setLinkedOperationId] = useState('');
+  const [linkedOperationId, setLinkedOperationIdRaw] = useState(() => sessionStorage.getItem('order_linked') ?? '');
+
+  const setSelectedWarehouse = (v: string) => { setSelectedWarehouseRaw(v); sessionStorage.setItem('order_warehouse', v); };
+  const setCommodityType = (v: string) => { setCommodityTypeRaw(v); sessionStorage.setItem('order_commodity', v); };
+  const setSelectedSnapshot = (v: string) => { setSelectedSnapshotRaw(v); sessionStorage.setItem('order_snapshot', v); };
+  const setVolume = (v: string) => { setVolumeRaw(v); sessionStorage.setItem('order_volume', v); };
+  const setLinkedOperationId = (v: string) => { setLinkedOperationIdRaw(v); sessionStorage.setItem('order_linked', v); };
 
   // Manual order form
   const [manualForm, setManualForm] = useState({
@@ -238,6 +244,11 @@ const Orders = () => {
         setLegs([]);
         setLinkedOperationId('');
         setVolume('');
+        sessionStorage.removeItem('order_warehouse');
+        sessionStorage.removeItem('order_commodity');
+        sessionStorage.removeItem('order_snapshot');
+        sessionStorage.removeItem('order_volume');
+        sessionStorage.removeItem('order_linked');
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao criar ordem');
@@ -328,22 +339,7 @@ const Orders = () => {
                   </Select>
                 </div>
 
-                {/* Row 2: Preço de Referência (span 2) */}
-                <div className="space-y-1 col-span-2">
-                  <Label className="text-xs">Preço de Referência</Label>
-                  <Select value={selectedSnapshot} onValueChange={setSelectedSnapshot} disabled={!commodityType || !volume || parseFloat(volume) <= 0}>
-                    <SelectTrigger><SelectValue placeholder={!commodityType ? 'Selecione commodity primeiro' : (!volume || parseFloat(volume) <= 0) ? 'Preencha volume primeiro' : 'Selecione'} /></SelectTrigger>
-                    <SelectContent>
-                      {filteredSnapshots.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {formatDate(s.payment_date)} pgto · {formatDate(s.sale_date)} venda · R${s.origination_price_brl.toFixed(2)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Row 3: Volume + Vinculada à operação */}
+                {/* Row 2: Volume + Vinculada à operação */}
                 <div className="space-y-1">
                   <Label className="text-xs">Volume (sacas)</Label>
                   <Input type="number" value={volume} onChange={(e) => setVolume(e.target.value)} />
@@ -356,6 +352,21 @@ const Orders = () => {
                       <SelectItem value="none">Nenhuma</SelectItem>
                       {operations?.map(op => (
                         <SelectItem key={op.id} value={op.id}>{op.notes ?? op.id.slice(0, 8)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Row 3: Preço de Referência (span 2) */}
+                <div className="space-y-1 col-span-2">
+                  <Label className="text-xs">Preço de Referência</Label>
+                  <Select value={selectedSnapshot} onValueChange={setSelectedSnapshot} disabled={!commodityType || !volume || parseFloat(volume) <= 0}>
+                    <SelectTrigger><SelectValue placeholder={!commodityType ? 'Selecione commodity primeiro' : (!volume || parseFloat(volume) <= 0) ? 'Informe o volume primeiro' : 'Selecione'} /></SelectTrigger>
+                    <SelectContent>
+                      {filteredSnapshots.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {formatDate(s.payment_date)} pgto · {formatDate(s.sale_date)} venda · R${s.origination_price_brl.toFixed(2)}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -465,16 +476,26 @@ const Orders = () => {
 
           {buildResult && (
             <Card>
-              <CardHeader><CardTitle className="text-sm">Resultado</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">Resultado da Validação</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                {(buildResult.alerts as { level: string; message: string }[])?.map((alert, i) => (
-                  <div key={i} className={`flex items-center gap-2 text-sm p-2 rounded ${alert.level === 'ERROR' ? 'bg-destructive/10 text-destructive' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                    <AlertTriangle className="h-4 w-4" /> {alert.message}
-                  </div>
-                ))}
+                {(() => {
+                  const alerts = buildResult.alerts as { level: string; message: string }[] | undefined;
+                  if (!alerts || alerts.length === 0) {
+                    return (
+                      <div className="flex items-center gap-2 text-sm p-2 rounded bg-green-500/10 text-green-400">
+                        ✓ Ordem válida — nenhum alerta
+                      </div>
+                    );
+                  }
+                  return alerts.map((alert, i) => (
+                    <div key={i} className={`flex items-center gap-2 text-sm p-2 rounded ${alert.level === 'ERROR' ? 'bg-destructive/10 text-destructive' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                      <AlertTriangle className="h-4 w-4" /> {alert.message}
+                    </div>
+                  ));
+                })()}
                 {buildResult.order_message && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Order Message</Label>
+                    <Label className="text-xs">Mensagem de Ordem</Label>
                     <div className="flex gap-2">
                       <pre className="flex-1 bg-muted p-2 rounded text-xs overflow-auto">{buildResult.order_message as string}</pre>
                       <Button size="icon" variant="ghost" onClick={() => copyToClipboard(buildResult.order_message as string)}><Copy className="h-4 w-4" /></Button>
@@ -483,7 +504,7 @@ const Orders = () => {
                 )}
                 {buildResult.confirmation_message && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Confirmation Message</Label>
+                    <Label className="text-xs">Mensagem de Confirmação</Label>
                     <div className="flex gap-2">
                       <pre className="flex-1 bg-muted p-2 rounded text-xs overflow-auto">{buildResult.confirmation_message as string}</pre>
                       <Button size="icon" variant="ghost" onClick={() => copyToClipboard(buildResult.confirmation_message as string)}><Copy className="h-4 w-4" /></Button>
