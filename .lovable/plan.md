@@ -1,104 +1,69 @@
 
 
-# Make Legs Editable — with Cents-in-State Pattern
+# Fix futures_price_usd in Order Creation — 2 Files
 
-## Core Decision: Store cents/bushel in state, convert only on save
+## Answer to your question
 
-The state `legs[i].price` (and `strike`, `premium` for CBOT soybean options) will store values **in the display unit** (cents/bushel for CBOT soybean, BRL/sc for B3, R$/USD for NDF). Conversion to canonical USD/bushel happens only at two boundaries: when populating from API response (multiply by 100) and when saving to DB (divide by 100).
+The Lovable currently saves **only 4 selected fields** in `outputs_json` (lines 208-213 of `GeneratePricingModal.tsx`):
+- `costs`, `purchased_basis_brl`, `gross_price_brl`, `breakeven_basis_brl`
 
-This eliminates the controlled-input formatting bug entirely — no `.toFixed()`, no helpers, just raw string in = raw string out.
+**`futures_price_usd` is NOT persisted.** So the fix requires both files.
 
-## File: `src/pages/Orders.tsx`
+---
 
-### Edit 1 — Generic leg helpers (replace lines 198-199 + remove 491-511)
+## File 1: `src/components/GeneratePricingModal.tsx` (lines 208-213)
 
-Replace `updateLegNotes` with:
-```typescript
-const updateLeg = (index: number, field: keyof Leg, value: any) => {
-  setLegs(prev => prev.map((l, i) => i === index ? { ...l, [field]: value } : l));
-};
-const addLeg = () => {
-  setLegs(prev => [...prev, { leg_type: 'futures', direction: 'sell', ticker: '', contracts: '', price: '', notes: '' }]);
-};
-const removeLeg = (index: number) => {
-  setLegs(prev => prev.filter((_, i) => i !== index));
-};
-```
-
-Remove `getLegDisplayPrice` and `getLegQtyDisplay` (lines 491-511). Keep `getLegPriceLabel` (lines 500-505) for input label hints.
-
-### Edit 2 — handleBuildOrder: store prices in display units (lines 239-252)
-
-When populating legs from API response, multiply price/strike/premium by 100 for CBOT soybean:
-```typescript
-const isCbotSoy = com === 'soybean' && bench === 'cbot';
-setLegs(apiLegs.map((l: any) => {
-  const mul = (isCbotSoy && (l.leg_type === 'futures' || l.leg_type === 'option')) ? 100 : 1;
-  return {
-    leg_type: l.leg_type ?? 'futures',
-    direction: l.direction ?? 'sell',
-    ticker: l.ticker ?? '',
-    contracts: l.contracts != null ? String(l.contracts) : '',
-    price: l.price != null ? String(l.price * mul) : '',
-    ndf_rate: l.ndf_rate != null ? String(l.ndf_rate) : undefined,
-    strike: l.strike != null ? String(l.strike * mul) : undefined,
-    premium: l.premium != null ? String(l.premium * mul) : undefined,
-    option_type: l.option_type ?? undefined,
-    notes: '',
-    volume_units: l.volume_units ?? undefined,
-    unit_label: l.unit_label ?? undefined,
-  };
-}));
-```
-
-### Edit 3 — handleSaveOrder: convert cents→USD/bushel in legsPayload (lines 288-301)
+Persist the full engine result in `outputs_json` instead of cherry-picking fields. Replace:
 
 ```typescript
-const legsPayload = legs.map(l => {
-  const isCbotSoy = (apiOrder?.commodity === 'soybean' && 
-    (apiOrder?.exchange as string)?.toLowerCase() === 'cbot');
-  const div = (isCbotSoy && (l.leg_type === 'futures' || l.leg_type === 'option')) ? 100 : 1;
-  return {
-    leg_type: l.leg_type,
-    direction: l.direction,
-    ticker: l.ticker || undefined,
-    contracts: l.contracts ? parseFloat(l.contracts) : undefined,
-    price: l.price ? parseFloat(l.price) / div : undefined,
-    ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
-    strike: l.strike ? parseFloat(l.strike) / div : undefined,
-    premium: l.premium ? parseFloat(l.premium) / div : undefined,
-    option_type: l.option_type || undefined,
-    notes: l.notes || undefined,
-    volume_units: l.volume_units ?? undefined,
-    unit_label: l.unit_label ?? undefined,
-  };
-});
+outputs_json: {
+  costs: r.costs ?? {},
+  purchased_basis_brl: r.purchased_basis_brl,
+  gross_price_brl: r.gross_price_brl,
+  breakeven_basis_brl: r.breakeven_basis_brl,
+},
 ```
 
-### Edit 4 — Replace read-only legs table (lines 589-641)
+With:
 
-Replace with fully editable table:
-- **Tipo**: `<Select>` dropdown (futures/ndf/option) via `updateLeg(i, 'leg_type', val)`
-- **Dir.**: `<Select>` dropdown (buy/sell)
-- **Ticker**: `<Input>` text
-- **Quantidade**: `<Input>` — shows `contracts` for futures/option, `volume_units` for NDF (stored as string via updateLeg)
-- **Preço**: `<Input type="text">` — `value={leg.price ?? ''}` directly, no formatting. Label hint from `getLegPriceLabel`. For NDF, input maps to `ndf_rate`.
-- **Obs.**: `<Input>` text via `updateLeg(i, 'notes', ...)`
-- **Remove**: `<Trash2>` icon button calling `removeLeg(i)`
+```typescript
+outputs_json: { ...r },
+```
 
-For option legs, inline extra fields below row: `option_type` (call/put select), `strike` (input), `premium` (input).
+This spreads the entire API result object (`r`) into `outputs_json`, which includes `futures_price_usd`, `costs`, `purchased_basis_brl`, `gross_price_brl`, `breakeven_basis_brl`, and any other fields the engine returns. Future engine fields are automatically captured.
 
-**"Adicionar Perna"** button with Plus icon below the table.
+The `insurance` field is already saved separately in `insurance_json`, so no duplication concern for that.
 
-All inputs use raw string values from the Leg — no `.toFixed()`, no `getLegDisplayPrice`. The price label is shown as helper text via `getLegPriceLabel`.
+---
 
-### Edit 5 — Execution modal unchanged
+## File 2: `src/pages/Orders.tsx` (line 227)
 
-The execution modal reads `order.legs` from the database (USD/bushel), applies its own `_displayPrice` multiplication. No changes needed — confirmed compatible.
+Replace:
 
-### What does NOT change
-- Two-click flow structure
-- sessionStorage sync (useEffect hooks already watch `legs`)
-- List tab, execution modal, manual tab
-- No other files
+```typescript
+futures_price: snap?.futures_price_brl ?? 0,
+```
+
+With:
+
+```typescript
+futures_price: (() => {
+  const isCbotSoy = com === 'soybean' && bench === 'cbot';
+  if (isCbotSoy) {
+    const outputsJson = (snap?.outputs_json as Record<string, unknown>) ?? {};
+    return (outputsJson.futures_price_usd as number) ?? 0;
+  }
+  return snap?.futures_price_brl ?? 0;
+})(),
+```
+
+For soybean CBOT, reads `futures_price_usd` from `outputs_json` (USD/bushel, what the API expects). For corn B3, keeps `futures_price_brl` (BRL/sc).
+
+---
+
+## What does NOT change
+
+- Two-click flow, sessionStorage, legs editing, execution modal
+- `PricingTable.tsx` detail dialog (already reads from `outputs_json` generically)
+- Any other file
 
