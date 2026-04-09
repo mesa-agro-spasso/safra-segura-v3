@@ -67,6 +67,7 @@ const Market = () => {
   const [b3Prices, setB3Prices] = useState<Record<string, B3SavedPrice>>({});
   const [b3Loading, setB3Loading] = useState(true);
   const [b3Error, setB3Error] = useState<string | null>(null);
+  const [confirmingB3, setConfirmingB3] = useState(false);
 
   const dataMap = useMemo(() => {
     const map: Record<string, typeof marketData extends (infer T)[] ? T : never> = {};
@@ -242,6 +243,32 @@ const Market = () => {
       setEditingTicker(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro');
+    }
+  };
+
+  const handleConfirmB3Update = async () => {
+    setConfirmingB3(true);
+    try {
+      const tickers = b3Tickers.map(t => t.ticker);
+      for (const ticker of tickers) {
+        await supabase
+          .from('market_data')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('ticker', ticker);
+      }
+      setB3Prices(prev => {
+        const updated = { ...prev };
+        const now = new Date().toISOString();
+        tickers.forEach(t => {
+          if (updated[t]) updated[t] = { ...updated[t], updated_at: now };
+        });
+        return updated;
+      });
+      toast.success('Atualização B3 confirmada');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao confirmar');
+    } finally {
+      setConfirmingB3(false);
     }
   };
 
@@ -435,8 +462,24 @@ const Market = () => {
           {/* Milho B3 (Manual) */}
           <Card className="border-[hsl(var(--warning))]">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Milho B3 (Manual)</CardTitle>
-              <p className="text-xs text-[hsl(var(--warning))] font-medium">Atualização manual obrigatória</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm">Milho B3 (Manual)</CardTitle>
+                  <p className="text-xs text-[hsl(var(--warning))] font-medium mt-0.5">Atualização manual obrigatória</p>
+                </div>
+                {b3Tickers.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={handleConfirmB3Update}
+                    disabled={confirmingB3}
+                  >
+                    <Check className="mr-1.5 h-3 w-3" />
+                    {confirmingB3 ? 'Confirmando...' : 'Confirmar atualização'}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {b3Loading ? (
