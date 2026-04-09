@@ -16,7 +16,7 @@ Sidebar com 5 abas + admin condicional. Cadastro com aprovação admin.
 - [Database schema](mem://features/db-schema) — 7 tables, RLS policies, existing warehouses
 - [Pricing combinations contract](mem://features/pricing-combinations-contract) — Restricted field values, null-inheritance rules, domain constraints
 - [Auth & Access Control](mem://features/auth-access-control) — user_profiles, approval flow, admin panel, RLS, useAuthorization
-- [B3 corn market table](mem://features/b3-corn-market-table) — Field contract for B3 corn manual price entries in market_data
-- [B3 corn pricing integration](mem://features/b3-corn-pricing-integration) — Mapping commodity/benchmark→market_data, exchange_rate rules, UI constraints
-- [Pricing table UI](mem://features/pricing-table-ui) — Ticker badges collapsed by default, semaphore status line
-- [Pricing detail dialog](mem://features/pricing-detail-dialog) — Modal detalhamento, desk_cost_brl (não desk_brl), insurance_json níveis
+- [Order Lifecycle V2](mem://features/order-lifecycle-v2) — Two-click flow, status enum, cents/bushel conversion, execution modal, warehouse abbr
+- [Operations & Legs](mem://features/operations-legs) — parent_operation_id links, Leg type
+- [B3 corn pricing](mem://features/b3-corn-pricing-integration) — Mapping commodity/benchmark → market_data
+- [Pricing table UI](mem://features/pricing-table-ui) — Badge block, tickersExpanded, semaphore status

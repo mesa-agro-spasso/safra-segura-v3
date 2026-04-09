@@ -6,6 +6,7 @@ export interface Warehouse {
   type: string;
   active: boolean;
   basis_config: Record<string, unknown>;
+  abbr: string;
   created_at: string;
 }
 
@@ -62,6 +63,14 @@ export interface HedgeOrder {
   order_message: string | null;
   confirmation_message: string | null;
   stonex_confirmation_text: string | null;
+  display_code: string | null;
+  notes: string | null;
+  executed_legs: unknown[] | null;
+  executed_at: string | null;
+  executed_by: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
   created_by: string | null;
   created_at: string;
 }

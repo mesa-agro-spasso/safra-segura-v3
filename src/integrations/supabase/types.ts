@@ -16,13 +16,21 @@ export type Database = {
     Tables: {
       hedge_orders: {
         Row: {
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           commodity: string
           confirmation_message: string | null
           created_at: string
           created_by: string | null
+          display_code: string | null
           exchange: string
+          executed_at: string | null
+          executed_by: string | null
+          executed_legs: Json | null
           id: string
           legs: Json
+          notes: string | null
           operation_id: string
           order_message: string | null
           origination_price_brl: number
@@ -31,13 +39,21 @@ export type Database = {
           volume_sacks: number
         }
         Insert: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           commodity: string
           confirmation_message?: string | null
           created_at?: string
           created_by?: string | null
+          display_code?: string | null
           exchange: string
+          executed_at?: string | null
+          executed_by?: string | null
+          executed_legs?: Json | null
           id?: string
           legs?: Json
+          notes?: string | null
           operation_id: string
           order_message?: string | null
           origination_price_brl: number
@@ -46,13 +62,21 @@ export type Database = {
           volume_sacks: number
         }
         Update: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           commodity?: string
           confirmation_message?: string | null
           created_at?: string
           created_by?: string | null
+          display_code?: string | null
           exchange?: string
+          executed_at?: string | null
+          executed_by?: string | null
+          executed_legs?: Json | null
           id?: string
           legs?: Json
+          notes?: string | null
           operation_id?: string
           order_message?: string | null
           origination_price_brl?: number
@@ -62,8 +86,22 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "hedge_orders_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "hedge_orders_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hedge_orders_executed_by_fkey"
+            columns: ["executed_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -507,6 +545,7 @@ export type Database = {
       }
       warehouses: {
         Row: {
+          abbr: string
           active: boolean
           basis_config: Json
           city: string | null
@@ -517,6 +556,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          abbr: string
           active?: boolean
           basis_config?: Json
           city?: string | null
@@ -527,6 +567,7 @@ export type Database = {
           type: string
         }
         Update: {
+          abbr?: string
           active?: boolean
           basis_config?: Json
           city?: string | null
@@ -543,6 +584,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_hedge_order_display_code: {
+        Args: {
+          p_commodity: string
+          p_trade_date: string
+          p_warehouse_id: string
+        }
+        Returns: string
+      }
       get_user_status: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
