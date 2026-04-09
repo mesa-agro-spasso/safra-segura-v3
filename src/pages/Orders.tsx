@@ -71,6 +71,15 @@ const Orders = () => {
     return ordersRaw.filter(o => o.operation_id && warehouseOps.has(o.operation_id));
   }, [ordersRaw, warehouseFilter, operations]);
 
+  const operationWarehouseMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    operations?.forEach(op => {
+      const name = warehouses?.find(w => w.id === op.warehouse_id)?.display_name ?? op.warehouse_id;
+      map[op.id] = name;
+    });
+    return map;
+  }, [operations, warehouses]);
+
   // Create order form — persisted in sessionStorage
   const [selectedWarehouse, setSelectedWarehouseRaw] = useState(() => sessionStorage.getItem('order_warehouse') ?? '');
   const [selectedSnapshot, setSelectedSnapshotRaw] = useState(() => sessionStorage.getItem('order_snapshot') ?? '');
@@ -614,6 +623,7 @@ const Orders = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Praça</TableHead>
                   <TableHead>ID Operação</TableHead>
                   <TableHead>Commodity</TableHead>
                   <TableHead>Ticker</TableHead>
@@ -629,6 +639,9 @@ const Orders = () => {
                   const legs = (o.legs as any[]) ?? [];
                   return (
                     <TableRow key={o.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedOrder(o as unknown as Record<string, unknown>)}>
+                      <TableCell className="text-xs font-medium">
+                        {o.operation_id ? (operationWarehouseMap[o.operation_id] ?? '-') : '-'}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{o.operation_id?.slice(0, 8) ?? '-'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px]">
