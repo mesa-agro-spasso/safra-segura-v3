@@ -182,21 +182,36 @@ const Orders = () => {
       const operationId = (operation as { id: string }).id;
 
       // 2. Call API to build order
+      const snap = selectedSnapshotData;
+      const legCurrency = (commodityType === 'soybean|cbot' || commodityType === 'corn|cbot') ? 'USD' : 'BRL';
+
       const legsPayload = legs.map(l => ({
-        ...l,
-        contracts: l.contracts ? parseFloat(l.contracts) : 0,
-        price: l.price ? parseFloat(l.price) : 0,
+        leg_type: l.leg_type,
+        direction: l.direction,
+        currency: l.leg_type === 'ndf' ? 'USD' : legCurrency,
+        ticker: l.ticker || undefined,
+        contracts: l.contracts ? parseFloat(l.contracts) : undefined,
+        price: l.price ? parseFloat(l.price) : undefined,
         ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
         strike: l.strike ? parseFloat(l.strike) : undefined,
         premium: l.premium ? parseFloat(l.premium) : undefined,
+        option_type: l.option_type || undefined,
       }));
 
       const result = await callApi<Record<string, unknown>>('/orders/build', {
-        warehouse_id: selectedWarehouse,
-        pricing_snapshot_id: selectedSnapshot,
+        pricing_id: snap?.id ?? null,
+        commodity: com,
+        exchange: bench,
+        origination_price_brl: snap?.origination_price_brl ?? 0,
+        futures_price: snap?.futures_price_brl ?? 0,
+        exchange_rate: snap?.exchange_rate ?? null,
+        ticker: snap?.ticker ?? '',
+        payment_date: snap?.payment_date ?? '',
+        sale_date: snap?.sale_date ?? '',
+        grain_reception_date: snap?.grain_reception_date ?? snap?.payment_date ?? '',
         volume_sacks: parseFloat(volume),
         operation_id: operationId,
-        commodity,
+        use_custom_structure: true,
         legs: legsPayload,
       });
       setBuildResult(result);
