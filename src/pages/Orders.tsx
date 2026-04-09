@@ -58,18 +58,18 @@ const Orders = () => {
     commodity: commodityFilter !== 'all' ? commodityFilter : undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
   });
-  const orders = useMemo(() => {
-    if (!ordersRaw) return [];
-    if (warehouseFilter === 'all') return ordersRaw;
-    const warehouseOps = new Set(operations?.filter(op => op.warehouse_id === warehouseFilter).map(op => op.id) ?? []);
-    return ordersRaw.filter(o => o.operation_id && warehouseOps.has(o.operation_id));
-  }, [ordersRaw, warehouseFilter, operations]);
   const { data: warehouses } = useActiveArmazens();
   const { data: snapshots } = usePricingSnapshots();
   const { data: operations } = useOperations();
   const createOrder = useCreateHedgeOrder();
   const createOperation = useCreateOperation();
   const { user } = useAuth();
+  const orders = useMemo(() => {
+    if (!ordersRaw) return [];
+    if (warehouseFilter === 'all') return ordersRaw;
+    const warehouseOps = new Set(operations?.filter(op => op.warehouse_id === warehouseFilter).map(op => op.id) ?? []);
+    return ordersRaw.filter(o => o.operation_id && warehouseOps.has(o.operation_id));
+  }, [ordersRaw, warehouseFilter, operations]);
 
   // Create order form — persisted in sessionStorage
   const [selectedWarehouse, setSelectedWarehouseRaw] = useState(() => sessionStorage.getItem('order_warehouse') ?? '');
