@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 import type { Warehouse, PricingCombination } from '@/types';
 
 const emptyWarehouse: Partial<Warehouse> & { id: string } = {
-  id: '', display_name: '', city: '', state: '', type: 'ARMAZEM', active: true, basis_config: {},
+  id: '', display_name: '', city: '', state: '', type: 'ARMAZEM', active: true, basis_config: {}, abbr: '',
 };
 
 function WarehousesTab() {
@@ -29,24 +29,38 @@ function WarehousesTab() {
   const upsertWarehouse = useUpsertWarehouse();
   const [editing, setEditing] = useState<(Partial<Warehouse> & { id: string }) | null>(null);
   const [open, setOpen] = useState(false);
+  const [abbrError, setAbbrError] = useState('');
 
   const handleSave = async () => {
     if (!editing?.id || !editing?.display_name) { toast.error('ID e nome são obrigatórios'); return; }
+    const abbr = editing.abbr ?? '';
+    if (!/^[A-Z]{2,5}$/.test(abbr)) {
+      setAbbrError('2 a 5 letras maiúsculas');
+      return;
+    }
+    setAbbrError('');
     try {
       await upsertWarehouse.mutateAsync({
         id: editing.id, display_name: editing.display_name,
         city: editing.city ?? null, state: editing.state ?? null,
         type: editing.type ?? 'ARMAZEM', active: editing.active ?? true,
-        basis_config: editing.basis_config ?? {},
+        basis_config: editing.basis_config ?? {}, abbr,
       });
       toast.success('Armazém salvo'); setOpen(false); setEditing(null);
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Erro ao salvar'); }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar';
+      if (msg.includes('23505') || msg.includes('unique') || msg.includes('duplicate')) {
+        toast.error(`Abreviação '${abbr}' já está em uso por outro armazém`);
+      } else {
+        toast.error(msg);
+      }
+    }
   };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setAbbrError(''); } }}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditing({ ...emptyWarehouse })}><Plus className="mr-2 h-4 w-4" /> Novo Armazém</Button>
           </DialogTrigger>
@@ -57,6 +71,17 @@ function WarehousesTab() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label className="text-xs">ID (slug)</Label><Input value={editing.id} onChange={(e) => setEditing({ ...editing, id: e.target.value })} disabled={!!warehouses?.some((w) => w.id === editing.id)} /></div>
                   <div className="space-y-1"><Label className="text-xs">Nome</Label><Input value={editing.display_name ?? ''} onChange={(e) => setEditing({ ...editing, display_name: e.target.value })} /></div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Abreviação (código curto)</Label>
+                    <Input
+                      value={editing.abbr ?? ''}
+                      onChange={(e) => { setEditing({ ...editing, abbr: e.target.value.toUpperCase() }); setAbbrError(''); }}
+                      placeholder="Ex: CON, MAT, ALT"
+                      maxLength={5}
+                    />
+                    <p className="text-[10px] text-muted-foreground">2 a 5 letras maiúsculas. Usado nos códigos de ordens.</p>
+                    {abbrError && <p className="text-[10px] text-destructive">{abbrError}</p>}
+                  </div>
                   <div className="space-y-1"><Label className="text-xs">Cidade</Label><Input value={editing.city ?? ''} onChange={(e) => setEditing({ ...editing, city: e.target.value })} /></div>
                   <div className="space-y-1"><Label className="text-xs">Estado</Label><Input value={editing.state ?? ''} onChange={(e) => setEditing({ ...editing, state: e.target.value })} /></div>
                 </div>
@@ -76,11 +101,12 @@ function WarehousesTab() {
           <CardHeader><CardTitle className="text-sm">Armazéns</CardTitle></CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Cidade</TableHead><TableHead>Estado</TableHead><TableHead>Tipo</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Abreviação</TableHead><TableHead>Cidade</TableHead><TableHead>Estado</TableHead><TableHead>Tipo</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
               <TableBody>
                 {warehouses?.map((w) => (
                   <TableRow key={w.id}>
                     <TableCell className="font-medium">{w.display_name}</TableCell>
+                    <TableCell className="font-mono text-xs">{(w as any).abbr ?? '-'}</TableCell>
                     <TableCell>{w.city ?? '-'}</TableCell><TableCell>{w.state ?? '-'}</TableCell>
                     <TableCell>{w.type}</TableCell><TableCell>{w.active ? '✅ Ativo' : '❌ Inativo'}</TableCell>
                     <TableCell><Button variant="ghost" size="sm" onClick={() => { setEditing({ ...w } as Partial<Warehouse> & { id: string }); setOpen(true); }}><Edit2 className="h-4 w-4" /></Button></TableCell>
