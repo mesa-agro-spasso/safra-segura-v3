@@ -322,7 +322,8 @@ const Orders = () => {
           expiration_date: l.expiration_date ?? (() => {
             if (l.leg_type === 'option') {
               const ij = (snap?.inputs_json as Record<string, unknown>) ?? {};
-              return (ij.exp_date as string) ?? undefined;
+              const oj = (snap?.outputs_json as Record<string, unknown>) ?? {};
+              return (ij.exp_date as string) ?? (oj.exp_date as string) ?? undefined;
             }
             return undefined;
           })(),
