@@ -262,32 +262,26 @@ const Orders = () => {
   };
 
   // Click 1: Build order via API (no DB writes)
-  const handleBuildOrder = async () => {
-    if (!selectedWarehouse || !selectedSnapshot || !volume || !commodityType) {
-      toast.error('Preencha todos os campos');
-      return;
-    }
+  // Stage 1: Auto-populate legs silently when form fields are filled
+  const autoPopulateLegs = async () => {
     setBuilding(true);
     setBuildResult(null);
     setApiOrder(null);
-    setLegs([]);
     try {
       const snap = selectedSnapshotData;
-      const commodity = com === 'soybean' ? 'soybean' : 'corn';
+      const outputsJson = (snap?.outputs_json as Record<string, unknown>) ?? {};
+      const futuresPriceUsd = outputsJson.futures_price_usd as number | undefined;
+      const isCbotSoy = com === 'soybean' && bench === 'cbot';
+      const futuresPriceForApi = isCbotSoy
+        ? (futuresPriceUsd ?? 0)
+        : (snap?.futures_price_brl ?? 0);
 
       const result = await callApi<Record<string, unknown>>('/orders/build', {
         pricing_id: snap?.id ?? null,
         commodity: com,
         exchange: bench,
         origination_price_brl: snap?.origination_price_brl ?? 0,
-        futures_price: (() => {
-          const isCbotSoy = com === 'soybean' && bench === 'cbot';
-          if (isCbotSoy) {
-            const outputsJson = (snap?.outputs_json as Record<string, unknown>) ?? {};
-            return (outputsJson.futures_price_usd as number) ?? 0;
-          }
-          return snap?.futures_price_brl ?? 0;
-        })(),
+        futures_price: futuresPriceForApi,
         exchange_rate: snap?.exchange_rate ?? null,
         ticker: snap?.ticker ?? '',
         payment_date: snap?.payment_date ?? '',
@@ -298,14 +292,11 @@ const Orders = () => {
         use_custom_structure: false,
         legs: [],
       });
+
       const apiOrderData = (result.order as Record<string, unknown>) ?? {};
-      const apiAlerts = (result.alerts as unknown[]) ?? [];
-      setBuildResult({ alerts: apiAlerts, has_errors: result.has_errors });
       setApiOrder(apiOrderData);
 
-      // Populate legs from API response
       const apiLegs = (apiOrderData.legs as any[]) ?? [];
-      const isCbotSoy = com === 'soybean' && bench === 'cbot';
       setLegs(apiLegs.map((l: any) => {
         const mul = (isCbotSoy && (l.leg_type === 'futures' || l.leg_type === 'option')) ? 100 : 1;
         return {
@@ -323,10 +314,94 @@ const Orders = () => {
           unit_label: l.unit_label ?? undefined,
         };
       }));
-
-      toast.success('Ordem construída — revise as pernas e clique em Salvar');
+      // No toast, no buildResult
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao construir ordem');
+      toast.error(err instanceof Error ? err.message : 'Erro ao carregar pernas');
+    } finally {
+      setBuilding(false);
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!selectedWarehouse || !commodityType || !selectedSnapshot || !volume) return;
+    if (!selectedSnapshotData) return;
+    const volNum = parseFloat(volume);
+    if (!volNum || volNum <= 0) return;
+    autoPopulateLegs();
+  }, [selectedSnapshot, selectedWarehouse, commodityType, volume]);
+
+  // Stage 2: Validate order (does NOT replace legs)
+  const handleBuildOrder = async () => {
+    if (!apiOrder || !legs.length) {
+      toast.error('Selecione um preço de referência primeiro');
+      return;
+    }
+    setBuilding(true);
+    try {
+      const snap = selectedSnapshotData;
+      const outputsJson = (snap?.outputs_json as Record<string, unknown>) ?? {};
+      const futuresPriceUsd = outputsJson.futures_price_usd as number | undefined;
+      const isCbotSoy = com === 'soybean' && bench === 'cbot';
+      const futuresPriceForApi = isCbotSoy
+        ? (futuresPriceUsd ?? 0)
+        : (snap?.futures_price_brl ?? 0);
+
+      // Convert legs from display units to canonical units for API
+      const legsForApi = legs.filter(l => l.leg_type !== 'seguro').map(l => {
+        const div = (isCbotSoy && (l.leg_type === 'futures' || l.leg_type === 'option')) ? 100 : 1;
+        return {
+          leg_type: l.leg_type,
+          direction: l.direction,
+          ticker: l.ticker || undefined,
+          contracts: l.contracts ? parseFloat(l.contracts) : undefined,
+          price: l.price ? parseFloat(l.price) / div : undefined,
+          ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
+          strike: l.strike ? parseFloat(l.strike) / div : undefined,
+          premium: l.premium ? parseFloat(l.premium) / div : undefined,
+          option_type: l.option_type || undefined,
+          notes: l.notes || undefined,
+        };
+      });
+
+      const result = await callApi<Record<string, unknown>>('/orders/build', {
+        pricing_id: snap?.id ?? null,
+        commodity: com,
+        exchange: bench,
+        origination_price_brl: snap?.origination_price_brl ?? 0,
+        futures_price: futuresPriceForApi,
+        exchange_rate: snap?.exchange_rate ?? null,
+        ticker: snap?.ticker ?? '',
+        payment_date: snap?.payment_date ?? '',
+        sale_date: snap?.sale_date ?? '',
+        grain_reception_date: snap?.grain_reception_date ?? snap?.payment_date ?? '',
+        volume_sacks: parseFloat(volume),
+        operation_id: null,
+        use_custom_structure: true,
+        legs: legsForApi,
+      });
+
+      const apiOrderData = (result.order as Record<string, unknown>) ?? {};
+      setApiOrder(prev => ({
+        ...(prev ?? {}),
+        order_message: apiOrderData.order_message,
+        confirmation_message: apiOrderData.confirmation_message,
+        commodity: apiOrderData.commodity,
+        exchange: apiOrderData.exchange,
+      }));
+      setBuildResult({
+        alerts: (result.alerts as unknown[]) ?? [],
+        has_errors: result.has_errors as boolean,
+      });
+
+      const hasErrors = result.has_errors as boolean;
+      if (hasErrors) {
+        toast.error('Ordem tem erros de validação — revise antes de salvar');
+      } else {
+        toast.success('Ordem validada — pode salvar');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao validar ordem');
     } finally {
       setBuilding(false);
     }
