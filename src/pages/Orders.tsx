@@ -27,6 +27,7 @@ type Leg = {
   ticker: string;
   contracts: string;
   price: string;
+  currency?: string;
   ndf_rate?: string;
   strike?: string;
   premium?: string;
@@ -310,6 +311,7 @@ const Orders = () => {
           premium: l.premium != null ? String(l.premium * mul) : undefined,
           option_type: l.option_type ?? undefined,
           notes: '',
+          currency: l.currency ?? undefined,
           volume_units: l.volume_units ?? undefined,
           unit_label: l.unit_label ?? undefined,
         };
@@ -360,6 +362,7 @@ const Orders = () => {
           strike: l.strike ? parseFloat(l.strike) / div : undefined,
           premium: l.premium ? parseFloat(l.premium) / div : undefined,
           option_type: l.option_type || undefined,
+          currency: l.currency || undefined,
           notes: l.notes || undefined,
         };
       });
@@ -447,6 +450,7 @@ const Orders = () => {
           strike: l.strike ? parseFloat(l.strike) / div : undefined,
           premium: l.premium ? parseFloat(l.premium) / div : undefined,
           option_type: l.option_type || undefined,
+          currency: l.currency || undefined,
           notes: l.notes || undefined,
           volume_units: l.volume_units ?? undefined,
           unit_label: l.unit_label ?? undefined,
