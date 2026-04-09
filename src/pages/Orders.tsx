@@ -195,8 +195,14 @@ const Orders = () => {
     [filteredSnapshots, selectedSnapshot]
   );
 
-  const updateLegNotes = (index: number, notes: string) => {
-    setLegs(prev => prev.map((l, i) => i === index ? { ...l, notes } : l));
+  const updateLeg = (index: number, field: keyof Leg, value: any) => {
+    setLegs(prev => prev.map((l, i) => i === index ? { ...l, [field]: value } : l));
+  };
+  const addLeg = () => {
+    setLegs(prev => [...prev, { leg_type: 'futures', direction: 'sell', ticker: '', contracts: '', price: '', notes: '' }]);
+  };
+  const removeLeg = (index: number) => {
+    setLegs(prev => prev.filter((_, i) => i !== index));
   };
 
   // Click 1: Build order via API (no DB writes)
@@ -236,20 +242,24 @@ const Orders = () => {
 
       // Populate legs from API response
       const apiLegs = (apiOrderData.legs as any[]) ?? [];
-      setLegs(apiLegs.map((l: any) => ({
-        leg_type: l.leg_type ?? 'futures',
-        direction: l.direction ?? 'sell',
-        ticker: l.ticker ?? '',
-        contracts: l.contracts != null ? String(l.contracts) : '',
-        price: l.price != null ? String(l.price) : '',
-        ndf_rate: l.ndf_rate != null ? String(l.ndf_rate) : undefined,
-        strike: l.strike != null ? String(l.strike) : undefined,
-        premium: l.premium != null ? String(l.premium) : undefined,
-        option_type: l.option_type ?? undefined,
-        notes: '',
-        volume_units: l.volume_units ?? undefined,
-        unit_label: l.unit_label ?? undefined,
-      })));
+      const isCbotSoy = com === 'soybean' && bench === 'cbot';
+      setLegs(apiLegs.map((l: any) => {
+        const mul = (isCbotSoy && (l.leg_type === 'futures' || l.leg_type === 'option')) ? 100 : 1;
+        return {
+          leg_type: l.leg_type ?? 'futures',
+          direction: l.direction ?? 'sell',
+          ticker: l.ticker ?? '',
+          contracts: l.contracts != null ? String(l.contracts) : '',
+          price: l.price != null ? String(l.price * mul) : '',
+          ndf_rate: l.ndf_rate != null ? String(l.ndf_rate) : undefined,
+          strike: l.strike != null ? String(l.strike * mul) : undefined,
+          premium: l.premium != null ? String(l.premium * mul) : undefined,
+          option_type: l.option_type ?? undefined,
+          notes: '',
+          volume_units: l.volume_units ?? undefined,
+          unit_label: l.unit_label ?? undefined,
+        };
+      }));
 
       toast.success('Ordem construída — revise as pernas e clique em Salvar');
     } catch (err) {
@@ -285,20 +295,25 @@ const Orders = () => {
       operationId = (operation as { id: string }).id;
 
       // Build legs with user notes merged
-      const legsPayload = legs.map(l => ({
-        leg_type: l.leg_type,
-        direction: l.direction,
-        ticker: l.ticker || undefined,
-        contracts: l.contracts ? parseFloat(l.contracts) : undefined,
-        price: l.price ? parseFloat(l.price) : undefined,
-        ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
-        strike: l.strike ? parseFloat(l.strike) : undefined,
-        premium: l.premium ? parseFloat(l.premium) : undefined,
-        option_type: l.option_type || undefined,
-        notes: l.notes || undefined,
-        volume_units: l.volume_units ?? undefined,
-        unit_label: l.unit_label ?? undefined,
-      }));
+      const legsPayload = legs.map(l => {
+        const isCbotSoy = (apiOrder?.commodity === 'soybean' &&
+          (apiOrder?.exchange as string)?.toLowerCase() === 'cbot');
+        const div = (isCbotSoy && (l.leg_type === 'futures' || l.leg_type === 'option')) ? 100 : 1;
+        return {
+          leg_type: l.leg_type,
+          direction: l.direction,
+          ticker: l.ticker || undefined,
+          contracts: l.contracts ? parseFloat(l.contracts) : undefined,
+          price: l.price ? parseFloat(l.price) / div : undefined,
+          ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
+          strike: l.strike ? parseFloat(l.strike) / div : undefined,
+          premium: l.premium ? parseFloat(l.premium) / div : undefined,
+          option_type: l.option_type || undefined,
+          notes: l.notes || undefined,
+          volume_units: l.volume_units ?? undefined,
+          unit_label: l.unit_label ?? undefined,
+        };
+      });
 
       // Step 2: Insert hedge_order
       try {
@@ -487,27 +502,12 @@ const Orders = () => {
     }
   };
 
-  // Helper to get display price for legs in create tab
-  const getLegDisplayPrice = (leg: Leg): string => {
-    if (leg.leg_type === 'ndf') return leg.ndf_rate ?? leg.price ?? '';
-    if (leg.leg_type === 'futures' && isSoybeanCbot(com, bench)) {
-      const raw = parseFloat(leg.price);
-      return isNaN(raw) ? '' : (raw * 100).toFixed(2);
-    }
-    return leg.price;
-  };
-
   const getLegPriceLabel = (leg: Leg): string => {
     if (leg.leg_type === 'ndf') return 'R$/USD';
     if (leg.leg_type === 'futures' && isSoybeanCbot(com, bench)) return 'USD cents/bushel';
+    if (leg.leg_type === 'option' && isSoybeanCbot(com, bench)) return 'USD cents/bushel';
     if (leg.leg_type === 'futures' && bench === 'b3') return 'BRL/sc';
     return '';
-  };
-
-  const getLegQtyDisplay = (leg: Leg): string => {
-    if (leg.leg_type === 'ndf' && leg.volume_units != null) return `${leg.volume_units} USD`;
-    const val = leg.contracts;
-    return val ? `${val} ct` : '';
   };
 
   return (
@@ -586,57 +586,149 @@ const Orders = () => {
                 </div>
               </div>
 
-              {/* Legs display (read-only from API, except notes) */}
-              {legs.length > 0 && (
+              {/* Editable Legs */}
+              {(legs.length > 0 || apiOrder) && (
                 <div className="space-y-2 pt-2 border-t border-border">
                   <Label className="text-xs font-semibold">Pernas da Operação</Label>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-[10px]">Tipo</TableHead>
-                        <TableHead className="text-[10px]">Dir.</TableHead>
-                        <TableHead className="text-[10px]">Ticker</TableHead>
-                        <TableHead className="text-[10px]">Quantidade</TableHead>
-                        <TableHead className="text-[10px]">Preço</TableHead>
-                        <TableHead className="text-[10px]">Obs.</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {legs.map((leg, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="text-xs">{leg.leg_type === 'futures' ? 'Futuro' : leg.leg_type === 'ndf' ? 'NDF' : 'Opção'}</TableCell>
-                          <TableCell className="text-xs">{leg.direction}</TableCell>
-                          <TableCell className="text-xs font-mono">{leg.ticker || '-'}</TableCell>
-                          <TableCell className="text-xs">{getLegQtyDisplay(leg)}</TableCell>
-                          <TableCell className="text-xs">
-                            <span>{getLegDisplayPrice(leg)}</span>
-                            <span className="text-[10px] text-muted-foreground ml-1">{getLegPriceLabel(leg)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              className="h-7 text-xs w-32"
-                              placeholder="Ex: rolagem, parcial"
-                              value={leg.notes ?? ''}
-                              onChange={(e) => updateLegNotes(i, e.target.value)}
-                            />
-                          </TableCell>
+                  {legs.length > 0 && (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[10px]">Tipo</TableHead>
+                          <TableHead className="text-[10px]">Dir.</TableHead>
+                          <TableHead className="text-[10px]">Ticker</TableHead>
+                          <TableHead className="text-[10px]">Qtd</TableHead>
+                          <TableHead className="text-[10px]">Preço</TableHead>
+                          <TableHead className="text-[10px]">Obs.</TableHead>
+                          <TableHead className="text-[10px] w-10"></TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-
-                  {/* Option extra fields */}
-                  {legs.map((leg, i) => (
-                    <div key={`extra-${i}`}>
-                      {leg.leg_type === 'option' && (
-                        <div className="flex gap-2 pl-4 items-end text-xs">
-                          <span className="text-muted-foreground">Tipo: {leg.option_type ?? 'call'}</span>
-                          {leg.strike && <span className="text-muted-foreground">Strike: {leg.strike}</span>}
-                          {leg.premium && <span className="text-muted-foreground">Prêmio: {leg.premium}</span>}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                      </TableHeader>
+                      <TableBody>
+                        {legs.map((leg, i) => (
+                          <React.Fragment key={i}>
+                            <TableRow>
+                              <TableCell className="p-1">
+                                <Select value={leg.leg_type} onValueChange={(v) => updateLeg(i, 'leg_type', v)}>
+                                  <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="futures">Futuro</SelectItem>
+                                    <SelectItem value="ndf">NDF</SelectItem>
+                                    <SelectItem value="option">Opção</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="p-1">
+                                <Select value={leg.direction} onValueChange={(v) => updateLeg(i, 'direction', v)}>
+                                  <SelectTrigger className="h-7 text-xs w-20"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="buy">Buy</SelectItem>
+                                    <SelectItem value="sell">Sell</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="p-1">
+                                <Input
+                                  className="h-7 text-xs w-28 font-mono"
+                                  value={leg.ticker}
+                                  onChange={(e) => updateLeg(i, 'ticker', e.target.value)}
+                                />
+                              </TableCell>
+                              <TableCell className="p-1">
+                                {leg.leg_type === 'ndf' ? (
+                                  <Input
+                                    className="h-7 text-xs w-24"
+                                    type="text"
+                                    placeholder="USD"
+                                    value={leg.volume_units != null ? String(leg.volume_units) : ''}
+                                    onChange={(e) => updateLeg(i, 'volume_units', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                  />
+                                ) : (
+                                  <Input
+                                    className="h-7 text-xs w-20"
+                                    type="text"
+                                    placeholder="ct"
+                                    value={leg.contracts}
+                                    onChange={(e) => updateLeg(i, 'contracts', e.target.value)}
+                                  />
+                                )}
+                              </TableCell>
+                              <TableCell className="p-1">
+                                <div className="flex items-center gap-1">
+                                  {leg.leg_type === 'ndf' ? (
+                                    <Input
+                                      className="h-7 text-xs w-24"
+                                      type="text"
+                                      value={leg.ndf_rate ?? ''}
+                                      onChange={(e) => updateLeg(i, 'ndf_rate', e.target.value)}
+                                    />
+                                  ) : (
+                                    <Input
+                                      className="h-7 text-xs w-24"
+                                      type="text"
+                                      value={leg.price}
+                                      onChange={(e) => updateLeg(i, 'price', e.target.value)}
+                                    />
+                                  )}
+                                  <span className="text-[9px] text-muted-foreground whitespace-nowrap">{getLegPriceLabel(leg)}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="p-1">
+                                <Input
+                                  className="h-7 text-xs w-28"
+                                  placeholder="Ex: rolagem"
+                                  value={leg.notes ?? ''}
+                                  onChange={(e) => updateLeg(i, 'notes', e.target.value)}
+                                />
+                              </TableCell>
+                              <TableCell className="p-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeLeg(i)}>
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                            {/* Option extra fields inline */}
+                            {leg.leg_type === 'option' && (
+                              <TableRow>
+                                <TableCell colSpan={7} className="p-1 pl-6">
+                                  <div className="flex gap-2 items-center">
+                                    <Select value={leg.option_type ?? 'call'} onValueChange={(v) => updateLeg(i, 'option_type', v)}>
+                                      <SelectTrigger className="h-7 text-xs w-20"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="call">Call</SelectItem>
+                                        <SelectItem value="put">Put</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <div className="flex items-center gap-1">
+                                      <Label className="text-[10px] text-muted-foreground">Strike</Label>
+                                      <Input
+                                        className="h-7 text-xs w-24"
+                                        type="text"
+                                        value={leg.strike ?? ''}
+                                        onChange={(e) => updateLeg(i, 'strike', e.target.value)}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Label className="text-[10px] text-muted-foreground">Prêmio</Label>
+                                      <Input
+                                        className="h-7 text-xs w-24"
+                                        type="text"
+                                        value={leg.premium ?? ''}
+                                        onChange={(e) => updateLeg(i, 'premium', e.target.value)}
+                                      />
+                                    </div>
+                                    <span className="text-[9px] text-muted-foreground">{getLegPriceLabel(leg)}</span>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                  <Button variant="outline" size="sm" className="text-xs" onClick={addLeg}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar Perna
+                  </Button>
                 </div>
               )}
 
