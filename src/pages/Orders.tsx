@@ -537,26 +537,31 @@ const Orders = () => {
 
         <TabsContent value="list" className="space-y-4">
           {/* Filtros colapsáveis */}
-          <div className="space-y-2">
+          <div className="mb-4">
             <button
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              type="button"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
               onClick={() => setListFiltersExpanded(v => !v)}
             >
-              <Filter className="h-4 w-4" />
-              Filtros
+              <Filter className="h-3.5 w-3.5" />
+              <span>Filtros</span>
               {(commodityFilter !== 'all' || statusFilter !== 'all' || warehouseFilter !== 'all') && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                  {[commodityFilter !== 'all' ? (commodityFilter === 'soybean' ? 'Soja' : 'Milho') : null, statusFilter !== 'all' ? statusFilter : null, warehouseFilter !== 'all' ? (warehouses?.find(w => w.id === warehouseFilter)?.display_name ?? warehouseFilter) : null].filter(Boolean).join(' · ')}
-                </Badge>
+                <span className="bg-primary/20 text-primary text-[10px] px-1.5 rounded-full font-medium">
+                  {[
+                    commodityFilter !== 'all' ? (commodityFilter === 'soybean' ? 'Soja' : 'Milho') : null,
+                    statusFilter !== 'all' ? statusFilter : null,
+                    warehouseFilter !== 'all' ? (warehouses?.find(w => w.id === warehouseFilter)?.display_name ?? warehouseFilter) : null
+                  ].filter(Boolean).join(' · ')}
+                </span>
               )}
-              {listFiltersExpanded ? '▾' : '▸'}
+              <span className="ml-0.5">{listFiltersExpanded ? '▾' : '▸'}</span>
             </button>
             {listFiltersExpanded && (
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3 mt-2 pl-5">
                 <div className="space-y-1">
-                  <Label className="text-xs">Commodity</Label>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Commodity</span>
                   <Select value={commodityFilter} onValueChange={setCommodityFilter}>
-                    <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Commodity" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas</SelectItem>
                       <SelectItem value="soybean">Soja</SelectItem>
@@ -565,22 +570,22 @@ const Orders = () => {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Status</Label>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Status</span>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="GENERATED">Gerada</SelectItem>
                       <SelectItem value="SENT">Enviada</SelectItem>
-                      <SelectItem value="CONFIRMED">Confirmada</SelectItem>
+                      <SelectItem value="BROKER_CONFIRMED">Confirmada</SelectItem>
                       <SelectItem value="LINKED">Vinculada</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Praça</Label>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Praça</span>
                   <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                    <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Praça" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas</SelectItem>
                       {warehouses?.map(w => (
@@ -591,7 +596,7 @@ const Orders = () => {
                 </div>
                 {(commodityFilter !== 'all' || statusFilter !== 'all' || warehouseFilter !== 'all') && (
                   <div className="flex items-end">
-                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setCommodityFilter('all'); setStatusFilter('all'); setWarehouseFilter('all'); }}>
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setCommodityFilter('all'); setStatusFilter('all'); setWarehouseFilter('all'); }}>
                       Limpar filtros
                     </Button>
                   </div>
