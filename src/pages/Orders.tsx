@@ -224,7 +224,14 @@ const Orders = () => {
         commodity: com,
         exchange: bench,
         origination_price_brl: snap?.origination_price_brl ?? 0,
-        futures_price: snap?.futures_price_brl ?? 0,
+        futures_price: (() => {
+          const isCbotSoy = com === 'soybean' && bench === 'cbot';
+          if (isCbotSoy) {
+            const outputsJson = (snap?.outputs_json as Record<string, unknown>) ?? {};
+            return (outputsJson.futures_price_usd as number) ?? 0;
+          }
+          return snap?.futures_price_brl ?? 0;
+        })(),
         exchange_rate: snap?.exchange_rate ?? null,
         ticker: snap?.ticker ?? '',
         payment_date: snap?.payment_date ?? '',

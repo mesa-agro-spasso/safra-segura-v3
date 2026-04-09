@@ -205,12 +205,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               desk_cost_pct: orig.desk_cost_pct,
               shrinkage_rate_monthly: orig.shrinkage_rate_monthly,
             },
-            outputs_json: {
-              costs: r.costs ?? {},
-              purchased_basis_brl: r.purchased_basis_brl,
-              gross_price_brl: r.gross_price_brl,
-              breakeven_basis_brl: r.breakeven_basis_brl,
-            },
+            outputs_json: { ...r },
             insurance_json: r.insurance ?? {},
             created_by: user?.id ?? null,
           } as Omit<PricingSnapshot, 'id' | 'created_at'>;
