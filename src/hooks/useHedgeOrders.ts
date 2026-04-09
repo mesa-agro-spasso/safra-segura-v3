@@ -19,7 +19,7 @@ export function useHedgeOrders(filters?: { commodity?: string; status?: string }
 export function useCreateHedgeOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (order: Omit<HedgeOrder, 'id' | 'created_at'>) => {
+    mutationFn: async (order: Omit<HedgeOrder, 'id' | 'created_at' | 'display_code' | 'executed_legs' | 'executed_at' | 'executed_by' | 'cancelled_at' | 'cancelled_by' | 'cancellation_reason'>) => {
       const { data, error } = await supabase
         .from('hedge_orders')
         .insert(order as never)
@@ -27,6 +27,20 @@ export function useCreateHedgeOrder() {
         .single();
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hedge_orders'] }),
+  });
+}
+
+export function useUpdateHedgeOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Partial<HedgeOrder>) => {
+      const { error } = await supabase
+        .from('hedge_orders')
+        .update(updates as never)
+        .eq('id', id);
+      if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hedge_orders'] }),
   });
