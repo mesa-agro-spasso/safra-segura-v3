@@ -246,7 +246,10 @@ const Orders = () => {
       option_type: 'call',
       strike: String(strike),
       premium: String(premium),
-      expiration_date: (selectedSnapshotData?.exp_date as string) ?? '',
+      expiration_date: (() => {
+        const ij = (selectedSnapshotData?.inputs_json as Record<string, unknown>) ?? {};
+        return (ij.exp_date as string) ?? '';
+      })(),
     } : l));
     setInsuranceModalLegIndex(null);
     setPreviousLegType(null);
