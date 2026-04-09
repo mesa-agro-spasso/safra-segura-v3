@@ -720,6 +720,69 @@ const Orders = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modal de detalhe da ordem */}
+      {selectedOrder && (() => {
+        const legs = (selectedOrder.legs as any[]) ?? [];
+        return (
+          <Dialog open={!!selectedOrder} onOpenChange={(o) => { if (!o) setSelectedOrder(null); }}>
+            <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Ordem — {(selectedOrder.operation_id as string)?.slice(0, 8) ?? (selectedOrder.id as string)?.slice(0, 8)}</DialogTitle>
+              </DialogHeader>
+
+              <Separator />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Identificação</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <span className="text-muted-foreground">Commodity</span><span>{selectedOrder.commodity === 'soybean' ? 'Soja CBOT' : (selectedOrder.exchange as string) === 'b3' ? 'Milho B3' : 'Milho CBOT'}</span>
+                <span className="text-muted-foreground">Exchange</span><span>{(selectedOrder.exchange as string)?.toUpperCase() ?? '-'}</span>
+                <span className="text-muted-foreground">Status</span><span>{selectedOrder.status as string}</span>
+                <span className="text-muted-foreground">Data criação</span><span>{selectedOrder.created_at ? new Date(selectedOrder.created_at as string).toLocaleDateString('pt-BR') : '-'}</span>
+              </div>
+
+              <Separator />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Volume e Preço</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <span className="text-muted-foreground">Volume</span><span>{(selectedOrder.volume_sacks as number)?.toLocaleString('pt-BR')} sacas</span>
+                <span className="text-muted-foreground">Preço originação</span><span>R$ {(selectedOrder.origination_price_brl as number)?.toFixed(2)}</span>
+              </div>
+
+              {legs.length > 0 && (
+                <>
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pernas ({legs.length})</p>
+                  {legs.map((leg: any, i: number) => (
+                    <div key={i} className="bg-muted/50 rounded p-2 space-y-1 text-sm">
+                      <p className="font-medium text-xs">{leg.leg_type} · {leg.direction}</p>
+                      {leg.ticker && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Ticker</span><span className="text-xs">{leg.ticker}</span></div>}
+                      {leg.contracts != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Contratos</span><span className="text-xs">{leg.contracts}</span></div>}
+                      {leg.price != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Preço</span><span className="text-xs">{leg.price}</span></div>}
+                      {leg.ndf_rate != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Taxa NDF</span><span className="text-xs">{leg.ndf_rate}</span></div>}
+                      {leg.strike != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Strike</span><span className="text-xs">{leg.strike}</span></div>}
+                      {leg.premium != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Prêmio</span><span className="text-xs">{leg.premium}</span></div>}
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {selectedOrder.order_message && (
+                <>
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Ordem</p>
+                  <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.order_message as string}</pre>
+                </>
+              )}
+              {selectedOrder.confirmation_message && (
+                <>
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Confirmação</p>
+                  <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.confirmation_message as string}</pre>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 };
