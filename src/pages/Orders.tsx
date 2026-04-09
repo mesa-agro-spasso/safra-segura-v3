@@ -22,7 +22,7 @@ import { Separator } from '@/components/ui/separator';
 import type { HedgeOrder } from '@/types';
 
 type Leg = {
-  leg_type: 'futures' | 'ndf' | 'option';
+  leg_type: 'futures' | 'ndf' | 'option' | 'seguro';
   direction: 'buy' | 'sell';
   ticker: string;
   contracts: string;
@@ -195,6 +195,9 @@ const Orders = () => {
     [filteredSnapshots, selectedSnapshot]
   );
 
+  const [insuranceModalLegIndex, setInsuranceModalLegIndex] = useState<number | null>(null);
+  const [previousLegType, setPreviousLegType] = useState<Leg['leg_type'] | null>(null);
+
   const updateLeg = (index: number, field: keyof Leg, value: any) => {
     setLegs(prev => prev.map((l, i) => i === index ? { ...l, [field]: value } : l));
   };
@@ -203,6 +206,58 @@ const Orders = () => {
   };
   const removeLeg = (index: number) => {
     setLegs(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const BUSHELS_PER_SACK_SOYBEAN = 2.20462;
+  const brlSackToDisplayUnit = (brlSack: number): number => {
+    const isCbotSoy = com === 'soybean' && bench === 'cbot';
+    if (!isCbotSoy) return brlSack;
+    const outputsJson = (selectedSnapshotData?.outputs_json as Record<string, unknown>) ?? {};
+    const rate = (outputsJson.exchange_rate as number) ?? 0;
+    if (!rate) return 0;
+    return (brlSack / rate / BUSHELS_PER_SACK_SOYBEAN) * 100;
+  };
+
+  const handleLegTypeChange = (index: number, value: string) => {
+    if (value === 'seguro') {
+      if (!apiOrder || !selectedSnapshotData) {
+        toast.error('Selecione um preço de referência e clique em Construir Ordem primeiro');
+        return;
+      }
+      setPreviousLegType(legs[index].leg_type);
+      updateLeg(index, 'leg_type', 'seguro');
+      setInsuranceModalLegIndex(index);
+    } else {
+      updateLeg(index, 'leg_type', value);
+    }
+  };
+
+  const handleInsuranceSelect = (insuranceOption: Record<string, unknown>) => {
+    if (insuranceModalLegIndex === null) return;
+    const strike = brlSackToDisplayUnit((insuranceOption.strike_brl as number) ?? 0);
+    const premium = brlSackToDisplayUnit((insuranceOption.premium_brl as number) ?? 0);
+    setLegs(prev => prev.map((l, i) => i === insuranceModalLegIndex ? {
+      ...l,
+      leg_type: 'option' as const,
+      direction: 'buy' as const,
+      option_type: 'call',
+      strike: String(strike),
+      premium: String(premium),
+    } : l));
+    setInsuranceModalLegIndex(null);
+    setPreviousLegType(null);
+  };
+
+  const handleInsuranceModalClose = (open: boolean) => {
+    if (!open && insuranceModalLegIndex !== null) {
+      const revertType = previousLegType ?? 'futures';
+      setLegs(prev => prev.map((l, i) => i === insuranceModalLegIndex ? {
+        ...l,
+        leg_type: revertType,
+      } : l));
+      setInsuranceModalLegIndex(null);
+      setPreviousLegType(null);
+    }
   };
 
   // Click 1: Build order via API (no DB writes)
@@ -302,7 +357,7 @@ const Orders = () => {
       operationId = (operation as { id: string }).id;
 
       // Build legs with user notes merged
-      const legsPayload = legs.map(l => {
+      const legsPayload = legs.filter(l => l.leg_type !== 'seguro').map(l => {
         const isCbotSoy = (apiOrder?.commodity === 'soybean' &&
           (apiOrder?.exchange as string)?.toLowerCase() === 'cbot');
         const div = (isCbotSoy && (l.leg_type === 'futures' || l.leg_type === 'option')) ? 100 : 1;
@@ -615,12 +670,13 @@ const Orders = () => {
                           <React.Fragment key={i}>
                             <TableRow>
                               <TableCell className="p-1">
-                                <Select value={leg.leg_type} onValueChange={(v) => updateLeg(i, 'leg_type', v)}>
+                                <Select value={leg.leg_type} onValueChange={(v) => handleLegTypeChange(i, v)}>
                                   <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="futures">Futuro</SelectItem>
                                     <SelectItem value="ndf">NDF</SelectItem>
                                     <SelectItem value="option">Opção</SelectItem>
+                                    <SelectItem value="seguro">Seguro</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </TableCell>
@@ -1187,6 +1243,42 @@ const Orders = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Insurance selection modal */}
+      <Dialog open={insuranceModalLegIndex !== null} onOpenChange={handleInsuranceModalClose}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Selecionar Seguro</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const ins = (selectedSnapshotData?.insurance_json as Record<string, any>) ?? {};
+            const options = [
+              { key: 'atm', label: 'ATM', data: ins.atm },
+              { key: 'otm_5', label: 'OTM 5%', data: ins.otm_5 },
+              { key: 'otm_10', label: 'OTM 10%', data: ins.otm_10 },
+            ];
+            const hasData = options.some(o => o.data);
+            if (!hasData) {
+              return <p className="text-sm text-muted-foreground py-4">Snapshot sem dados de seguro.</p>;
+            }
+            return (
+              <div className="grid grid-cols-3 gap-3">
+                {options.map(opt => opt.data ? (
+                  <Card key={opt.key} className="cursor-pointer hover:border-primary transition-colors"
+                    onClick={() => handleInsuranceSelect(opt.data)}>
+                    <CardContent className="p-3 space-y-1 text-xs">
+                      <p className="font-semibold text-sm">{opt.label}</p>
+                      <p>Strike: R$ {(opt.data.strike_brl as number)?.toFixed(2)}</p>
+                      <p>Prêmio: R$ {(opt.data.premium_brl as number)?.toFixed(2)}</p>
+                      <p className="font-medium">Custo: R$ {(opt.data.total_cost_brl as number)?.toFixed(2)}</p>
+                    </CardContent>
+                  </Card>
+                ) : null)}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
