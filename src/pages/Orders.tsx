@@ -32,6 +32,7 @@ type Leg = {
   strike?: string;
   premium?: string;
   option_type?: string;
+  expiration_date?: string;
   notes?: string;
   volume_units?: number;
   unit_label?: string;
@@ -245,6 +246,7 @@ const Orders = () => {
       option_type: 'call',
       strike: String(strike),
       premium: String(premium),
+      expiration_date: (selectedSnapshotData?.exp_date as string) ?? '',
     } : l));
     setInsuranceModalLegIndex(null);
     setPreviousLegType(null);
@@ -310,6 +312,7 @@ const Orders = () => {
           strike: l.strike != null ? String(l.strike * mul) : undefined,
           premium: l.premium != null ? String(l.premium * mul) : undefined,
           option_type: l.option_type ?? undefined,
+          expiration_date: l.expiration_date ?? undefined,
           notes: '',
           currency: l.currency ?? undefined,
           volume_units: l.volume_units ?? undefined,
@@ -362,6 +365,7 @@ const Orders = () => {
           strike: l.strike ? parseFloat(l.strike) / div : undefined,
           premium: l.premium ? parseFloat(l.premium) / div : undefined,
           option_type: l.option_type || undefined,
+          expiration_date: l.expiration_date || undefined,
           currency: l.currency || undefined,
           notes: l.notes || undefined,
         };
@@ -450,6 +454,7 @@ const Orders = () => {
           strike: l.strike ? parseFloat(l.strike) / div : undefined,
           premium: l.premium ? parseFloat(l.premium) / div : undefined,
           option_type: l.option_type || undefined,
+          expiration_date: l.expiration_date || undefined,
           currency: l.currency || undefined,
           notes: l.notes || undefined,
           volume_units: l.volume_units ?? undefined,
@@ -857,6 +862,15 @@ const Orders = () => {
                                         type="text"
                                         value={leg.premium ?? ''}
                                         onChange={(e) => updateLeg(i, 'premium', e.target.value)}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Label className="text-[10px] text-muted-foreground">Vencimento</Label>
+                                      <Input
+                                        className="h-7 text-xs w-36"
+                                        type="date"
+                                        value={leg.expiration_date ?? ''}
+                                        onChange={(e) => updateLeg(i, 'expiration_date', e.target.value)}
                                       />
                                     </div>
                                     <span className="text-[9px] text-muted-foreground">{getLegPriceLabel(leg)}</span>
