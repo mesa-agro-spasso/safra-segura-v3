@@ -1,39 +1,24 @@
 
 
-# Correção de preço nas pernas — Orders.tsx
+# Duas correções cirúrgicas — PricingTable.tsx + Market.tsx
 
-## Arquivo: `src/pages/Orders.tsx`
+## Arquivo 1: `src/pages/PricingTable.tsx`
 
-### Edição única — linhas 127-128
+### Edição — após linha 147 (fechamento do IIFE do semáforo)
 
-Substituir:
-```tsx
-    const futuresPrice = snap?.futures_price_brl ? String(snap.futures_price_brl.toFixed(2)) : '';
-    const ndfRate = snap?.exchange_rate ? String(snap.exchange_rate.toFixed(4)) : '';
-```
+Inserir o bloco IIFE da segunda linha de status (tabela gerada) logo após `})()}` na linha 147, antes do `</div>` na linha 148. Usa `lastUpdated` já existente (linha 83).
 
-Por:
-```tsx
-    const exchangeRate = snap?.exchange_rate ?? 1;
-    let futuresPrice = '';
-    if (commodityType === 'soybean|cbot' && snap?.futures_price_brl && exchangeRate) {
-      futuresPrice = (snap.futures_price_brl / exchangeRate / 2.20462).toFixed(4);
-    } else if (commodityType === 'corn|cbot' && snap?.futures_price_brl && exchangeRate) {
-      futuresPrice = (snap.futures_price_brl / exchangeRate / 2.3622 * 100).toFixed(2);
-    } else if (commodityType === 'corn|b3' && snap?.futures_price_brl) {
-      futuresPrice = snap.futures_price_brl.toFixed(2);
-    }
-    const ndfRate = snap?.exchange_rate ? String(snap.exchange_rate.toFixed(4)) : '';
-```
+## Arquivo 2: `src/pages/Market.tsx`
 
-### Lógica
+### Edição 1 — novo estado `confirmingB3` + handler
 
-- **soybean|cbot**: BRL/saca → USD/bushel (÷ câmbio ÷ 2.20462), 4 decimais
-- **corn|cbot**: BRL/saca → USD cents/bushel (÷ câmbio ÷ 2.3622 × 100), 2 decimais
-- **corn|b3**: já em BRL/saca, sem conversão, 2 decimais
-- `ndfRate` inalterado
+Adicionar `const [confirmingB3, setConfirmingB3] = useState(false);` junto aos outros estados B3 (após linha ~67). Adicionar `handleConfirmB3Update` como função async no componente.
 
-### O que NÃO muda
+### Edição 2 — substituir CardHeader do card Milho B3 (linhas 437-439)
 
-Tudo o mais: pernas geradas, editor, handleBuildOrder, outras abas.
+Substituir o `<CardHeader>` simples pelo layout flex com título à esquerda e botão condicional à direita.
+
+## O que NÃO muda
+
+Nenhum outro trecho de nenhum dos dois arquivos.
 
