@@ -2,12 +2,12 @@ import { TableProperties, FileText, TrendingUp, BarChart3, Settings, LogOut, Use
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
+import logo from '@/assets/safra-segura-logo.png';
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -34,9 +34,13 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-bold tracking-wider uppercase text-sidebar-foreground/60">
-            {!collapsed && 'SAFRA SEGURA'}
-          </SidebarGroupLabel>
+          <div className={`flex items-center justify-center ${collapsed ? 'py-3' : 'py-4 px-3'}`}>
+            <img
+              src={logo}
+              alt="Safra Segura"
+              className={collapsed ? 'w-8 h-8 object-contain' : 'w-36 object-contain'}
+            />
+          </div>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
