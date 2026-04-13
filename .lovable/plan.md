@@ -1,47 +1,58 @@
 
 
-# Fix cents/bushel conversion for option legs in execution modal
+# Refactor Orders.tsx — 3-Stage Flow (Auto-populate → Validate → Save)
 
-## Problem
-The execution modal only converts `price` for `futures` legs in soybean CBOT orders. Option legs use `strike` and `premium` fields instead of `price`, so they need separate conversion logic at all 3 points.
+## File: `src/pages/Orders.tsx`
 
-## Changes — all in `src/pages/Orders.tsx`
+### Edit 1 — Stop `clearApiOrder` from clearing legs
 
-### Point 1: `openExecutionModal` (line ~611)
-When initializing `_displayPrice`/`_displayStrike`/`_displayPremium` for the modal:
-- For **futures** CBOT soy: `_displayPrice = price * 100` (already works)
-- For **option** CBOT soy: add `_displayStrike = strike * 100` and `_displayPremium = premium * 100`
-- Keep `_displayPrice` for non-option legs as-is
+Remove `setLegs([])` and `order_legs`/`order_notes` sessionStorage removals from `clearApiOrder`. Only clear `apiOrder` and `buildResult`. Legs will be replaced by `autoPopulateLegs`.
 
-### Point 2: `handleExecutionConfirm` (line ~634)
-When converting back to canonical units:
-- For **futures** CBOT soy: `price = _displayPrice / 100` (already works)
-- For **option** CBOT soy: `strike = _displayStrike / 100` and `premium = _displayPremium / 100`
-- Use destructuring to strip all `_display*` fields cleanly (also fixes the undefined-fields bug from prior plan)
+### Edit 2 — Add `autoPopulateLegs` function
 
-### Point 3: Execution modal UI (line ~1305)
-Currently shows a single "Preço (cents/bu)" input. Change to:
-- For **futures**: show single "Preço (cents/bu)" input → `_displayPrice` (no change)
-- For **option** CBOT soy: show **two** inputs — "Strike (cents/bu)" → `_displayStrike` and "Prêmio (cents/bu)" → `_displayPremium` — instead of the single Preço input
-- For **option** non-CBOT: show Strike and Premium inputs without the cents label
-- Grid adjusts from 3 cols to 4 cols for option legs to fit both fields
+Silent version of current `handleBuildOrder`: calls `POST /orders/build` with `use_custom_structure: false, legs: []`. Sets `apiOrder` from `result.order`. Populates `legs` with converted values. Does NOT set `buildResult`. No success toast. Only `toast.error` on catch.
 
-### Summary of field mapping
+### Edit 3 — Add useEffect to trigger auto-populate
 
-```text
-leg_type   | CBOT soy? | Display fields         | Conversion
------------+-----------+------------------------+-----------
-futures    | yes       | _displayPrice (¢/bu)   | ÷100
-futures    | no        | _displayPrice           | none
-option     | yes       | _displayStrike (¢/bu)  | ÷100
-           |           | _displayPremium (¢/bu)  | ÷100
-option     | no        | _displayStrike          | none
-           |           | _displayPremium         | none
-ndf        | n/a       | _displayPrice           | none
+```typescript
+// eslint-disable-next-line react-hooks/exhaustive-deps
+useEffect(() => {
+  if (!selectedWarehouse || !commodityType || !selectedSnapshot || !volume) return;
+  if (!selectedSnapshotData) return;
+  const volNum = parseFloat(volume);
+  if (!volNum || volNum <= 0) return;
+  autoPopulateLegs();
+}, [selectedSnapshot, selectedWarehouse, commodityType, volume]);
 ```
 
-### No changes to
-- Order creation form (already handles options correctly at lines 311, 319-320, 371, 379-380)
-- Order display/table
-- Any other page or component
+**Constraint**: dependency array is exactly `[selectedSnapshot, selectedWarehouse, commodityType, volume]`. Do NOT add `apiOrder`, `legs`, `selectedSnapshotData`, or any other variable. The `eslint-disable-next-line` suppresses the exhaustive-deps warning. This prevents infinite loops since `autoPopulateLegs` updates `apiOrder`.
+
+### Edit 4 — Rewrite `handleBuildOrder` as validation-only
+
+- Guard: `if (!apiOrder || !legs.length)` → toast error
+- Call `POST /orders/build` with `use_custom_structure: true` and current legs (converted from display units to canonical)
+- Update `apiOrder` with ONLY `order_message`, `confirmation_message`, `commodity`, `exchange` (merge via spread)
+- Do NOT replace legs
+- Set `buildResult = { alerts, has_errors }`
+- Toast: error if `has_errors`, success "Ordem validada" otherwise
+
+### Edit 5 — `updateLeg`, `addLeg`, `removeLeg` clear buildResult
+
+Add `setBuildResult(null)` to each function to force re-validation after any leg edit.
+
+### Edit 6 — Update button states
+
+**"Construir Ordem" button**: rename label to "Validar Ordem", `disabled={building || !apiOrder || !legs.length}`
+
+**"Salvar Ordem" button**: `disabled={!apiOrder || !buildResult || buildResult.has_errors === true || saving}`
+
+### Edit 7 — Insurance modal guard update
+
+Change guard from `if (!apiOrder || !selectedSnapshotData)` to `if (!selectedSnapshotData)` since `apiOrder` exists earlier now (from auto-populate).
+
+### What does NOT change
+- `handleSaveOrder`, execution modal, list tab, manual tab
+- sessionStorage sync useEffects
+- Leg editing UI, insurance modal selection logic
+- Conversion rules (cents/bushel in state, USD/bushel on save)
 

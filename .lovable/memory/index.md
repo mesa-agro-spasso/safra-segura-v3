@@ -1,7 +1,10 @@
+# Memory: index.md
+Updated: now
+
 # Project Memory
 
 ## Core
-Dark mode (dark cyan/teal), primary #123332 (HSL 178 48%). Logo in sidebar.
+Dark mode (slate/zinc), primary green #22c55e. Zero cálculo financeiro no frontend.
 API Python no Render = motor de pricing. Edge Function api-proxy = proxy.
 market_data upsert onConflict:'ticker', freshness via updated_at.
 Supabase Auth email/senha. user_profiles = autorização. public.users = legado, NÃO usar para auth.
@@ -13,3 +16,7 @@ Sidebar com 5 abas + admin condicional. Cadastro com aprovação admin.
 - [Database schema](mem://features/db-schema) — 7 tables, RLS policies, existing warehouses
 - [Pricing combinations contract](mem://features/pricing-combinations-contract) — Restricted field values, null-inheritance rules, domain constraints
 - [Auth & Access Control](mem://features/auth-access-control) — user_profiles, approval flow, admin panel, RLS, useAuthorization
+- [Order Lifecycle V2](mem://features/order-lifecycle-v2) — Two-click flow, status enum, cents/bushel conversion, execution modal, warehouse abbr
+- [Operations & Legs](mem://features/operations-legs) — parent_operation_id links, Leg type
+- [B3 corn pricing](mem://features/b3-corn-pricing-integration) — Mapping commodity/benchmark → market_data
+- [Pricing table UI](mem://features/pricing-table-ui) — Badge block, tickersExpanded, semaphore status
