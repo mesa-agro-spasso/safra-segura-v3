@@ -1,48 +1,47 @@
 
 
-# Add Logo to Sidebar & Update Color Theme to #123332
+# Fix cents/bushel conversion for option legs in execution modal
 
-## Overview
-Copy the uploaded Safra Segura logo into the project, display it in the sidebar header, and update the app's color palette to use the dark cyan (#123332 ≈ HSL 178 48% 14%) as the new accent/primary tone.
+## Problem
+The execution modal only converts `price` for `futures` legs in soybean CBOT orders. Option legs use `strike` and `premium` fields instead of `price`, so they need separate conversion logic at all 3 points.
 
-## Changes
+## Changes — all in `src/pages/Orders.tsx`
 
-### 1. Copy logo to project
-Copy `user-uploads://Monetização_do_Armazém_Confresa_Estratégia_de_Carrego_para_Captura.png` → `src/assets/safra-segura-logo.png`
+### Point 1: `openExecutionModal` (line ~611)
+When initializing `_displayPrice`/`_displayStrike`/`_displayPremium` for the modal:
+- For **futures** CBOT soy: `_displayPrice = price * 100` (already works)
+- For **option** CBOT soy: add `_displayStrike = strike * 100` and `_displayPremium = premium * 100`
+- Keep `_displayPrice` for non-option legs as-is
 
-### 2. Update `src/components/AppSidebar.tsx`
-- Import the logo: `import logo from '@/assets/safra-segura-logo.png'`
-- Replace the `SidebarGroupLabel` text "SAFRA SEGURA" with the logo image
-- When collapsed, show a small version; when expanded, show full logo (~140px wide)
-- Add some padding/margin for breathing room
+### Point 2: `handleExecutionConfirm` (line ~634)
+When converting back to canonical units:
+- For **futures** CBOT soy: `price = _displayPrice / 100` (already works)
+- For **option** CBOT soy: `strike = _displayStrike / 100` and `premium = _displayPremium / 100`
+- Use destructuring to strip all `_display*` fields cleanly (also fixes the undefined-fields bug from prior plan)
 
-### 3. Update `src/index.css` — color theme
-Replace the current green-based primary (#22c55e / HSL 142 70% 45%) with a palette derived from #123332:
+### Point 3: Execution modal UI (line ~1305)
+Currently shows a single "Preço (cents/bu)" input. Change to:
+- For **futures**: show single "Preço (cents/bu)" input → `_displayPrice` (no change)
+- For **option** CBOT soy: show **two** inputs — "Strike (cents/bu)" → `_displayStrike` and "Prêmio (cents/bu)" → `_displayPremium` — instead of the single Preço input
+- For **option** non-CBOT: show Strike and Premium inputs without the cents label
+- Grid adjusts from 3 cols to 4 cols for option legs to fit both fields
 
-| Variable | Current | New (dark cyan family) |
-|---|---|---|
-| `--primary` | 142 70% 45% | 178 48% 35% (lighter cyan for buttons/accents) |
-| `--primary-foreground` | 222 47% 6% | 178 48% 95% (light text on primary) |
-| `--ring` | 142 70% 45% | 178 48% 35% |
-| `--sidebar-background` | 222 47% 5% | 178 48% 7% (very dark cyan) |
-| `--sidebar-primary` | 142 70% 45% | 178 48% 35% |
-| `--sidebar-primary-foreground` | 222 47% 6% | 178 48% 95% |
-| `--sidebar-ring` | 142 70% 45% | 178 48% 35% |
-| `--sidebar-accent` | 215 25% 12% | 178 30% 14% |
-| `--sidebar-border` | 215 25% 14% | 178 25% 16% |
-| `--background` | 222 47% 6% | 178 40% 6% |
-| `--card` | 222 44% 9% | 178 38% 9% |
-| `--popover` | 222 44% 9% | 178 38% 9% |
-| `--border` | 215 25% 16% | 178 25% 16% |
-| `--input` | 215 25% 18% | 178 25% 18% |
-| `--secondary` | 215 25% 16% | 178 25% 16% |
-| `--muted` | 215 25% 14% | 178 25% 14% |
-| `--accent` | 215 25% 16% | 178 25% 16% |
+### Summary of field mapping
 
-The overall look shifts from blue-slate + green to a cohesive dark teal/cyan family matching the logo background.
+```text
+leg_type   | CBOT soy? | Display fields         | Conversion
+-----------+-----------+------------------------+-----------
+futures    | yes       | _displayPrice (¢/bu)   | ÷100
+futures    | no        | _displayPrice           | none
+option     | yes       | _displayStrike (¢/bu)  | ÷100
+           |           | _displayPremium (¢/bu)  | ÷100
+option     | no        | _displayStrike          | none
+           |           | _displayPremium         | none
+ndf        | n/a       | _displayPrice           | none
+```
 
-### What does NOT change
-- Layout structure, routing, functionality
-- All page logic (Orders, Pricing, MTM, Market, etc.)
-- Auth flow, admin panel
+### No changes to
+- Order creation form (already handles options correctly at lines 311, 319-320, 371, 379-380)
+- Order display/table
+- Any other page or component
 
