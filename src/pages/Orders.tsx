@@ -608,11 +608,20 @@ const Orders = () => {
 
   const openExecutionModal = (order: HedgeOrder) => {
     const orderLegs = (order.legs as any[]) ?? [];
+    const cbot = isSoybeanCbot(order.commodity, order.exchange);
     setExecutionLegs(orderLegs.map((l: any) => ({
       ...l,
-      _displayPrice: isSoybeanCbot(order.commodity, order.exchange) && l.leg_type === 'futures'
-        ? String((l.price ?? 0) * 100)
-        : String(l.price ?? ''),
+      _displayPrice: l.leg_type === 'option'
+        ? ''
+        : cbot && l.leg_type === 'futures'
+          ? String((l.price ?? 0) * 100)
+          : String(l.price ?? ''),
+      _displayStrike: l.leg_type === 'option'
+        ? String(cbot ? (l.strike ?? 0) * 100 : (l.strike ?? ''))
+        : '',
+      _displayPremium: l.leg_type === 'option'
+        ? String(cbot ? (l.premium ?? 0) * 100 : (l.premium ?? ''))
+        : '',
       _displayQty: String(l.volume_units ?? l.contracts ?? ''),
       _notes: l.notes ?? '',
     })));
@@ -621,30 +630,54 @@ const Orders = () => {
 
   const handleExecutionConfirm = async () => {
     if (!executionModal) return;
+    const cbot = isSoybeanCbot(executionModal.commodity, executionModal.exchange);
     // Validate
     for (const leg of executionLegs) {
       const qty = parseFloat(leg._displayQty);
-      const price = parseFloat(leg._displayPrice);
-      if (!qty || qty <= 0 || !price || price <= 0) {
-        toast.error('Todas as pernas devem ter quantidade e preço > 0');
+      if (!qty || qty <= 0) {
+        toast.error('Todas as pernas devem ter quantidade > 0');
         return;
+      }
+      if (leg.leg_type === 'option') {
+        const strike = parseFloat(leg._displayStrike);
+        const premium = parseFloat(leg._displayPremium);
+        if (!strike || strike <= 0 || isNaN(premium) || premium < 0) {
+          toast.error('Opções devem ter strike > 0 e prêmio ≥ 0');
+          return;
+        }
+      } else {
+        const price = parseFloat(leg._displayPrice);
+        if (!price || price <= 0) {
+          toast.error('Todas as pernas devem ter preço > 0');
+          return;
+        }
       }
     }
     try {
       const executedLegs = executionLegs.map((leg: any) => {
-        let price = parseFloat(leg._displayPrice);
-        if (isSoybeanCbot(executionModal.commodity, executionModal.exchange) && leg.leg_type === 'futures') {
-          price = price / 100; // cents → USD/bushel
+        const { _displayPrice, _displayStrike, _displayPremium, _displayQty, _notes, ...cleanLeg } = leg;
+
+        if (leg.leg_type === 'option') {
+          let strike = parseFloat(_displayStrike);
+          let premium = parseFloat(_displayPremium);
+          if (cbot) { strike = strike / 100; premium = premium / 100; }
+          return {
+            ...cleanLeg,
+            strike,
+            premium,
+            contracts: parseFloat(_displayQty),
+            notes: _notes || undefined,
+          };
         }
+
+        let price = parseFloat(_displayPrice);
+        if (cbot && leg.leg_type === 'futures') { price = price / 100; }
         return {
-          ...leg,
+          ...cleanLeg,
           price,
-          contracts: leg.leg_type !== 'ndf' ? parseFloat(leg._displayQty) : leg.contracts,
-          volume_units: leg.leg_type === 'ndf' ? parseFloat(leg._displayQty) : leg.volume_units,
-          notes: leg._notes || undefined,
-          _displayPrice: undefined,
-          _displayQty: undefined,
-          _notes: undefined,
+          contracts: leg.leg_type !== 'ndf' ? parseFloat(_displayQty) : cleanLeg.contracts,
+          volume_units: leg.leg_type === 'ndf' ? parseFloat(_displayQty) : cleanLeg.volume_units,
+          notes: _notes || undefined,
         };
       });
 
@@ -659,6 +692,7 @@ const Orders = () => {
       setExecutionModal(null);
       setExecutionLegs([]);
     } catch (err) {
+      console.error('Execution confirm error:', err);
       toast.error(err instanceof Error ? err.message : 'Erro ao confirmar execução');
     }
   };
@@ -1303,7 +1337,10 @@ const Orders = () => {
             <p className="text-xs font-semibold text-muted-foreground uppercase">Pernas — edite com os valores reais</p>
             <div className="space-y-3">
               {executionLegs.map((leg: any, i: number) => {
-                const isCbotSoy = isSoybeanCbot(executionModal.commodity, executionModal.exchange) && leg.leg_type === 'futures';
+                const cbot = isSoybeanCbot(executionModal.commodity, executionModal.exchange);
+                const isOption = leg.leg_type === 'option';
+                const showCents = cbot && (leg.leg_type === 'futures' || isOption);
+                const centsLabel = showCents ? ' (cents/bu)' : '';
                 return (
                   <div key={i} className="bg-muted/30 rounded p-3 space-y-2">
                     <div className="flex gap-3 text-xs text-muted-foreground">
@@ -1311,7 +1348,7 @@ const Orders = () => {
                       <span>{leg.ticker}</span>
                       <span>{leg.direction}</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className={`grid gap-2 ${isOption ? 'grid-cols-4' : 'grid-cols-3'}`}>
                       <div className="space-y-1">
                         <Label className="text-[10px]">Quantidade</Label>
                         <Input
@@ -1326,21 +1363,54 @@ const Orders = () => {
                           }}
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px]">Preço{isCbotSoy ? ' (cents/bu)' : ''}</Label>
-                        <Input
-                          className="h-8 text-xs"
-                          type="number"
-                          step="0.01"
-                          value={leg._displayPrice}
-                          onChange={(e) => {
-                            const updated = [...executionLegs];
-                            updated[i] = { ...updated[i], _displayPrice: e.target.value };
-                            setExecutionLegs(updated);
-                          }}
-                        />
-                        {isCbotSoy && <p className="text-[10px] text-muted-foreground">USD cents/bushel</p>}
-                      </div>
+                      {isOption ? (
+                        <>
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Strike{centsLabel}</Label>
+                            <Input
+                              className="h-8 text-xs"
+                              type="number"
+                              step="0.01"
+                              value={leg._displayStrike}
+                              onChange={(e) => {
+                                const updated = [...executionLegs];
+                                updated[i] = { ...updated[i], _displayStrike: e.target.value };
+                                setExecutionLegs(updated);
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Prêmio{centsLabel}</Label>
+                            <Input
+                              className="h-8 text-xs"
+                              type="number"
+                              step="0.01"
+                              value={leg._displayPremium}
+                              onChange={(e) => {
+                                const updated = [...executionLegs];
+                                updated[i] = { ...updated[i], _displayPremium: e.target.value };
+                                setExecutionLegs(updated);
+                              }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-1">
+                          <Label className="text-[10px]">Preço{centsLabel}</Label>
+                          <Input
+                            className="h-8 text-xs"
+                            type="number"
+                            step="0.01"
+                            value={leg._displayPrice}
+                            onChange={(e) => {
+                              const updated = [...executionLegs];
+                              updated[i] = { ...updated[i], _displayPrice: e.target.value };
+                              setExecutionLegs(updated);
+                            }}
+                          />
+                          {showCents && <p className="text-[10px] text-muted-foreground">USD cents/bushel</p>}
+                        </div>
+                      )}
                       <div className="space-y-1">
                         <Label className="text-[10px]">Obs.</Label>
                         <Input
