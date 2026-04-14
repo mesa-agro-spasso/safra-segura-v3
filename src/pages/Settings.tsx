@@ -124,44 +124,90 @@ function WarehousesTab() {
                 {/* Basis Config */}
                 <div className="border rounded-md p-3 space-y-3">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Basis por Commodity (BRL/saca)</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Soja (CBOT)</Label>
-                      <Input type="number" step="any" placeholder="ex: -29"
-                        value={(editing.basis_config as any)?.soybean?.value ?? ''}
-                        onChange={(e) => setEditing({
-                          ...editing,
-                          basis_config: {
-                            ...(editing.basis_config ?? {}),
-                            soybean: { mode: 'fixed', value: e.target.value === '' ? null : Number(e.target.value) },
-                          },
-                        })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Milho (B3)</Label>
-                      <Input type="number" step="any" placeholder="ex: -25"
-                        value={(editing.basis_config as any)?.corn?.value ?? ''}
-                        onChange={(e) => setEditing({
-                          ...editing,
-                          basis_config: {
-                            ...(editing.basis_config ?? {}),
-                            corn: { mode: 'fixed', value: e.target.value === '' ? null : Number(e.target.value) },
-                          },
-                        })} />
-                    </div>
-                  </div>
+                  {(['soybean', 'corn'] as const).map((commodity) => {
+                    const label = commodity === 'soybean' ? 'Soja (CBOT)' : 'Milho (B3)';
+                    const cfg = (editing.basis_config as any)?.[commodity];
+                    const isRef = cfg?.mode === 'reference_delta';
+                    return (
+                      <div key={commodity} className="space-y-1">
+                        <Label className="text-xs font-medium">{label}</Label>
+                        {!isRef ? (
+                          <>
+                            <Input type="number" step="any" placeholder={commodity === 'soybean' ? 'ex: -29' : 'ex: -25'}
+                              value={cfg?.value ?? ''}
+                              onChange={(e) => setEditing({
+                                ...editing,
+                                basis_config: {
+                                  ...(editing.basis_config ?? {}),
+                                  [commodity]: { mode: 'fixed', value: e.target.value === '' ? null : Number(e.target.value) },
+                                },
+                              })} />
+                            <button type="button" className="text-[10px] text-primary hover:underline"
+                              onClick={() => setEditing({
+                                ...editing,
+                                basis_config: {
+                                  ...(editing.basis_config ?? {}),
+                                  [commodity]: { mode: 'reference_delta', reference_warehouse_id: '', delta_brl: 0 },
+                                },
+                              })}>
+                              Usar referência de outro armazém
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Armazém referência</Label>
+                                <Select value={cfg?.reference_warehouse_id ?? ''}
+                                  onValueChange={(v) => setEditing({
+                                    ...editing,
+                                    basis_config: {
+                                      ...(editing.basis_config ?? {}),
+                                      [commodity]: { ...cfg, reference_warehouse_id: v },
+                                    },
+                                  })}>
+                                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                  <SelectContent>
+                                    {warehouses?.filter((w) => w.id !== editing.id).map((w) => (
+                                      <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Delta (BRL/saca)</Label>
+                                <Input type="number" step="any" placeholder="ex: -1"
+                                  value={cfg?.delta_brl ?? ''}
+                                  onChange={(e) => setEditing({
+                                    ...editing,
+                                    basis_config: {
+                                      ...(editing.basis_config ?? {}),
+                                      [commodity]: { ...cfg, delta_brl: e.target.value === '' ? 0 : Number(e.target.value) },
+                                    },
+                                  })} />
+                              </div>
+                            </div>
+                            <button type="button" className="text-[10px] text-primary hover:underline"
+                              onClick={() => setEditing({
+                                ...editing,
+                                basis_config: {
+                                  ...(editing.basis_config ?? {}),
+                                  [commodity]: { mode: 'fixed', value: null },
+                                },
+                              })}>
+                              Usar valor fixo
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Custos padrão */}
                 <div className="border rounded-md p-3 space-y-3">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Custos Padrão do Armazém</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Taxa de juros (% a.m.)</Label>
-                      <Input type="number" step="any" placeholder="ex: 1.4"
-                        value={editing.interest_rate ?? ''}
-                        onChange={(e) => setEditing({ ...editing, interest_rate: e.target.value === '' ? null : Number(e.target.value) })} />
-                    </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Custo armazenagem (R$/sc)</Label>
                       <Input type="number" step="any" placeholder="ex: 3.5"
@@ -180,10 +226,21 @@ function WarehousesTab() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Custo recepção (R$/sc)</Label>
-                      <Input type="number" step="any" placeholder="ex: 0"
-                        value={editing.reception_cost ?? ''}
-                        onChange={(e) => setEditing({ ...editing, reception_cost: e.target.value === '' ? null : Number(e.target.value) })} />
+                      <Label className="text-xs">Taxa de juros (%)</Label>
+                      <Input type="number" step="any" placeholder="ex: 1.4"
+                        value={editing.interest_rate ?? ''}
+                        onChange={(e) => setEditing({ ...editing, interest_rate: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Período</Label>
+                      <Select value={editing.interest_rate_period ?? 'monthly'}
+                        onValueChange={(v) => setEditing({ ...editing, interest_rate_period: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">Mensal (a.m.)</SelectItem>
+                          <SelectItem value="yearly">Anual (a.a.)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Corretagem CBOT (USD/contrato)</Label>
@@ -208,6 +265,12 @@ function WarehousesTab() {
                       <Input type="number" step="any" placeholder="ex: 0.003"
                         value={editing.shrinkage_rate_monthly ?? ''}
                         onChange={(e) => setEditing({ ...editing, shrinkage_rate_monthly: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Custo recepção (R$/sc)</Label>
+                      <Input type="number" step="any" placeholder="ex: 0"
+                        value={editing.reception_cost ?? ''}
+                        onChange={(e) => setEditing({ ...editing, reception_cost: e.target.value === '' ? null : Number(e.target.value) })} />
                     </div>
                   </div>
                 </div>
