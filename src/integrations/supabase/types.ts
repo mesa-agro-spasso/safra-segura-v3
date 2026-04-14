@@ -548,33 +548,60 @@ export type Database = {
           abbr: string
           active: boolean
           basis_config: Json
+          brokerage_per_contract_b3: number | null
+          brokerage_per_contract_cbot: number | null
           city: string | null
           created_at: string
+          desk_cost_pct: number | null
           display_name: string
           id: string
+          interest_rate: number | null
+          interest_rate_period: string | null
+          reception_cost: number | null
+          shrinkage_rate_monthly: number | null
           state: string | null
+          storage_cost: number | null
+          storage_cost_type: string | null
           type: string
         }
         Insert: {
           abbr: string
           active?: boolean
           basis_config?: Json
+          brokerage_per_contract_b3?: number | null
+          brokerage_per_contract_cbot?: number | null
           city?: string | null
           created_at?: string
+          desk_cost_pct?: number | null
           display_name: string
           id: string
+          interest_rate?: number | null
+          interest_rate_period?: string | null
+          reception_cost?: number | null
+          shrinkage_rate_monthly?: number | null
           state?: string | null
+          storage_cost?: number | null
+          storage_cost_type?: string | null
           type: string
         }
         Update: {
           abbr?: string
           active?: boolean
           basis_config?: Json
+          brokerage_per_contract_b3?: number | null
+          brokerage_per_contract_cbot?: number | null
           city?: string | null
           created_at?: string
+          desk_cost_pct?: number | null
           display_name?: string
           id?: string
+          interest_rate?: number | null
+          interest_rate_period?: string | null
+          reception_cost?: number | null
+          shrinkage_rate_monthly?: number | null
           state?: string | null
+          storage_cost?: number | null
+          storage_cost_type?: string | null
           type?: string
         }
         Relationships: []
