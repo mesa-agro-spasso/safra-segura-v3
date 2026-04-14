@@ -1,27 +1,29 @@
 
 
-# Modify Market.tsx — FX Override for Market Handlers
+# Add Warehouse Cost Defaults — Types & Settings Form
 
 ## Overview
-Three surgical changes to `src/pages/Market.tsx`: update `fetchQuotes` to accept an optional `fxOverride` parameter, add a `getCurrentFxFromDb` helper, and update 4 handlers to use the DB exchange rate when refreshing markets individually (preserving the manually-set FX). `handleFetchFX` remains untouched.
+Add cost default fields to the Warehouse type and replace the warehouse form in Settings with a richer layout including visual basis config and cost fields.
 
-## Changes (single file: `src/pages/Market.tsx`)
+## Changes
 
-### 1. Replace `fetchQuotes`
-Add optional `fxOverride` parameter that appends `fx_override` to the query string when provided.
+### 1. `src/types/index.ts` — Update Warehouse interface
+Add 9 new nullable fields: `interest_rate`, `interest_rate_period`, `storage_cost`, `storage_cost_type`, `reception_cost`, `brokerage_per_contract_cbot`, `brokerage_per_contract_b3`, `desk_cost_pct`, `shrinkage_rate_monthly`.
 
-### 2. Add `getCurrentFxFromDb` helper
-Reads `price` from `market_data` where `ticker = 'USD/BRL'` via Supabase client. Returns `number | undefined`.
+### 2. `src/pages/Settings.tsx` — WarehousesTab only
 
-### 3. Update 4 handlers
-- **`handleFetchSoybean`** — calls `getCurrentFxFromDb()`, passes result to `fetchQuotes(fxOverride)`
-- **`handleFetchCornCBOT`** — same pattern
-- **`handleFetchMarkets`** — same pattern
-- **`handleFetchAll`** — calls `fetchQuotes()` WITHOUT fxOverride (FX comes fresh from yfinance)
+**2a. `emptyWarehouse`** — Add all new cost fields with null defaults (period defaults to `'monthly'`, storage_cost_type to `'fixed'`).
+
+**2b. `handleSave`** — Include all 9 new fields in the `upsertWarehouse.mutateAsync()` call.
+
+**2c. Dialog form** — Replace lines 69-93 (the `{editing && (...)}` block) with:
+- **Identification section**: ID, Nome, Abreviação, Cidade, Estado, Tipo in a 2-col grid
+- **Active switch**
+- **Basis Config section**: bordered box with Soja (CBOT) and Milho (B3) numeric inputs, preserving `{soybean: {mode: 'fixed', value: N}}` JSONB format
+- **Custos Padrão section**: bordered box with 8 fields (taxa juros, armazenagem, tipo armazenagem Select, recepção, corretagem CBOT, corretagem B3, custo mesa, quebra mensal)
+- Scrollable container (`max-h-[75vh] overflow-y-auto`)
 
 ### What does NOT change
-- `handleFetchFX` — untouched
-- `handleFetchCornB3` — untouched
-- `persistFX`, `persistSoybean`, `persistCornCBOT`, `persistCornB3` — untouched
-- All manual edit logic, hooks, UI layout
+- `CombinationsTab`, hooks, any other file
+- `basis_config` JSONB format internally
 
