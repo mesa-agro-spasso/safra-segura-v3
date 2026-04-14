@@ -57,10 +57,9 @@ interface B3SavedPrice {
 const Market = () => {
   const { data: marketData, isLoading } = useMarketData();
   const upsertMarket = useUpsertMarketData();
-  const [fetching, setFetching] = useState(false);
+  const [fetchingOp, setFetchingOp] = useState<'fx' | 'soybean' | 'corn_cbot' | 'corn_b3' | 'all' | 'markets' | null>(null);
   const [editingTicker, setEditingTicker] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [lastQuotes, setLastQuotes] = useState<MarketQuotesResponse | null>(null);
 
   // B3 corn state
   const [b3Tickers, setB3Tickers] = useState<B3CornQuote[]>([]);
@@ -102,100 +101,151 @@ const Market = () => {
     loadB3FromDb();
   }, []);
 
-  const handleAutoFetch = async () => {
-    setFetching(true);
-    try {
-      const result = await callApi<MarketQuotesResponse>(
-        '/market/quotes',
-        undefined,
-        { method: 'GET', query: { quantity: '10' } }
-      );
+  // ---- Atomic functions ----
 
-      setLastQuotes(result);
+  const fetchQuotes = async () => {
+    return await callApi<MarketQuotesResponse>(
+      '/market/quotes', undefined,
+      { method: 'GET', query: { quantity: '10' } }
+    );
+  };
 
-      if (result.spot_usd_brl) {
-        await upsertMarket.mutateAsync({
-          ticker: 'USD/BRL',
-          commodity: 'FX',
-          price: result.spot_usd_brl,
-          currency: 'BRL',
-          source: 'api',
-        });
-      }
+  const persistFX = async (result: MarketQuotesResponse) => {
+    if (!result.spot_usd_brl) return;
+    await upsertMarket.mutateAsync({
+      ticker: 'USD/BRL', commodity: 'FX',
+      price: result.spot_usd_brl, currency: 'BRL', source: 'api',
+    });
+  };
 
-      for (const s of result.soybean_cbot ?? []) {
-        await upsertMarket.mutateAsync({
-          ticker: s.ticker,
-          commodity: 'SOJA',
-          price: s.price_usd_bushel,
-          currency: 'USD',
-          source: 'api',
-          exchange_rate: result.spot_usd_brl ?? null,
-          exp_date: s.exp_date,
-          ndf_spot: s.ndf?.spot ?? null,
-          ndf_estimated: s.ndf?.estimated ?? null,
-          ndf_spread: s.ndf?.spread ?? null,
-          ndf_override: s.ndf?.override ?? null,
-        });
-      }
-
-      for (const c of result.corn_cbot ?? []) {
-        await upsertMarket.mutateAsync({
-          ticker: c.ticker,
-          commodity: 'MILHO_CBOT',
-          price: c.price_usd_cents_bushel,
-          currency: 'USD',
-          source: 'api',
-          price_unit: 'cents/bushel',
-          exp_date: c.exp_date,
-        });
-      }
-
-      toast.success('Dados de mercado atualizados');
-
-      // B3 ticker refresh — only insert NEW tickers, never overwrite prices
-      try {
-        const b3Result = await callApi<B3Response>(
-          '/market/b3-corn-quotes', undefined,
-          { method: 'GET', query: { quantity: '10' } }
-        );
-        const apiTickers = b3Result.corn_b3 ?? [];
-        const { data: existing } = await supabase
-          .from('market_data').select('ticker').eq('commodity', 'MILHO');
-        const existingSet = new Set((existing ?? []).map(r => r.ticker));
-        for (const t of apiTickers) {
-          if (!existingSet.has(t.ticker)) {
-            await supabase.from('market_data').insert({
-              ticker: t.ticker, commodity: 'MILHO', currency: 'BRL',
-              price: null, price_unit: 'BRL/sack', source: 'manual',
-              date: new Date().toISOString().split('T')[0], exp_date: t.exp_date,
-            });
-          }
-        }
-        // Reload B3 from DB
-        const { data: refreshed } = await supabase
-          .from('market_data')
-          .select('ticker, price, updated_at, source, exp_date')
-          .eq('commodity', 'MILHO').order('exp_date');
-        const tickers: B3CornQuote[] = [];
-        const priceMap: Record<string, B3SavedPrice> = {};
-        (refreshed ?? []).forEach((row: any) => {
-          tickers.push({ ticker: row.ticker, exp_date: row.exp_date });
-          priceMap[row.ticker] = { price: row.price, updated_at: row.updated_at, source: row.source };
-        });
-        setB3Tickers(tickers);
-        setB3Prices(priceMap);
-        toast.success('Tickers B3 atualizados');
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        toast.error(`Falha ao atualizar tickers B3: ${msg}`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : JSON.stringify(err);
-      toast.error(`Erro ao atualizar mercado: ${msg}`);
-    } finally {
-      setFetching(false);
+  const persistSoybean = async (result: MarketQuotesResponse) => {
+    for (const s of result.soybean_cbot ?? []) {
+      await upsertMarket.mutateAsync({
+        ticker: s.ticker, commodity: 'SOJA',
+        price: s.price_usd_bushel, currency: 'USD', source: 'api',
+        exchange_rate: result.spot_usd_brl ?? null,
+        exp_date: s.exp_date,
+        ndf_spot: s.ndf?.spot ?? null,
+        ndf_estimated: s.ndf?.estimated ?? null,
+        ndf_spread: s.ndf?.spread ?? null,
+        ndf_override: s.ndf?.override ?? null,
+      });
     }
+  };
+
+  const persistCornCBOT = async (result: MarketQuotesResponse) => {
+    for (const c of result.corn_cbot ?? []) {
+      await upsertMarket.mutateAsync({
+        ticker: c.ticker, commodity: 'MILHO_CBOT',
+        price: c.price_usd_cents_bushel, currency: 'USD', source: 'api',
+        price_unit: 'cents/bushel', exp_date: c.exp_date,
+      });
+    }
+  };
+
+  const persistCornB3 = async () => {
+    const b3Result = await callApi<B3Response>(
+      '/market/b3-corn-quotes', undefined,
+      { method: 'GET', query: { quantity: '10' } }
+    );
+    const apiTickers = b3Result.corn_b3 ?? [];
+    const { data: existing } = await supabase
+      .from('market_data').select('ticker').eq('commodity', 'MILHO');
+    const existingSet = new Set((existing ?? []).map(r => r.ticker));
+    for (const t of apiTickers) {
+      if (!existingSet.has(t.ticker)) {
+        await supabase.from('market_data').insert({
+          ticker: t.ticker, commodity: 'MILHO', currency: 'BRL',
+          price: null, price_unit: 'BRL/sack', source: 'manual',
+          date: new Date().toISOString().split('T')[0], exp_date: t.exp_date,
+        });
+      }
+    }
+    // Reload B3 from DB
+    const { data: refreshed } = await supabase
+      .from('market_data')
+      .select('ticker, price, updated_at, source, exp_date')
+      .eq('commodity', 'MILHO').order('exp_date');
+    const tickers: B3CornQuote[] = [];
+    const priceMap: Record<string, B3SavedPrice> = {};
+    (refreshed ?? []).forEach((row: any) => {
+      tickers.push({ ticker: row.ticker, exp_date: row.exp_date });
+      priceMap[row.ticker] = { price: row.price, updated_at: row.updated_at, source: row.source };
+    });
+    setB3Tickers(tickers);
+    setB3Prices(priceMap);
+  };
+
+  // ---- Handlers ----
+
+  const handleFetchFX = async () => {
+    setFetchingOp('fx');
+    try {
+      const result = await fetchQuotes();
+      await persistFX(result);
+      toast.success('Câmbio atualizado');
+    } catch (err) {
+      toast.error(`Erro ao atualizar câmbio: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
+  };
+
+  const handleFetchSoybean = async () => {
+    setFetchingOp('soybean');
+    try {
+      const result = await fetchQuotes();
+      await persistSoybean(result);
+      toast.success('Soja CBOT atualizada');
+    } catch (err) {
+      toast.error(`Erro ao atualizar soja: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
+  };
+
+  const handleFetchCornCBOT = async () => {
+    setFetchingOp('corn_cbot');
+    try {
+      const result = await fetchQuotes();
+      await persistCornCBOT(result);
+      toast.success('Milho CBOT atualizado');
+    } catch (err) {
+      toast.error(`Erro ao atualizar milho CBOT: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
+  };
+
+  const handleFetchCornB3 = async () => {
+    setFetchingOp('corn_b3');
+    try {
+      await persistCornB3();
+      toast.success('Milho B3 atualizado');
+    } catch (err) {
+      toast.error(`Erro ao atualizar milho B3: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
+  };
+
+  const handleFetchAll = async () => {
+    setFetchingOp('all');
+    try {
+      const result = await fetchQuotes();
+      await persistFX(result);
+      await persistSoybean(result);
+      await persistCornCBOT(result);
+      await persistCornB3();
+      toast.success('Todos os dados atualizados');
+    } catch (err) {
+      toast.error(`Erro ao atualizar: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
+  };
+
+  const handleFetchMarkets = async () => {
+    setFetchingOp('markets');
+    try {
+      const result = await fetchQuotes();
+      await persistSoybean(result);
+      await persistCornCBOT(result);
+      await persistCornB3();
+      toast.success('Mercados atualizados (câmbio preservado)');
+    } catch (err) {
+      toast.error(`Erro ao atualizar mercados: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
   };
 
   const handleManualSave = async (ticker: string) => {
@@ -351,10 +401,23 @@ const Market = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Dados de Mercado</h2>
-        <Button onClick={handleAutoFetch} disabled={fetching}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${fetching ? 'animate-spin' : ''}`} />
-          {fetching ? 'Atualizando...' : 'Atualizar Automático'}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleFetchMarkets}
+            disabled={fetchingOp !== null}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${fetchingOp === 'markets' ? 'animate-spin' : ''}`} />
+            {fetchingOp === 'markets' ? 'Atualizando...' : 'Atualizar Mercados'}
+          </Button>
+          <Button
+            onClick={handleFetchAll}
+            disabled={fetchingOp !== null}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${fetchingOp === 'all' ? 'animate-spin' : ''}`} />
+            {fetchingOp === 'all' ? 'Atualizando...' : 'Atualizar Tudo'}
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -367,7 +430,12 @@ const Market = () => {
           {fxRow && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Dólar / Real (USD/BRL)</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Dólar / Real (USD/BRL)</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={handleFetchFX} disabled={fetchingOp !== null}>
+                    <RefreshCw className={`h-3 w-3 ${fetchingOp === 'fx' ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="flex items-center gap-4">
                 <span className="text-2xl font-bold">R$ {fxRow.price!.toFixed(4)}</span>
@@ -382,11 +450,16 @@ const Market = () => {
           {/* Soybean CBOT Table */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Soja CBOT</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Soja CBOT</CardTitle>
+                <Button variant="ghost" size="sm" onClick={handleFetchSoybean} disabled={fetchingOp !== null}>
+                  <RefreshCw className={`h-3 w-3 ${fetchingOp === 'soybean' ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {soybeanRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar Automático".</p>
+                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar Tudo".</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -425,11 +498,16 @@ const Market = () => {
           {/* Corn CBOT Table */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Milho CBOT</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Milho CBOT</CardTitle>
+                <Button variant="ghost" size="sm" onClick={handleFetchCornCBOT} disabled={fetchingOp !== null}>
+                  <RefreshCw className={`h-3 w-3 ${fetchingOp === 'corn_cbot' ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {cornCbotRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar Automático".</p>
+                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar Tudo".</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -467,18 +545,23 @@ const Market = () => {
                   <CardTitle className="text-sm">Milho B3 (Manual)</CardTitle>
                   <p className="text-xs text-[hsl(var(--warning))] font-medium mt-0.5">Atualização manual obrigatória</p>
                 </div>
-                {b3Tickers.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-8"
-                    onClick={handleConfirmB3Update}
-                    disabled={confirmingB3}
-                  >
-                    <Check className="mr-1.5 h-3 w-3" />
-                    {confirmingB3 ? 'Confirmando...' : 'Confirmar atualização'}
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={handleFetchCornB3} disabled={fetchingOp !== null}>
+                    <RefreshCw className={`h-3 w-3 ${fetchingOp === 'corn_b3' ? 'animate-spin' : ''}`} />
                   </Button>
-                )}
+                  {b3Tickers.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-8"
+                      onClick={handleConfirmB3Update}
+                      disabled={confirmingB3}
+                    >
+                      <Check className="mr-1.5 h-3 w-3" />
+                      {confirmingB3 ? 'Confirmando...' : 'Confirmar atualização'}
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -489,7 +572,7 @@ const Market = () => {
               ) : b3Error ? (
                 <p className="text-muted-foreground text-sm">Aguardando servidor acordar... ({b3Error})</p>
               ) : b3Tickers.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Clique em "Atualizar Automático" para carregar os tickers B3.</p>
+                <p className="text-muted-foreground text-sm">Clique em "Atualizar Tudo" para carregar os tickers B3.</p>
               ) : (
                 <Table>
                   <TableHeader>
