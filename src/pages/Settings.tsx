@@ -21,7 +21,13 @@ import { toast } from 'sonner';
 import type { Warehouse, PricingCombination } from '@/types';
 
 const emptyWarehouse: Partial<Warehouse> & { id: string } = {
-  id: '', display_name: '', city: '', state: '', type: 'ARMAZEM', active: true, basis_config: {}, abbr: '',
+  id: '', display_name: '', city: '', state: '', type: 'ARMAZEM', active: true,
+  basis_config: {}, abbr: '',
+  interest_rate: null, interest_rate_period: 'monthly',
+  storage_cost: null, storage_cost_type: 'fixed',
+  reception_cost: null,
+  brokerage_per_contract_cbot: null, brokerage_per_contract_b3: null,
+  desk_cost_pct: null, shrinkage_rate_monthly: null,
 };
 
 function WarehousesTab() {
@@ -45,6 +51,15 @@ function WarehousesTab() {
         city: editing.city ?? null, state: editing.state ?? null,
         type: editing.type ?? 'ARMAZEM', active: editing.active ?? true,
         basis_config: editing.basis_config ?? {}, abbr,
+        interest_rate: editing.interest_rate ?? null,
+        interest_rate_period: editing.interest_rate_period ?? 'monthly',
+        storage_cost: editing.storage_cost ?? null,
+        storage_cost_type: editing.storage_cost_type ?? 'fixed',
+        reception_cost: editing.reception_cost ?? null,
+        brokerage_per_contract_cbot: editing.brokerage_per_contract_cbot ?? null,
+        brokerage_per_contract_b3: editing.brokerage_per_contract_b3 ?? null,
+        desk_cost_pct: editing.desk_cost_pct ?? null,
+        shrinkage_rate_monthly: editing.shrinkage_rate_monthly ?? null,
       });
       toast.success('Armazém salvo'); setOpen(false); setEditing(null);
     } catch (err) {
@@ -67,27 +82,136 @@ function WarehousesTab() {
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>{editing?.id && warehouses?.some((w) => w.id === editing.id) ? 'Editar Armazém' : 'Novo Armazém'}</DialogTitle></DialogHeader>
             {editing && (
-              <div className="space-y-3">
+              <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+
+                {/* Identificação */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1"><Label className="text-xs">ID (slug)</Label><Input value={editing.id} onChange={(e) => setEditing({ ...editing, id: e.target.value })} disabled={!!warehouses?.some((w) => w.id === editing.id)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Nome</Label><Input value={editing.display_name ?? ''} onChange={(e) => setEditing({ ...editing, display_name: e.target.value })} /></div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Abreviação (código curto)</Label>
-                    <Input
-                      value={editing.abbr ?? ''}
-                      onChange={(e) => { setEditing({ ...editing, abbr: e.target.value.toUpperCase() }); setAbbrError(''); }}
-                      placeholder="Ex: CON, MAT, ALT"
-                      maxLength={5}
-                    />
-                    <p className="text-[10px] text-muted-foreground">2 a 5 letras maiúsculas. Usado nos códigos de ordens.</p>
+                    <Label className="text-xs">ID (slug)</Label>
+                    <Input value={editing.id} onChange={(e) => setEditing({ ...editing, id: e.target.value })}
+                      disabled={!!warehouses?.some((w) => w.id === editing.id)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Nome</Label>
+                    <Input value={editing.display_name ?? ''} onChange={(e) => setEditing({ ...editing, display_name: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Abreviação</Label>
+                    <Input value={editing.abbr ?? ''} onChange={(e) => { setEditing({ ...editing, abbr: e.target.value.toUpperCase() }); setAbbrError(''); }}
+                      placeholder="Ex: CON" maxLength={5} />
+                    <p className="text-[10px] text-muted-foreground">2 a 5 letras maiúsculas.</p>
                     {abbrError && <p className="text-[10px] text-destructive">{abbrError}</p>}
                   </div>
-                  <div className="space-y-1"><Label className="text-xs">Cidade</Label><Input value={editing.city ?? ''} onChange={(e) => setEditing({ ...editing, city: e.target.value })} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Estado</Label><Input value={editing.state ?? ''} onChange={(e) => setEditing({ ...editing, state: e.target.value })} /></div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cidade</Label>
+                    <Input value={editing.city ?? ''} onChange={(e) => setEditing({ ...editing, city: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Estado</Label>
+                    <Input value={editing.state ?? ''} onChange={(e) => setEditing({ ...editing, state: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tipo</Label>
+                    <Input value={editing.type ?? ''} onChange={(e) => setEditing({ ...editing, type: e.target.value })} />
+                  </div>
                 </div>
-                <div className="space-y-1"><Label className="text-xs">Tipo</Label><Input value={editing.type ?? ''} onChange={(e) => setEditing({ ...editing, type: e.target.value })} /></div>
-                <div className="flex items-center gap-2"><Switch checked={editing.active ?? true} onCheckedChange={(v) => setEditing({ ...editing, active: v })} /><Label className="text-xs">Ativo</Label></div>
-                <div className="space-y-1"><Label className="text-xs">Basis Config (JSON)</Label><Input value={JSON.stringify(editing.basis_config ?? {})} onChange={(e) => { try { setEditing({ ...editing, basis_config: JSON.parse(e.target.value) }); } catch {} }} /></div>
+
+                <div className="flex items-center gap-2">
+                  <Switch checked={editing.active ?? true} onCheckedChange={(v) => setEditing({ ...editing, active: v })} />
+                  <Label className="text-xs">Ativo</Label>
+                </div>
+
+                {/* Basis Config */}
+                <div className="border rounded-md p-3 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Basis por Commodity (BRL/saca)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Soja (CBOT)</Label>
+                      <Input type="number" step="any" placeholder="ex: -29"
+                        value={(editing.basis_config as any)?.soybean?.value ?? ''}
+                        onChange={(e) => setEditing({
+                          ...editing,
+                          basis_config: {
+                            ...(editing.basis_config ?? {}),
+                            soybean: { mode: 'fixed', value: e.target.value === '' ? null : Number(e.target.value) },
+                          },
+                        })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Milho (B3)</Label>
+                      <Input type="number" step="any" placeholder="ex: -25"
+                        value={(editing.basis_config as any)?.corn?.value ?? ''}
+                        onChange={(e) => setEditing({
+                          ...editing,
+                          basis_config: {
+                            ...(editing.basis_config ?? {}),
+                            corn: { mode: 'fixed', value: e.target.value === '' ? null : Number(e.target.value) },
+                          },
+                        })} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Custos padrão */}
+                <div className="border rounded-md p-3 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Custos Padrão do Armazém</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Taxa de juros (% a.m.)</Label>
+                      <Input type="number" step="any" placeholder="ex: 1.4"
+                        value={editing.interest_rate ?? ''}
+                        onChange={(e) => setEditing({ ...editing, interest_rate: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Custo armazenagem (R$/sc)</Label>
+                      <Input type="number" step="any" placeholder="ex: 3.5"
+                        value={editing.storage_cost ?? ''}
+                        onChange={(e) => setEditing({ ...editing, storage_cost: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Tipo armazenagem</Label>
+                      <Select value={editing.storage_cost_type ?? 'fixed'}
+                        onValueChange={(v) => setEditing({ ...editing, storage_cost_type: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fixed">Fixo (R$/saca)</SelectItem>
+                          <SelectItem value="monthly">Mensal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Custo recepção (R$/sc)</Label>
+                      <Input type="number" step="any" placeholder="ex: 0"
+                        value={editing.reception_cost ?? ''}
+                        onChange={(e) => setEditing({ ...editing, reception_cost: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Corretagem CBOT (USD/contrato)</Label>
+                      <Input type="number" step="any" placeholder="ex: 15"
+                        value={editing.brokerage_per_contract_cbot ?? ''}
+                        onChange={(e) => setEditing({ ...editing, brokerage_per_contract_cbot: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Corretagem B3 (BRL/contrato)</Label>
+                      <Input type="number" step="any" placeholder="ex: 12"
+                        value={editing.brokerage_per_contract_b3 ?? ''}
+                        onChange={(e) => setEditing({ ...editing, brokerage_per_contract_b3: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Custo mesa (%)</Label>
+                      <Input type="number" step="any" placeholder="ex: 0.003"
+                        value={editing.desk_cost_pct ?? ''}
+                        onChange={(e) => setEditing({ ...editing, desk_cost_pct: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Quebra mensal (%)</Label>
+                      <Input type="number" step="any" placeholder="ex: 0.003"
+                        value={editing.shrinkage_rate_monthly ?? ''}
+                        onChange={(e) => setEditing({ ...editing, shrinkage_rate_monthly: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </div>
+                  </div>
+                </div>
+
                 <Button onClick={handleSave} className="w-full">Salvar</Button>
               </div>
             )}
