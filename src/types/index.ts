@@ -8,6 +8,16 @@ export interface Warehouse {
   basis_config: Record<string, unknown>;
   abbr: string;
   created_at: string;
+  // cost defaults (nullable — HQ has no defaults)
+  interest_rate: number | null;
+  interest_rate_period: string | null;
+  storage_cost: number | null;
+  storage_cost_type: string | null;
+  reception_cost: number | null;
+  brokerage_per_contract_cbot: number | null;
+  brokerage_per_contract_b3: number | null;
+  desk_cost_pct: number | null;
+  shrinkage_rate_monthly: number | null;
 }
 
 export interface MarketData {
