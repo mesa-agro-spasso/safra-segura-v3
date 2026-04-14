@@ -96,7 +96,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       const warehouse = warehouseMap[combo.warehouse_id];
       if (!warehouse) continue;
 
-      const basisConfig = (warehouse.basis_config ?? {}) as Record<string, unknown>;
+      
 
       // Resolve exp_date
       const expDate = combo.exp_date ?? market.exp_date ?? null;
@@ -117,10 +117,10 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       const grainReceptionDate = combo.grain_reception_date ?? paymentDate;
 
       // Cost inheritance: combination overrides warehouse
-      const inheritCost = (field: keyof PricingCombination, basisField: string) => {
-        const val = combo[field];
+      const inheritCost = (comboField: keyof PricingCombination, warehouseField: keyof Warehouse) => {
+        const val = combo[comboField];
         if (val != null) return val;
-        return (basisConfig as Record<string, unknown>)[basisField] ?? null;
+        return warehouse[warehouseField] ?? null;
       };
 
       // Resolver exchange_rate por commodity/benchmark
@@ -150,7 +150,11 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         storage_cost: inheritCost('storage_cost', 'storage_cost'),
         storage_cost_type: inheritCost('storage_cost_type', 'storage_cost_type'),
         reception_cost: inheritCost('reception_cost', 'reception_cost'),
-        brokerage_per_contract: inheritCost('brokerage_per_contract', 'brokerage_per_contract'),
+        brokerage_per_contract: combo.brokerage_per_contract != null
+          ? combo.brokerage_per_contract
+          : combo.benchmark === 'b3'
+            ? warehouse.brokerage_per_contract_b3 ?? null
+            : warehouse.brokerage_per_contract_cbot ?? null,
         desk_cost_pct: inheritCost('desk_cost_pct', 'desk_cost_pct'),
         shrinkage_rate_monthly: inheritCost('shrinkage_rate_monthly', 'shrinkage_rate_monthly'),
       });
