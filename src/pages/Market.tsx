@@ -103,11 +103,24 @@ const Market = () => {
 
   // ---- Atomic functions ----
 
-  const fetchQuotes = async () => {
+  const fetchQuotes = async (fxOverride?: number) => {
+    const query: Record<string, string> = { quantity: '10' };
+    if (fxOverride !== undefined) {
+      query.fx_override = fxOverride.toString();
+    }
     return await callApi<MarketQuotesResponse>(
       '/market/quotes', undefined,
-      { method: 'GET', query: { quantity: '10' } }
+      { method: 'GET', query }
     );
+  };
+
+  const getCurrentFxFromDb = async (): Promise<number | undefined> => {
+    const { data } = await supabase
+      .from('market_data')
+      .select('price')
+      .eq('ticker', 'USD/BRL')
+      .single();
+    return data?.price ?? undefined;
   };
 
   const persistFX = async (result: MarketQuotesResponse) => {
@@ -192,7 +205,8 @@ const Market = () => {
   const handleFetchSoybean = async () => {
     setFetchingOp('soybean');
     try {
-      const result = await fetchQuotes();
+      const fxOverride = await getCurrentFxFromDb();
+      const result = await fetchQuotes(fxOverride);
       await persistSoybean(result);
       toast.success('Soja CBOT atualizada');
     } catch (err) {
@@ -203,7 +217,8 @@ const Market = () => {
   const handleFetchCornCBOT = async () => {
     setFetchingOp('corn_cbot');
     try {
-      const result = await fetchQuotes();
+      const fxOverride = await getCurrentFxFromDb();
+      const result = await fetchQuotes(fxOverride);
       await persistCornCBOT(result);
       toast.success('Milho CBOT atualizado');
     } catch (err) {
@@ -238,7 +253,8 @@ const Market = () => {
   const handleFetchMarkets = async () => {
     setFetchingOp('markets');
     try {
-      const result = await fetchQuotes();
+      const fxOverride = await getCurrentFxFromDb();
+      const result = await fetchQuotes(fxOverride);
       await persistSoybean(result);
       await persistCornCBOT(result);
       await persistCornB3();
