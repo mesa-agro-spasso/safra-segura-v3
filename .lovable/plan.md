@@ -1,37 +1,26 @@
 
 
-# Three Surgical Fixes to Warehouse Form in Settings.tsx
+# Surgical Fix: inheritCost & brokerage in GeneratePricingModal.tsx
 
 ## Overview
-Three changes to the warehouse editing dialog in `WarehousesTab` within `src/pages/Settings.tsx`. Nothing else changes.
+Update `handleGenerate` in `GeneratePricingModal.tsx` to read cost defaults directly from the `Warehouse` object (which now has typed fields) instead of from `basis_config` JSONB, and resolve `brokerage_per_contract` based on benchmark (CBOT vs B3).
 
-## Changes
+## Changes (single file: `src/components/GeneratePricingModal.tsx`)
 
-### 1. Basis Config — support `reference_delta` mode
-Replace the current two simple numeric inputs (lines 125–153) with a per-commodity block that:
-- Detects current mode from `basis_config.soybean` / `basis_config.corn`
-- **`fixed` mode (default)**: shows numeric input for value + a small link "Usar referência de outro armazém"
-- **`reference_delta` mode**: shows a Select for reference warehouse (filtered to exclude current warehouse, using `warehouses` already loaded) + numeric delta input + a link "Usar valor fixo" to switch back
-- Saved format: `{ mode: 'fixed', value: N }` or `{ mode: 'reference_delta', reference_warehouse_id: 'xxx', delta_brl: N }`
+### 1. Remove `basisConfig` (line 99)
+Delete `const basisConfig = (warehouse.basis_config ?? {}) as Record<string, unknown>;`
 
-### 2. Interest rate — add period selector
-Replace the single "Taxa de juros (% a.m.)" input (lines 159–164) with two side-by-side fields:
-- Left: numeric input labeled "Taxa de juros (%)"
-- Right: Select with options "Mensal (a.m.)" → `'monthly'` and "Anual (a.a.)" → `'yearly'`, bound to `interest_rate_period`
+### 2. Replace `inheritCost` (lines 120–124)
+Change signature from `(field, basisField: string)` to `(comboField, warehouseField: keyof Warehouse)`, reading fallback from `warehouse[warehouseField]` instead of `basisConfig[basisField]`.
 
-### 3. Reorder cost fields grid
-Rearrange the costs section (lines 155–213) into this layout:
+### 3. Replace `brokerage_per_contract` in payload (line 153)
+Instead of `inheritCost(...)`, use conditional logic: if combo has a value use it, otherwise pick `warehouse.brokerage_per_contract_b3` or `warehouse.brokerage_per_contract_cbot` based on `combo.benchmark`.
 
-```text
-| Custo armazenagem (R$/sc) | Tipo armazenagem        |
-| Taxa de juros (%)         | Período                 |
-| Corretagem CBOT           | Corretagem B3           |
-| Custo mesa (%)            | Quebra mensal (%)       |
-| Custo recepção (R$/sc)    | (empty)                 |
-```
+### 4. Confirm remaining inheritCost calls (lines 149–155)
+The other 6 fields already use matching field names (`'interest_rate'`, `'storage_cost'`, etc.) — they just need the second param typed as `keyof Warehouse` which the new signature handles. No value changes needed.
 
 ### What does NOT change
-- `CombinationsTab`, `DateField`, hooks, types, any other file
-- `handleSave` logic (already saves all fields correctly)
-- Identification section, active switch
+- Exchange rate logic, payment/grain reception date logic
+- Snapshot saving block
+- Any other file
 
