@@ -1,29 +1,37 @@
 
 
-# Add Warehouse Cost Defaults — Types & Settings Form
+# Three Surgical Fixes to Warehouse Form in Settings.tsx
 
 ## Overview
-Add cost default fields to the Warehouse type and replace the warehouse form in Settings with a richer layout including visual basis config and cost fields.
+Three changes to the warehouse editing dialog in `WarehousesTab` within `src/pages/Settings.tsx`. Nothing else changes.
 
 ## Changes
 
-### 1. `src/types/index.ts` — Update Warehouse interface
-Add 9 new nullable fields: `interest_rate`, `interest_rate_period`, `storage_cost`, `storage_cost_type`, `reception_cost`, `brokerage_per_contract_cbot`, `brokerage_per_contract_b3`, `desk_cost_pct`, `shrinkage_rate_monthly`.
+### 1. Basis Config — support `reference_delta` mode
+Replace the current two simple numeric inputs (lines 125–153) with a per-commodity block that:
+- Detects current mode from `basis_config.soybean` / `basis_config.corn`
+- **`fixed` mode (default)**: shows numeric input for value + a small link "Usar referência de outro armazém"
+- **`reference_delta` mode**: shows a Select for reference warehouse (filtered to exclude current warehouse, using `warehouses` already loaded) + numeric delta input + a link "Usar valor fixo" to switch back
+- Saved format: `{ mode: 'fixed', value: N }` or `{ mode: 'reference_delta', reference_warehouse_id: 'xxx', delta_brl: N }`
 
-### 2. `src/pages/Settings.tsx` — WarehousesTab only
+### 2. Interest rate — add period selector
+Replace the single "Taxa de juros (% a.m.)" input (lines 159–164) with two side-by-side fields:
+- Left: numeric input labeled "Taxa de juros (%)"
+- Right: Select with options "Mensal (a.m.)" → `'monthly'` and "Anual (a.a.)" → `'yearly'`, bound to `interest_rate_period`
 
-**2a. `emptyWarehouse`** — Add all new cost fields with null defaults (period defaults to `'monthly'`, storage_cost_type to `'fixed'`).
+### 3. Reorder cost fields grid
+Rearrange the costs section (lines 155–213) into this layout:
 
-**2b. `handleSave`** — Include all 9 new fields in the `upsertWarehouse.mutateAsync()` call.
-
-**2c. Dialog form** — Replace lines 69-93 (the `{editing && (...)}` block) with:
-- **Identification section**: ID, Nome, Abreviação, Cidade, Estado, Tipo in a 2-col grid
-- **Active switch**
-- **Basis Config section**: bordered box with Soja (CBOT) and Milho (B3) numeric inputs, preserving `{soybean: {mode: 'fixed', value: N}}` JSONB format
-- **Custos Padrão section**: bordered box with 8 fields (taxa juros, armazenagem, tipo armazenagem Select, recepção, corretagem CBOT, corretagem B3, custo mesa, quebra mensal)
-- Scrollable container (`max-h-[75vh] overflow-y-auto`)
+```text
+| Custo armazenagem (R$/sc) | Tipo armazenagem        |
+| Taxa de juros (%)         | Período                 |
+| Corretagem CBOT           | Corretagem B3           |
+| Custo mesa (%)            | Quebra mensal (%)       |
+| Custo recepção (R$/sc)    | (empty)                 |
+```
 
 ### What does NOT change
-- `CombinationsTab`, hooks, any other file
-- `basis_config` JSONB format internally
+- `CombinationsTab`, `DateField`, hooks, types, any other file
+- `handleSave` logic (already saves all fields correctly)
+- Identification section, active switch
 
