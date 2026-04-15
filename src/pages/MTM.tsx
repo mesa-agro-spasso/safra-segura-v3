@@ -4,6 +4,7 @@ import { useMarketData } from '@/hooks/useMarketData';
 import { useMtmSnapshots, useSaveMtmSnapshot } from '@/hooks/useMtmSnapshots';
 import { useAuth } from '@/contexts/AuthContext';
 import { callApi } from '@/lib/api';
+import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ const MTM = () => {
   const { data: mtmSnapshots } = useMtmSnapshots();
   const saveMtm = useSaveMtmSnapshot();
   const { user } = useAuth();
+  const { data: pricingParameters } = usePricingParameters();
   const [physicalPrices, setPhysicalPrices] = useState<Record<string, string>>(() => {
     try {
       const stored = sessionStorage.getItem('mtm_physical_prices');
@@ -39,13 +41,57 @@ const MTM = () => {
     try {
       const spotFx = marketData.find((m) => m.commodity === 'FX')?.price ?? null;
 
-      const positions = orders.map((o) => {
-        const futuresLeg = (o.legs as { leg_type: string; ticker: string }[]).find(
-          (l) => l.leg_type === 'futures'
-        );
+      const sigmaMap: Record<string, number> = {};
+      pricingParameters?.forEach((p) => { sigmaMap[p.id] = p.sigma; });
+
+      const positions = await Promise.all(orders.map(async (o) => {
+        const legs = o.legs as {
+          leg_type: string;
+          ticker: string;
+          option_type?: string;
+          strike?: number;
+          expiration_date?: string;
+        }[];
+
+        const futuresLeg = legs.find((l) => l.leg_type === 'futures');
+        const optionLeg = legs.find((l) => l.leg_type === 'option');
+
         const futuresPrice = futuresLeg
           ? (marketData.find((m) => m.ticker === futuresLeg.ticker)?.price ?? 0)
           : 0;
+
+        // Convert futures price to BRL/sc for option premium calculation
+        const fxRate = spotFx ?? 5.0;
+        const BUSHELS_PER_SACK = o.commodity === 'soybean' ? 2.20462 : 2.3622;
+        const F_brl = o.commodity === 'soybean'
+          ? futuresPrice * BUSHELS_PER_SACK * fxRate
+          : futuresPrice;
+
+        let optionPremiumCurrent: number | null = null;
+
+        if (optionLeg?.strike && optionLeg?.expiration_date) {
+          const today = new Date();
+          const expDate = new Date(optionLeg.expiration_date);
+          const T_days = Math.max(1, Math.round((expDate.getTime() - today.getTime()) / 86400000));
+          const sigma = o.commodity === 'soybean'
+            ? (sigmaMap['soybean_cbot'] ?? 0.35)
+            : (sigmaMap['corn_b3'] ?? 0.17);
+          const r = 0.149;
+
+          try {
+            const premiumResult = await callApi<{ premium: number }>('/pricing/option-premium', {
+              F: F_brl,
+              K: optionLeg.strike,
+              T_days,
+              r,
+              sigma,
+              option_type: optionLeg.option_type ?? 'call',
+            });
+            optionPremiumCurrent = premiumResult?.premium ?? null;
+          } catch {
+            // If option premium calculation fails, proceed with null
+          }
+        }
 
         return {
           order: JSON.parse(JSON.stringify(o)),
@@ -53,10 +99,10 @@ const MTM = () => {
             futures_price_current: futuresPrice,
             physical_price_current: parseFloat(physicalPrices[o.operation_id] || '0'),
             spot_rate_current: spotFx,
-            option_premium_current: null,
+            option_premium_current: optionPremiumCurrent,
           },
         };
-      });
+      }));
 
       const result = await callApi<{ results: Record<string, unknown>[] }>('/mtm/run', {
         positions,
