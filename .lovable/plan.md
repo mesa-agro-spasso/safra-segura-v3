@@ -1,36 +1,32 @@
 
 
-# MTM Enhancements — sessionStorage + Results Table Columns
+# MTM Detail Dialog — Simplified Results Table + Click-to-Detail
 
 ## Overview
-Changes across three files: persist physical prices in sessionStorage, expand the results table with operation context columns, and update the type/query to support the new `payment_date` and `grain_reception_date` fields.
+Single file change: `src/pages/MTM.tsx`. Replace the dense results table with a simplified 7-column version. Clicking a row opens a Dialog with full identification, dates, market snapshot, and MTM breakdown.
 
 ## Changes
 
-### 1. `src/types/index.ts` — Expand `pricing_snapshots` in HedgeOrder (line 89)
-Update from `{ trade_date: string; sale_date: string }` to:
-```ts
-{ trade_date: string; payment_date: string; grain_reception_date: string; sale_date: string }
-```
+### 1. New imports (after line 13)
+Add `Dialog, DialogContent, DialogHeader, DialogTitle` from `@/components/ui/dialog` and `Separator` from `@/components/ui/separator`.
 
-### 2. `src/hooks/useHedgeOrders.ts` — Fetch new fields (line 11)
-Update `pricing_snapshots(trade_date, sale_date)` to:
-```ts
-pricing_snapshots(trade_date, payment_date, grain_reception_date, sale_date)
-```
+### 2. New state (after line 28)
+Add `detailResult` state: `useState<Record<string, unknown> | null>(null)`.
 
-### 3. `src/pages/MTM.tsx` — Three changes
+### 3. Replace results table (lines 155–199)
+Replace the entire results `Card` block with a simplified table containing only: Operação, Commodity, Praça, Entrada, Saída, Total (color-coded green/red), Por Saca. Each row gets `cursor-pointer hover:bg-muted/50` and `onClick={() => setDetailResult(r)}`. Helper variables (`matchedOrder`, `ps`, `wName`, `fmtDate`) computed per row to avoid repeated `.find()` calls.
 
-**3a. sessionStorage for physicalPrices (line 21)**
-Initialize state from `sessionStorage.getItem('mtm_physical_prices')` with try/catch fallback.
+### 4. Add detail Dialog (after the results Card, before closing `</div>`)
+An IIFE renders a `Dialog` controlled by `detailResult !== null`. Contains:
+- **Identificação**: operation_id, commodity, volume
+- **Datas**: Entrada, Pagamento, Recepção, Saída
+- **Snapshot de Mercado**: futures_price_current, physical_price_current, spot_rate_current, option_premium_current
+- **Resultado MTM**: Físico, Futuros, NDF, Opção, Total (color-coded), Por Saca
 
-**3b. onChange handler (line 135)**
-Write updated prices to sessionStorage on every change.
-
-**3c. Results table (lines 152–172)**
-Replace headers with: Operação, Praça, Entrada, Pagamento, Recepção, Saída, Físico, Futuros, NDF, Opção, Total, Por Saca.
-Replace row cells to look up the matching order and display `warehouses.display_name`, `trade_date`, `payment_date`, `grain_reception_date`, `sale_date` (formatted pt-BR), then the existing MTM value cells.
+Each section separated by `<Separator />`. Uses a local `DetailRow` component for label/value pairs and `fmtBrl` helper.
 
 ### What does NOT change
-- `handleCalculate`, active operations table, imports, any other file
+- Active operations table (stays as-is with all current columns including Preço Físico Atual input)
+- `handleCalculate`, imports for other components, hooks, state declarations (except adding `detailResult`)
+- No other files
 
