@@ -86,7 +86,7 @@ export interface HedgeOrder {
   operation?: {
     warehouse_id: string;
     warehouses: { display_name: string } | null;
-    pricing_snapshots: { trade_date: string; sale_date: string } | null;
+    pricing_snapshots: { trade_date: string; payment_date: string; grain_reception_date: string; sale_date: string } | null;
   } | null;
 }
 
