@@ -1,26 +1,47 @@
 
 
-# Surgical Fix: inheritCost & brokerage in GeneratePricingModal.tsx
+# MTM Page Enhancements — Corrected Plan
 
 ## Overview
-Update `handleGenerate` in `GeneratePricingModal.tsx` to read cost defaults directly from the `Warehouse` object (which now has typed fields) instead of from `basis_config` JSONB, and resolve `brokerage_per_contract` based on benchmark (CBOT vs B3).
+Three files modified: add nested `operation` field to `HedgeOrder` type, update the hedge orders query to join `operations` → `warehouses` + `pricing_snapshots`, and enhance the MTM page with new columns and a rewritten `handleCalculate`.
 
-## Changes (single file: `src/components/GeneratePricingModal.tsx`)
+## Changes
 
-### 1. Remove `basisConfig` (line 99)
-Delete `const basisConfig = (warehouse.basis_config ?? {}) as Record<string, unknown>;`
+### 1. `src/types/index.ts` — Add nested `operation` to HedgeOrder
+After `created_at: string;`, add:
+```ts
+operation?: {
+  warehouse_id: string;
+  warehouses: { display_name: string } | null;
+  pricing_snapshots: { trade_date: string; sale_date: string } | null;
+} | null;
+```
 
-### 2. Replace `inheritCost` (lines 120–124)
-Change signature from `(field, basisField: string)` to `(comboField, warehouseField: keyof Warehouse)`, reading fallback from `warehouse[warehouseField]` instead of `basisConfig[basisField]`.
+### 2. `src/hooks/useHedgeOrders.ts` — Update select
+Replace `select('*')` with:
+```ts
+.select('*, operation:operations(warehouse_id, warehouses(display_name), pricing_snapshots(trade_date, sale_date))')
+```
 
-### 3. Replace `brokerage_per_contract` in payload (line 153)
-Instead of `inheritCost(...)`, use conditional logic: if combo has a value use it, otherwise pick `warehouse.brokerage_per_contract_b3` or `warehouse.brokerage_per_contract_cbot` based on `combo.benchmark`.
+### 3. `src/pages/MTM.tsx`
 
-### 4. Confirm remaining inheritCost calls (lines 149–155)
-The other 6 fields already use matching field names (`'interest_rate'`, `'storage_cost'`, etc.) — they just need the second param typed as `keyof Warehouse` which the new signature handles. No value changes needed.
+**3a. Table headers** — after "Operação", add `Praça`, `Entrada`, `Saída`.
+
+**3b. Table cells** — after operation_id cell, add:
+```tsx
+<TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
+<TableCell>{o.operation?.pricing_snapshots?.trade_date ? new Date(o.operation.pricing_snapshots.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+<TableCell>{o.operation?.pricing_snapshots?.sale_date ? new Date(o.operation.pricing_snapshots.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+```
+
+**3c. `handleCalculate`** — replace entire function body with the corrected version that:
+- Finds `spotFx` from marketData where `commodity === 'FX'`
+- Builds `positions` array with `order` (deep-cloned) + `snapshot` object (futures price resolved by matching leg ticker to marketData)
+- Sends `{ positions }` to `/mtm/run`
+- Saves results reading `market_snapshot` sub-object for `physical_price_current`, `futures_price_current`, `spot_rate_current`
 
 ### What does NOT change
-- Exchange rate logic, payment/grain reception date logic
-- Snapshot saving block
-- Any other file
+- Other hooks, components, pages
+- Results table at bottom of MTM
+- Imports, state declarations
 
