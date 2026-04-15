@@ -166,40 +166,104 @@ const MTM = () => {
                   <TableHead>Commodity</TableHead>
                   <TableHead>Praça</TableHead>
                   <TableHead>Entrada</TableHead>
-                  <TableHead>Pagamento</TableHead>
-                  <TableHead>Recepção</TableHead>
                   <TableHead>Saída</TableHead>
-                  <TableHead>Físico</TableHead>
-                  <TableHead>Futuros</TableHead>
-                  <TableHead>NDF</TableHead>
-                  <TableHead>Opção</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Por Saca</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {results.map((r, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
-                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.commodity ?? '—'}</TableCell>
-                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.warehouses?.display_name ?? '—'}</TableCell>
-                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.trade_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.trade_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.payment_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.payment_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.grain_reception_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.grain_reception_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.sale_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.sale_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-                    <TableCell>R$ {((r.mtm_physical_brl as number) ?? 0).toFixed(2)}</TableCell>
-                    <TableCell>R$ {((r.mtm_futures_brl as number) ?? 0).toFixed(2)}</TableCell>
-                    <TableCell>R$ {((r.mtm_ndf_brl as number) ?? 0).toFixed(2)}</TableCell>
-                    <TableCell>R$ {((r.mtm_option_brl as number) ?? 0).toFixed(2)}</TableCell>
-                    <TableCell className="font-bold">R$ {((r.mtm_total_brl as number) ?? 0).toFixed(2)}</TableCell>
-                    <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
-                  </TableRow>
-                ))}
+                {results.map((r, i) => {
+                  const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
+                  const ps = matchedOrder?.operation?.pricing_snapshots;
+                  const wName = matchedOrder?.operation?.warehouses?.display_name ?? '—';
+                  const fmtDate = (d?: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+                  const total = (r.mtm_total_brl as number) ?? 0;
+                  return (
+                    <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
+                      <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
+                      <TableCell>{matchedOrder?.commodity ?? '—'}</TableCell>
+                      <TableCell>{wName}</TableCell>
+                      <TableCell>{fmtDate(ps?.trade_date)}</TableCell>
+                      <TableCell>{fmtDate(ps?.sale_date)}</TableCell>
+                      <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        R$ {total.toFixed(2)}
+                      </TableCell>
+                      <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
       )}
+
+      {detailResult && (() => {
+        const matchedOrder = orders?.find(o => o.operation_id === detailResult.operation_id);
+        const ps = matchedOrder?.operation?.pricing_snapshots;
+        const wName = matchedOrder?.operation?.warehouses?.display_name ?? '—';
+        const fmtDate = (d?: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+        const snap = detailResult.market_snapshot as Record<string, number | null> | null;
+
+        const DetailRow = ({ label, value }: { label: string; value: string }) => (
+          <div className="flex justify-between py-1">
+            <span className="text-muted-foreground text-sm">{label}</span>
+            <span className="text-sm font-medium">{value}</span>
+          </div>
+        );
+
+        const fmtBrl = (v: unknown) => `R$ ${((v as number) ?? 0).toFixed(2)}`;
+        const total = (detailResult.mtm_total_brl as number) ?? 0;
+
+        return (
+          <Dialog open onOpenChange={(o) => { if (!o) setDetailResult(null); }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  MTM — {(detailResult.operation_id as string)?.slice(0, 8)} / {wName}
+                </DialogTitle>
+              </DialogHeader>
+
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Identificação</p>
+              <DetailRow label="Operação" value={(detailResult.operation_id as string)?.slice(0, 8) ?? '—'} />
+              <DetailRow label="Commodity" value={matchedOrder?.commodity ?? '—'} />
+              <DetailRow label="Volume" value={`${matchedOrder?.volume_sacks?.toLocaleString() ?? '—'} sc`} />
+
+              <Separator />
+
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Datas</p>
+              <DetailRow label="Entrada" value={fmtDate(ps?.trade_date)} />
+              <DetailRow label="Pagamento" value={fmtDate(ps?.payment_date)} />
+              <DetailRow label="Recepção" value={fmtDate(ps?.grain_reception_date)} />
+              <DetailRow label="Saída" value={fmtDate(ps?.sale_date)} />
+
+              <Separator />
+
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Snapshot de Mercado</p>
+              <DetailRow label="Futuros (atual)" value={fmtBrl(snap?.futures_price_current)} />
+              <DetailRow label="Físico (atual)" value={fmtBrl(snap?.physical_price_current)} />
+              <DetailRow label="Câmbio spot" value={snap?.spot_rate_current != null ? `R$ ${snap.spot_rate_current.toFixed(4)}` : '—'} />
+              <DetailRow label="Prêmio opção" value={snap?.option_premium_current != null ? fmtBrl(snap.option_premium_current) : '—'} />
+
+              <Separator />
+
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Resultado MTM</p>
+              <DetailRow label="Físico" value={fmtBrl(detailResult.mtm_physical_brl)} />
+              <DetailRow label="Futuros" value={fmtBrl(detailResult.mtm_futures_brl)} />
+              <DetailRow label="NDF" value={fmtBrl(detailResult.mtm_ndf_brl)} />
+              <DetailRow label="Opção" value={fmtBrl(detailResult.mtm_option_brl)} />
+              <div className="flex justify-between py-1">
+                <span className="text-sm font-bold">Total</span>
+                <span className={`text-sm font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {fmtBrl(detailResult.mtm_total_brl)}
+                </span>
+              </div>
+              <DetailRow label="Por Saca" value={`${fmtBrl(detailResult.mtm_per_sack_brl)}/sc`} />
+              <DetailRow label="Exposição Total" value={fmtBrl(detailResult.total_exposure_brl)} />
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 };
