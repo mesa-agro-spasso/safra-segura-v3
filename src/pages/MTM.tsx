@@ -28,6 +28,7 @@ const MTM = () => {
   });
   const [calculating, setCalculating] = useState(false);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
+  const [detailResult, setDetailResult] = useState<Record<string, unknown> | null>(null);
 
   const handleCalculate = async () => {
     if (!orders?.length || !marketData?.length) {
