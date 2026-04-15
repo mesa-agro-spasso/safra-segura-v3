@@ -160,6 +160,7 @@ const MTM = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Operação</TableHead>
+                  <TableHead>Commodity</TableHead>
                   <TableHead>Praça</TableHead>
                   <TableHead>Entrada</TableHead>
                   <TableHead>Pagamento</TableHead>
@@ -177,6 +178,7 @@ const MTM = () => {
                 {results.map((r, i) => (
                   <TableRow key={i}>
                     <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
+                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.commodity ?? '—'}</TableCell>
                     <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.warehouses?.display_name ?? '—'}</TableCell>
                     <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.trade_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.trade_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
                     <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.payment_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.payment_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
