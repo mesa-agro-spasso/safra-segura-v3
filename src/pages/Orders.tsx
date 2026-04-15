@@ -508,6 +508,21 @@ const Orders = () => {
         .order('created_at', { ascending: false })
         .limit(1);
       const displayCode = (insertedOrders as any)?.[0]?.display_code ?? operationId?.slice(0, 8);
+
+      // Step 4: Create payment event (non-blocking)
+      try {
+        await supabase.from('payment_events').insert({
+          operation_id: operationId,
+          scheduled_date: selectedSnapshotData?.payment_date,
+          amount_brl: (selectedSnapshotData?.origination_price_brl ?? 0) * parseFloat(volume),
+          status: 'pending',
+          registered_by: user?.id ?? null,
+        } as never);
+      } catch (payErr) {
+        console.error('Failed to insert payment_event:', payErr);
+        toast.warning('Ordem salva, mas evento de pagamento não foi registrado');
+      }
+
       toast.success(`Ordem criada: ${displayCode}`);
 
       // Reset
