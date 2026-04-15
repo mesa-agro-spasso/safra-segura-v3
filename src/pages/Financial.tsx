@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
 } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface PaymentRow {
   id: string;
@@ -30,6 +32,7 @@ interface PaymentRow {
   commodity?: string;
   warehouse_display_name?: string;
   display_code?: string;
+  volume_sacks?: number;
 }
 
 const fmtBrl = (v: number) =>
@@ -70,7 +73,7 @@ export default function Financial() {
       // Batch fetch operations for commodity + warehouse_id
       const { data: ops } = await supabase
         .from('operations')
-        .select('id, commodity, warehouse_id')
+        .select('id, commodity, warehouse_id, volume_sacks')
         .in('id', opIds);
 
       // Batch fetch hedge_orders for display_code
@@ -98,6 +101,7 @@ export default function Financial() {
           commodity: op?.commodity ?? '—',
           warehouse_display_name: op ? (whMap[op.warehouse_id] ?? '—') : '—',
           display_code: order?.display_code ?? e.operation_id?.slice(0, 8),
+          volume_sacks: op?.volume_sacks ?? 0,
         };
       });
     },
@@ -205,7 +209,41 @@ export default function Financial() {
                     <TableCell>{r.warehouse_display_name}</TableCell>
                     <TableCell>{r.commodity === 'soybean' ? 'Soja' : r.commodity === 'corn' ? 'Milho' : r.commodity}</TableCell>
                     <TableCell>{fmtDate(r.scheduled_date)}</TableCell>
-                    <TableCell>{fmtBrl(r.amount_brl)}</TableCell>
+                    <TableCell>
+                      {/* Desktop: tooltip on hover; Mobile: popover on tap */}
+                      <span className="hidden md:inline">
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted underline-offset-4">
+                                {fmtBrl(r.amount_brl)}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs space-y-1 max-w-[260px]">
+                              <p className="font-semibold">Cálculo do valor</p>
+                              <p>Preço originação: {r.volume_sacks ? fmtBrl(r.amount_brl / r.volume_sacks) : '—'}/sc</p>
+                              <p>Volume: {r.volume_sacks?.toLocaleString('pt-BR') ?? '—'} sacas</p>
+                              <p className="border-t pt-1 font-medium">{r.volume_sacks ? fmtBrl(r.amount_brl / r.volume_sacks) : '—'} × {r.volume_sacks?.toLocaleString('pt-BR') ?? '—'} = {fmtBrl(r.amount_brl)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </span>
+                      <span className="md:hidden">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <span className="cursor-pointer underline decoration-dotted underline-offset-4">
+                              {fmtBrl(r.amount_brl)}
+                            </span>
+                          </PopoverTrigger>
+                          <PopoverContent side="top" className="text-xs space-y-1 w-auto max-w-[260px] p-3">
+                            <p className="font-semibold">Cálculo do valor</p>
+                            <p>Preço originação: {r.volume_sacks ? fmtBrl(r.amount_brl / r.volume_sacks) : '—'}/sc</p>
+                            <p>Volume: {r.volume_sacks?.toLocaleString('pt-BR') ?? '—'} sacas</p>
+                            <p className="border-t pt-1 font-medium">{r.volume_sacks ? fmtBrl(r.amount_brl / r.volume_sacks) : '—'} × {r.volume_sacks?.toLocaleString('pt-BR') ?? '—'} = {fmtBrl(r.amount_brl)}</p>
+                          </PopoverContent>
+                        </Popover>
+                      </span>
+                    </TableCell>
                     <TableCell>
                       {r.status === 'paid' ? (
                         <Badge className="bg-green-600 text-white">Pago</Badge>
