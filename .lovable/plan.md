@@ -1,32 +1,37 @@
 
 
-# MTM Detail Dialog — Simplified Results Table + Click-to-Detail
+# Add "Data de Venda" column to Financial table
 
 ## Overview
-Single file change: `src/pages/MTM.tsx`. Replace the dense results table with a simplified 7-column version. Clicking a row opens a Dialog with full identification, dates, market snapshot, and MTM breakdown.
+Single file change in `src/pages/Financial.tsx`. Fetch `sale_date` from `pricing_snapshots` and display it as a new column.
 
 ## Changes
 
-### 1. New imports (after line 13)
-Add `Dialog, DialogContent, DialogHeader, DialogTitle` from `@/components/ui/dialog` and `Separator` from `@/components/ui/separator`.
+### 1. Interface — add `sale_date` to `PaymentRow` (line 35)
+Add `sale_date?: string | null;` to the interface.
 
-### 2. New state (after line 28)
-Add `detailResult` state: `useState<Record<string, unknown> | null>(null)`.
+### 2. Query — add `pricing_snapshot_id` to operations select (line 76)
+Change select to `'id, commodity, warehouse_id, volume_sacks, pricing_snapshot_id'`.
 
-### 3. Replace results table (lines 155–199)
-Replace the entire results `Card` block with a simplified table containing only: Operação, Commodity, Praça, Entrada, Saída, Total (color-coded green/red), Por Saca. Each row gets `cursor-pointer hover:bg-muted/50` and `onClick={() => setDetailResult(r)}`. Helper variables (`matchedOrder`, `ps`, `wName`, `fmtDate`) computed per row to avoid repeated `.find()` calls.
+### 3. Query — batch fetch pricing_snapshots (after line 94, before the return map)
+```ts
+const snapIds = [...new Set((ops ?? []).map((o: any) => o.pricing_snapshot_id).filter(Boolean))];
+const { data: snaps } = await supabase
+  .from('pricing_snapshots')
+  .select('id, sale_date')
+  .in('id', snapIds.length ? snapIds : ['__none__']);
+const snapsMap = Object.fromEntries((snaps ?? []).map((s: any) => [s.id, s]));
+```
 
-### 4. Add detail Dialog (after the results Card, before closing `</div>`)
-An IIFE renders a `Dialog` controlled by `detailResult !== null`. Contains:
-- **Identificação**: operation_id, commodity, volume
-- **Datas**: Entrada, Pagamento, Recepção, Saída
-- **Snapshot de Mercado**: futures_price_current, physical_price_current, spot_rate_current, option_premium_current
-- **Resultado MTM**: Físico, Futuros, NDF, Opção, Total (color-coded), Por Saca
+### 4. Query — add `sale_date` to mapped result (line 104)
+Add: `sale_date: snapsMap[op?.pricing_snapshot_id]?.sale_date ?? null,`
 
-Each section separated by `<Separator />`. Uses a local `DetailRow` component for label/value pairs and `fmtBrl` helper.
+### 5. Table header (line 197–198)
+Add `<TableHead>Data de Venda</TableHead>` after "Data Prevista".
+
+### 6. Table body (after the scheduled_date cell, line 211)
+Add `<TableCell>{fmtDate(r.sale_date)}</TableCell>` after the Data Prevista cell.
 
 ### What does NOT change
-- Active operations table (stays as-is with all current columns including Preço Físico Atual input)
-- `handleCalculate`, imports for other components, hooks, state declarations (except adding `detailResult`)
-- No other files
+No other files, no other logic, no other columns.
 
