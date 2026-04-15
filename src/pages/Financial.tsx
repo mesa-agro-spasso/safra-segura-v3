@@ -94,6 +94,13 @@ export default function Financial() {
       const ordersMap = Object.fromEntries((orders ?? []).map((o: any) => [o.operation_id, o]));
       const whMap = Object.fromEntries((whs ?? []).map((w: any) => [w.id, w.display_name]));
 
+      const snapIds = [...new Set((ops ?? []).map((o: any) => o.pricing_snapshot_id).filter(Boolean))];
+      const { data: snaps } = await supabase
+        .from('pricing_snapshots')
+        .select('id, sale_date')
+        .in('id', snapIds.length ? snapIds : ['__none__']);
+      const snapsMap = Object.fromEntries((snaps ?? []).map((s: any) => [s.id, s]));
+
       return events.map((e: any): PaymentRow => {
         const op = opsMap[e.operation_id];
         const order = ordersMap[e.operation_id];
