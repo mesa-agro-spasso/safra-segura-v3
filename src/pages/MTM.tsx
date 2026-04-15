@@ -217,7 +217,7 @@ const MTM = () => {
 
         return (
           <Dialog open onOpenChange={(o) => { if (!o) setDetailResult(null); }}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   MTM — {(detailResult.operation_id as string)?.slice(0, 8)} / {wName}
