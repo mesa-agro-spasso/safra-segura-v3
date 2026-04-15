@@ -39,7 +39,7 @@ const MTM = () => {
         commodity: o.commodity,
         volume_sacks: o.volume_sacks,
         origination_price_brl: o.origination_price_brl,
-        positions: o.legs,
+        legs: o.legs,
         physical_price_current: parseFloat(physicalPrices[o.operation_id] || '0'),
       }));
 
