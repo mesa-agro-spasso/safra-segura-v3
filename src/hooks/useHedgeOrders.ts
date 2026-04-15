@@ -8,7 +8,7 @@ export function useHedgeOrders(filters?: { commodity?: string; status?: string }
     queryFn: async () => {
       let query = supabase
         .from('hedge_orders')
-        .select('*, operation:operations(warehouse_id, warehouses(display_name), pricing_snapshots(trade_date, sale_date))')
+        .select('*, operation:operations(warehouse_id, warehouses(display_name), pricing_snapshots(trade_date, payment_date, grain_reception_date, sale_date))')
         .order('created_at', { ascending: false });
       if (filters?.commodity) query = query.eq('commodity', filters.commodity);
       if (filters?.status) query = query.eq('status', filters.status);

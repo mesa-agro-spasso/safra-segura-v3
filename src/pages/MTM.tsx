@@ -18,7 +18,12 @@ const MTM = () => {
   const { data: mtmSnapshots } = useMtmSnapshots();
   const saveMtm = useSaveMtmSnapshot();
   const { user } = useAuth();
-  const [physicalPrices, setPhysicalPrices] = useState<Record<string, string>>({});
+  const [physicalPrices, setPhysicalPrices] = useState<Record<string, string>>(() => {
+    try {
+      const stored = sessionStorage.getItem('mtm_physical_prices');
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
   const [calculating, setCalculating] = useState(false);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
 
