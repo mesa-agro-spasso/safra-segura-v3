@@ -48,7 +48,7 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap }: P
   const [selectedCols, setSelectedCols] = useState<Set<string>>(
     new Set(ALL_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key))
   );
-  const [format, setFormat] = useState<'xlsx' | 'pdf'>('xlsx');
+  const [format, setFormat] = useState<'xlsx' | 'pdf' | 'mobile'>('xlsx');
   const [exporting, setExporting] = useState(false);
 
   const toggleCol = (key: string) => {
@@ -70,8 +70,10 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap }: P
     try {
       if (format === 'xlsx') {
         await exportXlsx(cols, rows, warehouseMap);
-      } else {
+      } else if (format === 'pdf') {
         await exportPdf(cols, rows, warehouseMap);
+      } else if (format === 'mobile') {
+        await exportMobilePng(cols, rows, warehouseMap);
       }
       toast.success('Exportação concluída');
       onOpenChange(false);
@@ -92,7 +94,7 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap }: P
         <div className="space-y-4">
           <div>
             <Label className="text-sm font-semibold">Formato</Label>
-            <RadioGroup value={format} onValueChange={(v) => setFormat(v as 'xlsx' | 'pdf')} className="flex gap-4 mt-2">
+            <RadioGroup value={format} onValueChange={(v) => setFormat(v as 'xlsx' | 'pdf' | 'mobile')} className="flex flex-col gap-2 mt-2">
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="xlsx" id="fmt-xlsx" />
                 <Label htmlFor="fmt-xlsx" className="text-sm cursor-pointer">Excel (.xlsx)</Label>
@@ -100,6 +102,10 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap }: P
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="pdf" id="fmt-pdf" />
                 <Label htmlFor="fmt-pdf" className="text-sm cursor-pointer">PDF</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="mobile" id="fmt-mobile" />
+                <Label htmlFor="fmt-mobile" className="text-sm cursor-pointer">Celular (PNG)</Label>
               </div>
             </RadioGroup>
           </div>
@@ -148,23 +154,24 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function getDateStr() {
+  const now = new Date();
+  return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+}
+
 async function exportXlsx(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
-  // Build CSV with BOM for Excel compat
   const sep = ';';
   const header = cols.map((c) => c.label).join(sep);
   const body = rows.map((r) => cols.map((c) => c.getValue(r, wm).replace(/;/g, ',')).join(sep));
   const csv = '\uFEFF' + [header, ...body].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-  downloadBlob(blob, `tabela_precos_${dateStr}.csv`);
+  downloadBlob(blob, `tabela_precos_${getDateStr()}.csv`);
 }
 
 async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
   const now = new Date();
   const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  // Group rows by commodity
   const grouped: Record<string, PricingSnapshot[]> = {};
   for (const r of rows) {
     const key = r.commodity;
@@ -180,17 +187,12 @@ async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Reco
   let sections = '';
   for (const [commodity, cRows] of Object.entries(grouped)) {
     const meta = commodityMeta[commodity] ?? { label: commodity.toUpperCase(), icon: '📦', color: '#555' };
-
-    // Collect unique tickers for the header subtitle
     const tickers = [...new Set(cRows.map((r) => r.ticker))].join(' · ');
     const fxInfo = commodity === 'soybean' && cRows[0]?.exchange_rate
       ? ` · USD ${cRows[0].exchange_rate.toFixed(4)}`
       : '';
 
-    const headerRow = cols.map((c) =>
-      `<th>${c.label}</th>`
-    ).join('');
-
+    const headerRow = cols.map((c) => `<th>${c.label}</th>`).join('');
     const bodyRows = cRows.map((r, i) => {
       const cells = cols.map((c) => `<td>${c.getValue(r, wm)}</td>`).join('');
       return `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">${cells}</tr>`;
@@ -215,38 +217,38 @@ async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Reco
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    color: #333; background: #fff; padding: 32px 28px;
+    color: #333; background: #fff; padding: 40px 36px;
   }
   .brand {
     display: flex; justify-content: space-between; align-items: baseline;
-    margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 28px; padding-bottom: 14px; border-bottom: 2px solid #e5e7eb;
   }
-  .brand h1 { font-size: 18px; font-weight: 700; color: #111; letter-spacing: -0.3px; }
-  .brand .meta { font-size: 11px; color: #999; }
-  .section { background: #fafafa; border-radius: 10px; padding: 0; margin-bottom: 20px; overflow: hidden; border: 1px solid #e5e7eb; }
+  .brand h1 { font-size: 26px; font-weight: 700; color: #111; letter-spacing: -0.3px; }
+  .brand .meta { font-size: 14px; color: #999; }
+  .section { background: #fafafa; border-radius: 10px; padding: 0; margin-bottom: 24px; overflow: hidden; border: 1px solid #e5e7eb; }
   .section-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 14px 20px; background: #fff; border-bottom: 1px solid #eee;
+    padding: 16px 22px; background: #fff; border-bottom: 1px solid #eee;
   }
-  .section-title { font-size: 15px; display: flex; align-items: center; gap: 6px; }
-  .icon { font-size: 18px; }
-  .section-subtitle { font-size: 12px; color: #888; font-weight: 400; }
+  .section-title { font-size: 20px; display: flex; align-items: center; gap: 8px; }
+  .icon { font-size: 24px; }
+  .section-subtitle { font-size: 15px; color: #888; font-weight: 400; }
   table { width: 100%; border-collapse: collapse; }
   thead tr { background: #f5f5f5; }
   th {
-    padding: 10px 16px; font-size: 11px; font-weight: 600; color: #888;
+    padding: 12px 18px; font-size: 14px; font-weight: 600; color: #888;
     text-align: left; text-transform: uppercase; letter-spacing: 0.4px;
     border-bottom: 1px solid #e5e7eb;
   }
   td {
-    padding: 12px 16px; font-size: 13px; color: #333; font-weight: 500;
+    padding: 14px 18px; font-size: 16px; color: #333; font-weight: 500;
     border-bottom: 1px solid #f0f0f0;
   }
   .row-even { background: #fff; }
   .row-odd { background: #fafafa; }
   tr:last-child td { border-bottom: none; }
   @media print {
-    body { padding: 16px; }
+    body { padding: 20px; }
     .section { break-inside: avoid; }
   }
 </style></head><body>
@@ -264,4 +266,112 @@ async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Reco
   win.document.write(html);
   win.document.close();
   setTimeout(() => { win.print(); }, 500);
+}
+
+async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
+  const now = new Date();
+  const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  const grouped: Record<string, PricingSnapshot[]> = {};
+  for (const r of rows) {
+    if (!grouped[r.commodity]) grouped[r.commodity] = [];
+    grouped[r.commodity].push(r);
+  }
+
+  const commodityMeta: Record<string, { label: string; icon: string; bg: string; color: string }> = {
+    soybean: { label: 'SOJA', icon: '🌾', bg: '#e8f5e9', color: '#2e7d32' },
+    corn: { label: 'MILHO', icon: '🌽', bg: '#fff8e1', color: '#f57f17' },
+  };
+
+  let cards = '';
+  for (const [commodity, cRows] of Object.entries(grouped)) {
+    const meta = commodityMeta[commodity] ?? { label: commodity.toUpperCase(), icon: '📦', bg: '#f5f5f5', color: '#555' };
+    const tickers = [...new Set(cRows.map((r) => r.ticker))].join(' · ');
+
+    cards += `<div style="margin-bottom:32px;">
+      <div style="background:${meta.bg};padding:20px 28px;border-radius:16px 16px 0 0;display:flex;align-items:center;gap:12px;">
+        <span style="font-size:32px;">${meta.icon}</span>
+        <span style="font-size:28px;font-weight:800;color:${meta.color};letter-spacing:0.5px;">${meta.label}</span>
+        <span style="font-size:18px;color:#888;margin-left:auto;">${tickers}</span>
+      </div>`;
+
+    for (const row of cRows) {
+      const fields = cols.map((c) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 28px;border-bottom:1px solid #f0f0f0;">
+          <span style="font-size:18px;color:#888;font-weight:500;">${c.label}</span>
+          <span style="font-size:22px;color:#222;font-weight:700;">${c.getValue(row, wm)}</span>
+        </div>`
+      ).join('');
+
+      cards += `<div style="background:#fff;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin-bottom:2px;">
+        ${fields}
+      </div>`;
+    }
+
+    cards += `</div>`;
+  }
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1080px;
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #ffffff;
+    padding: 40px 32px;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 36px;
+    padding-bottom: 20px;
+    border-bottom: 3px solid #e5e7eb;
+  }
+  .header h1 {
+    font-size: 36px;
+    font-weight: 800;
+    color: #111;
+    margin-bottom: 8px;
+  }
+  .header .meta {
+    font-size: 18px;
+    color: #999;
+  }
+</style></head><body>
+  <div class="header">
+    <h1>Safra Segura — Tabela de Preços</h1>
+    <div class="meta">Gerado em ${dateStr}</div>
+  </div>
+  ${cards}
+</body></html>`;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1080px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+
+  try {
+    const iframeDoc = iframe.contentDocument!;
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
+
+    await new Promise((r) => setTimeout(r, 300));
+
+    const bodyEl = iframeDoc.body;
+    iframe.style.height = `${bodyEl.scrollHeight}px`;
+    await new Promise((r) => setTimeout(r, 100));
+
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await html2canvas(bodyEl, {
+      width: 1080,
+      scale: 1,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+    });
+
+    canvas.toBlob((blob) => {
+      if (blob) downloadBlob(blob, `tabela_precos_mobile_${getDateStr()}.png`);
+    }, 'image/png');
+  } finally {
+    document.body.removeChild(iframe);
+  }
 }
