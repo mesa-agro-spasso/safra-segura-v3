@@ -1,37 +1,44 @@
 
 
-# Add "Data de Venda" column to Financial table
+# Calendário Financeiro — Plano Final
 
 ## Overview
-Single file change in `src/pages/Financial.tsx`. Fetch `sale_date` from `pricing_snapshots` and display it as a new column.
+Add a financial calendar to the Financeiro page with Month, Week, Agenda, and custom Year views. Events are color-coded (red=outflow from payment_events, green=inflow from pricing_snapshots). Clicking a day opens a side panel with details and the ability to mark payments as paid using the same confirmation dialog as the table.
 
-## Changes
+## Dependencies
+Install `react-big-calendar` and `@types/react-big-calendar`. `date-fns` is already available.
 
-### 1. Interface — add `sale_date` to `PaymentRow` (line 35)
-Add `sale_date?: string | null;` to the interface.
+## New Files
 
-### 2. Query — add `pricing_snapshot_id` to operations select (line 76)
-Change select to `'id, commodity, warehouse_id, volume_sacks, pricing_snapshot_id'`.
+### 1. `src/hooks/useFinancialCalendarData.ts`
+- Fetch `payment_events` joined with operations/warehouses/hedge_orders → type `outflow` (red)
+- Fetch `pricing_snapshots` where `sale_date IS NOT NULL` joined with operations/warehouses → type `inflow` (green)
+- Return unified `CalendarEvent[]` with `id, title, start, end, type, resource`
 
-### 3. Query — batch fetch pricing_snapshots (after line 94, before the return map)
-```ts
-const snapIds = [...new Set((ops ?? []).map((o: any) => o.pricing_snapshot_id).filter(Boolean))];
-const { data: snaps } = await supabase
-  .from('pricing_snapshots')
-  .select('id, sale_date')
-  .in('id', snapIds.length ? snapIds : ['__none__']);
-const snapsMap = Object.fromEntries((snaps ?? []).map((s: any) => [s.id, s]));
-```
+### 2. `src/components/financial/FinancialCalendar.tsx`
+- `react-big-calendar` with `dateFnsLocalizer` (pt-BR)
+- Register views: `{ month: true, week: true, agenda: true, year: AnnualGrid }`
+- `eventPropGetter`: green (#10b981) for inflow, red (#ef4444) for outflow
+- `onSelectSlot` (day click) → open DayDetailPanel
+- `onSelectEvent` → open DayDetailPanel filtered to that event's day
+- `messages` with PT-BR labels: Mês, Semana, Agenda, Ano
 
-### 4. Query — add `sale_date` to mapped result (line 104)
-Add: `sale_date: snapsMap[op?.pricing_snapshot_id]?.sale_date ?? null,`
+### 3. `src/components/financial/AnnualGrid.tsx`
+- Custom RBC view component (receives `date`, `onNavigate`, `onView` props)
+- 4×3 grid of `react-day-picker` months with modifiers for event days (green/red dots)
+- Click on a day → triggers `onSelectSlot` on parent
 
-### 5. Table header (line 197–198)
-Add `<TableHead>Data de Venda</TableHead>` after "Data Prevista".
+### 4. `src/components/financial/DayDetailPanel.tsx`
+- Shadcn `Sheet` showing events for the selected day grouped by type
+- For pending outflows: button "Marcar como Pago" opens a **confirmation Dialog with date input + notes textarea** — same UX as the existing table flow (`handleConfirmPay` pattern), NOT a silent update
+- Inflows: view-only
 
-### 6. Table body (after the scheduled_date cell, line 211)
-Add `<TableCell>{fmtDate(r.sale_date)}</TableCell>` after the Data Prevista cell.
+## Modified File
 
-### What does NOT change
-No other files, no other logic, no other columns.
+### 5. `src/pages/Financial.tsx`
+- Wrap existing table and new calendar in `Tabs` (Tabela | Calendário)
+- No changes to existing table logic or pay dialog
+
+## Key Detail: Payment Confirmation in Panel
+The DayDetailPanel will include the same Dialog pattern already used in Financial.tsx: a modal with a date input for "Data de pagamento realizado" and a Textarea for "Observações", with Cancelar/Confirmar buttons. The update call mirrors `handleConfirmPay` — sets `status: 'paid'`, `realized_date`, `notes`, `registered_by`, then invalidates queries.
 
