@@ -305,6 +305,60 @@ export type Database = {
           },
         ]
       }
+      payment_events: {
+        Row: {
+          amount_brl: number
+          created_at: string | null
+          id: string
+          notes: string | null
+          operation_id: string
+          realized_date: string | null
+          registered_by: string | null
+          scheduled_date: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount_brl: number
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          operation_id: string
+          realized_date?: string | null
+          registered_by?: string | null
+          scheduled_date: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount_brl?: number
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          operation_id?: string
+          realized_date?: string | null
+          registered_by?: string | null
+          scheduled_date?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_events_registered_by_fkey"
+            columns: ["registered_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_combinations: {
         Row: {
           active: boolean
