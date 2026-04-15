@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, AlertTriangle, Download, Filter } from 'lucide-react';
@@ -33,9 +34,9 @@ const PricingTable = () => {
   const [exportOpen, setExportOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
   const [detailSnap, setDetailSnap] = useState<any>(null);
-  const [filterCommodity, setFilterCommodity] = useState<string>('all');
-  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
-  const [filterTicker, setFilterTicker] = useState<string>('all');
+  const [filterCommodity, setFilterCommodity] = useState<string[]>([]);
+  const [filterWarehouse, setFilterWarehouse] = useState<string[]>([]);
+  const [filterTicker, setFilterTicker] = useState<string[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const staleTickers = useMemo(() => {
@@ -68,12 +69,18 @@ const PricingTable = () => {
 
   const rows = useMemo(() => {
     return allRows.filter((s) => {
-      if (filterCommodity !== 'all' && s.commodity !== filterCommodity) return false;
-      if (filterWarehouse !== 'all' && s.warehouse_id !== filterWarehouse) return false;
-      if (filterTicker !== 'all' && s.ticker !== filterTicker) return false;
+      if (filterCommodity.length > 0 && !filterCommodity.includes(s.commodity)) return false;
+      if (filterWarehouse.length > 0 && !filterWarehouse.includes(s.warehouse_id)) return false;
+      if (filterTicker.length > 0 && !filterTicker.includes(s.ticker)) return false;
       return true;
     });
   }, [allRows, filterCommodity, filterWarehouse, filterTicker]);
+
+  const toggleFilter = (setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
+    setter((prev) => prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]);
+  };
+
+  const hasActiveFilters = filterCommodity.length > 0 || filterWarehouse.length > 0 || filterTicker.length > 0;
 
   // Unique values for filter dropdowns
   const uniqueCommodities = useMemo(() => [...new Set(allRows.map((r) => r.commodity))], [allRows]);
