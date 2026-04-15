@@ -160,3 +160,9 @@ export interface PricingCombination {
   created_at: string;
   updated_at: string;
 }
+
+export interface PricingParameter {
+  id: string;
+  sigma: number;
+  updated_at: string;
+}

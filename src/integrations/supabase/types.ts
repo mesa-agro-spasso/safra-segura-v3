@@ -442,6 +442,24 @@ export type Database = {
           },
         ]
       }
+      pricing_parameters: {
+        Row: {
+          id: string
+          sigma: number
+          updated_at: string | null
+        }
+        Insert: {
+          id: string
+          sigma: number
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          sigma?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       pricing_snapshots: {
         Row: {
           additional_discount_brl: number
