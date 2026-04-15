@@ -106,6 +106,9 @@ const MTM = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Operação</TableHead>
+                  <TableHead>Praça</TableHead>
+                  <TableHead>Entrada</TableHead>
+                  <TableHead>Saída</TableHead>
                   <TableHead>Commodity</TableHead>
                   <TableHead>Volume</TableHead>
                   <TableHead>Preço Orig.</TableHead>
@@ -116,6 +119,9 @@ const MTM = () => {
                 {orders.map((o) => (
                   <TableRow key={o.id}>
                     <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
+                    <TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
+                    <TableCell>{o.operation?.pricing_snapshots?.trade_date ? new Date(o.operation.pricing_snapshots.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+                    <TableCell>{o.operation?.pricing_snapshots?.sale_date ? new Date(o.operation.pricing_snapshots.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
                     <TableCell>{o.commodity}</TableCell>
                     <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
                     <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>
