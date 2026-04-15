@@ -137,7 +137,11 @@ const MTM = () => {
                         className="h-8 w-28"
                         placeholder="0.00"
                         value={physicalPrices[o.operation_id] || ''}
-                        onChange={(e) => setPhysicalPrices((p) => ({ ...p, [o.operation_id]: e.target.value }))}
+                        onChange={(e) => setPhysicalPrices((p) => {
+                          const updated = { ...p, [o.operation_id]: e.target.value };
+                          try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch {}
+                          return updated;
+                        })}
                       />
                     </TableCell>
                   </TableRow>
@@ -156,6 +160,11 @@ const MTM = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Operação</TableHead>
+                  <TableHead>Praça</TableHead>
+                  <TableHead>Entrada</TableHead>
+                  <TableHead>Pagamento</TableHead>
+                  <TableHead>Recepção</TableHead>
+                  <TableHead>Saída</TableHead>
                   <TableHead>Físico</TableHead>
                   <TableHead>Futuros</TableHead>
                   <TableHead>NDF</TableHead>
@@ -168,6 +177,11 @@ const MTM = () => {
                 {results.map((r, i) => (
                   <TableRow key={i}>
                     <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
+                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.warehouses?.display_name ?? '—'}</TableCell>
+                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.trade_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.trade_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.payment_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.payment_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.grain_reception_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.grain_reception_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+                    <TableCell>{orders?.find(o => o.operation_id === r.operation_id)?.operation?.pricing_snapshots?.sale_date ? new Date((orders.find(o => o.operation_id === r.operation_id)!.operation!.pricing_snapshots!.sale_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
                     <TableCell>R$ {((r.mtm_physical_brl as number) ?? 0).toFixed(2)}</TableCell>
                     <TableCell>R$ {((r.mtm_futures_brl as number) ?? 0).toFixed(2)}</TableCell>
                     <TableCell>R$ {((r.mtm_ndf_brl as number) ?? 0).toFixed(2)}</TableCell>
