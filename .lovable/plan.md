@@ -1,47 +1,36 @@
 
 
-# MTM Page Enhancements — Corrected Plan
+# MTM Enhancements — sessionStorage + Results Table Columns
 
 ## Overview
-Three files modified: add nested `operation` field to `HedgeOrder` type, update the hedge orders query to join `operations` → `warehouses` + `pricing_snapshots`, and enhance the MTM page with new columns and a rewritten `handleCalculate`.
+Changes across three files: persist physical prices in sessionStorage, expand the results table with operation context columns, and update the type/query to support the new `payment_date` and `grain_reception_date` fields.
 
 ## Changes
 
-### 1. `src/types/index.ts` — Add nested `operation` to HedgeOrder
-After `created_at: string;`, add:
+### 1. `src/types/index.ts` — Expand `pricing_snapshots` in HedgeOrder (line 89)
+Update from `{ trade_date: string; sale_date: string }` to:
 ```ts
-operation?: {
-  warehouse_id: string;
-  warehouses: { display_name: string } | null;
-  pricing_snapshots: { trade_date: string; sale_date: string } | null;
-} | null;
+{ trade_date: string; payment_date: string; grain_reception_date: string; sale_date: string }
 ```
 
-### 2. `src/hooks/useHedgeOrders.ts` — Update select
-Replace `select('*')` with:
+### 2. `src/hooks/useHedgeOrders.ts` — Fetch new fields (line 11)
+Update `pricing_snapshots(trade_date, sale_date)` to:
 ```ts
-.select('*, operation:operations(warehouse_id, warehouses(display_name), pricing_snapshots(trade_date, sale_date))')
+pricing_snapshots(trade_date, payment_date, grain_reception_date, sale_date)
 ```
 
-### 3. `src/pages/MTM.tsx`
+### 3. `src/pages/MTM.tsx` — Three changes
 
-**3a. Table headers** — after "Operação", add `Praça`, `Entrada`, `Saída`.
+**3a. sessionStorage for physicalPrices (line 21)**
+Initialize state from `sessionStorage.getItem('mtm_physical_prices')` with try/catch fallback.
 
-**3b. Table cells** — after operation_id cell, add:
-```tsx
-<TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
-<TableCell>{o.operation?.pricing_snapshots?.trade_date ? new Date(o.operation.pricing_snapshots.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-<TableCell>{o.operation?.pricing_snapshots?.sale_date ? new Date(o.operation.pricing_snapshots.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-```
+**3b. onChange handler (line 135)**
+Write updated prices to sessionStorage on every change.
 
-**3c. `handleCalculate`** — replace entire function body with the corrected version that:
-- Finds `spotFx` from marketData where `commodity === 'FX'`
-- Builds `positions` array with `order` (deep-cloned) + `snapshot` object (futures price resolved by matching leg ticker to marketData)
-- Sends `{ positions }` to `/mtm/run`
-- Saves results reading `market_snapshot` sub-object for `physical_price_current`, `futures_price_current`, `spot_rate_current`
+**3c. Results table (lines 152–172)**
+Replace headers with: Operação, Praça, Entrada, Pagamento, Recepção, Saída, Físico, Futuros, NDF, Opção, Total, Por Saca.
+Replace row cells to look up the matching order and display `warehouses.display_name`, `trade_date`, `payment_date`, `grain_reception_date`, `sale_date` (formatted pt-BR), then the existing MTM value cells.
 
 ### What does NOT change
-- Other hooks, components, pages
-- Results table at bottom of MTM
-- Imports, state declarations
+- `handleCalculate`, active operations table, imports, any other file
 
