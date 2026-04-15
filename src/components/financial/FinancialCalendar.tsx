@@ -125,12 +125,9 @@ export default function FinancialCalendar() {
         events={events}
         startAccessor="start"
         endAccessor="end"
-        views={{
-          month: true,
-          week: true,
-          agenda: true,
-          year: YearView as any,
-        }}
+        views={
+          { month: true, week: true, agenda: true, year: YearView } as any
+        }
         defaultView="month"
         messages={messages}
         culture="pt-BR"
