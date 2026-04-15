@@ -18,7 +18,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import type { Warehouse, PricingCombination } from '@/types';
+import { usePricingParameters, useUpdatePricingParameter } from '@/hooks/usePricingParameters';
+import type { Warehouse, PricingCombination, PricingParameter } from '@/types';
 
 const emptyWarehouse: Partial<Warehouse> & { id: string } = {
   id: '', display_name: '', city: '', state: '', type: 'ARMAZEM', active: true,
@@ -569,6 +570,56 @@ function CombinationsTab() {
   );
 }
 
+function ParametersTab() {
+  const { data: parameters, isLoading } = usePricingParameters();
+  const updateParameter = useUpdatePricingParameter();
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  const getLabel = (id: string) => id === 'soybean_cbot' ? 'Soja CBOT' : 'Milho B3';
+
+  const handleSave = async (id: string) => {
+    const raw = values[id];
+    if (raw === undefined || raw === '') { toast.error('Informe um valor'); return; }
+    const sigma = parseFloat(raw);
+    if (isNaN(sigma) || sigma <= 0 || sigma > 2) { toast.error('Sigma deve ser entre 0 e 2 (ex: 0.25)'); return; }
+    try {
+      await updateParameter.mutateAsync({ id, sigma });
+      toast.success(`Sigma ${getLabel(id)} atualizado`);
+      setValues((v) => { const n = { ...v }; delete n[id]; return n; });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+    }
+  };
+
+  if (isLoading) return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Volatilidade Implícita (sigma)</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">Usado no modelo Black-76 para precificação teórica de opções. Valor decimal — ex: 0.25 = 25%.</p>
+          {parameters?.map((p) => (
+            <div key={p.id} className="flex items-end gap-3">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">{getLabel(p.id)}</Label>
+                <Input type="number" step="0.01" placeholder={`ex: ${p.sigma}`}
+                  value={values[p.id] ?? ''}
+                  onChange={(e) => setValues((v) => ({ ...v, [p.id]: e.target.value }))}
+                />
+                <p className="text-[10px] text-muted-foreground">Atual: {(p.sigma * 100).toFixed(0)}%</p>
+              </div>
+              <Button size="sm" onClick={() => handleSave(p.id)} disabled={updateParameter.isPending}>
+                Salvar
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 const Settings = () => (
   <div className="space-y-4">
     <h2 className="text-xl font-bold">Configurações</h2>
@@ -576,9 +627,11 @@ const Settings = () => (
       <TabsList>
         <TabsTrigger value="warehouses">Armazéns</TabsTrigger>
         <TabsTrigger value="combinations">Combinações</TabsTrigger>
+        <TabsTrigger value="parameters">Parâmetros</TabsTrigger>
       </TabsList>
       <TabsContent value="warehouses"><WarehousesTab /></TabsContent>
       <TabsContent value="combinations"><CombinationsTab /></TabsContent>
+      <TabsContent value="parameters"><ParametersTab /></TabsContent>
     </Tabs>
   </div>
 );

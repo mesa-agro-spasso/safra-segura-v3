@@ -11,6 +11,7 @@ import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useMarketData } from '@/hooks/useMarketData';
 import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePricingParameters } from '@/hooks/usePricingParameters';
 import type { Warehouse, MarketData, PricingSnapshot, PricingCombination } from '@/types';
 
 function getNextTuesday(date: Date): Date {
