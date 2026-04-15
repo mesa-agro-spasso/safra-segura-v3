@@ -288,6 +288,12 @@ export default function Financial() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="calendario">
+          <FinancialCalendar />
+        </TabsContent>
+      </Tabs>
 
       {/* Pay Dialog */}
       <Dialog open={payDialog !== null} onOpenChange={(open) => { if (!open) setPayDialog(null); }}>
