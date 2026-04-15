@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import FinancialCalendar from '@/components/financial/FinancialCalendar';
 
 interface PaymentRow {
   id: string;
@@ -162,6 +164,14 @@ export default function Financial() {
     <div className="space-y-4 p-4">
       <h1 className="text-2xl font-bold">Financeiro</h1>
 
+      <Tabs defaultValue="tabela">
+        <TabsList>
+          <TabsTrigger value="tabela">Tabela</TabsTrigger>
+          <TabsTrigger value="calendario">Calendário</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tabela">
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -278,6 +288,12 @@ export default function Financial() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="calendario">
+          <FinancialCalendar />
+        </TabsContent>
+      </Tabs>
 
       {/* Pay Dialog */}
       <Dialog open={payDialog !== null} onOpenChange={(open) => { if (!open) setPayDialog(null); }}>
