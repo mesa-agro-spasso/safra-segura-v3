@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, AlertTriangle, Download, Filter } from 'lucide-react';
@@ -33,9 +34,9 @@ const PricingTable = () => {
   const [exportOpen, setExportOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
   const [detailSnap, setDetailSnap] = useState<any>(null);
-  const [filterCommodity, setFilterCommodity] = useState<string>('all');
-  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
-  const [filterTicker, setFilterTicker] = useState<string>('all');
+  const [filterCommodity, setFilterCommodity] = useState<string[]>([]);
+  const [filterWarehouse, setFilterWarehouse] = useState<string[]>([]);
+  const [filterTicker, setFilterTicker] = useState<string[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const staleTickers = useMemo(() => {
@@ -68,12 +69,18 @@ const PricingTable = () => {
 
   const rows = useMemo(() => {
     return allRows.filter((s) => {
-      if (filterCommodity !== 'all' && s.commodity !== filterCommodity) return false;
-      if (filterWarehouse !== 'all' && s.warehouse_id !== filterWarehouse) return false;
-      if (filterTicker !== 'all' && s.ticker !== filterTicker) return false;
+      if (filterCommodity.length > 0 && !filterCommodity.includes(s.commodity)) return false;
+      if (filterWarehouse.length > 0 && !filterWarehouse.includes(s.warehouse_id)) return false;
+      if (filterTicker.length > 0 && !filterTicker.includes(s.ticker)) return false;
       return true;
     });
   }, [allRows, filterCommodity, filterWarehouse, filterTicker]);
+
+  const toggleFilter = (setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
+    setter((prev) => prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]);
+  };
+
+  const hasActiveFilters = filterCommodity.length > 0 || filterWarehouse.length > 0 || filterTicker.length > 0;
 
   // Unique values for filter dropdowns
   const uniqueCommodities = useMemo(() => [...new Set(allRows.map((r) => r.commodity))], [allRows]);
@@ -199,7 +206,7 @@ const PricingTable = () => {
             >
               <Filter className="h-3.5 w-3.5" />
               <span>Filtros</span>
-              {(filterCommodity !== 'all' || filterWarehouse !== 'all' || filterTicker !== 'all') && (
+              {hasActiveFilters && (
                 <span className="bg-primary/20 text-primary text-[10px] px-1.5 rounded-full font-medium">ativo</span>
               )}
               <span className="ml-0.5">{filtersExpanded ? '▾' : '▸'}</span>
@@ -208,43 +215,61 @@ const PricingTable = () => {
               <div className="flex flex-wrap gap-3 mt-2 pl-5">
                 <div className="space-y-1">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Commodity</span>
-                  <Select value={filterCommodity} onValueChange={setFilterCommodity}>
-                    <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Commodity" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-36 h-8 text-xs justify-between">
+                        {filterCommodity.length === 0 ? 'Todas' : filterCommodity.map(c => c === 'soybean' ? 'Soja' : 'Milho').join(', ')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-40 p-2" align="start">
                       {uniqueCommodities.map((c) => (
-                        <SelectItem key={c} value={c}>{c === 'soybean' ? 'Soja' : 'Milho'}</SelectItem>
+                        <label key={c} className="flex items-center gap-2 px-1 py-1 text-xs cursor-pointer hover:bg-muted rounded">
+                          <Checkbox checked={filterCommodity.includes(c)} onCheckedChange={() => toggleFilter(setFilterCommodity, c)} />
+                          {c === 'soybean' ? 'Soja' : 'Milho'}
+                        </label>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Praça</span>
-                  <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
-                    <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Praça" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-40 h-8 text-xs justify-between truncate">
+                        {filterWarehouse.length === 0 ? 'Todas' : filterWarehouse.map(w => warehouseMap[w] ?? w).join(', ')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-48 p-2" align="start">
                       {uniqueWarehouses.map((w) => (
-                        <SelectItem key={w} value={w}>{warehouseMap[w] ?? w}</SelectItem>
+                        <label key={w} className="flex items-center gap-2 px-1 py-1 text-xs cursor-pointer hover:bg-muted rounded">
+                          <Checkbox checked={filterWarehouse.includes(w)} onCheckedChange={() => toggleFilter(setFilterWarehouse, w)} />
+                          {warehouseMap[w] ?? w}
+                        </label>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Ticker</span>
-                  <Select value={filterTicker} onValueChange={setFilterTicker}>
-                    <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Ticker" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-36 h-8 text-xs justify-between truncate">
+                        {filterTicker.length === 0 ? 'Todos' : filterTicker.join(', ')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-40 p-2 max-h-48 overflow-auto" align="start">
                       {uniqueTickers.map((t) => (
-                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                        <label key={t} className="flex items-center gap-2 px-1 py-1 text-xs cursor-pointer hover:bg-muted rounded">
+                          <Checkbox checked={filterTicker.includes(t)} onCheckedChange={() => toggleFilter(setFilterTicker, t)} />
+                          {t}
+                        </label>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </PopoverContent>
+                  </Popover>
                 </div>
-                {(filterCommodity !== 'all' || filterWarehouse !== 'all' || filterTicker !== 'all') && (
+                {hasActiveFilters && (
                   <div className="flex items-end">
-                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterCommodity('all'); setFilterWarehouse('all'); setFilterTicker('all'); }}>
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterCommodity([]); setFilterWarehouse([]); setFilterTicker([]); }}>
                       Limpar filtros
                     </Button>
                   </div>
