@@ -164,6 +164,14 @@ export default function Financial() {
     <div className="space-y-4 p-4">
       <h1 className="text-2xl font-bold">Financeiro</h1>
 
+      <Tabs defaultValue="tabela">
+        <TabsList>
+          <TabsTrigger value="tabela">Tabela</TabsTrigger>
+          <TabsTrigger value="calendario">Calendário</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tabela">
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
