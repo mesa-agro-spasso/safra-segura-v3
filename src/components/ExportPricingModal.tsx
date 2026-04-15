@@ -368,9 +368,16 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
       useCORS: true,
     });
 
-    canvas.toBlob((blob) => {
-      if (blob) downloadBlob(blob, `tabela_precos_mobile_${getDateStr()}.png`);
-    }, 'image/png');
+    await new Promise<void>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          downloadBlob(blob, `tabela_precos_mobile_${getDateStr()}.png`);
+          resolve();
+        } else {
+          reject(new Error('Falha ao gerar PNG'));
+        }
+      }, 'image/png');
+    });
   } finally {
     document.body.removeChild(iframe);
   }
