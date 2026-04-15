@@ -29,35 +29,40 @@ const MTM = () => {
     }
     setCalculating(true);
     try {
-      const marketPayload: Record<string, unknown> = {};
-      marketData.forEach((m) => {
-        marketPayload[m.ticker] = { price: m.price, exchange_rate: m.exchange_rate };
+      const spotFx = marketData.find((m) => m.commodity === 'FX')?.price ?? null;
+
+      const positions = orders.map((o) => {
+        const futuresLeg = (o.legs as { leg_type: string; ticker: string }[]).find(
+          (l) => l.leg_type === 'futures'
+        );
+        const futuresPrice = futuresLeg
+          ? (marketData.find((m) => m.ticker === futuresLeg.ticker)?.price ?? 0)
+          : 0;
+
+        return {
+          order: JSON.parse(JSON.stringify(o)),
+          snapshot: {
+            futures_price_current: futuresPrice,
+            physical_price_current: parseFloat(physicalPrices[o.operation_id] || '0'),
+            spot_rate_current: spotFx,
+            option_premium_current: null,
+          },
+        };
       });
 
-      const operationsPayload = orders.map((o) => ({
-        operation_id: o.operation_id,
-        commodity: o.commodity,
-        volume_sacks: o.volume_sacks,
-        origination_price_brl: o.origination_price_brl,
-        legs: o.legs,
-        physical_price_current: parseFloat(physicalPrices[o.operation_id] || '0'),
-      }));
-
       const result = await callApi<{ results: Record<string, unknown>[] }>('/mtm/run', {
-        market_data: marketPayload,
-        operations: operationsPayload,
+        positions,
       });
 
       if (result?.results) {
         setResults(result.results);
-        // Save each to Supabase
         for (const r of result.results) {
           await saveMtm.mutateAsync({
             operation_id: r.operation_id as string,
             volume_sacks: r.volume_sacks as number,
-            physical_price_current: r.physical_price_current as number,
-            futures_price_current: r.futures_price_current as number,
-            spot_rate_current: (r.spot_rate_current as number) ?? null,
+            physical_price_current: (r.market_snapshot as Record<string, number>).physical_price_current,
+            futures_price_current: (r.market_snapshot as Record<string, number>).futures_price_current,
+            spot_rate_current: ((r.market_snapshot as Record<string, number | null>).spot_rate_current) ?? null,
             mtm_physical_brl: r.mtm_physical_brl as number,
             mtm_futures_brl: r.mtm_futures_brl as number,
             mtm_ndf_brl: (r.mtm_ndf_brl as number) ?? 0,
@@ -101,6 +106,9 @@ const MTM = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Operação</TableHead>
+                  <TableHead>Praça</TableHead>
+                  <TableHead>Entrada</TableHead>
+                  <TableHead>Saída</TableHead>
                   <TableHead>Commodity</TableHead>
                   <TableHead>Volume</TableHead>
                   <TableHead>Preço Orig.</TableHead>
@@ -111,6 +119,9 @@ const MTM = () => {
                 {orders.map((o) => (
                   <TableRow key={o.id}>
                     <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
+                    <TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
+                    <TableCell>{o.operation?.pricing_snapshots?.trade_date ? new Date(o.operation.pricing_snapshots.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+                    <TableCell>{o.operation?.pricing_snapshots?.sale_date ? new Date(o.operation.pricing_snapshots.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
                     <TableCell>{o.commodity}</TableCell>
                     <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
                     <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>

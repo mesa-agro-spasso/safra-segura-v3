@@ -83,7 +83,13 @@ export interface HedgeOrder {
   cancellation_reason: string | null;
   created_by: string | null;
   created_at: string;
+  operation?: {
+    warehouse_id: string;
+    warehouses: { display_name: string } | null;
+    pricing_snapshots: { trade_date: string; sale_date: string } | null;
+  } | null;
 }
+
 
 export interface Operation {
   id: string;
