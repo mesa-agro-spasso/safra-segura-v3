@@ -33,6 +33,7 @@ interface PaymentRow {
   warehouse_display_name?: string;
   display_code?: string;
   volume_sacks?: number;
+  sale_date?: string | null;
 }
 
 const fmtBrl = (v: number) =>
@@ -73,7 +74,7 @@ export default function Financial() {
       // Batch fetch operations for commodity + warehouse_id
       const { data: ops } = await supabase
         .from('operations')
-        .select('id, commodity, warehouse_id, volume_sacks')
+        .select('id, commodity, warehouse_id, volume_sacks, pricing_snapshot_id')
         .in('id', opIds);
 
       // Batch fetch hedge_orders for display_code
@@ -93,6 +94,13 @@ export default function Financial() {
       const ordersMap = Object.fromEntries((orders ?? []).map((o: any) => [o.operation_id, o]));
       const whMap = Object.fromEntries((whs ?? []).map((w: any) => [w.id, w.display_name]));
 
+      const snapIds = [...new Set((ops ?? []).map((o: any) => o.pricing_snapshot_id).filter(Boolean))];
+      const { data: snaps } = await supabase
+        .from('pricing_snapshots')
+        .select('id, sale_date')
+        .in('id', snapIds.length ? snapIds : ['__none__']);
+      const snapsMap = Object.fromEntries((snaps ?? []).map((s: any) => [s.id, s]));
+
       return events.map((e: any): PaymentRow => {
         const op = opsMap[e.operation_id];
         const order = ordersMap[e.operation_id];
@@ -102,6 +110,7 @@ export default function Financial() {
           warehouse_display_name: op ? (whMap[op.warehouse_id] ?? '—') : '—',
           display_code: order?.display_code ?? e.operation_id?.slice(0, 8),
           volume_sacks: op?.volume_sacks ?? 0,
+          sale_date: snapsMap[op?.pricing_snapshot_id]?.sale_date ?? null,
         };
       });
     },
@@ -195,6 +204,7 @@ export default function Financial() {
                   <TableHead>Praça</TableHead>
                   <TableHead>Commodity</TableHead>
                   <TableHead>Data Prevista</TableHead>
+                  <TableHead>Data de Venda</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data Realizado</TableHead>
@@ -209,6 +219,7 @@ export default function Financial() {
                     <TableCell>{r.warehouse_display_name}</TableCell>
                     <TableCell>{r.commodity === 'soybean' ? 'Soja' : r.commodity === 'corn' ? 'Milho' : r.commodity}</TableCell>
                     <TableCell>{fmtDate(r.scheduled_date)}</TableCell>
+                    <TableCell>{fmtDate(r.sale_date)}</TableCell>
                     <TableCell>
                       {/* Desktop: tooltip on hover; Mobile: popover on tap */}
                       <span className="hidden md:inline">
