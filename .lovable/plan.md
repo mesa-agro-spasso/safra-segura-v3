@@ -1,32 +1,29 @@
 
 
-# Redesign do PNG mobile — layout clean com fontes grandes
+# Add Operations page with details view
 
-## Problema
-O PNG exportado usa fontes pequenas (labels 18px, valores 22px) e layout denso que fica difícil de ler no celular. Os cards ficam grudados sem separação visual clara.
+Five files changed, one new file created. All mechanical edits.
 
-## Mudanças no `exportMobilePng` (src/components/ExportPricingModal.tsx)
+## Changes
 
-### Layout redesenhado
-- **Header**: título 44px bold, data 22px — centralizado com mais padding
-- **Commodity header**: ícone 40px, label 36px bold, ticker 20px — com border-radius completo e mais padding (28px 36px)
-- **Cards por praça**: cada row da tabela vira um card com border-radius 16px, sombra leve (`box-shadow: 0 2px 8px rgba(0,0,0,0.06)`), margin-bottom 20px, separação visual clara
-- **Campos dentro do card**:
-  - Label: 22px, cor #666, peso 500
-  - Valor: 28px, cor #111, peso 700
-  - Padding por campo: 18px 32px
-  - Separador entre campos: 1px solid #f0f0f0
-- **Praça como título do card**: primeira linha do card com fundo sutil (#f8f9fa), fonte 26px bold, destaca a localidade
-- **Preço de originação destacado**: última linha com fundo verde claro (#f0fdf4) e valor em verde (#16a34a) para chamar atenção ao preço final
-- **Espaçamento geral**: padding do body 48px 40px, gap entre cards 24px
+### 1. `src/types/index.ts` — Add `OperationWithDetails` interface
+Append new interface at end of file with warehouse and pricing snapshot joined fields.
 
-### O que NÃO muda
-- Lógica do iframe + html2canvas (width 1080, scale 1)
-- downloadBlob helper
-- Agrupamento por commodity
-- Colunas selecionáveis pelo usuário
-- Nenhum outro arquivo alterado
+### 2. `src/hooks/useOperations.ts` — Add `useOperationsWithDetails` hook
+- Update import to include `OperationWithDetails`
+- Add new hook that selects operations with joined `warehouses` and `pricing_snapshots` data
 
-### Resultado esperado
-PNG com visual de "stories do Instagram" — limpo, fontes grandes, fácil de ler no celular mesmo com zoom mínimo.
+### 3. `src/pages/Operations.tsx` — New file
+Full operations page with:
+- Table listing all operations (praça, commodity, ticker, volume, price, dates, status)
+- Status badges with color coding
+- Click-to-open detail dialog showing identification, pricing, dates, and linked hedge orders
+
+### 4. `src/components/AppSidebar.tsx` — Add sidebar entry
+- Add `Layers` to lucide-react import
+- Add `{ title: 'Operações', url: '/operacoes', icon: Layers }` between Ordens and MTM in items array
+
+### 5. `src/App.tsx` — Add route
+- Import `Operations` page
+- Add `<Route path="/operacoes" element={<Operations />} />` after `/ordens`
 
