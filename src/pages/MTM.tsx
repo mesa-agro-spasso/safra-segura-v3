@@ -15,6 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Calculator, Filter } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { Switch } from '@/components/ui/switch';
 
 const MTM = () => {
   const { data: orders, isLoading: loadingOrders } = useHedgeOrders({ status: 'EXECUTED' });
@@ -63,6 +66,47 @@ const MTM = () => {
       return true;
     });
   }, [results, orders, filterWarehouse, filterCommodity]);
+
+  const summary = useMemo(() => {
+    if (!results?.length) return null;
+    const totalFisico = results.reduce((s, r) => s + ((r.mtm_physical_brl as number) ?? 0), 0);
+    const totalFuturos = results.reduce((s, r) => s + ((r.mtm_futures_brl as number) ?? 0), 0);
+    const totalNdf = results.reduce((s, r) => s + ((r.mtm_ndf_brl as number) ?? 0), 0);
+    const totalOpcao = results.reduce((s, r) => s + ((r.mtm_option_brl as number) ?? 0), 0);
+    const totalGeral = results.reduce((s, r) => s + ((r.mtm_total_brl as number) ?? 0), 0);
+    const totalVolume = results.reduce((s, r) => s + ((r.volume_sacks as number) ?? 0), 0);
+    const totalPerSack = totalVolume > 0 ? totalGeral / totalVolume : 0;
+    return { totalFisico, totalFuturos, totalNdf, totalOpcao, totalGeral, totalVolume, totalPerSack };
+  }, [results]);
+
+  const [chartByOperation, setChartByOperation] = useState(false);
+
+  const chartDataConsolidated = useMemo(() => {
+    if (!summary) return [];
+    return [
+      { name: 'Físico', value: summary.totalFisico },
+      { name: 'Futuros', value: summary.totalFuturos },
+      { name: 'NDF', value: summary.totalNdf },
+      { name: 'Opção', value: summary.totalOpcao },
+      { name: 'Total', value: summary.totalGeral },
+    ];
+  }, [summary]);
+
+  const chartDataByOperation = useMemo(() => {
+    if (!results?.length) return [];
+    return results.map(r => {
+      const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
+      const label = matchedOrder?.operation?.warehouses?.display_name ?? (r.operation_id as string)?.slice(0, 8);
+      return {
+        name: label,
+        Físico: (r.mtm_physical_brl as number) ?? 0,
+        Futuros: (r.mtm_futures_brl as number) ?? 0,
+        NDF: (r.mtm_ndf_brl as number) ?? 0,
+        Opção: (r.mtm_option_brl as number) ?? 0,
+        Total: (r.mtm_total_brl as number) ?? 0,
+      };
+    });
+  }, [results, orders]);
 
   const handleCalculate = async () => {
     if (!orders?.length || !marketData?.length) {
@@ -179,6 +223,7 @@ const MTM = () => {
 
   return (
     <div className="space-y-4">
+      {/* Header — outside tabs, always visible */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold">Mark-to-Market</h2>
@@ -191,159 +236,288 @@ const MTM = () => {
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="space-y-2">
-        <button
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => setFiltersExpanded(v => !v)}
-        >
-          <Filter className="h-4 w-4" />
-          Filtros
-          {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
-            <Badge variant="secondary" className="text-xs">ativo</Badge>
-          )}
-          <span className="text-xs">{filtersExpanded ? '▾' : '▸'}</span>
-        </button>
-        {filtersExpanded && (
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Praça</label>
-              <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
-                <SelectTrigger className="w-40 h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {uniqueWarehouses.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Commodity</label>
-              <Select value={filterCommodity} onValueChange={setFilterCommodity}>
-                <SelectTrigger className="w-40 h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="soybean">Soja</SelectItem>
-                  <SelectItem value="corn">Milho</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={() => { setFilterWarehouse('all'); setFilterCommodity('all'); }}
-              >
-                Limpar filtros
-              </Button>
+      <Tabs defaultValue="marcacao" className="w-full">
+        <TabsList>
+          <TabsTrigger value="marcacao">Marcação</TabsTrigger>
+          <TabsTrigger value="resumo">Resumo</TabsTrigger>
+        </TabsList>
+
+        {/* TAB 1 — Marcação */}
+        <TabsContent value="marcacao">
+          {/* Filters */}
+          <div className="space-y-2">
+            <button
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setFiltersExpanded(v => !v)}
+            >
+              <Filter className="h-4 w-4" />
+              Filtros
+              {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
+                <Badge variant="secondary" className="text-xs">ativo</Badge>
+              )}
+              <span className="text-xs">{filtersExpanded ? '▾' : '▸'}</span>
+            </button>
+            {filtersExpanded && (
+              <div className="flex flex-wrap gap-4 items-end">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Praça</label>
+                  <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+                    <SelectTrigger className="w-40 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {uniqueWarehouses.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Commodity</label>
+                  <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+                    <SelectTrigger className="w-40 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="soybean">Soja</SelectItem>
+                      <SelectItem value="corn">Milho</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => { setFilterWarehouse('all'); setFilterCommodity('all'); }}
+                  >
+                    Limpar filtros
+                  </Button>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
 
-      {/* Results table — FIRST */}
-      {filteredResults && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Resultado MTM</CardTitle></CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Operação</TableHead>
-                  <TableHead>Commodity</TableHead>
-                  <TableHead>Praça</TableHead>
-                  <TableHead>Entrada</TableHead>
-                  <TableHead>Saída</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Por Saca</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredResults.map((r, i) => {
-                  const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
-                  const ps = matchedOrder?.operation?.pricing_snapshots;
-                  const wName = matchedOrder?.operation?.warehouses?.display_name ?? '—';
-                  const fmtDate = (d?: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
-                  const total = (r.mtm_total_brl as number) ?? 0;
-                  return (
-                    <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
-                      <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
-                      <TableCell>{matchedOrder?.commodity === 'soybean' ? 'Soja' : matchedOrder?.commodity === 'corn' ? 'Milho' : matchedOrder?.commodity ?? '—'}</TableCell>
-                      <TableCell>{wName}</TableCell>
-                      <TableCell>{fmtDate(ps?.trade_date)}</TableCell>
-                      <TableCell>{fmtDate(ps?.sale_date)}</TableCell>
-                      <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        R$ {total.toFixed(2)}
-                      </TableCell>
-                      <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
+          {/* Results table */}
+          {filteredResults && (
+            <Card className="mt-4">
+              <CardHeader><CardTitle className="text-sm">Resultado MTM</CardTitle></CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Operação</TableHead>
+                      <TableHead>Commodity</TableHead>
+                      <TableHead>Praça</TableHead>
+                      <TableHead>Entrada</TableHead>
+                      <TableHead>Saída</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Por Saca</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                  </TableHeader>
+                  <TableBody>
+                    {filteredResults.map((r, i) => {
+                      const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
+                      const ps = matchedOrder?.operation?.pricing_snapshots;
+                      const wName = matchedOrder?.operation?.warehouses?.display_name ?? '—';
+                      const fmtDate = (d?: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+                      const total = (r.mtm_total_brl as number) ?? 0;
+                      return (
+                        <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
+                          <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
+                          <TableCell>{matchedOrder?.commodity === 'soybean' ? 'Soja' : matchedOrder?.commodity === 'corn' ? 'Milho' : matchedOrder?.commodity ?? '—'}</TableCell>
+                          <TableCell>{wName}</TableCell>
+                          <TableCell>{fmtDate(ps?.trade_date)}</TableCell>
+                          <TableCell>{fmtDate(ps?.sale_date)}</TableCell>
+                          <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            R$ {total.toFixed(2)}
+                          </TableCell>
+                          <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Active operations table — SECOND */}
-      {loading ? (
-        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
-      ) : !orders?.length ? (
-        <p className="text-center text-muted-foreground py-12">Nenhuma ordem executada encontrada.</p>
-      ) : (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Operações Ativas</CardTitle></CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Operação</TableHead>
-                  <TableHead>Praça</TableHead>
-                  <TableHead>Entrada</TableHead>
-                  <TableHead>Saída</TableHead>
-                  <TableHead>Commodity</TableHead>
-                  <TableHead>Volume</TableHead>
-                  <TableHead>Preço Orig.</TableHead>
-                  <TableHead>Preço Físico Atual (R$/sc)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((o) => (
-                  <TableRow key={o.id}>
-                    <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
-                    <TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
-                    <TableCell>{o.operation?.pricing_snapshots?.trade_date ? new Date(o.operation.pricing_snapshots.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-                    <TableCell>{o.operation?.pricing_snapshots?.sale_date ? new Date(o.operation.pricing_snapshots.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-                    <TableCell>{o.commodity}</TableCell>
-                    <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
-                    <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        className="h-8 w-28"
-                        placeholder="0.00"
-                        value={physicalPrices[o.operation_id] || ''}
-                        onChange={(e) => setPhysicalPrices((p) => {
-                          const updated = { ...p, [o.operation_id]: e.target.value };
-                          try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch {}
-                          return updated;
-                        })}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+          {/* Active operations table */}
+          {loading ? (
+            <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+          ) : !orders?.length ? (
+            <p className="text-center text-muted-foreground py-12">Nenhuma ordem executada encontrada.</p>
+          ) : (
+            <Card className="mt-4">
+              <CardHeader><CardTitle className="text-sm">Operações Ativas</CardTitle></CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Operação</TableHead>
+                      <TableHead>Praça</TableHead>
+                      <TableHead>Entrada</TableHead>
+                      <TableHead>Saída</TableHead>
+                      <TableHead>Commodity</TableHead>
+                      <TableHead>Volume</TableHead>
+                      <TableHead>Preço Orig.</TableHead>
+                      <TableHead>Preço Físico Atual (R$/sc)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.map((o) => (
+                      <TableRow key={o.id}>
+                        <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
+                        <TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
+                        <TableCell>{o.operation?.pricing_snapshots?.trade_date ? new Date(o.operation.pricing_snapshots.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+                        <TableCell>{o.operation?.pricing_snapshots?.sale_date ? new Date(o.operation.pricing_snapshots.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+                        <TableCell>{o.commodity}</TableCell>
+                        <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
+                        <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="h-8 w-28"
+                            placeholder="0.00"
+                            value={physicalPrices[o.operation_id] || ''}
+                            onChange={(e) => setPhysicalPrices((p) => {
+                              const updated = { ...p, [o.operation_id]: e.target.value };
+                              try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch {}
+                              return updated;
+                            })}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
-      {/* Detail dialog — unchanged */}
+        {/* TAB 2 — Resumo */}
+        <TabsContent value="resumo">
+          {!summary ? (
+            <p className="text-center text-muted-foreground py-12">Calcule o MTM primeiro para ver o resumo.</p>
+          ) : (
+            <>
+              {/* Summary cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Operações Ativas</p>
+                    <p className="text-2xl font-bold">{results?.length ?? 0}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Resultado Total</p>
+                    <p className={`text-2xl font-bold ${summary.totalGeral >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      R$ {summary.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-xs text-muted-foreground">Resultado por Saca</p>
+                    <p className={`text-2xl font-bold ${summary.totalPerSack >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      R$ {summary.totalPerSack.toFixed(2)}/sc
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Breakdown table */}
+              <Card className="mt-4">
+                <CardHeader><CardTitle className="text-sm">Resultado por Perna (Consolidado)</CardTitle></CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Perna</TableHead>
+                        <TableHead>Valor (R$)</TableHead>
+                        <TableHead>% do Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[
+                        { label: 'Físico', value: summary.totalFisico },
+                        { label: 'Futuros', value: summary.totalFuturos },
+                        { label: 'NDF', value: summary.totalNdf },
+                        { label: 'Opção', value: summary.totalOpcao },
+                      ].map(({ label, value }) => (
+                        <TableRow key={label}>
+                          <TableCell>{label}</TableCell>
+                          <TableCell className={`font-bold ${value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell>
+                            {summary.totalGeral !== 0 ? `${((value / Math.abs(summary.totalGeral)) * 100).toFixed(1)}%` : '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow>
+                        <TableCell className="font-bold">Total</TableCell>
+                        <TableCell className={`font-bold ${summary.totalGeral >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          R$ {summary.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>100%</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              {/* Chart */}
+              <Card className="mt-4">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Gráfico de Resultado</CardTitle>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Por perna</span>
+                      <Switch checked={chartByOperation} onCheckedChange={setChartByOperation} />
+                      <span>Por operação</span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    {!chartByOperation ? (
+                      <BarChart data={chartDataConsolidated}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis tickFormatter={(v: number) => `R$${(v/1000).toFixed(0)}k`} />
+                        <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']} />
+                        <Bar dataKey="value">
+                          {chartDataConsolidated.map((entry, index) => (
+                            <Cell key={index} fill={entry.value >= 0 ? 'hsl(var(--primary))' : 'hsl(var(--destructive))'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    ) : (
+                      <BarChart data={chartDataByOperation}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis tickFormatter={(v: number) => `R$${(v/1000).toFixed(0)}k`} />
+                        <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']} />
+                        <Bar dataKey="Físico" fill="hsl(var(--primary))" />
+                        <Bar dataKey="Futuros" fill="hsl(var(--accent))" />
+                        <Bar dataKey="NDF" fill="hsl(var(--muted))" />
+                        <Bar dataKey="Opção" fill="hsl(var(--secondary))" />
+                        <Bar dataKey="Total" fill="hsl(var(--destructive))" />
+                      </BarChart>
+                    )}
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Detail dialog — outside tabs */}
       {detailResult && (() => {
         const matchedOrder = orders?.find(o => o.operation_id === detailResult.operation_id);
         const ps = matchedOrder?.operation?.pricing_snapshots;
