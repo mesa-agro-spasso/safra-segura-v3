@@ -470,7 +470,7 @@ const OperationsMTM = () => {
                             R$ {calcBreakeven(r).toFixed(2)}/sc
                           </TableCell>
                           <TableCell className="text-xs tabular-nums">
-                            R$ {(calcBreakeven(r) + targetProfitPerSack).toFixed(2)}/sc
+                            R$ {(calcBreakeven(r) + getTargetProfit(r)).toFixed(2)}/sc
                           </TableCell>
                         </TableRow>
                       );
