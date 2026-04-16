@@ -80,6 +80,78 @@ const Orders = () => {
   const updateOrder = useUpdateHedgeOrder();
   const createOperation = useCreateOperation();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Roles do usuário logado (para checar se pode submeter aprovação)
+  const { data: currentUserRow } = useQuery({
+    queryKey: ['current_user_roles', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase.from('users').select('roles').eq('id', user!.id).maybeSingle();
+      return (data as { roles: string[] } | null) ?? { roles: [] };
+    },
+  });
+  const userRoles = currentUserRow?.roles ?? [];
+
+  // Operation associada à ordem selecionada (para saber o status atual)
+  const selectedOperationId = selectedOrder?.operation_id ?? null;
+  const { data: selectedOperation } = useQuery({
+    queryKey: ['operation_for_order', selectedOperationId],
+    enabled: !!selectedOperationId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('operations')
+        .select('id, status')
+        .eq('id', selectedOperationId!)
+        .maybeSingle();
+      return data as { id: string; status: string } | null;
+    },
+  });
+
+  // Assinaturas da operation selecionada
+  const { data: orderSignatures } = useQuery({
+    queryKey: ['order_signatures', selectedOperationId],
+    enabled: !!selectedOperationId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('signatures')
+        .select('*')
+        .eq('operation_id', selectedOperationId!)
+        .order('signed_at', { ascending: true });
+      const sigs = (data ?? []) as { id: string; user_id: string; role_used: string; signed_at: string; notes: string | null }[];
+      // Buscar nomes dos signatários
+      const userIds = Array.from(new Set(sigs.map((s) => s.user_id)));
+      let nameMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: users } = await supabase.from('users').select('id, full_name').in('id', userIds);
+        nameMap = Object.fromEntries((users ?? []).map((u: { id: string; full_name: string }) => [u.id, u.full_name]));
+      }
+      return sigs.map((s) => ({ ...s, full_name: nameMap[s.user_id] ?? s.user_id.slice(0, 8) }));
+    },
+  });
+
+  const [submittingApproval, setSubmittingApproval] = useState(false);
+  const handleSubmitForApproval = async () => {
+    if (!selectedOperationId) return;
+    setSubmittingApproval(true);
+    try {
+      const { error } = await supabase
+        .from('operations')
+        .update({ status: 'EM_APROVACAO' })
+        .eq('id', selectedOperationId);
+      if (error) throw error;
+      toast.success('Operação submetida para aprovação');
+      setSelectedOrder(null);
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+      queryClient.invalidateQueries({ queryKey: ['hedge_orders'] });
+      queryClient.invalidateQueries({ queryKey: ['operation_for_order'] });
+      queryClient.invalidateQueries({ queryKey: ['pending_approvals_count'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao submeter');
+    } finally {
+      setSubmittingApproval(false);
+    }
+  };
 
   // Filtered + sorted orders
   const orders = useMemo(() => {
