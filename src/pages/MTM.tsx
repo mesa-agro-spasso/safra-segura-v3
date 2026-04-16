@@ -97,7 +97,7 @@ const MTM = () => {
         return {
           order: JSON.parse(JSON.stringify(o)),
           snapshot: {
-            futures_price_current: F_brl,
+            futures_price_current: futuresPrice,
             physical_price_current: parseFloat(physicalPrices[o.operation_id] || '0'),
             spot_rate_current: spotFx,
             option_premium_current: optionPremiumCurrent,
