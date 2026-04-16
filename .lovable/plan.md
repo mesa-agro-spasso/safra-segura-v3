@@ -1,25 +1,30 @@
 
 
-# MTM Enhancement — Upsert, Filters, Layout Reorder
+# MTM Tabs + Summary Chart
 
-No database migration needed (constraint already exists).
+Single file change: `src/pages/MTM.tsx`
 
-## File Changes
+## Changes
 
-### 1. `src/types/index.ts`
-Add `snapshot_date: string;` to `MtmSnapshot` interface after `calculated_at` (line 123).
+### 1. Add imports (line 1 area)
+- `Tabs, TabsContent, TabsList, TabsTrigger` from `@/components/ui/tabs`
+- `BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell` from `recharts`
+- `Switch` from `@/components/ui/switch`
 
-### 2. `src/hooks/useMtmSnapshots.ts`
-- Replace `useMtmSnapshots` to order by `snapshot_date desc, calculated_at desc`
-- Replace `useSaveMtmSnapshot` to use `.upsert()` with `onConflict: 'operation_id,snapshot_date'`, injecting today's date as `snapshot_date`
-- Update `Omit` to exclude `'id' | 'calculated_at' | 'snapshot_date'`
+### 2. Add derived data after existing `useMemo` blocks (after line 65)
+- `summary` — aggregates totals for physical, futures, NDF, option, overall, volume, per-sack
+- `chartByOperation` state (boolean toggle)
+- `chartDataConsolidated` — array of 5 bars (Físico, Futuros, NDF, Opção, Total)
+- `chartDataByOperation` — array per operation with all leg values
 
-### 3. `src/pages/MTM.tsx`
-- Add imports: `useMemo`, `Select` components, `Filter` icon
-- Add filter state: `filterWarehouse`, `filterCommodity`, `filtersExpanded`
-- Add derived data via `useMemo`: `lastMtmCalculated`, `lastMarketUpdate`, `uniqueWarehouses`, `uniqueDates`, `filteredResults`
-- Reorder return block: header with status indicators and calculate button, collapsible filters section, **results table first**, active operations table second, detail dialog unchanged
-- Use `filteredResults` instead of `results` in results table
-- Show commodity as "Soja"/"Milho" in results table
-- Remove `console.log('DEBUG order'...)` line (line 58)
+### 3. Restructure return block (lines 180–413)
+- Keep header (title, status dots, calculate button) **outside** tabs
+- Wrap remaining content in `<Tabs defaultValue="marcacao">`
+- **Tab "Marcação"**: existing filters, results table, active operations table (unchanged content)
+- **Tab "Resumo"**: summary cards (count, total, per-sack), breakdown table by leg with % column, bar chart with consolidated/per-operation toggle via Switch
+- Detail dialog stays **outside** tabs (unchanged)
+
+### Technical notes
+- `recharts` is already in dependencies
+- No other files changed
 
