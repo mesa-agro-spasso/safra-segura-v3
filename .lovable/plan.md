@@ -1,24 +1,21 @@
 
 
-# Add Target Profit Parameter + Break-even Columns
+# Update Break-even & Target Profit Logic in OperationsMTM
 
-Four files changed. No database migration needed (`target_profit_brl_per_sack` column already exists in `pricing_parameters`).
+Single file: `src/pages/OperationsMTM.tsx`
 
 ## Changes
 
-### 1. `src/types/index.ts`
-Add `target_profit_brl_per_sack: number;` to `PricingParameter` interface (after `sigma`).
+1. **Replace `calcBreakeven` helper** — new formula uses current physical price input and MTM per sack: `(physicalCurrent - mtmPerSack) * 1.01`.
 
-### 2. `src/hooks/usePricingParameters.ts`
-Update `useUpdatePricingParameter` mutation to accept optional `target_profit_brl_per_sack` and include it in the update payload when provided.
+2. **Replace `targetProfitPerSack` constant** with commodity-specific lookups:
+   - `targetProfitSoybean` from `soybean_cbot` parameter row
+   - `targetProfitCorn` from `corn_b3` parameter row
+   - `getTargetProfit(r)` helper resolves which to use based on matched order's commodity
 
-### 3. `src/pages/Settings.tsx` — `ParametersTab` (lines 573-621)
-- Update `handleSave` (line 586): pass `target_profit_brl_per_sack: currentParam?.target_profit_brl_per_sack ?? 2.0` to preserve existing value when saving sigma.
-- Add new `<Card>` after the sigma card (after line 618) for "Lucro Alvo por Saca" with input field, description text, and save button. Uses `values['target_profit']` state key, saves to all parameter rows via `updateParameter.mutateAsync`.
+3. **Update results table cells** — use `getTargetProfit(r)` in place of `targetProfitPerSack`.
 
-### 4. `src/pages/OperationsMTM.tsx`
-- Add `targetProfitPerSack` derived value (after line 174): `pricingParameters?.[0]?.target_profit_brl_per_sack ?? 2.0`
-- Add `calcBreakeven` helper function: computes `origination + hedgeResult / volume` where hedgeResult = futures + NDF + option MTM values
-- MTM results table (lines 425-433): add two new `<TableHead>` columns ("Break-even", "Físico Alvo") and corresponding `<TableCell>` entries in each row (after "Por Saca")
-- MTM detail dialog (line 693): add two `<DetailRow>` entries after "Por Saca" for break-even and target physical price
+4. **Update detail dialog rows** — use `getTargetProfit(detailResult)` in place of `targetProfitPerSack`.
+
+No other changes.
 
