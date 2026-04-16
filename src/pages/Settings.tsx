@@ -584,7 +584,7 @@ function ParametersTab() {
     if (isNaN(sigma) || sigma <= 0 || sigma > 2) { toast.error('Sigma deve ser entre 0 e 2 (ex: 0.25)'); return; }
     try {
       const currentParam = parameters?.find(p => p.id === id);
-      await updateParameter.mutateAsync({ id, sigma, target_profit_brl_per_sack: currentParam?.target_profit_brl_per_sack ?? 2.0 });
+      await updateParameter.mutateAsync({ id, sigma, target_profit_brl_per_sack: currentParam?.target_profit_brl_per_sack ?? 2.0, execution_spread_pct: currentParam?.execution_spread_pct ?? 0.05 });
       toast.success(`Sigma ${getLabel(id)} atualizado`);
       setValues((v) => { const n = { ...v }; delete n[id]; return n; });
     } catch (err) {
@@ -643,10 +643,55 @@ function ParametersTab() {
                 if (isNaN(val) || val < 0) { toast.error('Valor deve ser >= 0'); return; }
                 try {
                   for (const p of parameters ?? []) {
-                    await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, target_profit_brl_per_sack: val });
+                    await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, target_profit_brl_per_sack: val, execution_spread_pct: p.execution_spread_pct ?? 0.05 });
                   }
                   toast.success('Lucro alvo atualizado');
                   setValues((v) => { const n = { ...v }; delete n['target_profit']; return n; });
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+                }
+              }}
+            >
+              Salvar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Spread de Execução</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">Folga aplicada ao break-even e ao físico alvo para compensar o deslizamento na execução das ordens. Valor decimal — ex: 0.05 = 5%.</p>
+          <div className="flex items-end gap-3 max-w-xs">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Spread de execução (decimal)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder={String(parameters?.[0]?.execution_spread_pct ?? 0.05)}
+                value={values['execution_spread'] ?? (parameters?.[0]?.execution_spread_pct ?? '')}
+                onChange={(e) => setValues((v) => ({ ...v, execution_spread: e.target.value }))}
+              />
+              <p className="text-[10px] text-muted-foreground">Atual: {((parameters?.[0]?.execution_spread_pct ?? 0.05) * 100).toFixed(0)}%</p>
+            </div>
+            <Button
+              size="sm"
+              disabled={updateParameter.isPending}
+              onClick={async () => {
+                const raw = values['execution_spread'];
+                if (raw === undefined || raw === '') { toast.error('Informe um valor'); return; }
+                const val = parseFloat(raw);
+                if (isNaN(val) || val < 0 || val > 1) { toast.error('Valor deve ser entre 0 e 1 (ex: 0.05 para 5%)'); return; }
+                try {
+                  for (const p of parameters ?? []) {
+                    await updateParameter.mutateAsync({
+                      id: p.id,
+                      sigma: p.sigma,
+                      target_profit_brl_per_sack: p.target_profit_brl_per_sack,
+                      execution_spread_pct: val,
+                    });
+                  }
+                  toast.success('Spread de execução atualizado');
+                  setValues((v) => { const n = { ...v }; delete n['execution_spread']; return n; });
                 } catch (err) {
                   toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
                 }

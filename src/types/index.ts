@@ -166,6 +166,7 @@ export interface PricingParameter {
   id: string;
   sigma: number;
   target_profit_brl_per_sack: number;
+  execution_spread_pct: number;
   updated_at: string;
 }
 
