@@ -186,6 +186,7 @@ export type Database = {
           mtm_total_brl: number
           operation_id: string
           physical_price_current: number
+          snapshot_date: string
           spot_rate_current: number | null
           total_exposure_brl: number
           volume_sacks: number
@@ -203,6 +204,7 @@ export type Database = {
           mtm_total_brl: number
           operation_id: string
           physical_price_current: number
+          snapshot_date?: string
           spot_rate_current?: number | null
           total_exposure_brl: number
           volume_sacks: number
@@ -220,6 +222,7 @@ export type Database = {
           mtm_total_brl?: number
           operation_id?: string
           physical_price_current?: number
+          snapshot_date?: string
           spot_rate_current?: number | null
           total_exposure_brl?: number
           volume_sacks?: number
