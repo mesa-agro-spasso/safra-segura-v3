@@ -1,4 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { CalendarIcon, Plus, Edit2, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
