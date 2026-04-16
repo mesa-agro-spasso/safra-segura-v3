@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useHedgeOrders, useCreateHedgeOrder, useUpdateHedgeOrder } from '@/hooks/useHedgeOrders';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { usePricingSnapshots } from '@/hooks/usePricingSnapshots';
@@ -17,9 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Copy, Plus, AlertTriangle, Trash2, Filter, Send, Check, X as XIcon, CalendarIcon, ShieldCheck } from 'lucide-react';
+import { Copy, Plus, AlertTriangle, Trash2, Filter, Send, Check, X as XIcon, CalendarIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -80,78 +78,6 @@ const Orders = () => {
   const updateOrder = useUpdateHedgeOrder();
   const createOperation = useCreateOperation();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-
-  // Roles do usuário logado (para checar se pode submeter aprovação)
-  const { data: currentUserRow } = useQuery({
-    queryKey: ['current_user_roles', user?.id],
-    enabled: !!user?.id,
-    queryFn: async () => {
-      const { data } = await supabase.from('users').select('roles').eq('id', user!.id).maybeSingle();
-      return (data as { roles: string[] } | null) ?? { roles: [] };
-    },
-  });
-  const userRoles = currentUserRow?.roles ?? [];
-
-  // Operation associada à ordem selecionada (para saber o status atual)
-  const selectedOperationId = selectedOrder?.operation_id ?? null;
-  const { data: selectedOperation } = useQuery({
-    queryKey: ['operation_for_order', selectedOperationId],
-    enabled: !!selectedOperationId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('operations')
-        .select('id, status')
-        .eq('id', selectedOperationId!)
-        .maybeSingle();
-      return data as { id: string; status: string } | null;
-    },
-  });
-
-  // Assinaturas da operation selecionada
-  const { data: orderSignatures } = useQuery({
-    queryKey: ['order_signatures', selectedOperationId],
-    enabled: !!selectedOperationId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('signatures')
-        .select('*')
-        .eq('operation_id', selectedOperationId!)
-        .order('signed_at', { ascending: true });
-      const sigs = (data ?? []) as { id: string; user_id: string; role_used: string; signed_at: string; notes: string | null }[];
-      // Buscar nomes dos signatários
-      const userIds = Array.from(new Set(sigs.map((s) => s.user_id)));
-      let nameMap: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const { data: users } = await supabase.from('users').select('id, full_name').in('id', userIds);
-        nameMap = Object.fromEntries((users ?? []).map((u: { id: string; full_name: string }) => [u.id, u.full_name]));
-      }
-      return sigs.map((s) => ({ ...s, full_name: nameMap[s.user_id] ?? s.user_id.slice(0, 8) }));
-    },
-  });
-
-  const [submittingApproval, setSubmittingApproval] = useState(false);
-  const handleSubmitForApproval = async () => {
-    if (!selectedOperationId) return;
-    setSubmittingApproval(true);
-    try {
-      const { error } = await supabase
-        .from('operations')
-        .update({ status: 'EM_APROVACAO' })
-        .eq('id', selectedOperationId);
-      if (error) throw error;
-      toast.success('Operação submetida para aprovação');
-      setSelectedOrder(null);
-      queryClient.invalidateQueries({ queryKey: ['operations'] });
-      queryClient.invalidateQueries({ queryKey: ['hedge_orders'] });
-      queryClient.invalidateQueries({ queryKey: ['operation_for_order'] });
-      queryClient.invalidateQueries({ queryKey: ['pending_approvals_count'] });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao submeter');
-    } finally {
-      setSubmittingApproval(false);
-    }
-  };
 
   // Filtered + sorted orders
   const orders = useMemo(() => {
@@ -1284,109 +1210,70 @@ const Orders = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Drawer de detalhe da ordem + aprovação */}
+      {/* Modal de detalhe da ordem */}
       {selectedOrder && (() => {
         const detailLegs = (selectedOrder.legs as any[]) ?? [];
-        const opStatus = selectedOperation?.status ?? null;
-        const canSubmit = opStatus === 'RASCUNHO' && userRoles.includes('mesa');
         return (
-          <Sheet open={!!selectedOrder} onOpenChange={(o) => { if (!o) setSelectedOrder(null); }}>
-            <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
-              <SheetHeader>
-                <SheetTitle>Ordem — {selectedOrder.display_code ?? selectedOrder.operation_id?.slice(0, 8) ?? selectedOrder.id?.slice(0, 8)}</SheetTitle>
-              </SheetHeader>
+          <Dialog open={!!selectedOrder} onOpenChange={(o) => { if (!o) setSelectedOrder(null); }}>
+            <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Ordem — {selectedOrder.display_code ?? selectedOrder.operation_id?.slice(0, 8) ?? selectedOrder.id?.slice(0, 8)}</DialogTitle>
+              </DialogHeader>
 
-              <div className="space-y-4 mt-4">
-                <Separator />
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Identificação</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <span className="text-muted-foreground">Commodity</span><span>{selectedOrder.commodity === 'soybean' ? 'Soja CBOT' : selectedOrder.exchange === 'b3' ? 'Milho B3' : 'Milho CBOT'}</span>
-                  <span className="text-muted-foreground">Exchange</span><span>{selectedOrder.exchange?.toUpperCase() ?? '-'}</span>
-                  <span className="text-muted-foreground">Status ordem</span><span><Badge variant={STATUS_BADGE[selectedOrder.status]?.variant ?? 'secondary'} className={STATUS_BADGE[selectedOrder.status]?.className}>{STATUS_BADGE[selectedOrder.status]?.label ?? selectedOrder.status}</Badge></span>
-                  {opStatus && <><span className="text-muted-foreground">Status operação</span><span><Badge variant="outline">{opStatus}</Badge></span></>}
-                  <span className="text-muted-foreground">Data criação</span><span>{selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleDateString('pt-BR') : '-'}</span>
-                  {selectedOrder.notes && <><span className="text-muted-foreground">Observações</span><span>{selectedOrder.notes}</span></>}
-                  {selectedOrder.cancellation_reason && <><span className="text-muted-foreground">Motivo cancelamento</span><span className="text-destructive">{selectedOrder.cancellation_reason}</span></>}
-                </div>
-
-                <Separator />
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Volume e Preço</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <span className="text-muted-foreground">Volume</span><span>{selectedOrder.volume_sacks?.toLocaleString('pt-BR')} sacas</span>
-                  <span className="text-muted-foreground">Preço originação</span><span>R$ {selectedOrder.origination_price_brl?.toFixed(2)}</span>
-                </div>
-
-                {detailLegs.length > 0 && (
-                  <>
-                    <Separator />
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pernas ({detailLegs.length})</p>
-                    {detailLegs.map((leg: any, i: number) => (
-                      <div key={i} className="bg-muted/50 rounded p-2 space-y-1 text-sm">
-                        <p className="font-medium text-xs">{leg.leg_type} · {leg.direction}</p>
-                        {leg.ticker && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Ticker</span><span className="text-xs">{leg.ticker}</span></div>}
-                        {leg.contracts != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Contratos</span><span className="text-xs">{leg.contracts}</span></div>}
-                        {leg.volume_units != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Quantidade</span><span className="text-xs">{leg.volume_units} {leg.unit_label ?? ''}</span></div>}
-                        {leg.price != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Preço</span><span className="text-xs">{leg.price}</span></div>}
-                        {leg.ndf_rate != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Taxa NDF</span><span className="text-xs">{leg.ndf_rate}</span></div>}
-                        {leg.strike != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Strike</span><span className="text-xs">{leg.strike}</span></div>}
-                        {leg.premium != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Prêmio</span><span className="text-xs">{leg.premium}</span></div>}
-                        {leg.notes && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Obs.</span><span className="text-xs">{leg.notes}</span></div>}
-                      </div>
-                    ))}
-                  </>
-                )}
-
-                <Separator />
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Aprovações</p>
-                {(orderSignatures?.length ?? 0) === 0 ? (
-                  <p className="text-xs text-muted-foreground italic">Nenhuma assinatura ainda</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {orderSignatures!.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between gap-2 bg-muted/50 rounded p-2 text-xs">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{s.full_name}</span>
-                          <span className="text-muted-foreground">{s.role_used}</span>
-                        </div>
-                        <span className="text-muted-foreground">
-                          {new Date(s.signed_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {canSubmit && (
-                  <>
-                    <Separator />
-                    <Button
-                      onClick={handleSubmitForApproval}
-                      disabled={submittingApproval}
-                      className="w-full"
-                    >
-                      <ShieldCheck className="h-4 w-4 mr-2" />
-                      {submittingApproval ? 'Submetendo...' : 'Submeter para Aprovação'}
-                    </Button>
-                  </>
-                )}
-
-                {selectedOrder.order_message && (
-                  <>
-                    <Separator />
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Ordem</p>
-                    <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.order_message}</pre>
-                  </>
-                )}
-                {selectedOrder.confirmation_message && (
-                  <>
-                    <Separator />
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Confirmação</p>
-                    <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.confirmation_message}</pre>
-                  </>
-                )}
+              <Separator />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Identificação</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <span className="text-muted-foreground">Commodity</span><span>{selectedOrder.commodity === 'soybean' ? 'Soja CBOT' : selectedOrder.exchange === 'b3' ? 'Milho B3' : 'Milho CBOT'}</span>
+                <span className="text-muted-foreground">Exchange</span><span>{selectedOrder.exchange?.toUpperCase() ?? '-'}</span>
+                <span className="text-muted-foreground">Status</span><span><Badge variant={STATUS_BADGE[selectedOrder.status]?.variant ?? 'secondary'} className={STATUS_BADGE[selectedOrder.status]?.className}>{STATUS_BADGE[selectedOrder.status]?.label ?? selectedOrder.status}</Badge></span>
+                <span className="text-muted-foreground">Data criação</span><span>{selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleDateString('pt-BR') : '-'}</span>
+                {selectedOrder.notes && <><span className="text-muted-foreground">Observações</span><span>{selectedOrder.notes}</span></>}
+                {selectedOrder.cancellation_reason && <><span className="text-muted-foreground">Motivo cancelamento</span><span className="text-destructive">{selectedOrder.cancellation_reason}</span></>}
               </div>
-            </SheetContent>
-          </Sheet>
+
+              <Separator />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Volume e Preço</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <span className="text-muted-foreground">Volume</span><span>{selectedOrder.volume_sacks?.toLocaleString('pt-BR')} sacas</span>
+                <span className="text-muted-foreground">Preço originação</span><span>R$ {selectedOrder.origination_price_brl?.toFixed(2)}</span>
+              </div>
+
+              {detailLegs.length > 0 && (
+                <>
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pernas ({detailLegs.length})</p>
+                  {detailLegs.map((leg: any, i: number) => (
+                    <div key={i} className="bg-muted/50 rounded p-2 space-y-1 text-sm">
+                      <p className="font-medium text-xs">{leg.leg_type} · {leg.direction}</p>
+                      {leg.ticker && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Ticker</span><span className="text-xs">{leg.ticker}</span></div>}
+                      {leg.contracts != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Contratos</span><span className="text-xs">{leg.contracts}</span></div>}
+                      {leg.volume_units != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Quantidade</span><span className="text-xs">{leg.volume_units} {leg.unit_label ?? ''}</span></div>}
+                      {leg.price != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Preço</span><span className="text-xs">{leg.price}</span></div>}
+                      {leg.ndf_rate != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Taxa NDF</span><span className="text-xs">{leg.ndf_rate}</span></div>}
+                      {leg.strike != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Strike</span><span className="text-xs">{leg.strike}</span></div>}
+                      {leg.premium != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Prêmio</span><span className="text-xs">{leg.premium}</span></div>}
+                      {leg.notes && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Obs.</span><span className="text-xs">{leg.notes}</span></div>}
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {selectedOrder.order_message && (
+                <>
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Ordem</p>
+                  <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.order_message}</pre>
+                </>
+              )}
+              {selectedOrder.confirmation_message && (
+                <>
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Confirmação</p>
+                  <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.confirmation_message}</pre>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         );
       })()}
 
