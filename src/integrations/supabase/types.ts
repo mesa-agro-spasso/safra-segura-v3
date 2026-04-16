@@ -447,18 +447,21 @@ export type Database = {
       }
       pricing_parameters: {
         Row: {
+          execution_spread_pct: number | null
           id: string
           sigma: number
           target_profit_brl_per_sack: number | null
           updated_at: string | null
         }
         Insert: {
+          execution_spread_pct?: number | null
           id: string
           sigma: number
           target_profit_brl_per_sack?: number | null
           updated_at?: string | null
         }
         Update: {
+          execution_spread_pct?: number | null
           id?: string
           sigma?: number
           target_profit_brl_per_sack?: number | null
