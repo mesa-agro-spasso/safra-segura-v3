@@ -165,6 +165,7 @@ export interface PricingCombination {
 export interface PricingParameter {
   id: string;
   sigma: number;
+  target_profit_brl_per_sack: number;
   updated_at: string;
 }
 

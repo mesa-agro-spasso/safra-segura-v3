@@ -583,7 +583,8 @@ function ParametersTab() {
     const sigma = parseFloat(raw);
     if (isNaN(sigma) || sigma <= 0 || sigma > 2) { toast.error('Sigma deve ser entre 0 e 2 (ex: 0.25)'); return; }
     try {
-      await updateParameter.mutateAsync({ id, sigma });
+      const currentParam = parameters?.find(p => p.id === id);
+      await updateParameter.mutateAsync({ id, sigma, target_profit_brl_per_sack: currentParam?.target_profit_brl_per_sack ?? 2.0 });
       toast.success(`Sigma ${getLabel(id)} atualizado`);
       setValues((v) => { const n = { ...v }; delete n[id]; return n; });
     } catch (err) {
