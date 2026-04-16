@@ -289,28 +289,59 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
     corn: { label: 'MILHO', icon: '🌽', bg: '#fff8e1', color: '#f57f17' },
   };
 
+  // Find the origination price column key
+  const originationKey = 'origination_price_brl';
+  // Find the warehouse column key
+  const warehouseKey = 'warehouse';
+
   let cards = '';
   for (const [commodity, cRows] of Object.entries(grouped)) {
     const meta = commodityMeta[commodity] ?? { label: commodity.toUpperCase(), icon: '📦', bg: '#f5f5f5', color: '#555' };
     const tickers = [...new Set(cRows.map((r) => r.ticker))].join(' · ');
 
-    cards += `<div style="margin-bottom:32px;">
-      <div style="background:${meta.bg};padding:20px 28px;border-radius:16px 16px 0 0;display:flex;align-items:center;gap:12px;">
-        <span style="font-size:32px;">${meta.icon}</span>
-        <span style="font-size:28px;font-weight:800;color:${meta.color};letter-spacing:0.5px;">${meta.label}</span>
-        <span style="font-size:18px;color:#888;margin-left:auto;">${tickers}</span>
+    cards += `<div style="margin-bottom:40px;">
+      <div style="background:${meta.bg};padding:28px 36px;border-radius:20px;display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+        <span style="font-size:40px;">${meta.icon}</span>
+        <span style="font-size:36px;font-weight:800;color:${meta.color};letter-spacing:0.5px;">${meta.label}</span>
+        <span style="font-size:20px;color:#888;margin-left:auto;font-weight:500;">${tickers}</span>
       </div>`;
 
     for (const row of cRows) {
-      const fields = cols.map((c) =>
-        `<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 28px;border-bottom:1px solid #f0f0f0;">
-          <span style="font-size:18px;color:#888;font-weight:500;">${c.label}</span>
-          <span style="font-size:22px;color:#222;font-weight:700;">${c.getValue(row, wm)}</span>
+      // Build fields, treating warehouse as card title and origination price as highlight
+      const warehouseCol = cols.find((c) => c.key === warehouseKey);
+      const warehouseName = warehouseCol ? warehouseCol.getValue(row, wm) : '';
+      const otherCols = cols.filter((c) => c.key !== warehouseKey && c.key !== originationKey);
+      const originationCol = cols.find((c) => c.key === originationKey);
+
+      // Card title (warehouse / praça)
+      let cardTitle = '';
+      if (warehouseCol && cols.some((c) => c.key === warehouseKey)) {
+        cardTitle = `<div style="background:#f8f9fa;padding:20px 32px;border-bottom:1px solid #eee;">
+          <span style="font-size:26px;font-weight:700;color:#222;">${warehouseName}</span>
+        </div>`;
+      }
+
+      // Regular fields
+      const fields = otherCols.map((c) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:18px 32px;border-bottom:1px solid #f0f0f0;">
+          <span style="font-size:22px;color:#666;font-weight:500;">${c.label}</span>
+          <span style="font-size:28px;color:#111;font-weight:700;">${c.getValue(row, wm)}</span>
         </div>`
       ).join('');
 
-      cards += `<div style="background:#fff;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin-bottom:2px;">
+      // Highlighted origination price
+      let priceHighlight = '';
+      if (originationCol && cols.some((c) => c.key === originationKey)) {
+        priceHighlight = `<div style="display:flex;justify-content:space-between;align-items:center;padding:22px 32px;background:#f0fdf4;">
+          <span style="font-size:22px;color:#16a34a;font-weight:600;">${originationCol.label}</span>
+          <span style="font-size:32px;color:#16a34a;font-weight:800;">${originationCol.getValue(row, wm)}</span>
+        </div>`;
+      }
+
+      cards += `<div style="background:#fff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-bottom:20px;overflow:hidden;">
+        ${cardTitle}
         ${fields}
+        ${priceHighlight}
       </div>`;
     }
 
@@ -324,22 +355,22 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
     width: 1080px;
     font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background: #ffffff;
-    padding: 40px 32px;
+    padding: 48px 40px;
   }
   .header {
     text-align: center;
-    margin-bottom: 36px;
-    padding-bottom: 20px;
+    margin-bottom: 44px;
+    padding-bottom: 24px;
     border-bottom: 3px solid #e5e7eb;
   }
   .header h1 {
-    font-size: 36px;
+    font-size: 44px;
     font-weight: 800;
     color: #111;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .header .meta {
-    font-size: 18px;
+    font-size: 22px;
     color: #999;
   }
 </style></head><body>
