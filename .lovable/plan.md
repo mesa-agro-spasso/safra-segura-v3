@@ -1,35 +1,24 @@
 
 
-# OperationsMTM — Reorder Tabs, Merge MTM, Load Snapshots, Tabbed Op Dialog
+# Add Target Profit Parameter + Break-even Columns
 
-Single file: `src/pages/OperationsMTM.tsx`
+Four files changed. No database migration needed (`target_profit_brl_per_sack` column already exists in `pricing_parameters`).
 
 ## Changes
 
-### 1. Reorder tabs (line 272-278)
-- Change `defaultValue` to `"operacoes"`
-- Replace TabsList with 3 tabs: Operações, MTM, Resumo (remove Resultado)
+### 1. `src/types/index.ts`
+Add `target_profit_brl_per_sack: number;` to `PricingParameter` interface (after `sigma`).
 
-### 2. Add `snapshotResults` and `displayResults` (after line 141, before `handleCalculate`)
-- `snapshotResults` useMemo: loads latest mtmSnapshot per operation_id as result objects
-- `const displayResults = results ?? snapshotResults;`
+### 2. `src/hooks/usePricingParameters.ts`
+Update `useUpdatePricingParameter` mutation to accept optional `target_profit_brl_per_sack` and include it in the update payload when provided.
 
-### 3. Update `filteredResults` (lines 89-97)
-- Use `displayResults` instead of `results`
+### 3. `src/pages/Settings.tsx` — `ParametersTab` (lines 573-621)
+- Update `handleSave` (line 586): pass `target_profit_brl_per_sack: currentParam?.target_profit_brl_per_sack ?? 2.0` to preserve existing value when saving sigma.
+- Add new `<Card>` after the sigma card (after line 618) for "Lucro Alvo por Saca" with input field, description text, and save button. Uses `values['target_profit']` state key, saves to all parameter rows via `updateParameter.mutateAsync`.
 
-### 4. Update `summary` (lines 99-109)
-- Use `displayResults` instead of `results`
-
-### 5. Update `chartDataByOperation` (lines 122-136)
-- Use `displayResults` instead of `results`
-
-### 6. Replace tabs "marcacao" (lines 280-342) and "resultado" (lines 344-444) with single "mtm" tab
-- Results section first (with inline filters), then active operations + calculate button below
-- Uses `filteredResults` and `displayResults`
-
-### 7. Replace Operations detail dialog (lines 679-735)
-- Tabbed dialog with `max-w-2xl`, scrollable
-- Tab "detalhes": existing content (identification, pricing, dates, linked orders)
-- Tab "mtm_op": MTM snapshot for that operation (market snapshot + result breakdown)
-- Looks up `opMtmSnapshot` from `mtmSnapshots`
+### 4. `src/pages/OperationsMTM.tsx`
+- Add `targetProfitPerSack` derived value (after line 174): `pricingParameters?.[0]?.target_profit_brl_per_sack ?? 2.0`
+- Add `calcBreakeven` helper function: computes `origination + hedgeResult / volume` where hedgeResult = futures + NDF + option MTM values
+- MTM results table (lines 425-433): add two new `<TableHead>` columns ("Break-even", "Físico Alvo") and corresponding `<TableCell>` entries in each row (after "Por Saca")
+- MTM detail dialog (line 693): add two `<DetailRow>` entries after "Por Saca" for break-even and target physical price
 
