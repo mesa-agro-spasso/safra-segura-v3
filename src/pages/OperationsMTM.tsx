@@ -21,6 +21,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Switch } from '@/components/ui/switch';
 import type { OperationWithDetails } from '@/types';
 
+type MtmResult = Record<string, unknown>;
+
 const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; className?: string }> = {
   RASCUNHO: { label: 'Rascunho', variant: 'secondary' },
   SUBMETIDA: { label: 'Submetida', variant: 'outline' },
@@ -120,7 +122,7 @@ const OperationsMTM = () => {
     }));
   }, [mtmSnapshots, orders]);
 
-  const displayResults = results ?? snapshotResults;
+  const displayResults: MtmResult[] | null = results ?? (snapshotResults as MtmResult[] | null);
 
   const filteredResults = useMemo(() => {
     if (!displayResults) return displayResults;
