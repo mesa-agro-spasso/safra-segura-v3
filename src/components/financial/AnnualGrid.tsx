@@ -32,8 +32,13 @@ function AnnualGrid({ date, events, onSelectSlot }: AnnualGridProps) {
     onSelectSlot?.({ start: day, end: day, action: 'click' });
   };
 
+  const monthNames = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  ];
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-2">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 p-2">
       {months.map((month) => {
         // Collect modifiers for this month
         const inflowDays: Date[] = [];
@@ -49,8 +54,19 @@ function AnnualGrid({ date, events, onSelectSlot }: AnnualGridProps) {
           }
         }
 
+        const hasEvents = inflowDays.length + outflowDays.length + bothDays.length > 0;
+
         return (
-          <div key={month.getMonth()} className="border rounded-md p-1">
+          <div
+            key={month.getMonth()}
+            className={cn(
+              "border rounded-md p-2 bg-card transition-colors",
+              hasEvents ? "border-primary/40" : "border-border"
+            )}
+          >
+            <div className="text-xs font-semibold text-foreground mb-1 px-1 capitalize">
+              {monthNames[month.getMonth()]}
+            </div>
             <DayPicker
               month={month}
               locale={ptBR}
@@ -62,11 +78,12 @@ function AnnualGrid({ date, events, onSelectSlot }: AnnualGridProps) {
                 both: bothDays,
               }}
               modifiersStyles={{
-                inflow: { backgroundColor: 'rgba(16,185,129,0.25)', borderRadius: '50%' },
-                outflow: { backgroundColor: 'rgba(239,68,68,0.25)', borderRadius: '50%' },
+                inflow: { backgroundColor: 'hsl(160 70% 40% / 0.3)', borderRadius: '50%', fontWeight: 600 },
+                outflow: { backgroundColor: 'hsl(0 72% 55% / 0.3)', borderRadius: '50%', fontWeight: 600 },
                 both: {
-                  background: 'linear-gradient(135deg, rgba(16,185,129,0.3) 50%, rgba(239,68,68,0.3) 50%)',
+                  background: 'linear-gradient(135deg, hsl(160 70% 40% / 0.4) 50%, hsl(0 72% 55% / 0.4) 50%)',
                   borderRadius: '50%',
+                  fontWeight: 600,
                 },
               }}
               onDayClick={handleDayClick}
