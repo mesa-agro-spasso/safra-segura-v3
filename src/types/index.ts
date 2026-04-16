@@ -166,3 +166,28 @@ export interface PricingParameter {
   sigma: number;
   updated_at: string;
 }
+
+export interface OperationWithDetails {
+  id: string;
+  warehouse_id: string;
+  commodity: string;
+  volume_sacks: number;
+  status: string;
+  pricing_snapshot_id: string | null;
+  notes: string | null;
+  parent_operation_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  warehouses: { display_name: string } | null;
+  pricing_snapshots: {
+    trade_date: string;
+    payment_date: string;
+    grain_reception_date: string;
+    sale_date: string;
+    ticker: string;
+    origination_price_brl: number;
+    futures_price_brl: number;
+    exchange_rate: number | null;
+  } | null;
+}

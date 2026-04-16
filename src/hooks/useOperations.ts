@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Operation } from '@/types';
+import type { Operation, OperationWithDetails } from '@/types';
 
 export function useOperations() {
   return useQuery({
@@ -29,5 +29,19 @@ export function useCreateOperation() {
       return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['operations'] }),
+  });
+}
+
+export function useOperationsWithDetails() {
+  return useQuery({
+    queryKey: ['operations_with_details'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('operations')
+        .select('*, warehouses(display_name), pricing_snapshots(trade_date, payment_date, grain_reception_date, sale_date, ticker, origination_price_brl, futures_price_brl, exchange_rate)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as unknown as OperationWithDetails[];
+    },
   });
 }
