@@ -121,6 +121,7 @@ export interface MtmSnapshot {
   total_exposure_brl: number;
   calculated_by: string | null;
   calculated_at: string;
+  snapshot_date: string;
 }
 
 export interface UserProfile {

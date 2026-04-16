@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useHedgeOrders } from '@/hooks/useHedgeOrders';
 import { useMarketData } from '@/hooks/useMarketData';
 import { useMtmSnapshots, useSaveMtmSnapshot } from '@/hooks/useMtmSnapshots';
@@ -8,12 +8,13 @@ import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Calculator } from 'lucide-react';
+import { Calculator, Filter } from 'lucide-react';
 
 const MTM = () => {
   const { data: orders, isLoading: loadingOrders } = useHedgeOrders({ status: 'EXECUTED' });
@@ -31,6 +32,37 @@ const MTM = () => {
   const [calculating, setCalculating] = useState(false);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
   const [detailResult, setDetailResult] = useState<Record<string, unknown> | null>(null);
+
+  const [filterWarehouse, setFilterWarehouse] = useState('all');
+  const [filterCommodity, setFilterCommodity] = useState('all');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
+  const lastMtmCalculated = useMemo(() => {
+    if (!mtmSnapshots?.length) return null;
+    return mtmSnapshots[0].calculated_at;
+  }, [mtmSnapshots]);
+
+  const lastMarketUpdate = useMemo(() => {
+    if (!marketData?.length) return null;
+    return marketData.reduce((latest, m) => {
+      return !latest || m.updated_at > latest ? m.updated_at : latest;
+    }, null as string | null);
+  }, [marketData]);
+
+  const uniqueWarehouses = useMemo(() => {
+    if (!orders?.length) return [];
+    return [...new Set(orders.map(o => o.operation?.warehouses?.display_name).filter(Boolean))] as string[];
+  }, [orders]);
+
+  const filteredResults = useMemo(() => {
+    if (!results) return results;
+    return results.filter(r => {
+      const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
+      if (filterWarehouse !== 'all' && matchedOrder?.operation?.warehouses?.display_name !== filterWarehouse) return false;
+      if (filterCommodity !== 'all' && matchedOrder?.commodity !== filterCommodity) return false;
+      return true;
+    });
+  }, [results, orders, filterWarehouse, filterCommodity]);
 
   const handleCalculate = async () => {
     if (!orders?.length || !marketData?.length) {
@@ -55,13 +87,11 @@ const MTM = () => {
 
         const futuresLeg = legs.find((l) => l.leg_type === 'futures');
         const optionLeg = legs.find((l) => l.leg_type === 'option');
-        console.log('DEBUG order', o.operation_id, 'optionLeg:', JSON.stringify(optionLeg));
 
         const futuresPrice = futuresLeg
           ? (marketData.find((m) => m.ticker === futuresLeg.ticker)?.price ?? 0)
           : 0;
 
-        // Convert futures price to BRL/sc for option premium calculation
         const fxRate = spotFx ?? 5.0;
         const BUSHELS_PER_SACK = o.commodity === 'soybean' ? 2.20462 : 2.3622;
         const F_brl = o.commodity === 'soybean'
@@ -89,9 +119,9 @@ const MTM = () => {
               option_type: optionLeg.option_type ?? 'call',
             });
             optionPremiumCurrent = premiumResult?.premium ?? null;
-        } catch (optErr) {
-          toast.error(`Erro ao calcular prêmio de opção: ${optErr instanceof Error ? optErr.message : JSON.stringify(optErr)}`);
-        }
+          } catch (optErr) {
+            toast.error(`Erro ao calcular prêmio de opção: ${optErr instanceof Error ? optErr.message : JSON.stringify(optErr)}`);
+          }
         }
 
         return {
@@ -139,16 +169,127 @@ const MTM = () => {
 
   const loading = loadingOrders;
 
+  const StatusDot = ({ date, label }: { date: string; label: string }) => {
+    const d = new Date(date);
+    const hoursAgo = Math.floor((Date.now() - d.getTime()) / 3_600_000);
+    const color = hoursAgo < 12 ? 'text-green-400' : hoursAgo < 24 ? 'text-yellow-400' : 'text-red-400';
+    const timeLabel = `${label}: ${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}${hoursAgo >= 12 ? ` (${hoursAgo}h atrás)` : ''}`;
+    return <p className={`text-xs ${color}`}>● {timeLabel}</p>;
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Mark-to-Market</h2>
+        <div>
+          <h2 className="text-xl font-bold">Mark-to-Market</h2>
+          {lastMtmCalculated && <StatusDot date={lastMtmCalculated} label="Último MTM" />}
+          {lastMarketUpdate && <StatusDot date={lastMarketUpdate} label="Mercado" />}
+        </div>
         <Button onClick={handleCalculate} disabled={calculating || !orders?.length}>
           <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
           {calculating ? 'Calculando...' : 'Calcular MTM'}
         </Button>
       </div>
 
+      {/* Filters */}
+      <div className="space-y-2">
+        <button
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setFiltersExpanded(v => !v)}
+        >
+          <Filter className="h-4 w-4" />
+          Filtros
+          {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
+            <Badge variant="secondary" className="text-xs">ativo</Badge>
+          )}
+          <span className="text-xs">{filtersExpanded ? '▾' : '▸'}</span>
+        </button>
+        {filtersExpanded && (
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Praça</label>
+              <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+                <SelectTrigger className="w-40 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {uniqueWarehouses.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Commodity</label>
+              <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+                <SelectTrigger className="w-40 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="soybean">Soja</SelectItem>
+                  <SelectItem value="corn">Milho</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={() => { setFilterWarehouse('all'); setFilterCommodity('all'); }}
+              >
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Results table — FIRST */}
+      {filteredResults && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Resultado MTM</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Operação</TableHead>
+                  <TableHead>Commodity</TableHead>
+                  <TableHead>Praça</TableHead>
+                  <TableHead>Entrada</TableHead>
+                  <TableHead>Saída</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Por Saca</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredResults.map((r, i) => {
+                  const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
+                  const ps = matchedOrder?.operation?.pricing_snapshots;
+                  const wName = matchedOrder?.operation?.warehouses?.display_name ?? '—';
+                  const fmtDate = (d?: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+                  const total = (r.mtm_total_brl as number) ?? 0;
+                  return (
+                    <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
+                      <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
+                      <TableCell>{matchedOrder?.commodity === 'soybean' ? 'Soja' : matchedOrder?.commodity === 'corn' ? 'Milho' : matchedOrder?.commodity ?? '—'}</TableCell>
+                      <TableCell>{wName}</TableCell>
+                      <TableCell>{fmtDate(ps?.trade_date)}</TableCell>
+                      <TableCell>{fmtDate(ps?.sale_date)}</TableCell>
+                      <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        R$ {total.toFixed(2)}
+                      </TableCell>
+                      <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Active operations table — SECOND */}
       {loading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
       ) : !orders?.length ? (
@@ -202,49 +343,7 @@ const MTM = () => {
         </Card>
       )}
 
-      {results && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Resultado MTM</CardTitle></CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Operação</TableHead>
-                  <TableHead>Commodity</TableHead>
-                  <TableHead>Praça</TableHead>
-                  <TableHead>Entrada</TableHead>
-                  <TableHead>Saída</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Por Saca</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {results.map((r, i) => {
-                  const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
-                  const ps = matchedOrder?.operation?.pricing_snapshots;
-                  const wName = matchedOrder?.operation?.warehouses?.display_name ?? '—';
-                  const fmtDate = (d?: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
-                  const total = (r.mtm_total_brl as number) ?? 0;
-                  return (
-                    <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
-                      <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
-                      <TableCell>{matchedOrder?.commodity ?? '—'}</TableCell>
-                      <TableCell>{wName}</TableCell>
-                      <TableCell>{fmtDate(ps?.trade_date)}</TableCell>
-                      <TableCell>{fmtDate(ps?.sale_date)}</TableCell>
-                      <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        R$ {total.toFixed(2)}
-                      </TableCell>
-                      <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
+      {/* Detail dialog — unchanged */}
       {detailResult && (() => {
         const matchedOrder = orders?.find(o => o.operation_id === detailResult.operation_id);
         const ps = matchedOrder?.operation?.pricing_snapshots;
