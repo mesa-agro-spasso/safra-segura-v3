@@ -4,10 +4,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 import type { UserProfile } from '@/types';
 
 const statusLabels: Record<string, string> = {
@@ -22,12 +25,119 @@ const statusVariants: Record<string, 'default' | 'secondary' | 'destructive' | '
   disabled: 'destructive',
 };
 
+const AVAILABLE_ROLES: { value: string; label: string }[] = [
+  { value: 'mesa', label: 'Mesa' },
+  { value: 'comercial_n1', label: 'Comercial N1' },
+  { value: 'comercial_n2', label: 'Comercial N2' },
+  { value: 'financeiro_n1', label: 'Financeiro N1' },
+  { value: 'financeiro_n2', label: 'Financeiro N2' },
+  { value: 'presidencia', label: 'Presidência' },
+];
+
+const ROLE_COLORS: Record<string, string> = {
+  mesa: 'bg-blue-500 text-white hover:bg-blue-500/80',
+  comercial_n1: 'bg-orange-400 text-white hover:bg-orange-400/80',
+  comercial_n2: 'bg-orange-600 text-white hover:bg-orange-600/80',
+  financeiro_n1: 'bg-purple-400 text-white hover:bg-purple-400/80',
+  financeiro_n2: 'bg-purple-600 text-white hover:bg-purple-600/80',
+  presidencia: 'bg-amber-500 text-white hover:bg-amber-500/80',
+};
+
+const ROLE_LABEL_BY_VALUE: Record<string, string> = AVAILABLE_ROLES.reduce(
+  (acc, r) => ({ ...acc, [r.value]: r.label }),
+  {} as Record<string, string>,
+);
+
+interface RolesEditorProps {
+  userId: string;
+  roles: string[];
+  canEdit: boolean;
+  onSave: (userId: string, newRoles: string[]) => Promise<void>;
+}
+
+const RolesEditor = ({ userId, roles, canEdit, onSave }: RolesEditorProps) => {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<string[]>(roles);
+
+  useEffect(() => {
+    setSelected(roles);
+  }, [roles]);
+
+  const trigger = (
+    <div className="flex flex-wrap gap-1 min-h-[24px] items-center">
+      {roles.length === 0 ? (
+        <span className="text-muted-foreground">—</span>
+      ) : (
+        roles.map((r) => (
+          <Badge
+            key={r}
+            className={cn('text-xs border-transparent', ROLE_COLORS[r] || 'bg-muted text-foreground')}
+          >
+            {ROLE_LABEL_BY_VALUE[r] || r}
+          </Badge>
+        ))
+      )}
+    </div>
+  );
+
+  if (!canEdit) {
+    return trigger;
+  }
+
+  const toggle = (value: string, checked: boolean) => {
+    setSelected((prev) => (checked ? [...prev, value] : prev.filter((v) => v !== value)));
+  };
+
+  const handleOpenChange = async (next: boolean) => {
+    setOpen(next);
+    if (!next) {
+      const sortedA = [...roles].sort().join(',');
+      const sortedB = [...selected].sort().join(',');
+      if (sortedA !== sortedB) {
+        await onSave(userId, selected);
+      }
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button type="button" className="cursor-pointer text-left w-full">
+          {trigger}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start">
+        <div className="space-y-1">
+          {AVAILABLE_ROLES.map((r) => {
+            const checked = selected.includes(r.value);
+            return (
+              <label
+                key={r.value}
+                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm"
+              >
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={(c) => toggle(r.value, c === true)}
+                />
+                <span>{r.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const AdminUsers = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [rolesMap, setRolesMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  const canEditRoles = !!profile?.is_admin;
 
   const fetchProfiles = async () => {
     setLoading(true);
@@ -41,6 +151,21 @@ const AdminUsers = () => {
     } else {
       setProfiles((data as UserProfile[]) || []);
     }
+
+    const { data: userRoles, error: rolesError } = await supabase
+      .from('users')
+      .select('id, roles');
+
+    if (rolesError) {
+      setRolesMap({});
+    } else {
+      const map: Record<string, string[]> = {};
+      (userRoles || []).forEach((u: { id: string; roles: string[] | null }) => {
+        map[u.id] = u.roles || [];
+      });
+      setRolesMap(map);
+    }
+
     setLoading(false);
   };
 
@@ -65,6 +190,20 @@ const AdminUsers = () => {
       toast.error('Erro ao atualizar: ' + msg);
       return false;
     }
+  };
+
+  const handleUpdateRoles = async (userId: string, newRoles: string[]) => {
+    const { error } = await supabase
+      .from('users')
+      .update({ roles: newRoles })
+      .eq('id', userId);
+
+    if (error) {
+      toast.error('Erro ao atualizar função: ' + error.message);
+      return;
+    }
+    setRolesMap((prev) => ({ ...prev, [userId]: newRoles }));
+    toast.success('Função atualizada');
   };
 
   const handleApprove = async (id: string) => {
@@ -159,6 +298,7 @@ const AdminUsers = () => {
               <TableHead>Email</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Acesso</TableHead>
+              <TableHead>Função</TableHead>
               <TableHead>Admin</TableHead>
               <TableHead>Criado em</TableHead>
               <TableHead>Aprovado em</TableHead>
@@ -168,13 +308,13 @@ const AdminUsers = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Carregando...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Nenhum usuário encontrado.
                 </TableCell>
               </TableRow>
@@ -201,6 +341,14 @@ const AdminUsers = () => {
                         <SelectItem value="full">Full</SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    <RolesEditor
+                      userId={p.id}
+                      roles={rolesMap[p.id] || []}
+                      canEdit={canEditRoles}
+                      onSave={handleUpdateRoles}
+                    />
                   </TableCell>
                   <TableCell>
                     <Button
