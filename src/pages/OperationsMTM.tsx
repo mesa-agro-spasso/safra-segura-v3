@@ -715,7 +715,7 @@ const OperationsMTM = () => {
               </div>
               <DetailRow label="Por Saca" value={`${fmtBrl(detailResult.mtm_per_sack_brl)}/sc`} />
               <DetailRow label="Break-even físico" value={`R$ ${calcBreakeven(detailResult).toFixed(2)}/sc`} />
-              <DetailRow label="Físico alvo" value={`R$ ${(calcBreakeven(detailResult) + targetProfitPerSack).toFixed(2)}/sc`} />
+              <DetailRow label="Físico alvo" value={`R$ ${(calcBreakeven(detailResult) + getTargetProfit(detailResult)).toFixed(2)}/sc`} />
               <DetailRow label="Exposição Total" value={fmtBrl(detailResult.total_exposure_brl)} />
             </DialogContent>
           </Dialog>
