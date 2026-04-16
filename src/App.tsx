@@ -12,6 +12,7 @@ import AccountDisabled from "./pages/AccountDisabled";
 import PricingTable from "./pages/PricingTable";
 import Orders from "./pages/Orders";
 import Operations from "./pages/Operations";
+import OperationsMTM from "./pages/OperationsMTM";
 import MTM from "./pages/MTM";
 import Market from "./pages/Market";
 import Settings from "./pages/Settings";
@@ -34,6 +35,7 @@ const App = () => (
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<PricingTable />} />
               <Route path="/ordens" element={<Orders />} />
+              <Route path="/operacoes-mtm" element={<OperationsMTM />} />
               <Route path="/operacoes" element={<Operations />} />
               <Route path="/mtm" element={<MTM />} />
               <Route path="/mercado" element={<Market />} />
