@@ -173,16 +173,19 @@ const OperationsMTM = () => {
     });
   }, [displayResults, orders]);
 
-  const targetProfitPerSack = pricingParameters?.[0]?.target_profit_brl_per_sack ?? 2.0;
+  const targetProfitSoybean = pricingParameters?.find(p => p.id === 'soybean_cbot')?.target_profit_brl_per_sack ?? 2.0;
+  const targetProfitCorn = pricingParameters?.find(p => p.id === 'corn_b3')?.target_profit_brl_per_sack ?? 2.0;
+
+  const getTargetProfit = (r: Record<string, unknown>) => {
+    const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
+    return matchedOrder?.commodity === 'soybean' ? targetProfitSoybean : targetProfitCorn;
+  };
 
   const calcBreakeven = (r: Record<string, unknown>) => {
-    const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
-    const origination = matchedOrder?.origination_price_brl ?? 0;
-    const volume = (r.volume_sacks as number) ?? 1;
-    const hedgeResult = ((r.mtm_futures_brl as number) ?? 0) +
-                        ((r.mtm_ndf_brl as number) ?? 0) +
-                        ((r.mtm_option_brl as number) ?? 0);
-    return origination + hedgeResult / volume;
+    const operationId = r.operation_id as string;
+    const physicalCurrent = parseFloat(physicalPrices[operationId] || '0');
+    const mtmPerSack = (r.mtm_per_sack_brl as number) ?? 0;
+    return (physicalCurrent - mtmPerSack) * 1.01;
   };
 
   const handleCalculate = async () => {
@@ -467,7 +470,7 @@ const OperationsMTM = () => {
                             R$ {calcBreakeven(r).toFixed(2)}/sc
                           </TableCell>
                           <TableCell className="text-xs tabular-nums">
-                            R$ {(calcBreakeven(r) + targetProfitPerSack).toFixed(2)}/sc
+                            R$ {(calcBreakeven(r) + getTargetProfit(r)).toFixed(2)}/sc
                           </TableCell>
                         </TableRow>
                       );
@@ -712,7 +715,7 @@ const OperationsMTM = () => {
               </div>
               <DetailRow label="Por Saca" value={`${fmtBrl(detailResult.mtm_per_sack_brl)}/sc`} />
               <DetailRow label="Break-even físico" value={`R$ ${calcBreakeven(detailResult).toFixed(2)}/sc`} />
-              <DetailRow label="Físico alvo" value={`R$ ${(calcBreakeven(detailResult) + targetProfitPerSack).toFixed(2)}/sc`} />
+              <DetailRow label="Físico alvo" value={`R$ ${(calcBreakeven(detailResult) + getTargetProfit(detailResult)).toFixed(2)}/sc`} />
               <DetailRow label="Exposição Total" value={fmtBrl(detailResult.total_exposure_brl)} />
             </DialogContent>
           </Dialog>
