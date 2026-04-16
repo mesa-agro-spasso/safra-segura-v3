@@ -292,10 +292,7 @@ export default function Approvals() {
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {row.collected.map((r, i) => (
-                          <Badge
-                            key={`c-${i}`}
-                            className="bg-green-600 hover:bg-green-600/90 text-white"
-                          >
+                          <Badge key={`c-${i}`} className="bg-emerald-600 hover:bg-emerald-600/90 text-primary-foreground">
                             {r}
                           </Badge>
                         ))}
