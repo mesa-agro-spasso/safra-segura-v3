@@ -37,14 +37,17 @@ export default function FinancialCalendar() {
   const { data: events = [], isLoading } = useFinancialCalendarData();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [currentView, setCurrentView] = useState<any>('month');
 
   const eventPropGetter = useCallback((event: CalendarEvent) => ({
     style: {
-      backgroundColor: event.type === 'inflow' ? '#10b981' : '#ef4444',
-      color: '#fff',
+      backgroundColor: event.type === 'inflow' ? 'hsl(160 70% 40%)' : 'hsl(0 72% 55%)',
+      color: 'hsl(0 0% 100%)',
       border: 'none',
       borderRadius: '4px',
       fontSize: '0.75rem',
+      fontWeight: 500,
     },
   }), []);
 
