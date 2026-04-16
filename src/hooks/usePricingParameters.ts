@@ -25,7 +25,7 @@ export function useUpdatePricingParameter() {
       target_profit_brl_per_sack?: number;
       execution_spread_pct?: number;
     }) => {
-      const update: Record<string, unknown> = { sigma, updated_at: new Date().toISOString() };
+      const update: { sigma: number; updated_at: string; target_profit_brl_per_sack?: number; execution_spread_pct?: number } = { sigma, updated_at: new Date().toISOString() };
       if (target_profit_brl_per_sack !== undefined) update.target_profit_brl_per_sack = target_profit_brl_per_sack;
       if (execution_spread_pct !== undefined) update.execution_spread_pct = execution_spread_pct;
       const { error } = await supabase
