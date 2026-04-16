@@ -173,16 +173,19 @@ const OperationsMTM = () => {
     });
   }, [displayResults, orders]);
 
-  const targetProfitPerSack = pricingParameters?.[0]?.target_profit_brl_per_sack ?? 2.0;
+  const targetProfitSoybean = pricingParameters?.find(p => p.id === 'soybean_cbot')?.target_profit_brl_per_sack ?? 2.0;
+  const targetProfitCorn = pricingParameters?.find(p => p.id === 'corn_b3')?.target_profit_brl_per_sack ?? 2.0;
+
+  const getTargetProfit = (r: Record<string, unknown>) => {
+    const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
+    return matchedOrder?.commodity === 'soybean' ? targetProfitSoybean : targetProfitCorn;
+  };
 
   const calcBreakeven = (r: Record<string, unknown>) => {
-    const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
-    const origination = matchedOrder?.origination_price_brl ?? 0;
-    const volume = (r.volume_sacks as number) ?? 1;
-    const hedgeResult = ((r.mtm_futures_brl as number) ?? 0) +
-                        ((r.mtm_ndf_brl as number) ?? 0) +
-                        ((r.mtm_option_brl as number) ?? 0);
-    return origination + hedgeResult / volume;
+    const operationId = r.operation_id as string;
+    const physicalCurrent = parseFloat(physicalPrices[operationId] || '0');
+    const mtmPerSack = (r.mtm_per_sack_brl as number) ?? 0;
+    return (physicalCurrent - mtmPerSack) * 1.01;
   };
 
   const handleCalculate = async () => {
