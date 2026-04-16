@@ -1,4 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { CalendarIcon, Plus, Edit2, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -706,6 +709,149 @@ function ParametersTab() {
   );
 }
 
+function AlcadasTab() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const [thresholdX, setThresholdX] = useState('');
+  const [thresholdY, setThresholdY] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const { data: policy, isLoading } = useQuery({
+    queryKey: ['approval-policy'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('approval_policies')
+        .select('*')
+        .eq('is_active', true)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (policy) {
+      setThresholdX(String(policy.threshold_x_tons));
+      setThresholdY(String(Number(policy.threshold_x_tons) + Number(policy.threshold_y_tons)));
+    }
+  }, [policy]);
+
+  const isAdmin = profile?.is_admin === true;
+
+  const handleSave = async () => {
+    if (!policy) return;
+    const x = Number(thresholdX);
+    const y = Number(thresholdY);
+    if (isNaN(x) || isNaN(y) || x < 0 || y < 0) {
+      toast.error('Os valores devem ser números maiores ou iguais a zero');
+      return;
+    }
+    if (y <= x) {
+      toast.error('O limite da Faixa 2 deve ser maior que o da Faixa 1');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('approval_policies')
+        .update({ threshold_x_tons: x, threshold_y_tons: y - x })
+        .eq('id', policy.id);
+      if (error) throw error;
+      toast.success('Alçadas atualizadas');
+      queryClient.invalidateQueries({ queryKey: ['approval-policy'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Alçadas de Aprovação</CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Define os limites de volume (em toneladas) que determinam quais funções precisam assinar cada operação.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!policy ? (
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            Nenhuma política ativa configurada. Insira uma linha em <code className="text-xs">approval_policies</code> com <code className="text-xs">is_active=true</code> para começar.
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl">
+              <div className="space-y-1">
+                <Label className="text-xs">Faixa 1 até (toneladas)</Label>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={thresholdX}
+                  onChange={(e) => setThresholdX(e.target.value)}
+                  disabled={!isAdmin}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Operações até este volume exigem aprovação da Faixa 1.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Faixa 2 até (toneladas)</Label>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={thresholdY}
+                  onChange={(e) => setThresholdY(e.target.value)}
+                  disabled={!isAdmin}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Limite superior da Faixa 2 — deve ser maior que o valor da Faixa 1.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Composição das alçadas
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Até {thresholdX || 'X'} ton:</span> Mesa + Comercial N1 + Comercial N2 + Financeiro N1
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">De {thresholdX || 'X'}+1 até {thresholdY || 'Y'} ton:</span> Mesa + Comercial N1 + 2× Comercial N2 + Financeiro N1 + Financeiro N2
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Acima de {thresholdY || 'Y'} ton:</span> Mesa + Comercial N1 + Presidência + Financeiro N1 + Financeiro N2
+              </p>
+            </div>
+
+            {isAdmin ? (
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? 'Salvando...' : 'Salvar'}
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">
+                Somente administradores podem editar as alçadas.
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 const Settings = () => (
   <div className="space-y-4">
     <h2 className="text-xl font-bold">Configurações</h2>
@@ -714,10 +860,12 @@ const Settings = () => (
         <TabsTrigger value="warehouses">Armazéns</TabsTrigger>
         <TabsTrigger value="combinations">Combinações</TabsTrigger>
         <TabsTrigger value="parameters">Parâmetros</TabsTrigger>
+        <TabsTrigger value="alcadas">Alçadas</TabsTrigger>
       </TabsList>
       <TabsContent value="warehouses"><WarehousesTab /></TabsContent>
       <TabsContent value="combinations"><CombinationsTab /></TabsContent>
       <TabsContent value="parameters"><ParametersTab /></TabsContent>
+      <TabsContent value="alcadas"><AlcadasTab /></TabsContent>
     </Tabs>
   </div>
 );
