@@ -18,6 +18,7 @@ import Market from "./pages/Market";
 import Settings from "./pages/Settings";
 import AdminUsers from "./pages/AdminUsers";
 import Financial from "./pages/Financial";
+import Approvals from "./pages/Approvals";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/mtm" element={<MTM />} />
               <Route path="/mercado" element={<Market />} />
               <Route path="/financeiro" element={<Financial />} />
+              <Route path="/aprovacoes" element={<Approvals />} />
               <Route path="/configuracoes" element={<Settings />} />
               <Route path="/admin/usuarios" element={<AdminRoute><AdminUsers /></AdminRoute>} />
             </Route>
