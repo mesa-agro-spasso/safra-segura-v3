@@ -1,47 +1,72 @@
 
 
-# Adicionar Coluna "Função" em AdminUsers
+# Fluxo de Aprovação de Operações
 
-Arquivo único: `src/pages/AdminUsers.tsx`
+Quatro arquivos. Sem migration — todas as tabelas (`operations`, `signatures`, `approval_policies`, `users`) já existem.
 
-## Mudanças
+**Regra confirmada:** verificação por **contagem** — `comercial_n2` no tier `mid` exige 2 assinaturas de usuários distintos.
 
-### 1. Imports e constantes (topo)
-- Importar `Popover, PopoverTrigger, PopoverContent` de `@/components/ui/popover`
-- Importar `Checkbox` de `@/components/ui/checkbox`
-- Importar `cn` de `@/lib/utils`
-- Adicionar constante `AVAILABLE_ROLES` com 6 roles
-- Adicionar mapa `ROLE_COLORS` (Tailwind classes) para cada role:
-  - `mesa` → bg-blue-500
-  - `comercial_n1` → bg-orange-400
-  - `comercial_n2` → bg-orange-600
-  - `financeiro_n1` → bg-purple-400
-  - `financeiro_n2` → bg-purple-600
-  - `presidencia` → bg-amber-500
+## Helpers de contagem (em Approvals.tsx e AppSidebar.tsx)
 
-### 2. Estado e fetch
-- Novo state `rolesMap: Record<string, string[]>`
-- Em `fetchProfiles`, após o fetch de `user_profiles`, fazer segundo fetch em `public.users` (`select('id, roles')`)
-- Construir o mapa por id e setar via `setRolesMap`
+```ts
+const countBy = (arr: string[]) => arr.reduce<Record<string, number>>(
+  (acc, r) => ({ ...acc, [r]: (acc[r] ?? 0) + 1 }), {}
+);
 
-### 3. Handler de atualização
-- Nova função `handleUpdateRoles(userId: string, newRoles: string[])`
-- Chama `supabase.from('users').update({ roles: newRoles }).eq('id', userId)`
-- Toast de sucesso/erro
-- Atualiza `rolesMap` localmente após sucesso (sem refetch completo)
+// Roles que ainda faltam, considerando duplicatas
+const getMissingRoles = (required: string[], collected: string[]) => {
+  const req = countBy(required);
+  const col = countBy(collected);
+  const missing: string[] = [];
+  for (const [role, n] of Object.entries(req)) {
+    const remaining = n - (col[role] ?? 0);
+    for (let i = 0; i < remaining; i++) missing.push(role);
+  }
+  return missing; // ex: ['comercial_n2'] se só 1 dos 2 já assinou
+};
 
-### 4. Coluna "Função" na tabela
-- Adicionar `<TableHead>Função</TableHead>` entre "Acesso" e "Admin"
-- Atualizar `colSpan` de 8 → 9 nos estados loading/empty
-- Para cada linha: célula com `<Popover>` contendo:
-  - **Trigger**: badges coloridos clicáveis (ou "—" se vazio). Cursor pointer apenas para admin; usuários não-admin veem somente leitura.
-  - **Content**: lista de checkboxes com os 6 roles disponíveis. Estado local controlado; ao fechar (`onOpenChange={false}`), se mudou, dispara `handleUpdateRoles`.
+const allSigned = (required: string[], collected: string[]) =>
+  getMissingRoles(required, collected).length === 0;
+```
 
-### 5. Permissão de edição
-- Usar `profile?.is_admin` do `useAuth` (já disponível via context) para condicionar o Popover trigger ser interativo. Não-admin: badges renderizados como `<div>` estático.
+Como `signatures.user_id` é único por operation por usuário (filtro de tela impede assinar 2x), 2 entradas com `role_used='comercial_n2'` implicam 2 usuários distintos.
 
-## Notas
+## Arquivos
 
-- Nada mais é alterado: filtros, demais colunas e lógica permanecem idênticos.
-- O fetch de roles é tolerante a falha (se erro, `rolesMap` fica vazio e exibe "—").
+### 1. `src/pages/Orders.tsx` — Drawer de detalhes
+- Imports: `Sheet, SheetContent, SheetHeader, SheetTitle`
+- Reusar state `selectedOrder`
+- `useQuery` roles do user logado em `public.users`
+- `useQuery` signatures da operation selecionada (join `users.full_name`)
+- Sheet com: info da ordem, lista de assinaturas (nome, role_used, signed_at), botão "Submeter para Aprovação" — visível se `status === 'RASCUNHO'` e `userRoles.includes('mesa')`. Update → `EM_APROVACAO`, toast, fecha, invalida queries
+
+### 2. `src/pages/Approvals.tsx` (novo)
+Constantes no topo:
+```ts
+const ROLES_TIERS = {
+  low: ['mesa', 'comercial_n1', 'comercial_n2', 'financeiro_n1'],
+  mid: ['mesa', 'comercial_n1', 'comercial_n2', 'comercial_n2', 'financeiro_n1', 'financeiro_n2'],
+  high: ['mesa', 'comercial_n1', 'presidencia', 'financeiro_n1', 'financeiro_n2'],
+};
+```
+- `getRequiredRoles(volumeTons, policy)` por faixa
+- Conversão volume: `volume_sacks * 0.06` (60kg → ton, conversão de unidade física)
+- Fetches: `currentUser.roles`, `policy` ativa (`maybeSingle`), operations `EM_APROVACAO` com joins, signatures por `operation_id`
+- Filtro de tela: usuário não assinou ainda E tem role em `getMissingRoles(required, collected)`
+- Tabela: Código, Praça, Commodity, Volume, Valor, Assinaturas (badges verdes coletadas + cinzas faltantes, contando duplicatas), Ação
+- Dialog "Assinar": Select com (`userRoles ∩ missingRoles`), Textarea notas, Confirmar → insert em `signatures` com `signature_type:'APROVACAO'`. Recalcula com helper de contagem; se `allSigned`, update status `APROVADA`. Toast + invalida queries
+
+### 3. `src/components/AppSidebar.tsx` — Item + badge
+- Imports: `ClipboardCheck`, `Badge`
+- Adicionar `{ title: 'Aprovações', url: '/aprovacoes', icon: ClipboardCheck }` após "Ordens"
+- `useQuery` `pendingApprovalsCount` com `refetchInterval: 60000` aplicando o mesmo filtro (helper de contagem)
+- `<Badge variant="destructive">` quando count > 0 e `!collapsed`
+
+### 4. `src/App.tsx` — Rota
+- Importar `Approvals`
+- `<Route path="/aprovacoes" element={<Approvals />} />` dentro de `ProtectedRoute > AppLayout`
+
+## Fora de escopo
+- Não tocar `handleExecutionConfirm`, formulário de criação, ações existentes na tabela de ordens
+- Sem Edge Functions, sem cálculo financeiro, sem migration
 
