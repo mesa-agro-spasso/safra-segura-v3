@@ -18,10 +18,10 @@ import { Button } from '@/components/ui/button';
 
 const items = [
   { title: 'Tabela de Preços', url: '/', icon: TableProperties },
-  { title: 'Ordens', url: '/ordens', icon: FileText },
   { title: 'Operações / MTM', url: '/operacoes-mtm', icon: TrendingUp },
-  { title: 'Mercado', url: '/mercado', icon: BarChart3 },
   { title: 'Financeiro', url: '/financeiro', icon: DollarSign },
+  { title: 'Mercado', url: '/mercado', icon: BarChart3 },
+  { title: 'Ordens', url: '/ordens', icon: FileText },
   { title: 'Configurações', url: '/configuracoes', icon: Settings },
 ];
 
