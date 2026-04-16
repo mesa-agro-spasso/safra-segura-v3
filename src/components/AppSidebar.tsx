@@ -1,7 +1,8 @@
-import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users } from 'lucide-react';
+import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
+import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
 import logo from '@/assets/safra-segura-logo.png';
 import {
   Sidebar,
@@ -15,6 +16,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 const items = [
   { title: 'Tabela de Preços', url: '/', icon: TableProperties },
@@ -30,6 +32,7 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { signOut, user, profile } = useAuth();
   const { isAdmin } = useAuthorization();
+  const { data: pendingCount = 0 } = usePendingApprovalsCount();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -59,6 +62,26 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/aprovacoes"
+                    className="hover:bg-sidebar-accent"
+                    activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    {!collapsed && <span className="flex-1">Aprovações</span>}
+                    {pendingCount > 0 && (
+                      <Badge
+                        variant="destructive"
+                        className={collapsed ? 'absolute right-1 top-1 h-4 min-w-4 px-1 text-[10px]' : 'ml-auto h-5 min-w-5 px-1.5'}
+                      >
+                        {pendingCount}
+                      </Badge>
+                    )}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               {isAdmin() && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
