@@ -287,7 +287,7 @@ const MTM = () => {
               <Separator />
 
               <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Snapshot de Mercado</p>
-              <DetailRow label="Futuros (atual)" value={fmtBrl(snap?.futures_price_current)} />
+              <DetailRow label="Futuros (atual)" value={snap?.futures_price_current != null ? `USD ${snap.futures_price_current.toFixed(4)}/bu` : '—'} />
               <DetailRow label="Físico (atual)" value={fmtBrl(snap?.physical_price_current)} />
               <DetailRow label="Câmbio spot" value={snap?.spot_rate_current != null ? `R$ ${snap.spot_rate_current.toFixed(4)}` : '—'} />
               <DetailRow label="Prêmio opção" value={snap?.option_premium_current != null ? fmtBrl(snap.option_premium_current) : '—'} />
