@@ -88,9 +88,9 @@ const MTM = () => {
               option_type: optionLeg.option_type ?? 'call',
             });
             optionPremiumCurrent = premiumResult?.premium ?? null;
-          } catch {
-            // If option premium calculation fails, proceed with null
-          }
+        } catch (optErr) {
+          toast.error(`Erro ao calcular prêmio de opção: ${optErr instanceof Error ? optErr.message : JSON.stringify(optErr)}`);
+        }
         }
 
         return {
