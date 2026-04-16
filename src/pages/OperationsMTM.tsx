@@ -173,6 +173,18 @@ const OperationsMTM = () => {
     });
   }, [displayResults, orders]);
 
+  const targetProfitPerSack = pricingParameters?.[0]?.target_profit_brl_per_sack ?? 2.0;
+
+  const calcBreakeven = (r: Record<string, unknown>) => {
+    const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
+    const origination = matchedOrder?.origination_price_brl ?? 0;
+    const volume = (r.volume_sacks as number) ?? 1;
+    const hedgeResult = ((r.mtm_futures_brl as number) ?? 0) +
+                        ((r.mtm_ndf_brl as number) ?? 0) +
+                        ((r.mtm_option_brl as number) ?? 0);
+    return origination + hedgeResult / volume;
+  };
+
   const handleCalculate = async () => {
     if (!orders?.length || !marketData?.length) {
       toast.error('Dados insuficientes');
