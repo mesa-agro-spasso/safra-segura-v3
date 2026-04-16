@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useHedgeOrders, useCreateHedgeOrder, useUpdateHedgeOrder } from '@/hooks/useHedgeOrders';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { usePricingSnapshots } from '@/hooks/usePricingSnapshots';
@@ -18,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Copy, Plus, AlertTriangle, Trash2, Filter, Send, Check, X as XIcon, CalendarIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -78,6 +80,61 @@ const Orders = () => {
   const updateOrder = useUpdateHedgeOrder();
   const createOperation = useCreateOperation();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: currentUserData } = useQuery({
+    queryKey: ['current-user-roles', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('users').select('roles').eq('id', user!.id).single();
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+  const userRoles: string[] = (currentUserData?.roles as string[] | undefined) ?? [];
+
+  const { data: orderSignatures } = useQuery({
+    queryKey: ['signatures', selectedOrder?.operation_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('signatures')
+        .select('*, signer:users(full_name)')
+        .eq('operation_id', selectedOrder!.operation_id)
+        .order('signed_at', { ascending: true });
+      return data ?? [];
+    },
+    enabled: !!selectedOrder?.operation_id,
+  });
+
+  const { data: operationStatusData } = useQuery({
+    queryKey: ['operation-status', selectedOrder?.operation_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('operations')
+        .select('status')
+        .eq('id', selectedOrder!.operation_id)
+        .single();
+      return data;
+    },
+    enabled: !!selectedOrder?.operation_id,
+  });
+  const operationStatus = operationStatusData?.status;
+
+  const handleSubmitForApproval = async () => {
+    if (!selectedOrder) return;
+    const { error } = await supabase
+      .from('operations')
+      .update({ status: 'EM_APROVACAO' })
+      .eq('id', selectedOrder.operation_id);
+    if (error) {
+      toast.error('Erro ao submeter: ' + error.message);
+      return;
+    }
+    toast.success('Operação submetida para aprovação');
+    setSelectedOrder(null);
+    queryClient.invalidateQueries({ queryKey: ['operations'] });
+    queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['operation-status'] });
+  };
 
   // Filtered + sorted orders
   const orders = useMemo(() => {
@@ -1210,70 +1267,99 @@ const Orders = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Modal de detalhe da ordem */}
+      {/* Drawer de detalhe da ordem */}
       {selectedOrder && (() => {
         const detailLegs = (selectedOrder.legs as any[]) ?? [];
         return (
-          <Dialog open={!!selectedOrder} onOpenChange={(o) => { if (!o) setSelectedOrder(null); }}>
-            <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Ordem — {selectedOrder.display_code ?? selectedOrder.operation_id?.slice(0, 8) ?? selectedOrder.id?.slice(0, 8)}</DialogTitle>
-              </DialogHeader>
+          <Sheet open={!!selectedOrder} onOpenChange={(o) => { if (!o) setSelectedOrder(null); }}>
+            <SheetContent className="w-[480px] sm:w-[540px] overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Ordem — {selectedOrder.display_code ?? selectedOrder.operation_id?.slice(0, 8) ?? selectedOrder.id?.slice(0, 8)}</SheetTitle>
+              </SheetHeader>
 
-              <Separator />
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Identificação</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                <span className="text-muted-foreground">Commodity</span><span>{selectedOrder.commodity === 'soybean' ? 'Soja CBOT' : selectedOrder.exchange === 'b3' ? 'Milho B3' : 'Milho CBOT'}</span>
-                <span className="text-muted-foreground">Exchange</span><span>{selectedOrder.exchange?.toUpperCase() ?? '-'}</span>
-                <span className="text-muted-foreground">Status</span><span><Badge variant={STATUS_BADGE[selectedOrder.status]?.variant ?? 'secondary'} className={STATUS_BADGE[selectedOrder.status]?.className}>{STATUS_BADGE[selectedOrder.status]?.label ?? selectedOrder.status}</Badge></span>
-                <span className="text-muted-foreground">Data criação</span><span>{selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleDateString('pt-BR') : '-'}</span>
-                {selectedOrder.notes && <><span className="text-muted-foreground">Observações</span><span>{selectedOrder.notes}</span></>}
-                {selectedOrder.cancellation_reason && <><span className="text-muted-foreground">Motivo cancelamento</span><span className="text-destructive">{selectedOrder.cancellation_reason}</span></>}
+              <div className="mt-4 space-y-4">
+                <Separator />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Identificação</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <span className="text-muted-foreground">Commodity</span><span>{selectedOrder.commodity === 'soybean' ? 'Soja CBOT' : selectedOrder.exchange === 'b3' ? 'Milho B3' : 'Milho CBOT'}</span>
+                  <span className="text-muted-foreground">Exchange</span><span>{selectedOrder.exchange?.toUpperCase() ?? '-'}</span>
+                  <span className="text-muted-foreground">Status ordem</span><span><Badge variant={STATUS_BADGE[selectedOrder.status]?.variant ?? 'secondary'} className={STATUS_BADGE[selectedOrder.status]?.className}>{STATUS_BADGE[selectedOrder.status]?.label ?? selectedOrder.status}</Badge></span>
+                  {operationStatus && (<><span className="text-muted-foreground">Status operação</span><span><Badge variant="outline">{operationStatus}</Badge></span></>)}
+                  <span className="text-muted-foreground">Data criação</span><span>{selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleDateString('pt-BR') : '-'}</span>
+                  {selectedOrder.notes && <><span className="text-muted-foreground">Observações</span><span>{selectedOrder.notes}</span></>}
+                  {selectedOrder.cancellation_reason && <><span className="text-muted-foreground">Motivo cancelamento</span><span className="text-destructive">{selectedOrder.cancellation_reason}</span></>}
+                </div>
+
+                <Separator />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Volume e Preço</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <span className="text-muted-foreground">Volume</span><span>{selectedOrder.volume_sacks?.toLocaleString('pt-BR')} sacas</span>
+                  <span className="text-muted-foreground">Preço originação</span><span>R$ {selectedOrder.origination_price_brl?.toFixed(2)}</span>
+                </div>
+
+                {detailLegs.length > 0 && (
+                  <>
+                    <Separator />
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pernas ({detailLegs.length})</p>
+                    {detailLegs.map((leg: any, i: number) => (
+                      <div key={i} className="bg-muted/50 rounded p-2 space-y-1 text-sm">
+                        <p className="font-medium text-xs">{leg.leg_type} · {leg.direction}</p>
+                        {leg.ticker && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Ticker</span><span className="text-xs">{leg.ticker}</span></div>}
+                        {leg.contracts != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Contratos</span><span className="text-xs">{leg.contracts}</span></div>}
+                        {leg.volume_units != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Quantidade</span><span className="text-xs">{leg.volume_units} {leg.unit_label ?? ''}</span></div>}
+                        {leg.price != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Preço</span><span className="text-xs">{leg.price}</span></div>}
+                        {leg.ndf_rate != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Taxa NDF</span><span className="text-xs">{leg.ndf_rate}</span></div>}
+                        {leg.strike != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Strike</span><span className="text-xs">{leg.strike}</span></div>}
+                        {leg.premium != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Prêmio</span><span className="text-xs">{leg.premium}</span></div>}
+                        {leg.notes && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Obs.</span><span className="text-xs">{leg.notes}</span></div>}
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                <Separator />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Aprovações</p>
+                {(!orderSignatures || orderSignatures.length === 0) ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma assinatura ainda.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {orderSignatures.map((sig: any) => (
+                      <div key={sig.id} className="bg-muted/50 rounded p-2 text-sm">
+                        <p className="font-medium">{sig.signer?.full_name ?? sig.user_id?.slice(0, 8)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {sig.role_used} · {new Date(sig.signed_at).toLocaleString('pt-BR')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {selectedOrder.order_message && (
+                  <>
+                    <Separator />
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Ordem</p>
+                    <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.order_message}</pre>
+                  </>
+                )}
+                {selectedOrder.confirmation_message && (
+                  <>
+                    <Separator />
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Confirmação</p>
+                    <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.confirmation_message}</pre>
+                  </>
+                )}
+
+                {operationStatus === 'RASCUNHO' && userRoles.includes('mesa') && (
+                  <>
+                    <Separator />
+                    <Button onClick={handleSubmitForApproval} className="w-full">
+                      Submeter para Aprovação
+                    </Button>
+                  </>
+                )}
               </div>
-
-              <Separator />
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Volume e Preço</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                <span className="text-muted-foreground">Volume</span><span>{selectedOrder.volume_sacks?.toLocaleString('pt-BR')} sacas</span>
-                <span className="text-muted-foreground">Preço originação</span><span>R$ {selectedOrder.origination_price_brl?.toFixed(2)}</span>
-              </div>
-
-              {detailLegs.length > 0 && (
-                <>
-                  <Separator />
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pernas ({detailLegs.length})</p>
-                  {detailLegs.map((leg: any, i: number) => (
-                    <div key={i} className="bg-muted/50 rounded p-2 space-y-1 text-sm">
-                      <p className="font-medium text-xs">{leg.leg_type} · {leg.direction}</p>
-                      {leg.ticker && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Ticker</span><span className="text-xs">{leg.ticker}</span></div>}
-                      {leg.contracts != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Contratos</span><span className="text-xs">{leg.contracts}</span></div>}
-                      {leg.volume_units != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Quantidade</span><span className="text-xs">{leg.volume_units} {leg.unit_label ?? ''}</span></div>}
-                      {leg.price != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Preço</span><span className="text-xs">{leg.price}</span></div>}
-                      {leg.ndf_rate != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Taxa NDF</span><span className="text-xs">{leg.ndf_rate}</span></div>}
-                      {leg.strike != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Strike</span><span className="text-xs">{leg.strike}</span></div>}
-                      {leg.premium != null && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Prêmio</span><span className="text-xs">{leg.premium}</span></div>}
-                      {leg.notes && <div className="grid grid-cols-2 gap-x-4"><span className="text-muted-foreground text-xs">Obs.</span><span className="text-xs">{leg.notes}</span></div>}
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {selectedOrder.order_message && (
-                <>
-                  <Separator />
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Ordem</p>
-                  <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.order_message}</pre>
-                </>
-              )}
-              {selectedOrder.confirmation_message && (
-                <>
-                  <Separator />
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem de Confirmação</p>
-                  <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{selectedOrder.confirmation_message}</pre>
-                </>
-              )}
-            </DialogContent>
-          </Dialog>
+            </SheetContent>
+          </Sheet>
         );
       })()}
 
