@@ -11,6 +11,7 @@ import PendingApproval from "./pages/PendingApproval";
 import AccountDisabled from "./pages/AccountDisabled";
 import PricingTable from "./pages/PricingTable";
 import Orders from "./pages/Orders";
+import Approvals from "./pages/Approvals";
 import Operations from "./pages/Operations";
 import OperationsMTM from "./pages/OperationsMTM";
 import MTM from "./pages/MTM";
@@ -35,6 +36,7 @@ const App = () => (
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<PricingTable />} />
               <Route path="/ordens" element={<Orders />} />
+              <Route path="/aprovacoes" element={<Approvals />} />
               <Route path="/operacoes-mtm" element={<OperationsMTM />} />
               <Route path="/operacoes" element={<Operations />} />
               <Route path="/mtm" element={<MTM />} />
