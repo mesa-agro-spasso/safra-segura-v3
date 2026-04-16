@@ -1,4 +1,4 @@
-import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users } from 'lucide-react';
+import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users, Layers } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 const items = [
   { title: 'Tabela de Preços', url: '/', icon: TableProperties },
   { title: 'Ordens', url: '/ordens', icon: FileText },
+  { title: 'Operações', url: '/operacoes', icon: Layers },
   { title: 'MTM', url: '/mtm', icon: TrendingUp },
   { title: 'Mercado', url: '/mercado', icon: BarChart3 },
   { title: 'Financeiro', url: '/financeiro', icon: DollarSign },
