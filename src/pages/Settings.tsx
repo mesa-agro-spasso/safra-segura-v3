@@ -583,7 +583,8 @@ function ParametersTab() {
     const sigma = parseFloat(raw);
     if (isNaN(sigma) || sigma <= 0 || sigma > 2) { toast.error('Sigma deve ser entre 0 e 2 (ex: 0.25)'); return; }
     try {
-      await updateParameter.mutateAsync({ id, sigma });
+      const currentParam = parameters?.find(p => p.id === id);
+      await updateParameter.mutateAsync({ id, sigma, target_profit_brl_per_sack: currentParam?.target_profit_brl_per_sack ?? 2.0 });
       toast.success(`Sigma ${getLabel(id)} atualizado`);
       setValues((v) => { const n = { ...v }; delete n[id]; return n; });
     } catch (err) {
@@ -614,6 +615,46 @@ function ParametersTab() {
               </Button>
             </div>
           ))}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Lucro Alvo por Saca</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">Preço físico alvo = break-even + lucro alvo. Usado na aba MTM para mostrar o preço do físico necessário para atingir o lucro desejado.</p>
+          <div className="flex items-end gap-3 max-w-xs">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Lucro alvo (R$/sc)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder={String(parameters?.[0]?.target_profit_brl_per_sack ?? 2.0)}
+                value={values['target_profit'] ?? (parameters?.[0]?.target_profit_brl_per_sack ?? '')}
+                onChange={(e) => setValues((v) => ({ ...v, target_profit: e.target.value }))}
+              />
+              <p className="text-[10px] text-muted-foreground">Atual: R$ {(parameters?.[0]?.target_profit_brl_per_sack ?? 2.0).toFixed(2)}/sc</p>
+            </div>
+            <Button
+              size="sm"
+              disabled={updateParameter.isPending}
+              onClick={async () => {
+                const raw = values['target_profit'];
+                if (raw === undefined || raw === '') { toast.error('Informe um valor'); return; }
+                const val = parseFloat(raw);
+                if (isNaN(val) || val < 0) { toast.error('Valor deve ser >= 0'); return; }
+                try {
+                  for (const p of parameters ?? []) {
+                    await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, target_profit_brl_per_sack: val });
+                  }
+                  toast.success('Lucro alvo atualizado');
+                  setValues((v) => { const n = { ...v }; delete n['target_profit']; return n; });
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+                }
+              }}
+            >
+              Salvar
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

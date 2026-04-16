@@ -19,10 +19,15 @@ export function usePricingParameters() {
 export function useUpdatePricingParameter() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, sigma }: { id: string; sigma: number }) => {
+    mutationFn: async ({ id, sigma, target_profit_brl_per_sack }: { id: string; sigma: number; target_profit_brl_per_sack?: number }) => {
+      const updatePayload: { sigma: number; updated_at: string; target_profit_brl_per_sack?: number } = {
+        sigma,
+        updated_at: new Date().toISOString(),
+      };
+      if (target_profit_brl_per_sack !== undefined) updatePayload.target_profit_brl_per_sack = target_profit_brl_per_sack;
       const { error } = await supabase
         .from('pricing_parameters')
-        .update({ sigma, updated_at: new Date().toISOString() })
+        .update(updatePayload)
         .eq('id', id);
       if (error) throw error;
     },

@@ -449,16 +449,19 @@ export type Database = {
         Row: {
           id: string
           sigma: number
+          target_profit_brl_per_sack: number | null
           updated_at: string | null
         }
         Insert: {
           id: string
           sigma: number
+          target_profit_brl_per_sack?: number | null
           updated_at?: string | null
         }
         Update: {
           id?: string
           sigma?: number
+          target_profit_brl_per_sack?: number | null
           updated_at?: string | null
         }
         Relationships: []
