@@ -55,6 +55,7 @@ const MTM = () => {
 
         const futuresLeg = legs.find((l) => l.leg_type === 'futures');
         const optionLeg = legs.find((l) => l.leg_type === 'option');
+        console.log('DEBUG order', o.operation_id, 'optionLeg:', JSON.stringify(optionLeg));
 
         const futuresPrice = futuresLeg
           ? (marketData.find((m) => m.ticker === futuresLeg.ticker)?.price ?? 0)
