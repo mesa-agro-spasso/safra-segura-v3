@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      approval_policies: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean
+          threshold_x_tons: number
+          threshold_y_tons: number
+          version: number
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          threshold_x_tons: number
+          threshold_y_tons: number
+          version?: number
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          threshold_x_tons?: number
+          threshold_y_tons?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_policies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hedge_orders: {
         Row: {
           cancellation_reason: string | null
@@ -546,6 +584,57 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signatures: {
+        Row: {
+          created_at: string | null
+          id: string
+          ip_address: string | null
+          notes: string | null
+          operation_id: string
+          role_used: string
+          signature_type: string
+          signed_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          notes?: string | null
+          operation_id: string
+          role_used: string
+          signature_type: string
+          signed_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          notes?: string | null
+          operation_id?: string
+          role_used?: string
+          signature_type?: string
+          signed_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signatures_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signatures_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
