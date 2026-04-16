@@ -21,6 +21,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Switch } from '@/components/ui/switch';
 import type { OperationWithDetails } from '@/types';
 
+type MtmResult = Record<string, unknown>;
+
 const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; className?: string }> = {
   RASCUNHO: { label: 'Rascunho', variant: 'secondary' },
   SUBMETIDA: { label: 'Submetida', variant: 'outline' },
@@ -86,27 +88,63 @@ const OperationsMTM = () => {
     return [...new Set(orders.map(o => o.operation?.warehouses?.display_name).filter(Boolean))] as string[];
   }, [orders]);
 
+  const ordersForSelectedOperation = useMemo(() => {
+    if (!selectedOperation || !allOrders) return [];
+    return allOrders.filter(o => o.operation_id === selectedOperation.id);
+  }, [selectedOperation, allOrders]);
+
+  // Snapshot-based results (loaded from DB when no fresh calculation exists)
+  const snapshotResults = useMemo(() => {
+    if (!mtmSnapshots?.length || !orders?.length) return null;
+    const latestByOperation: Record<string, typeof mtmSnapshots[0]> = {};
+    for (const snap of mtmSnapshots) {
+      if (!latestByOperation[snap.operation_id]) {
+        latestByOperation[snap.operation_id] = snap;
+      }
+    }
+    return Object.values(latestByOperation).map(snap => ({
+      operation_id: snap.operation_id,
+      mtm_physical_brl: snap.mtm_physical_brl,
+      mtm_futures_brl: snap.mtm_futures_brl,
+      mtm_ndf_brl: snap.mtm_ndf_brl,
+      mtm_option_brl: snap.mtm_option_brl,
+      mtm_total_brl: snap.mtm_total_brl,
+      mtm_per_sack_brl: snap.mtm_per_sack_brl,
+      total_exposure_brl: snap.total_exposure_brl,
+      volume_sacks: snap.volume_sacks,
+      calculated_at: snap.calculated_at,
+      market_snapshot: {
+        futures_price_current: snap.futures_price_current,
+        physical_price_current: snap.physical_price_current,
+        spot_rate_current: snap.spot_rate_current,
+        option_premium_current: null,
+      },
+    }));
+  }, [mtmSnapshots, orders]);
+
+  const displayResults: MtmResult[] | null = results ?? (snapshotResults as MtmResult[] | null);
+
   const filteredResults = useMemo(() => {
-    if (!results) return results;
-    return results.filter(r => {
+    if (!displayResults) return displayResults;
+    return displayResults.filter(r => {
       const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
       if (filterWarehouse !== 'all' && matchedOrder?.operation?.warehouses?.display_name !== filterWarehouse) return false;
       if (filterCommodity !== 'all' && matchedOrder?.commodity !== filterCommodity) return false;
       return true;
     });
-  }, [results, orders, filterWarehouse, filterCommodity]);
+  }, [displayResults, orders, filterWarehouse, filterCommodity]);
 
   const summary = useMemo(() => {
-    if (!results?.length) return null;
-    const totalFisico = results.reduce((s, r) => s + ((r.mtm_physical_brl as number) ?? 0), 0);
-    const totalFuturos = results.reduce((s, r) => s + ((r.mtm_futures_brl as number) ?? 0), 0);
-    const totalNdf = results.reduce((s, r) => s + ((r.mtm_ndf_brl as number) ?? 0), 0);
-    const totalOpcao = results.reduce((s, r) => s + ((r.mtm_option_brl as number) ?? 0), 0);
-    const totalGeral = results.reduce((s, r) => s + ((r.mtm_total_brl as number) ?? 0), 0);
-    const totalVolume = results.reduce((s, r) => s + ((r.volume_sacks as number) ?? 0), 0);
+    if (!displayResults?.length) return null;
+    const totalFisico = displayResults.reduce((s, r) => s + ((r.mtm_physical_brl as number) ?? 0), 0);
+    const totalFuturos = displayResults.reduce((s, r) => s + ((r.mtm_futures_brl as number) ?? 0), 0);
+    const totalNdf = displayResults.reduce((s, r) => s + ((r.mtm_ndf_brl as number) ?? 0), 0);
+    const totalOpcao = displayResults.reduce((s, r) => s + ((r.mtm_option_brl as number) ?? 0), 0);
+    const totalGeral = displayResults.reduce((s, r) => s + ((r.mtm_total_brl as number) ?? 0), 0);
+    const totalVolume = displayResults.reduce((s, r) => s + ((r.volume_sacks as number) ?? 0), 0);
     const totalPerSack = totalVolume > 0 ? totalGeral / totalVolume : 0;
     return { totalFisico, totalFuturos, totalNdf, totalOpcao, totalGeral, totalVolume, totalPerSack };
-  }, [results]);
+  }, [displayResults]);
 
   const chartDataConsolidated = useMemo(() => {
     if (!summary) return [];
@@ -120,8 +158,8 @@ const OperationsMTM = () => {
   }, [summary]);
 
   const chartDataByOperation = useMemo(() => {
-    if (!results?.length) return [];
-    return results.map(r => {
+    if (!displayResults?.length) return [];
+    return displayResults.map(r => {
       const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
       const label = matchedOrder?.operation?.warehouses?.display_name ?? (r.operation_id as string)?.slice(0, 8);
       return {
@@ -133,12 +171,7 @@ const OperationsMTM = () => {
         Total: (r.mtm_total_brl as number) ?? 0,
       };
     });
-  }, [results, orders]);
-
-  const ordersForSelectedOperation = useMemo(() => {
-    if (!selectedOperation || !allOrders) return [];
-    return allOrders.filter(o => o.operation_id === selectedOperation.id);
-  }, [selectedOperation, allOrders]);
+  }, [displayResults, orders]);
 
   const handleCalculate = async () => {
     if (!orders?.length || !marketData?.length) {
@@ -269,181 +302,14 @@ const OperationsMTM = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="marcacao" className="w-full">
+      <Tabs defaultValue="operacoes" className="w-full">
         <TabsList>
-          <TabsTrigger value="marcacao">Marcação</TabsTrigger>
-          <TabsTrigger value="resultado">Resultado</TabsTrigger>
           <TabsTrigger value="operacoes">Operações</TabsTrigger>
+          <TabsTrigger value="mtm">MTM</TabsTrigger>
           <TabsTrigger value="resumo">Resumo</TabsTrigger>
         </TabsList>
 
-        {/* TAB 1 — Marcação */}
-        <TabsContent value="marcacao">
-          {loadingOrders ? (
-            <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
-          ) : !orders?.length ? (
-            <p className="text-center text-muted-foreground py-12">Nenhuma ordem executada encontrada.</p>
-          ) : (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Operações Ativas</CardTitle>
-                  <Button onClick={handleCalculate} disabled={calculating || !orders?.length} size="sm">
-                    <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
-                    {calculating ? 'Calculando...' : 'Calcular MTM'}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Operação</TableHead>
-                      <TableHead>Praça</TableHead>
-                      <TableHead>Entrada</TableHead>
-                      <TableHead>Saída</TableHead>
-                      <TableHead>Commodity</TableHead>
-                      <TableHead>Volume</TableHead>
-                      <TableHead>Preço Orig.</TableHead>
-                      <TableHead>Preço Físico Atual (R$/sc)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orders.map((o) => (
-                      <TableRow key={o.id}>
-                        <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
-                        <TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
-                        <TableCell>{o.operation?.pricing_snapshots?.trade_date ? new Date(o.operation.pricing_snapshots.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-                        <TableCell>{o.operation?.pricing_snapshots?.sale_date ? new Date(o.operation.pricing_snapshots.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
-                        <TableCell>{o.commodity}</TableCell>
-                        <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
-                        <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="h-8 w-28"
-                            placeholder="0.00"
-                            value={physicalPrices[o.operation_id] || ''}
-                            onChange={(e) => setPhysicalPrices((p) => {
-                              const updated = { ...p, [o.operation_id]: e.target.value };
-                              try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch {}
-                              return updated;
-                            })}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* TAB 2 — Resultado */}
-        <TabsContent value="resultado">
-          {/* Filters */}
-          <div className="space-y-2 mb-4">
-            <button
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setFiltersExpanded(v => !v)}
-            >
-              <Filter className="h-4 w-4" />
-              Filtros
-              {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
-                <Badge variant="secondary" className="text-xs">ativo</Badge>
-              )}
-              <span className="text-xs">{filtersExpanded ? '▾' : '▸'}</span>
-            </button>
-            {filtersExpanded && (
-              <div className="flex flex-wrap gap-4 items-end">
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Praça</label>
-                  <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
-                    <SelectTrigger className="w-40 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      {uniqueWarehouses.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Commodity</label>
-                  <Select value={filterCommodity} onValueChange={setFilterCommodity}>
-                    <SelectTrigger className="w-40 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="soybean">Soja</SelectItem>
-                      <SelectItem value="corn">Milho</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => { setFilterWarehouse('all'); setFilterCommodity('all'); }}
-                  >
-                    Limpar filtros
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Results table */}
-          {filteredResults ? (
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Resultado MTM</CardTitle></CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Operação</TableHead>
-                      <TableHead>Commodity</TableHead>
-                      <TableHead>Praça</TableHead>
-                      <TableHead>Entrada</TableHead>
-                      <TableHead>Saída</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Por Saca</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredResults.map((r, i) => {
-                      const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
-                      const ps = matchedOrder?.operation?.pricing_snapshots;
-                      const wName = matchedOrder?.operation?.warehouses?.display_name ?? '—';
-                      const total = (r.mtm_total_brl as number) ?? 0;
-                      return (
-                        <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
-                          <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
-                          <TableCell>{matchedOrder?.commodity === 'soybean' ? 'Soja' : matchedOrder?.commodity === 'corn' ? 'Milho' : matchedOrder?.commodity ?? '—'}</TableCell>
-                          <TableCell>{wName}</TableCell>
-                          <TableCell>{fmtDate(ps?.trade_date)}</TableCell>
-                          <TableCell>{fmtDate(ps?.sale_date)}</TableCell>
-                          <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            R$ {total.toFixed(2)}
-                          </TableCell>
-                          <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          ) : (
-            <p className="text-center text-muted-foreground py-12">Calcule o MTM na aba Marcação para ver os resultados.</p>
-          )}
-        </TabsContent>
-
-        {/* TAB 3 — Operações */}
+        {/* TAB 1 — Operações */}
         <TabsContent value="operacoes">
           {loadingOperations ? (
             <div className="flex items-center justify-center py-12">
@@ -500,7 +366,162 @@ const OperationsMTM = () => {
           )}
         </TabsContent>
 
-        {/* TAB 4 — Resumo */}
+        {/* TAB 2 — MTM (merged marcação + resultado) */}
+        <TabsContent value="mtm" className="space-y-4">
+          {/* Results section — always first, always visible if data exists */}
+          {filteredResults && filteredResults.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Resultado MTM</CardTitle>
+                  <button
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setFiltersExpanded(v => !v)}
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                    <span>Filtros</span>
+                    {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
+                      <span className="bg-primary/20 text-primary text-[10px] px-1.5 rounded-full font-medium">ativo</span>
+                    )}
+                    <span>{filtersExpanded ? '▾' : '▸'}</span>
+                  </button>
+                </div>
+                {filtersExpanded && (
+                  <div className="flex flex-wrap gap-3 mt-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Praça</span>
+                      <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+                        <SelectTrigger className="w-40 h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas</SelectItem>
+                          {uniqueWarehouses.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Commodity</span>
+                      <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+                        <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas</SelectItem>
+                          <SelectItem value="soybean">Soja</SelectItem>
+                          <SelectItem value="corn">Milho</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {(filterWarehouse !== 'all' || filterCommodity !== 'all') && (
+                      <div className="flex items-end">
+                        <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterWarehouse('all'); setFilterCommodity('all'); }}>
+                          Limpar filtros
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Operação</TableHead>
+                      <TableHead>Commodity</TableHead>
+                      <TableHead>Praça</TableHead>
+                      <TableHead>Entrada</TableHead>
+                      <TableHead>Saída</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Por Saca</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredResults.map((r, i) => {
+                      const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
+                      const ps = matchedOrder?.operation?.pricing_snapshots;
+                      const wName = matchedOrder?.operation?.warehouses?.display_name ?? '—';
+                      const total = (r.mtm_total_brl as number) ?? 0;
+                      return (
+                        <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
+                          <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>
+                          <TableCell>{matchedOrder?.commodity === 'soybean' ? 'Soja' : matchedOrder?.commodity === 'corn' ? 'Milho' : '—'}</TableCell>
+                          <TableCell>{wName}</TableCell>
+                          <TableCell>{fmtDate(ps?.trade_date)}</TableCell>
+                          <TableCell>{fmtDate(ps?.sale_date)}</TableCell>
+                          <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            R$ {total.toFixed(2)}
+                          </TableCell>
+                          <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : (
+            <p className="text-center text-muted-foreground py-8 text-sm">Nenhum resultado disponível.</p>
+          )}
+
+          {/* Active operations + calculate button — below results */}
+          {loadingOrders ? (
+            <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+          ) : orders?.length ? (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Operações Ativas</CardTitle>
+                  <Button onClick={handleCalculate} disabled={calculating || !orders?.length} size="sm">
+                    <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
+                    {calculating ? 'Calculando...' : 'Calcular MTM'}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Operação</TableHead>
+                      <TableHead>Praça</TableHead>
+                      <TableHead>Entrada</TableHead>
+                      <TableHead>Saída</TableHead>
+                      <TableHead>Commodity</TableHead>
+                      <TableHead>Volume</TableHead>
+                      <TableHead>Preço Orig.</TableHead>
+                      <TableHead>Preço Físico Atual (R$/sc)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.map((o) => (
+                      <TableRow key={o.id}>
+                        <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
+                        <TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
+                        <TableCell>{o.operation?.pricing_snapshots?.trade_date ? new Date(o.operation.pricing_snapshots.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+                        <TableCell>{o.operation?.pricing_snapshots?.sale_date ? new Date(o.operation.pricing_snapshots.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</TableCell>
+                        <TableCell>{o.commodity}</TableCell>
+                        <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
+                        <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="h-8 w-28"
+                            placeholder="0.00"
+                            value={physicalPrices[o.operation_id] || ''}
+                            onChange={(e) => setPhysicalPrices((p) => {
+                              const updated = { ...p, [o.operation_id]: e.target.value };
+                              try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch {}
+                              return updated;
+                            })}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
+        </TabsContent>
+
+        {/* TAB 3 — Resumo */}
         <TabsContent value="resumo">
           {!summary ? (
             <p className="text-center text-muted-foreground py-12">Calcule o MTM primeiro para ver o resumo.</p>
@@ -510,7 +531,7 @@ const OperationsMTM = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <p className="text-xs text-muted-foreground">Operações Ativas</p>
-                    <p className="text-2xl font-bold">{results?.length ?? 0}</p>
+                    <p className="text-2xl font-bold">{displayResults?.length ?? 0}</p>
                   </CardContent>
                 </Card>
                 <Card>
@@ -676,59 +697,93 @@ const OperationsMTM = () => {
         );
       })()}
 
-      {/* Operations Detail dialog — outside tabs */}
+      {/* Operations Detail dialog — outside tabs (tabbed) */}
       {selectedOperation && (() => {
         const ps = selectedOperation.pricing_snapshots;
+        const opMtmSnapshot = mtmSnapshots?.find(s => s.operation_id === selectedOperation.id);
+        const fmtBrl = (v: unknown) => `R$ ${((v as number) ?? 0).toFixed(2)}`;
+
         return (
           <Dialog open={!!selectedOperation} onOpenChange={(o) => { if (!o) setSelectedOperation(null); }}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {selectedOperation.warehouses?.display_name ?? '—'} — {selectedOperation.id.slice(0, 8)}
                 </DialogTitle>
               </DialogHeader>
-
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Identificação</p>
-              <DetailRow label="Commodity" value={selectedOperation.commodity === 'soybean' ? 'Soja' : 'Milho'} />
-              <DetailRow label="Volume" value={`${selectedOperation.volume_sacks.toLocaleString('pt-BR')} sc`} />
-              <DetailRow label="Status" value={STATUS_BADGE[selectedOperation.status]?.label ?? selectedOperation.status} />
-              <DetailRow label="Criada em" value={fmtDate(selectedOperation.created_at?.slice(0, 10))} />
-              {selectedOperation.notes && <DetailRow label="Notas" value={selectedOperation.notes} />}
-
-              <Separator />
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Precificação</p>
-              <DetailRow label="Ticker" value={ps?.ticker ?? '—'} />
-              <DetailRow label="Preço Originação" value={ps ? `R$ ${ps.origination_price_brl.toFixed(2)}` : '—'} />
-              <DetailRow label="Preço Futuros (BRL)" value={ps ? `R$ ${ps.futures_price_brl.toFixed(2)}` : '—'} />
-              <DetailRow label="Câmbio" value={ps?.exchange_rate != null ? ps.exchange_rate.toFixed(4) : '—'} />
-
-              <Separator />
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Datas</p>
-              <DetailRow label="Entrada" value={fmtDate(ps?.trade_date)} />
-              <DetailRow label="Pagamento" value={fmtDate(ps?.payment_date)} />
-              <DetailRow label="Recepção" value={fmtDate(ps?.grain_reception_date)} />
-              <DetailRow label="Saída" value={fmtDate(ps?.sale_date)} />
-
-              {ordersForSelectedOperation.length > 0 && (
-                <>
+              <Tabs defaultValue="detalhes">
+                <TabsList>
+                  <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+                  <TabsTrigger value="mtm_op">MTM</TabsTrigger>
+                </TabsList>
+                <TabsContent value="detalhes" className="space-y-2 mt-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Identificação</p>
+                  <DetailRow label="Commodity" value={selectedOperation.commodity === 'soybean' ? 'Soja' : 'Milho'} />
+                  <DetailRow label="Volume" value={`${selectedOperation.volume_sacks.toLocaleString('pt-BR')} sc`} />
+                  <DetailRow label="Status" value={STATUS_BADGE[selectedOperation.status]?.label ?? selectedOperation.status} />
+                  <DetailRow label="Criada em" value={fmtDate(selectedOperation.created_at?.slice(0, 10))} />
+                  {selectedOperation.notes && <DetailRow label="Notas" value={selectedOperation.notes} />}
                   <Separator />
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Ordens Vinculadas ({ordersForSelectedOperation.length})
-                  </p>
-                  {ordersForSelectedOperation.map((o) => (
-                    <div key={o.id} className="rounded-md border p-3 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{o.display_code ?? o.id.slice(0, 8)}</span>
-                        <Badge variant="outline">{o.status}</Badge>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Precificação</p>
+                  <DetailRow label="Ticker" value={ps?.ticker ?? '—'} />
+                  <DetailRow label="Preço Originação" value={ps ? `R$ ${ps.origination_price_brl.toFixed(2)}` : '—'} />
+                  <DetailRow label="Preço Futuros (BRL)" value={ps ? `R$ ${ps.futures_price_brl.toFixed(2)}` : '—'} />
+                  <DetailRow label="Câmbio" value={ps?.exchange_rate != null ? ps.exchange_rate.toFixed(4) : '—'} />
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Datas</p>
+                  <DetailRow label="Entrada" value={fmtDate(ps?.trade_date)} />
+                  <DetailRow label="Pagamento" value={fmtDate(ps?.payment_date)} />
+                  <DetailRow label="Recepção" value={fmtDate(ps?.grain_reception_date)} />
+                  <DetailRow label="Saída" value={fmtDate(ps?.sale_date)} />
+                  {ordersForSelectedOperation.length > 0 && (
+                    <>
+                      <Separator />
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Ordens Vinculadas ({ordersForSelectedOperation.length})
+                      </p>
+                      {ordersForSelectedOperation.map((o) => (
+                        <div key={o.id} className="rounded-md border p-3 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{o.display_code ?? o.id.slice(0, 8)}</span>
+                            <Badge variant="outline">{o.status}</Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span>{(o.legs as any[])?.length ?? 0} pernas</span>
+                            <span>{o.volume_sacks.toLocaleString('pt-BR')} sc</span>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </TabsContent>
+                <TabsContent value="mtm_op" className="space-y-2 mt-2">
+                  {!opMtmSnapshot ? (
+                    <p className="text-center text-muted-foreground py-8 text-sm">Nenhum MTM calculado para esta operação.</p>
+                  ) : (
+                    <>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Snapshot de Mercado</p>
+                      <DetailRow label="Futuros (atual)" value={`USD ${opMtmSnapshot.futures_price_current?.toFixed(4) ?? '—'}/bu`} />
+                      <DetailRow label="Físico (atual)" value={fmtBrl(opMtmSnapshot.physical_price_current)} />
+                      <DetailRow label="Câmbio spot" value={opMtmSnapshot.spot_rate_current != null ? `R$ ${opMtmSnapshot.spot_rate_current.toFixed(4)}` : '—'} />
+                      <DetailRow label="Data cálculo" value={fmtDate(opMtmSnapshot.calculated_at?.slice(0, 10))} />
+                      <Separator />
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Resultado MTM</p>
+                      <DetailRow label="Físico" value={fmtBrl(opMtmSnapshot.mtm_physical_brl)} />
+                      <DetailRow label="Futuros" value={fmtBrl(opMtmSnapshot.mtm_futures_brl)} />
+                      <DetailRow label="NDF" value={fmtBrl(opMtmSnapshot.mtm_ndf_brl)} />
+                      <DetailRow label="Opção" value={fmtBrl(opMtmSnapshot.mtm_option_brl)} />
+                      <div className="flex justify-between py-1">
+                        <span className="text-sm font-bold">Total</span>
+                        <span className={`text-sm font-bold ${(opMtmSnapshot.mtm_total_brl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {fmtBrl(opMtmSnapshot.mtm_total_brl)}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>{(o.legs as any[])?.length ?? 0} pernas</span>
-                        <span>{o.volume_sacks.toLocaleString('pt-BR')} sc</span>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
+                      <DetailRow label="Por Saca" value={`${fmtBrl(opMtmSnapshot.mtm_per_sack_brl)}/sc`} />
+                      <DetailRow label="Exposição Total" value={fmtBrl(opMtmSnapshot.total_exposure_brl)} />
+                    </>
+                  )}
+                </TabsContent>
+              </Tabs>
             </DialogContent>
           </Dialog>
         );
