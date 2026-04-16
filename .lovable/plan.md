@@ -1,21 +1,26 @@
 
 
-# Update Break-even & Target Profit Logic in OperationsMTM
+# Add Execution Spread Parameter
 
-Single file: `src/pages/OperationsMTM.tsx`
+Four files. No DB migration (`execution_spread_pct` column already exists).
 
 ## Changes
 
-1. **Replace `calcBreakeven` helper** — new formula uses current physical price input and MTM per sack: `(physicalCurrent - mtmPerSack) * 1.01`.
+### 1. `src/types/index.ts`
+Add `execution_spread_pct: number;` to `PricingParameter` after `target_profit_brl_per_sack`.
 
-2. **Replace `targetProfitPerSack` constant** with commodity-specific lookups:
-   - `targetProfitSoybean` from `soybean_cbot` parameter row
-   - `targetProfitCorn` from `corn_b3` parameter row
-   - `getTargetProfit(r)` helper resolves which to use based on matched order's commodity
+### 2. `src/hooks/usePricingParameters.ts`
+Update `useUpdatePricingParameter` to accept optional `execution_spread_pct` and include it in update payload when provided.
 
-3. **Update results table cells** — use `getTargetProfit(r)` in place of `targetProfitPerSack`.
+### 3. `src/pages/Settings.tsx` — ParametersTab
+- Sigma `handleSave`: add `execution_spread_pct: currentParam?.execution_spread_pct ?? 0.05`
+- Lucro alvo save: add `execution_spread_pct: p.execution_spread_pct ?? 0.05`
+- Add new Card "Spread de Execução" after Lucro Alvo card with input, validation (0–1), save button that preserves sigma + target_profit
 
-4. **Update detail dialog rows** — use `getTargetProfit(detailResult)` in place of `targetProfitPerSack`.
-
-No other changes.
+### 4. `src/pages/OperationsMTM.tsx`
+- Add `executionSpread` derived value after `targetProfitCorn`
+- Replace `calcBreakeven`: `(physicalCurrent - mtmPerSack) * (1 + executionSpread)`
+- Add new `calcTargetPhysical` helper: `(physicalCurrent - mtmPerSack + getTargetProfit(r)) * (1 + executionSpread)`
+- Replace `calcBreakeven(r) + getTargetProfit(r)` → `calcTargetPhysical(r)` in results table
+- Replace `calcBreakeven(detailResult) + getTargetProfit(detailResult)` → `calcTargetPhysical(detailResult)` in detail dialog
 
