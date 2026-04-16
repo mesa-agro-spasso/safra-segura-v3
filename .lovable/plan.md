@@ -1,30 +1,35 @@
 
 
-# Unified Operations/MTM Page
+# OperationsMTM — Reorder Tabs, Merge MTM, Load Snapshots, Tabbed Op Dialog
 
-Create `src/pages/OperationsMTM.tsx` merging both pages, update routing and sidebar. Three files modified, one created.
+Single file: `src/pages/OperationsMTM.tsx`
 
 ## Changes
 
-### 1. Create `src/pages/OperationsMTM.tsx`
-- Combine all imports, hooks, state, and useMemo from both `MTM.tsx` and `Operations.tsx`
-- Two hook calls for hedge orders: one filtered `{ status: 'EXECUTED' }` (for MTM), one unfiltered (for operations dialog)
-- Add `selectedOperation` state (for operations detail dialog) and `ordersForSelectedOperation` memo
-- Copy `STATUS_BADGE` constant and `fmtDate` helper from Operations.tsx
-- Header: title "Operações / MTM", status dots, **no calculate button**
-- `<Tabs defaultValue="marcacao">` with 4 tabs:
-  - **marcacao**: active operations table with physical price inputs + Calcular MTM button (moved here)
-  - **resultado**: collapsible filters + results table (click opens MTM detail dialog)
-  - **operacoes**: full operations table from Operations.tsx (click opens operations detail dialog)
-  - **resumo**: summary cards, breakdown table, chart with toggle
-- Two dialogs outside tabs: MTM detail dialog + Operations detail dialog
+### 1. Reorder tabs (line 272-278)
+- Change `defaultValue` to `"operacoes"`
+- Replace TabsList with 3 tabs: Operações, MTM, Resumo (remove Resultado)
 
-### 2. `src/App.tsx`
-- Add `import OperationsMTM from './pages/OperationsMTM'`
-- Add route `<Route path="/operacoes-mtm" element={<OperationsMTM />} />` after `/ordens`
-- Keep existing `/operacoes` and `/mtm` routes
+### 2. Add `snapshotResults` and `displayResults` (after line 141, before `handleCalculate`)
+- `snapshotResults` useMemo: loads latest mtmSnapshot per operation_id as result objects
+- `const displayResults = results ?? snapshotResults;`
 
-### 3. `src/components/AppSidebar.tsx`
-- Replace items array: remove separate Operações and MTM entries, add single `{ title: 'Operações / MTM', url: '/operacoes-mtm', icon: TrendingUp }`
-- Remove `Layers` from lucide-react import
+### 3. Update `filteredResults` (lines 89-97)
+- Use `displayResults` instead of `results`
+
+### 4. Update `summary` (lines 99-109)
+- Use `displayResults` instead of `results`
+
+### 5. Update `chartDataByOperation` (lines 122-136)
+- Use `displayResults` instead of `results`
+
+### 6. Replace tabs "marcacao" (lines 280-342) and "resultado" (lines 344-444) with single "mtm" tab
+- Results section first (with inline filters), then active operations + calculate button below
+- Uses `filteredResults` and `displayResults`
+
+### 7. Replace Operations detail dialog (lines 679-735)
+- Tabbed dialog with `max-w-2xl`, scrollable
+- Tab "detalhes": existing content (identification, pricing, dates, linked orders)
+- Tab "mtm_op": MTM snapshot for that operation (market snapshot + result breakdown)
+- Looks up `opMtmSnapshot` from `mtmSnapshots`
 
