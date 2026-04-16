@@ -80,6 +80,61 @@ const Orders = () => {
   const updateOrder = useUpdateHedgeOrder();
   const createOperation = useCreateOperation();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: currentUserData } = useQuery({
+    queryKey: ['current-user-roles', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('users').select('roles').eq('id', user!.id).single();
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+  const userRoles: string[] = (currentUserData?.roles as string[] | undefined) ?? [];
+
+  const { data: orderSignatures } = useQuery({
+    queryKey: ['signatures', selectedOrder?.operation_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('signatures')
+        .select('*, signer:users(full_name)')
+        .eq('operation_id', selectedOrder!.operation_id)
+        .order('signed_at', { ascending: true });
+      return data ?? [];
+    },
+    enabled: !!selectedOrder?.operation_id,
+  });
+
+  const { data: operationStatusData } = useQuery({
+    queryKey: ['operation-status', selectedOrder?.operation_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('operations')
+        .select('status')
+        .eq('id', selectedOrder!.operation_id)
+        .single();
+      return data;
+    },
+    enabled: !!selectedOrder?.operation_id,
+  });
+  const operationStatus = operationStatusData?.status;
+
+  const handleSubmitForApproval = async () => {
+    if (!selectedOrder) return;
+    const { error } = await supabase
+      .from('operations')
+      .update({ status: 'EM_APROVACAO' })
+      .eq('id', selectedOrder.operation_id);
+    if (error) {
+      toast.error('Erro ao submeter: ' + error.message);
+      return;
+    }
+    toast.success('Operação submetida para aprovação');
+    setSelectedOrder(null);
+    queryClient.invalidateQueries({ queryKey: ['operations'] });
+    queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['operation-status'] });
+  };
 
   // Filtered + sorted orders
   const orders = useMemo(() => {
