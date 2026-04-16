@@ -1,60 +1,39 @@
 
 
-# Etapa 3 — Página Aprovações + rota
+# Aba "Alçadas" em Settings.tsx
 
-## Arquivos
+Arquivo único: `src/pages/Settings.tsx`.
 
-### 1. `src/pages/Approvals.tsx` (novo)
+## Mudanças
 
-**Constantes**:
-- `KG_PER_SACK = 60`
-- `ROLES_TIERS` com `low`/`mid`/`high` (mid: `comercial_n2` duplicado → exige 2 assinaturas distintas)
-- Helpers `countBy`, `getMissingRoles` (preserva duplicatas), `allSigned`
-- `getRequiredRoles(volumeTons, policy)` — escolhe tier por threshold
-- Fallback quando policy ausente: `{ threshold_x_tons: Infinity, threshold_y_tons: 0 }` → tier low
+### 1. Imports a adicionar
+- `useEffect` de `react`
+- `useQuery, useQueryClient` de `@tanstack/react-query`
+- `supabase` de `@/integrations/supabase/client`
+- `useAuth` de `@/contexts/AuthContext`
 
-**Fetches (useQuery)**:
-1. `current-user-roles` — `users.roles` por `user.id`
-2. `approval-policy` — `approval_policies` com `is_active=true` (`maybeSingle`)
-3. `pending-operations` — `operations` com `status='EM_APROVACAO'`, joins `pricing_snapshot:pricing_snapshots(payment_date)` e `warehouse:warehouses(display_name)`
-4. `pending-hedge-orders` — `hedge_orders` por `operation_id IN (...)` para `display_code`, `origination_price_brl`, `volume_sacks`
-5. `pending-signatures` — `signatures` por `operation_id IN (...)`, com `signer:users(full_name)`
+### 2. Novo componente `AlcadasTab`
+- Fetch `['approval-policy']` → `approval_policies` ativa (`maybeSingle`)
+- Estado `thresholdX` / `thresholdY` (string), populados via `useEffect` quando policy carrega:
+  - `thresholdX = policy.threshold_x_tons`
+  - `thresholdY = policy.threshold_x_tons + policy.threshold_y_tons` (limite superior absoluto)
+- Empty state se `!policy`: aviso "Nenhuma política ativa configurada"
+- 2 inputs numéricos:
+  - **Faixa 1 até (toneladas)** — hint: "Operações até este volume exigem aprovação da Faixa 1"
+  - **Faixa 2 até (toneladas)** — hint: "Limite superior da Faixa 2 — deve ser maior que o valor da Faixa 1"
+- Validação no save: `Number(thresholdY) > Number(thresholdX)`, ambos `>= 0`. Se inválido → toast.error e não salva
+- Bloco explicativo (3 linhas, `text-xs text-muted-foreground`):
+  - Até X ton: Mesa + Comercial N1 + Comercial N2 + Financeiro N1
+  - De X+1 até Y ton: Mesa + Comercial N1 + 2× Comercial N2 + Financeiro N1 + Financeiro N2
+  - Acima de Y ton: Mesa + Comercial N1 + Presidência + Financeiro N1 + Financeiro N2
+- `handleSave` (admin only): update por `id`, gravando `threshold_y_tons = Number(thresholdY) - Number(thresholdX)` (delta)
+- Toast sucesso/erro, invalida `['approval-policy']` e `['pending-approvals-count']`
+- Botão "Salvar" condicional a `profile?.is_admin === true`; se não-admin, mostrar nota "Somente administradores podem editar"
 
-Queries 4 e 5 dependem de 3, `enabled: !!operationIds.length`.
-
-**Derivação por operação**:
-- `collectedRoles` = signatures.map(s => s.role_used)
-- `userAlreadySigned` = signatures.some(s => s.user_id === user.id)
-- `volumeTons = volume_sacks * 60 / 1000`
-- `requiredRoles = getRequiredRoles(volumeTons, policy)`
-- `missing = getMissingRoles(requiredRoles, collectedRoles)`
-- `availableRolesForUser = userRoles.filter(r => missing.includes(r))`
-
-**Filtro**: exibir apenas operações com `!userAlreadySigned && availableRolesForUser.length > 0`.
-
-**Tabela**:
-Colunas Código, Praça, Commodity, Volume (sacas), Valor (`volume_sacks * origination_price_brl` em BRL), Data Pagamento (pt-BR), Assinaturas (badges verdes coletadas + cinza outline faltantes), Ação (botão "Assinar").
-
-**Dialog "Assinar"**:
-- Estado: `signingOperation`, `selectedRole`, `notes`
-- Texto: `Assinando como [role] na operação [display_code]`
-- `<Select>` com `availableRolesForUser` (default = primeiro)
-- `<Textarea>` opcional
-- Cancelar / Confirmar
-
-**`handleSign`**:
-1. Insert em `signatures` (`signature_type='APROVACAO'`, `signed_at=now`)
-2. Recalcular `newCollected`; se `allSigned` → update `operations.status='APROVADA'`
-3. Toast, invalidar `['pending-signatures']`, `['pending-operations']`, `['operations']`, `['hedge-orders']`
-4. Fechar dialog
-
-**Layout**: header "Aprovações", Card com tabela. Empty state: "Nenhuma operação aguardando sua assinatura." Se policy ausente, warning sutil no header.
-
-### 2. `src/App.tsx`
-
-- Import `Approvals from "./pages/Approvals"`
-- Adicionar `<Route path="/aprovacoes" element={<Approvals />} />` no grupo protegido, após `/ordens`
+### 3. Registro nas Tabs
+- `<TabsTrigger value="alcadas">Alçadas</TabsTrigger>` após "Parâmetros"
+- `<TabsContent value="alcadas"><AlcadasTab /></TabsContent>`
 
 ## Fora de escopo
-Sidebar, edge functions, migrations, qualquer outro arquivo. Zero cálculo financeiro além de multiplicação de exibição e conversão saca→tonelada.
+Outras abas, criação/versionamento de policies, edge functions, migrations, mudanças no Approvals/usePendingApprovalsCount (já consomem `x + y` corretamente).
 
