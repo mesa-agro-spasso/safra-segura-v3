@@ -442,6 +442,8 @@ const OperationsMTM = () => {
                       <TableHead>Saída</TableHead>
                       <TableHead>Total</TableHead>
                       <TableHead>Por Saca</TableHead>
+                      <TableHead>Break-even</TableHead>
+                      <TableHead>Físico Alvo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -461,6 +463,12 @@ const OperationsMTM = () => {
                             R$ {total.toFixed(2)}
                           </TableCell>
                           <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>
+                          <TableCell className="text-xs tabular-nums">
+                            R$ {calcBreakeven(r).toFixed(2)}/sc
+                          </TableCell>
+                          <TableCell className="text-xs tabular-nums">
+                            R$ {(calcBreakeven(r) + targetProfitPerSack).toFixed(2)}/sc
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -703,6 +711,8 @@ const OperationsMTM = () => {
                 </span>
               </div>
               <DetailRow label="Por Saca" value={`${fmtBrl(detailResult.mtm_per_sack_brl)}/sc`} />
+              <DetailRow label="Break-even físico" value={`R$ ${calcBreakeven(detailResult).toFixed(2)}/sc`} />
+              <DetailRow label="Físico alvo" value={`R$ ${(calcBreakeven(detailResult) + targetProfitPerSack).toFixed(2)}/sc`} />
               <DetailRow label="Exposição Total" value={fmtBrl(detailResult.total_exposure_brl)} />
             </DialogContent>
           </Dialog>
