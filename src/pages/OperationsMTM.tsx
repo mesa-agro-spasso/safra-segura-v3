@@ -175,6 +175,7 @@ const OperationsMTM = () => {
 
   const targetProfitSoybean = pricingParameters?.find(p => p.id === 'soybean_cbot')?.target_profit_brl_per_sack ?? 2.0;
   const targetProfitCorn = pricingParameters?.find(p => p.id === 'corn_b3')?.target_profit_brl_per_sack ?? 2.0;
+  const executionSpread = pricingParameters?.[0]?.execution_spread_pct ?? 0.05;
 
   const getTargetProfit = (r: Record<string, unknown>) => {
     const matchedOrder = orders?.find(o => o.operation_id === r.operation_id);
@@ -185,7 +186,14 @@ const OperationsMTM = () => {
     const operationId = r.operation_id as string;
     const physicalCurrent = parseFloat(physicalPrices[operationId] || '0');
     const mtmPerSack = (r.mtm_per_sack_brl as number) ?? 0;
-    return (physicalCurrent - mtmPerSack) * 1.01;
+    return (physicalCurrent - mtmPerSack) * (1 + executionSpread);
+  };
+
+  const calcTargetPhysical = (r: Record<string, unknown>) => {
+    const operationId = r.operation_id as string;
+    const physicalCurrent = parseFloat(physicalPrices[operationId] || '0');
+    const mtmPerSack = (r.mtm_per_sack_brl as number) ?? 0;
+    return (physicalCurrent - mtmPerSack + getTargetProfit(r)) * (1 + executionSpread);
   };
 
   const handleCalculate = async () => {
@@ -470,7 +478,7 @@ const OperationsMTM = () => {
                             R$ {calcBreakeven(r).toFixed(2)}/sc
                           </TableCell>
                           <TableCell className="text-xs tabular-nums">
-                            R$ {(calcBreakeven(r) + getTargetProfit(r)).toFixed(2)}/sc
+                            R$ {calcTargetPhysical(r).toFixed(2)}/sc
                           </TableCell>
                         </TableRow>
                       );
@@ -715,7 +723,7 @@ const OperationsMTM = () => {
               </div>
               <DetailRow label="Por Saca" value={`${fmtBrl(detailResult.mtm_per_sack_brl)}/sc`} />
               <DetailRow label="Break-even físico" value={`R$ ${calcBreakeven(detailResult).toFixed(2)}/sc`} />
-              <DetailRow label="Físico alvo" value={`R$ ${(calcBreakeven(detailResult) + getTargetProfit(detailResult)).toFixed(2)}/sc`} />
+              <DetailRow label="Físico alvo" value={`R$ ${calcTargetPhysical(detailResult).toFixed(2)}/sc`} />
               <DetailRow label="Exposição Total" value={fmtBrl(detailResult.total_exposure_brl)} />
             </DialogContent>
           </Dialog>
