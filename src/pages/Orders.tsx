@@ -727,6 +727,21 @@ const Orders = () => {
         executed_at: new Date().toISOString(),
         executed_by: user?.id ?? null,
       } as any);
+
+      // Advance operation to HEDGE_CONFIRMADO
+      const { error: opError } = await supabase
+        .from('operations')
+        .update({ status: 'HEDGE_CONFIRMADO' })
+        .eq('id', executionModal.operation_id);
+      if (opError) {
+        toast.error('Ordem executada, mas falha ao atualizar status da operação: ' + opError.message);
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['operations'] });
+        queryClient.invalidateQueries({ queryKey: ['operation-status'] });
+        queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+        queryClient.invalidateQueries({ queryKey: ['financial_calendar_data'] });
+      }
+
       toast.success(`Ordem ${executionModal.display_code ?? executionModal.id.slice(0, 8)} marcada como executada`);
       setExecutionModal(null);
       setExecutionLegs([]);
