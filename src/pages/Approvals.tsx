@@ -75,6 +75,8 @@ export default function Approvals() {
   const [selectedRole, setSelectedRole] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [rejecting, setRejecting] = useState<SigningTarget | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   // 1. Roles do usuário logado
   const { data: userRoles = [] } = useQuery({
