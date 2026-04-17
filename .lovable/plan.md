@@ -1,35 +1,31 @@
 
 
-## Mudança em `src/pages/Orders.tsx` — `handleExecutionConfirm`
+# Filtrar ordens canceladas em Approvals.tsx
 
-Inserir bloco de avanço da operação para `HEDGE_CONFIRMADO` logo após o `await updateOrder.mutateAsync(...)` que marca a ordem como `EXECUTED` (após linha 729) e antes do `toast.success` (linha 730).
+## Mudança em `src/pages/Approvals.tsx`
 
-### Bloco a inserir
+### 1. Query `pending-hedge-orders` (linhas ~119-127)
+Adicionar `status` ao select e filtrar `.neq('status', 'CANCELLED')`:
 ```ts
-// Advance operation to HEDGE_CONFIRMADO
-const { error: opError } = await supabase
-  .from('operations')
-  .update({ status: 'HEDGE_CONFIRMADO' })
-  .eq('id', executionModal.operation_id);
-if (opError) {
-  toast.error('Ordem executada, mas falha ao atualizar status da operação: ' + opError.message);
-} else {
-  queryClient.invalidateQueries({ queryKey: ['operations'] });
-  queryClient.invalidateQueries({ queryKey: ['operation-status'] });
-  queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
-  queryClient.invalidateQueries({ queryKey: ['financial_calendar_data'] });
-}
+.select('operation_id, display_code, origination_price_brl, volume_sacks, status')
+.in('operation_id', operationIds)
+.neq('status', 'CANCELLED');
 ```
 
-### Pré-condições já satisfeitas
-- `supabase` importado (linha 9)
-- `queryClient` instanciado (linha 83)
-- `toast` importado de sonner (linha 19)
-- `executionModal.operation_id` disponível no escopo
+### 2. `useMemo` de `rows` (linha ~144)
+Após `const ho = hedgeOrders.find(...)`, descartar a operação se não houver hedge order ativa. Adicionar early-return no `.map`:
+```ts
+const ho = hedgeOrders.find((h: any) => h.operation_id === op.id);
+if (!ho) return null;
+```
+E ajustar o `.filter` final para também remover os `null`:
+```ts
+.filter((r): r is NonNullable<typeof r> => r !== null && !r.userAlreadySigned && r.availableForUser.length > 0);
+```
 
-### Nada mais é alterado
-Nenhuma outra linha de `handleExecutionConfirm` ou de qualquer outro arquivo é tocada. O `toast.success`, fechamento do modal e `catch` permanecem como estão.
+## Efeito
+Operações cuja única hedge order foi cancelada deixam de aparecer na lista de aprovações pendentes — pois sem ordem ativa não há valor/código para assinar.
 
-### Efeito esperado
-Após confirmar execução: ordem vira `EXECUTED` + operação vira `HEDGE_CONFIRMADO`, fazendo a operação aparecer automaticamente em `Financial.tsx` e no `FinancialCalendar` (ambos consomem operações `HEDGE_CONFIRMADO`).
+## Fora de escopo
+Qualquer outra lógica, query ou UI da página.
 
