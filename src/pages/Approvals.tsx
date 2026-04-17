@@ -203,6 +203,71 @@ export default function Approvals() {
     setNotes('');
   };
 
+  const openReject = (row: (typeof rows)[number]) => {
+    setRejecting({
+      operationId: row.operationId,
+      displayCode: row.displayCode,
+      available: row.availableForUser,
+      collected: row.collected,
+      required: row.required,
+    });
+    setRejectReason('');
+  };
+
+  const handleReject = async () => {
+    if (!rejecting || !rejectReason.trim() || !user) return;
+    setSubmitting(true);
+    try {
+      const reason = rejectReason.trim();
+      const nowIso = new Date().toISOString();
+
+      const { error: orderError } = await supabase
+        .from('hedge_orders')
+        .update({
+          status: 'CANCELLED',
+          cancellation_reason: reason,
+          cancelled_at: nowIso,
+          cancelled_by: user.id,
+        })
+        .eq('operation_id', rejecting.operationId)
+        .neq('status', 'CANCELLED');
+      if (orderError) throw orderError;
+
+      const { error: opError } = await supabase
+        .from('operations')
+        .update({
+          status: 'CANCELADA',
+          rejection_reason: reason,
+          rejected_by: user.id,
+          rejected_at: nowIso,
+        })
+        .eq('id', rejecting.operationId);
+      if (opError) throw opError;
+
+      const { error: sigError } = await supabase.from('signatures').insert({
+        operation_id: rejecting.operationId,
+        user_id: user.id,
+        role_used: rejecting.available[0],
+        signature_type: 'REPROVACAO',
+        notes: reason,
+        signed_at: nowIso,
+      });
+      if (sigError) throw sigError;
+
+      toast.success('Operação recusada');
+      queryClient.invalidateQueries({ queryKey: ['pending-operations'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+      setRejecting(null);
+    } catch (e: any) {
+      toast.error('Erro ao recusar', { description: e.message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSign = async () => {
     if (!signing || !selectedRole || !user) return;
     setSubmitting(true);
