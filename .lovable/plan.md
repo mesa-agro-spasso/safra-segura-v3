@@ -1,29 +1,45 @@
 
 
-# Filtrar ordens canceladas em usePendingApprovalsCount
+# Botão "Recusar" em Approvals.tsx
 
-## Mudança em `src/hooks/usePendingApprovalsCount.ts`
+## Mudança em `src/pages/Approvals.tsx`
 
-### 1. Query `hedge_orders` (linhas ~57-60)
-Adicionar `status` ao select e `.neq('status', 'CANCELLED')`:
+### 1. Estado novo
+Adicionar após `signing`/`selectedRole`/`notes`/`submitting`:
 ```ts
-supabase
-  .from('hedge_orders')
-  .select('operation_id, volume_sacks, status')
-  .in('operation_id', operationIds)
-  .neq('status', 'CANCELLED'),
+const [rejecting, setRejecting] = useState<SigningTarget | null>(null);
+const [rejectReason, setRejectReason] = useState('');
+```
+(reutiliza `submitting` já existente)
+
+### 2. Handler `openReject` e `handleReject`
+- `openReject(row)`: popula `rejecting` com mesma shape do `signing` e zera `rejectReason`.
+- `handleReject`: 
+  1. UPDATE `hedge_orders` → `status='CANCELLED'` + `cancellation_reason/cancelled_at/cancelled_by` (filtrado por `operation_id` e `.neq('status','CANCELLED')`)
+  2. UPDATE `operations` → `status='CANCELADA'` + `rejection_reason/rejected_by/rejected_at`
+  3. INSERT em `signatures` com `signature_type='REPROVACAO'`, `role_used=rejecting.available[0]`, `notes=rejectReason`
+  4. Invalida queries: `pending-operations`, `pending-signatures`, `operations`, `hedge-orders`, `pending-approvals-count`
+  5. `toast.success` / `toast.error` / `setRejecting(null)`
+
+### 3. Coluna "Ação" da tabela
+Trocar a célula atual por um flex com dois botões:
+```tsx
+<div className="flex justify-end gap-2">
+  <Button size="sm" onClick={() => openSign(row)}>Assinar</Button>
+  <Button size="sm" variant="destructive" onClick={() => openReject(row)}>Recusar</Button>
+</div>
 ```
 
-### 2. Loop `for (const op of operations)` (linha ~75)
-Após `const ho = (hedgeOrders ?? []).find(...)`, adicionar early-continue:
-```ts
-const ho = (hedgeOrders ?? []).find((h: any) => h.operation_id === op.id);
-if (!ho) continue;
-```
+### 4. Dialog de recusa
+Adicionar segundo `<Dialog>` (controlado por `rejecting`) após o dialog de assinatura existente, com `<Textarea>` obrigatório para motivo e botão `destructive` desabilitado quando `!rejectReason.trim() || submitting`.
 
-## Efeito
-Operações cuja única hedge order foi cancelada não contam mais no badge de pendências do sidebar — alinhado com a filtragem já aplicada em `Approvals.tsx`.
+## Pré-condições já satisfeitas
+- `supabase`, `toast`, `queryClient`, `user` no escopo
+- `Textarea`, `Label`, `Dialog*`, `Button` já importados
+- Colunas `rejection_reason`, `rejected_by`, `rejected_at` existem em `operations`
+- Colunas `cancellation_reason`, `cancelled_at`, `cancelled_by`, `status` existem em `hedge_orders`
+- Filtro `.neq('status','CANCELLED')` já está nas queries de listagem → operação recusada some imediatamente
 
 ## Fora de escopo
-Qualquer outra lógica do hook ou demais arquivos.
+Lógica do dialog de assinatura, queries existentes, demais arquivos.
 
