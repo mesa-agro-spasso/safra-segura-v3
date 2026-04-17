@@ -1,37 +1,35 @@
 
 
-# Logo, Login e PWA Setup
+## Mudança em `src/pages/Orders.tsx` — `handleExecutionConfirm`
 
-## Assets já confirmados em `public/`
-Todos os ícones listados (16 → 512), `logo-safra-segura.png`, `icon-48x48.png`, `favicon.ico` e variantes transparent já existem. Nada a copiar.
+Inserir bloco de avanço da operação para `HEDGE_CONFIRMADO` logo após o `await updateOrder.mutateAsync(...)` que marca a ordem como `EXECUTED` (após linha 729) e antes do `toast.success` (linha 730).
 
-## Mudança 1 — `src/components/AppSidebar.tsx`
-- Remover `import logo from '@/assets/safra-segura-logo.png'`
-- Adicionar dois imports relativos a `public/`:
-  - `import logo from '/logo-safra-segura.png'`
-  - `import iconCollapsed from '/icon-48x48.png'`
-- No bloco da logo (linhas 41-47): renderizar condicionalmente
-  - Colapsado: `<img src={iconCollapsed} className="w-8 h-8 object-contain" />`
-  - Expandido: `<img src={logo} className="w-36 object-contain" />`
-- Container `<div>` mantém apenas `flex items-center justify-center` + padding. Sem `bg-*`. (Já não há fundo colorido hoje — confirmado.)
+### Bloco a inserir
+```ts
+// Advance operation to HEDGE_CONFIRMADO
+const { error: opError } = await supabase
+  .from('operations')
+  .update({ status: 'HEDGE_CONFIRMADO' })
+  .eq('id', executionModal.operation_id);
+if (opError) {
+  toast.error('Ordem executada, mas falha ao atualizar status da operação: ' + opError.message);
+} else {
+  queryClient.invalidateQueries({ queryKey: ['operations'] });
+  queryClient.invalidateQueries({ queryKey: ['operation-status'] });
+  queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+  queryClient.invalidateQueries({ queryKey: ['financial_calendar_data'] });
+}
+```
 
-## Mudança 2 — `src/pages/Login.tsx` (não existe `Auth.tsx`)
-Linhas 60-63 do `CardHeader`:
-- Remover `<CardTitle>SAFRA SEGURA</CardTitle>`
-- Inserir `<img src="/logo-safra-segura.png" alt="Safra Segura" className="w-48 mx-auto mb-2" />`
-- Manter `<p className="text-sm text-muted-foreground">Mesa Integrada de Hedge</p>`
+### Pré-condições já satisfeitas
+- `supabase` importado (linha 9)
+- `queryClient` instanciado (linha 83)
+- `toast` importado de sonner (linha 19)
+- `executionModal.operation_id` disponível no escopo
 
-## Mudança 3 — `index.html`
-Substituir o bloco atual de favicon por todos os links de ícone (favicon.ico, 16, 32, apple-touch 57→180), mais 4 metas (`theme-color #0d2117`, `apple-mobile-web-app-capable yes`, `status-bar-style black-translucent`, `app-title Safra Segura`).
-Adicionar também `<link rel="manifest" href="/manifest.json">`.
+### Nada mais é alterado
+Nenhuma outra linha de `handleExecutionConfirm` ou de qualquer outro arquivo é tocada. O `toast.success`, fechamento do modal e `catch` permanecem como estão.
 
-## Mudança 4 — criar `public/manifest.json`
-Conteúdo exato do prompt: name, short_name, description, start_url `/`, display `standalone`, background/theme `#0d2117`, orientation `portrait-primary`, e array de 8 ícones (48, 72, 96, 144, 192 any, 192 maskable transparent, 512 any, 512 maskable transparent).
-
-## Notas
-- Sem `vite-plugin-pwa` / service worker — apenas manifest + meta tags. Conforme guideline interna do Lovable, isso dá instalabilidade ("Add to Home Screen") sem os riscos de SW dentro do iframe de preview.
-- Nenhum outro arquivo é tocado (lógica auth, rotas, hooks, financial, approvals — tudo intacto).
-
-## Fora de escopo
-Service worker, offline cache, splash screens iOS customizadas, mudanças de tema/cor da app.
+### Efeito esperado
+Após confirmar execução: ordem vira `EXECUTED` + operação vira `HEDGE_CONFIRMADO`, fazendo a operação aparecer automaticamente em `Financial.tsx` e no `FinancialCalendar` (ambos consomem operações `HEDGE_CONFIRMADO`).
 
