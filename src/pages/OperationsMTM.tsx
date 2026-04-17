@@ -70,6 +70,18 @@ const OperationsMTM = () => {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [chartByOperation, setChartByOperation] = useState(false);
 
+  // Detail dialog collapsible sections
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    identificacao: true,
+    datas: true,
+    mercado: true,
+    resultado: true,
+    custos: false,
+    basis: false,
+  });
+  const toggleSection = (key: string) =>
+    setExpandedSections(v => ({ ...v, [key]: !v[key] }));
+
   // Derived data
   const lastMtmCalculated = useMemo(() => {
     if (!mtmSnapshots?.length) return null;
@@ -678,6 +690,26 @@ const OperationsMTM = () => {
         const fmtBrl = (v: unknown) => `R$ ${((v as number) ?? 0).toFixed(2)}`;
         const total = (detailResult.mtm_total_brl as number) ?? 0;
 
+        const outputsJson = (ps?.outputs_json as Record<string, any>) ?? {};
+        const costs = (outputsJson.costs as Record<string, any>) ?? {};
+        const engineResult = (outputsJson.engine_result as Record<string, any>) ?? {};
+        const fmt4 = (v: unknown) => typeof v === 'number' ? `R$ ${v.toFixed(4)}/sc` : '—';
+
+        const CollapsibleSection = ({ sectionKey, label, children }: { sectionKey: string; label: string; children: React.ReactNode }) => (
+          <>
+            <Separator />
+            <button
+              type="button"
+              className="flex items-center justify-between w-full py-1"
+              onClick={() => toggleSection(sectionKey)}
+            >
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">{label}</p>
+              <span className="text-xs text-muted-foreground">{expandedSections[sectionKey] ? '▾' : '▸'}</span>
+            </button>
+            {expandedSections[sectionKey] && <>{children}</>}
+          </>
+        );
+
         return (
           <Dialog open onOpenChange={(o) => { if (!o) setDetailResult(null); }}>
             <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
@@ -687,44 +719,56 @@ const OperationsMTM = () => {
                 </DialogTitle>
               </DialogHeader>
 
-              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Identificação</p>
-              <DetailRow label="Operação" value={(detailResult.operation_id as string)?.slice(0, 8) ?? '—'} />
-              <DetailRow label="Commodity" value={matchedOrder?.commodity ?? '—'} />
-              <DetailRow label="Volume" value={`${matchedOrder?.volume_sacks?.toLocaleString() ?? '—'} sc`} />
+              <CollapsibleSection sectionKey="identificacao" label="Identificação">
+                <DetailRow label="Operação" value={(detailResult.operation_id as string)?.slice(0, 8) ?? '—'} />
+                <DetailRow label="Commodity" value={matchedOrder?.commodity ?? '—'} />
+                <DetailRow label="Volume" value={`${matchedOrder?.volume_sacks?.toLocaleString() ?? '—'} sc`} />
+              </CollapsibleSection>
 
-              <Separator />
+              <CollapsibleSection sectionKey="datas" label="Datas">
+                <DetailRow label="Entrada" value={fmtDate(ps?.trade_date)} />
+                <DetailRow label="Pagamento" value={fmtDate(ps?.payment_date)} />
+                <DetailRow label="Recepção" value={fmtDate(ps?.grain_reception_date)} />
+                <DetailRow label="Saída" value={fmtDate(ps?.sale_date)} />
+              </CollapsibleSection>
 
-              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Datas</p>
-              <DetailRow label="Entrada" value={fmtDate(ps?.trade_date)} />
-              <DetailRow label="Pagamento" value={fmtDate(ps?.payment_date)} />
-              <DetailRow label="Recepção" value={fmtDate(ps?.grain_reception_date)} />
-              <DetailRow label="Saída" value={fmtDate(ps?.sale_date)} />
+              <CollapsibleSection sectionKey="mercado" label="Snapshot de Mercado">
+                <DetailRow label="Futuros (atual)" value={snap?.futures_price_current != null ? `USD ${snap.futures_price_current.toFixed(4)}/bu` : '—'} />
+                <DetailRow label="Físico (atual)" value={fmtBrl(snap?.physical_price_current)} />
+                <DetailRow label="Câmbio spot" value={snap?.spot_rate_current != null ? `R$ ${snap.spot_rate_current.toFixed(4)}` : '—'} />
+                <DetailRow label="Prêmio opção" value={snap?.option_premium_current != null ? fmtBrl(snap.option_premium_current) : '—'} />
+              </CollapsibleSection>
 
-              <Separator />
+              <CollapsibleSection sectionKey="resultado" label="Resultado MTM">
+                <DetailRow label="Físico" value={fmtBrl(detailResult.mtm_physical_brl)} />
+                <DetailRow label="Futuros" value={fmtBrl(detailResult.mtm_futures_brl)} />
+                <DetailRow label="NDF" value={fmtBrl(detailResult.mtm_ndf_brl)} />
+                <DetailRow label="Opção" value={fmtBrl(detailResult.mtm_option_brl)} />
+                <div className="flex justify-between py-1">
+                  <span className="text-sm font-bold">Total</span>
+                  <span className={`text-sm font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {fmtBrl(detailResult.mtm_total_brl)}
+                  </span>
+                </div>
+                <DetailRow label="Por Saca" value={`${fmtBrl(detailResult.mtm_per_sack_brl)}/sc`} />
+                <DetailRow label="Break-even físico" value={`R$ ${calcBreakeven(detailResult).toFixed(2)}/sc`} />
+                <DetailRow label="Físico alvo" value={`R$ ${calcTargetPhysical(detailResult).toFixed(2)}/sc`} />
+                <DetailRow label="Exposição Total" value={fmtBrl(detailResult.total_exposure_brl)} />
+              </CollapsibleSection>
 
-              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Snapshot de Mercado</p>
-              <DetailRow label="Futuros (atual)" value={snap?.futures_price_current != null ? `USD ${snap.futures_price_current.toFixed(4)}/bu` : '—'} />
-              <DetailRow label="Físico (atual)" value={fmtBrl(snap?.physical_price_current)} />
-              <DetailRow label="Câmbio spot" value={snap?.spot_rate_current != null ? `R$ ${snap.spot_rate_current.toFixed(4)}` : '—'} />
-              <DetailRow label="Prêmio opção" value={snap?.option_premium_current != null ? fmtBrl(snap.option_premium_current) : '—'} />
+              <CollapsibleSection sectionKey="custos" label="Custos de Originação">
+                <DetailRow label="Financeiro" value={fmt4(costs.financial_brl ?? costs.financeiro_brl ?? costs.financial)} />
+                <DetailRow label="Armazenagem" value={fmt4(costs.storage_brl ?? costs.armazenagem_brl ?? costs.storage)} />
+                <DetailRow label="Corretagem" value={fmt4(costs.brokerage_brl ?? costs.corretagem_brl ?? costs.brokerage)} />
+                <DetailRow label="Custo de mesa" value={fmt4(costs.desk_cost_brl ?? costs.desk_brl ?? costs.desk)} />
+                <DetailRow label="Total" value={fmt4(costs.total_brl ?? costs.total)} />
+              </CollapsibleSection>
 
-              <Separator />
-
-              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Resultado MTM</p>
-              <DetailRow label="Físico" value={fmtBrl(detailResult.mtm_physical_brl)} />
-              <DetailRow label="Futuros" value={fmtBrl(detailResult.mtm_futures_brl)} />
-              <DetailRow label="NDF" value={fmtBrl(detailResult.mtm_ndf_brl)} />
-              <DetailRow label="Opção" value={fmtBrl(detailResult.mtm_option_brl)} />
-              <div className="flex justify-between py-1">
-                <span className="text-sm font-bold">Total</span>
-                <span className={`text-sm font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {fmtBrl(detailResult.mtm_total_brl)}
-                </span>
-              </div>
-              <DetailRow label="Por Saca" value={`${fmtBrl(detailResult.mtm_per_sack_brl)}/sc`} />
-              <DetailRow label="Break-even físico" value={`R$ ${calcBreakeven(detailResult).toFixed(2)}/sc`} />
-              <DetailRow label="Físico alvo" value={`R$ ${calcTargetPhysical(detailResult).toFixed(2)}/sc`} />
-              <DetailRow label="Exposição Total" value={fmtBrl(detailResult.total_exposure_brl)} />
+              <CollapsibleSection sectionKey="basis" label="Basis">
+                <DetailRow label="Target basis" value={fmt4(engineResult.target_basis ?? engineResult.target_basis_brl)} />
+                <DetailRow label="Purchased basis" value={fmt4(engineResult.purchased_basis ?? engineResult.purchased_basis_brl)} />
+                <DetailRow label="Breakeven basis" value={fmt4(engineResult.breakeven_basis ?? engineResult.breakeven_basis_brl)} />
+              </CollapsibleSection>
             </DialogContent>
           </Dialog>
         );
