@@ -70,6 +70,18 @@ const OperationsMTM = () => {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [chartByOperation, setChartByOperation] = useState(false);
 
+  // Detail dialog collapsible sections
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    identificacao: true,
+    datas: true,
+    mercado: true,
+    resultado: true,
+    custos: false,
+    basis: false,
+  });
+  const toggleSection = (key: string) =>
+    setExpandedSections(v => ({ ...v, [key]: !v[key] }));
+
   // Derived data
   const lastMtmCalculated = useMemo(() => {
     if (!mtmSnapshots?.length) return null;
