@@ -58,7 +58,7 @@ const Login = () => {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border-border">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold tracking-tight">SAFRA SEGURA</CardTitle>
+          <img src="/logo-safra-segura.png" alt="Safra Segura" className="w-48 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Mesa Integrada de Hedge</p>
         </CardHeader>
         <CardContent>

@@ -3,7 +3,8 @@ import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
-import logo from '@/assets/safra-segura-logo.png';
+import logo from '/logo-safra-segura.png';
+import iconCollapsed from '/icon-48x48.png';
 import {
   Sidebar,
   SidebarContent,
@@ -40,7 +41,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <div className={`flex items-center justify-center ${collapsed ? 'py-3' : 'py-4 px-3'}`}>
             <img
-              src={logo}
+              src={collapsed ? iconCollapsed : logo}
               alt="Safra Segura"
               className={collapsed ? 'w-8 h-8 object-contain' : 'w-36 object-contain'}
             />
