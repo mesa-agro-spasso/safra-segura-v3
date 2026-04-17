@@ -75,6 +75,8 @@ export default function Approvals() {
   const [selectedRole, setSelectedRole] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [rejecting, setRejecting] = useState<SigningTarget | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   // 1. Roles do usuário logado
   const { data: userRoles = [] } = useQuery({
@@ -201,6 +203,71 @@ export default function Approvals() {
     setNotes('');
   };
 
+  const openReject = (row: (typeof rows)[number]) => {
+    setRejecting({
+      operationId: row.operationId,
+      displayCode: row.displayCode,
+      available: row.availableForUser,
+      collected: row.collected,
+      required: row.required,
+    });
+    setRejectReason('');
+  };
+
+  const handleReject = async () => {
+    if (!rejecting || !rejectReason.trim() || !user) return;
+    setSubmitting(true);
+    try {
+      const reason = rejectReason.trim();
+      const nowIso = new Date().toISOString();
+
+      const { error: orderError } = await supabase
+        .from('hedge_orders')
+        .update({
+          status: 'CANCELLED',
+          cancellation_reason: reason,
+          cancelled_at: nowIso,
+          cancelled_by: user.id,
+        })
+        .eq('operation_id', rejecting.operationId)
+        .neq('status', 'CANCELLED');
+      if (orderError) throw orderError;
+
+      const { error: opError } = await supabase
+        .from('operations')
+        .update({
+          status: 'CANCELADA',
+          rejection_reason: reason,
+          rejected_by: user.id,
+          rejected_at: nowIso,
+        })
+        .eq('id', rejecting.operationId);
+      if (opError) throw opError;
+
+      const { error: sigError } = await supabase.from('signatures').insert({
+        operation_id: rejecting.operationId,
+        user_id: user.id,
+        role_used: rejecting.available[0],
+        signature_type: 'REPROVACAO',
+        notes: reason,
+        signed_at: nowIso,
+      });
+      if (sigError) throw sigError;
+
+      toast.success('Operação recusada');
+      queryClient.invalidateQueries({ queryKey: ['pending-operations'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+      setRejecting(null);
+    } catch (e: any) {
+      toast.error('Erro ao recusar', { description: e.message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSign = async () => {
     if (!signing || !selectedRole || !user) return;
     setSubmitting(true);
@@ -306,9 +373,14 @@ export default function Approvals() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" onClick={() => openSign(row)}>
-                        Assinar
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" onClick={() => openSign(row)}>
+                          Assinar
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => openReject(row)}>
+                          Recusar
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -364,6 +436,40 @@ export default function Approvals() {
             </Button>
             <Button onClick={handleSign} disabled={!selectedRole || submitting}>
               {submitting ? 'Assinando...' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Recusar Operação</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Operação:{' '}
+              <span className="font-mono text-foreground">{rejecting?.displayCode}</span>
+            </p>
+            <div className="space-y-2">
+              <Label>Motivo (obrigatório)</Label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Descreva o motivo da recusa..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejecting(null)} disabled={submitting}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              disabled={!rejectReason.trim() || submitting}
+            >
+              {submitting ? 'Recusando...' : 'Confirmar Recusa'}
             </Button>
           </DialogFooter>
         </DialogContent>

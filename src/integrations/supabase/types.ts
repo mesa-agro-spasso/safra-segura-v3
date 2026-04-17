@@ -291,6 +291,9 @@ export type Database = {
           notes: string | null
           parent_operation_id: string | null
           pricing_snapshot_id: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
           status: string
           updated_at: string
           volume_sacks: number
@@ -304,6 +307,9 @@ export type Database = {
           notes?: string | null
           parent_operation_id?: string | null
           pricing_snapshot_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           status?: string
           updated_at?: string
           volume_sacks: number
@@ -317,6 +323,9 @@ export type Database = {
           notes?: string | null
           parent_operation_id?: string | null
           pricing_snapshot_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           status?: string
           updated_at?: string
           volume_sacks?: number
