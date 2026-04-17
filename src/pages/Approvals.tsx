@@ -373,9 +373,14 @@ export default function Approvals() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" onClick={() => openSign(row)}>
-                        Assinar
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" onClick={() => openSign(row)}>
+                          Assinar
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => openReject(row)}>
+                          Recusar
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
