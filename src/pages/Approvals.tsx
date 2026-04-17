@@ -129,8 +129,9 @@ export default function Approvals() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('hedge_orders')
-        .select('operation_id, display_code, origination_price_brl, volume_sacks')
-        .in('operation_id', operationIds);
+        .select('operation_id, display_code, origination_price_brl, volume_sacks, status')
+        .in('operation_id', operationIds)
+        .neq('status', 'CANCELLED');
       if (error) throw error;
       return data ?? [];
     },
@@ -156,6 +157,7 @@ export default function Approvals() {
     return operations
       .map((op: any) => {
         const ho = hedgeOrders.find((h: any) => h.operation_id === op.id);
+        if (!ho) return null;
         const opSignatures = signatures.filter((s: any) => s.operation_id === op.id);
         const collected = opSignatures.map((s: any) => s.role_used);
         const userAlreadySigned = opSignatures.some((s: any) => s.user_id === user?.id);
@@ -184,7 +186,7 @@ export default function Approvals() {
           userAlreadySigned,
         };
       })
-      .filter((r) => !r.userAlreadySigned && r.availableForUser.length > 0);
+      .filter((r): r is NonNullable<typeof r> => r !== null && !r.userAlreadySigned && r.availableForUser.length > 0);
   }, [operations, hedgeOrders, signatures, userRoles, effectivePolicy, user?.id]);
 
   const openSign = (row: (typeof rows)[number]) => {
