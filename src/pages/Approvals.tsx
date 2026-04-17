@@ -129,8 +129,9 @@ export default function Approvals() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('hedge_orders')
-        .select('operation_id, display_code, origination_price_brl, volume_sacks')
-        .in('operation_id', operationIds);
+        .select('operation_id, display_code, origination_price_brl, volume_sacks, status')
+        .in('operation_id', operationIds)
+        .neq('status', 'CANCELLED');
       if (error) throw error;
       return data ?? [];
     },
