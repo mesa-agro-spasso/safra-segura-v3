@@ -56,8 +56,9 @@ export function usePendingApprovalsCount() {
       const [{ data: hedgeOrders }, { data: signatures }] = await Promise.all([
         supabase
           .from('hedge_orders')
-          .select('operation_id, volume_sacks')
-          .in('operation_id', operationIds),
+          .select('operation_id, volume_sacks, status')
+          .in('operation_id', operationIds)
+          .neq('status', 'CANCELLED'),
         supabase
           .from('signatures')
           .select('operation_id, role_used, user_id')
@@ -69,6 +70,7 @@ export function usePendingApprovalsCount() {
       let count = 0;
       for (const op of operations as any[]) {
         const ho = (hedgeOrders ?? []).find((h: any) => h.operation_id === op.id);
+        if (!ho) continue;
         const opSigs = (signatures ?? []).filter((s: any) => s.operation_id === op.id);
         const userAlreadySigned = opSigs.some((s: any) => s.user_id === user!.id);
         if (userAlreadySigned) continue;
