@@ -1,91 +1,37 @@
 
 
-# Reescrita completa: useFinancialCalendarData.ts e Financial.tsx
+# Logo, Login e PWA Setup
 
-Fonte única: `operations` com `status = 'HEDGE_CONFIRMADO'`. `payment_events` deixa de ser fonte primária — vira apenas registro de pagamento realizado, consultado por `operation_id`.
+## Assets já confirmados em `public/`
+Todos os ícones listados (16 → 512), `logo-safra-segura.png`, `icon-48x48.png`, `favicon.ico` e variantes transparent já existem. Nada a copiar.
 
-## Arquivo 1 — `src/hooks/useFinancialCalendarData.ts`
+## Mudança 1 — `src/components/AppSidebar.tsx`
+- Remover `import logo from '@/assets/safra-segura-logo.png'`
+- Adicionar dois imports relativos a `public/`:
+  - `import logo from '/logo-safra-segura.png'`
+  - `import iconCollapsed from '/icon-48x48.png'`
+- No bloco da logo (linhas 41-47): renderizar condicionalmente
+  - Colapsado: `<img src={iconCollapsed} className="w-8 h-8 object-contain" />`
+  - Expandido: `<img src={logo} className="w-36 object-contain" />`
+- Container `<div>` mantém apenas `flex items-center justify-center` + padding. Sem `bg-*`. (Já não há fundo colorido hoje — confirmado.)
 
-Apagar tudo. Nova implementação:
+## Mudança 2 — `src/pages/Login.tsx` (não existe `Auth.tsx`)
+Linhas 60-63 do `CardHeader`:
+- Remover `<CardTitle>SAFRA SEGURA</CardTitle>`
+- Inserir `<img src="/logo-safra-segura.png" alt="Safra Segura" className="w-48 mx-auto mb-2" />`
+- Manter `<p className="text-sm text-muted-foreground">Mesa Integrada de Hedge</p>`
 
-**Query única**:
-```ts
-supabase.from('operations').select(`
-  id, commodity, volume_sacks,
-  warehouses(display_name),
-  pricing_snapshots(payment_date, sale_date, origination_price_brl),
-  hedge_orders(display_code)
-`).eq('status', 'HEDGE_CONFIRMADO');
-```
+## Mudança 3 — `index.html`
+Substituir o bloco atual de favicon por todos os links de ícone (favicon.ico, 16, 32, apple-touch 57→180), mais 4 metas (`theme-color #0d2117`, `apple-mobile-web-app-capable yes`, `status-bar-style black-translucent`, `app-title Safra Segura`).
+Adicionar também `<link rel="manifest" href="/manifest.json">`.
 
-**Para cada operação** com `pricing_snapshots` não-nulo, emitir até 2 eventos:
-- `outflow`: `start = payment_date`, `title = "Saída: {display_code}"`, `amount_brl = origination_price_brl * volume_sacks`
-- `inflow`: `start = sale_date`, `title = "Entrada: {display_code}"`, `amount_brl = origination_price_brl * volume_sacks`
+## Mudança 4 — criar `public/manifest.json`
+Conteúdo exato do prompt: name, short_name, description, start_url `/`, display `standalone`, background/theme `#0d2117`, orientation `portrait-primary`, e array de 8 ícones (48, 72, 96, 144, 192 any, 192 maskable transparent, 512 any, 512 maskable transparent).
 
-**Detalhes**:
-- `display_code = hedge_orders[0]?.display_code ?? id.slice(0,8)`
-- `commodityLabel`: soybean→Soja, corn→Milho, fallback raw
-- `warehouse_display_name = warehouses?.display_name ?? '—'`
-- Datas convertidas com `new Date(d + 'T12:00:00')` para evitar drift de fuso
-- Pular evento se a respectiva data for nula
-- IDs: `outflow-{op.id}` / `inflow-{op.id}`
-- Manter shape de `CalendarEvent` (mesma interface exportada) para compatibilidade com `FinancialCalendar`
-
-**Resource preserva**: `operation_id`, `display_code`, `commodity`, `warehouse_display_name`, `amount_brl`, `volume_sacks`. Campos `status`/`payment_event_id`/`notes`/`realized_date` viram opcionais e ficam `undefined` (calendário não precisa deles para renderizar entrada/saída por operação).
-
-## Arquivo 2 — `src/pages/Financial.tsx`
-
-Apagar lógica que lê `payment_events` como fonte primária.
-
-**Query principal** (`['financial-operations']`):
-Mesma query do hook acima — operações com `HEDGE_CONFIRMADO` + joins.
-
-**Query secundária** (`['payment-events-by-op']`):
-`supabase.from('payment_events').select('operation_id, status, realized_date, notes').in('operation_id', opIds)` — apenas para descobrir se cada operação já tem registro de pagamento. `enabled: opIds.length > 0`.
-
-**Derivação por linha**:
-- `paymentEvent = mapByOperationId[op.id]` (pode ser `undefined`)
-- `isPaid = paymentEvent?.status === 'paid'`
-- `amount_brl = origination_price_brl * volume_sacks`
-- `payment_date`, `sale_date` vêm de `pricing_snapshots`
-- `display_code = hedge_orders[0]?.display_code ?? id.slice(0,8)`
-
-**Tabela — colunas**:
-| Código | Praça | Commodity | Volume (sacas) | Data Pagamento | Data Venda | Valor | Status Pagamento | Ação |
-
-- "Data Pagamento" estilizada `text-red-600 font-medium`
-- "Data Venda" estilizada `text-green-600 font-medium`
-- "Valor": tooltip/popover com cálculo `origination_price × volume` (preservar UX atual)
-- "Status Pagamento": badge verde "Pago" se `isPaid`, senão amarelo "Pendente"
-- "Ação": botão "Marcar como pago" só quando `!isPaid`
-
-**Filtros** (preservados):
-- Status: `all` / `pending` / `paid` — aplicado via `isPaid`
-- Praça: select de armazéns ativos — match por `warehouses.display_name`
-
-**Dialog "Marcar como pago"** (estado guarda a row inteira incluindo `paymentEvent`):
-- Campos: `realized_date` (default hoje), `notes`
-- Confirmar:
-  - Se `paymentEvent` existe → `update` em `payment_events` por `id`: `status='paid', realized_date, notes, registered_by=user.id`
-  - Se não existe → `insert` em `payment_events`: `operation_id, scheduled_date=payment_date, amount_brl, status='paid', realized_date, notes, registered_by=user.id`
-- Toast, invalidar `['financial-operations']` e `['payment-events-by-op']`, fechar dialog
-
-**Aba Calendário**: mantida, renderiza `<FinancialCalendar />` (que já consome o hook reescrito).
-
-**Tipo `OperationRow`** (substitui `PaymentRow`):
-```ts
-{ id, commodity, volume_sacks, warehouse_display_name, display_code,
-  payment_date, sale_date, origination_price_brl, amount_brl,
-  paymentEvent?: { id, status, realized_date, notes } }
-```
+## Notas
+- Sem `vite-plugin-pwa` / service worker — apenas manifest + meta tags. Conforme guideline interna do Lovable, isso dá instalabilidade ("Add to Home Screen") sem os riscos de SW dentro do iframe de preview.
+- Nenhum outro arquivo é tocado (lógica auth, rotas, hooks, financial, approvals — tudo intacto).
 
 ## Fora de escopo
-- `FinancialCalendar.tsx`, `AnnualGrid.tsx`, `DayDetailPanel.tsx` (consomem `CalendarEvent` cuja shape é preservada)
-- Migrations (schema atual já suporta inserts em `payment_events` com os campos usados)
-- Hook `useActiveArmazens` e demais imports existentes
-- Lógica de aprovação, sidebar, outras páginas
-
-## Riscos
-- Operações `HEDGE_CONFIRMADO` sem `pricing_snapshot_id` ficarão fora da listagem — comportamento esperado dado o contrato.
-- `hedge_orders` é array (1:N do ponto de vista do PostgREST); usamos `[0]` assumindo uma ordem por operação, consistente com o restante do código.
+Service worker, offline cache, splash screens iOS customizadas, mudanças de tema/cor da app.
 
