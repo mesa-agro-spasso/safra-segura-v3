@@ -739,6 +739,20 @@ const OperationsMTM = () => {
                 <DetailRow label="Prêmio opção" value={snap?.option_premium_current != null ? fmtBrl(snap.option_premium_current) : '—'} />
               </CollapsibleSection>
 
+              <CollapsibleSection sectionKey="custos" label="Custos de Originação">
+                <DetailRow label="Financeiro" value={fmt4(costs.financial_brl ?? costs.financeiro_brl ?? costs.financial)} />
+                <DetailRow label="Armazenagem" value={fmt4(costs.storage_brl ?? costs.armazenagem_brl ?? costs.storage)} />
+                <DetailRow label="Corretagem" value={fmt4(costs.brokerage_brl ?? costs.corretagem_brl ?? costs.brokerage)} />
+                <DetailRow label="Custo de mesa" value={fmt4(costs.desk_cost_brl ?? costs.desk_brl ?? costs.desk)} />
+                <DetailRow label="Total" value={fmt4(costs.total_brl ?? costs.total)} />
+              </CollapsibleSection>
+
+              <CollapsibleSection sectionKey="basis" label="Basis">
+                <DetailRow label="Target basis" value={fmt4(engineResult.target_basis ?? engineResult.target_basis_brl)} />
+                <DetailRow label="Purchased basis" value={fmt4(engineResult.purchased_basis ?? engineResult.purchased_basis_brl)} />
+                <DetailRow label="Breakeven basis" value={fmt4(engineResult.breakeven_basis ?? engineResult.breakeven_basis_brl)} />
+              </CollapsibleSection>
+
               <CollapsibleSection sectionKey="resultado" label="Resultado MTM">
                 <DetailRow label="Físico" value={fmtBrl(detailResult.mtm_physical_brl)} />
                 <DetailRow label="Futuros" value={fmtBrl(detailResult.mtm_futures_brl)} />
@@ -754,20 +768,6 @@ const OperationsMTM = () => {
                 <DetailRow label="Break-even físico" value={`R$ ${calcBreakeven(detailResult).toFixed(2)}/sc`} />
                 <DetailRow label="Físico alvo" value={`R$ ${calcTargetPhysical(detailResult).toFixed(2)}/sc`} />
                 <DetailRow label="Exposição Total" value={fmtBrl(detailResult.total_exposure_brl)} />
-              </CollapsibleSection>
-
-              <CollapsibleSection sectionKey="custos" label="Custos de Originação">
-                <DetailRow label="Financeiro" value={fmt4(costs.financial_brl ?? costs.financeiro_brl ?? costs.financial)} />
-                <DetailRow label="Armazenagem" value={fmt4(costs.storage_brl ?? costs.armazenagem_brl ?? costs.storage)} />
-                <DetailRow label="Corretagem" value={fmt4(costs.brokerage_brl ?? costs.corretagem_brl ?? costs.brokerage)} />
-                <DetailRow label="Custo de mesa" value={fmt4(costs.desk_cost_brl ?? costs.desk_brl ?? costs.desk)} />
-                <DetailRow label="Total" value={fmt4(costs.total_brl ?? costs.total)} />
-              </CollapsibleSection>
-
-              <CollapsibleSection sectionKey="basis" label="Basis">
-                <DetailRow label="Target basis" value={fmt4(engineResult.target_basis ?? engineResult.target_basis_brl)} />
-                <DetailRow label="Purchased basis" value={fmt4(engineResult.purchased_basis ?? engineResult.purchased_basis_brl)} />
-                <DetailRow label="Breakeven basis" value={fmt4(engineResult.breakeven_basis ?? engineResult.breakeven_basis_brl)} />
               </CollapsibleSection>
             </DialogContent>
           </Dialog>
