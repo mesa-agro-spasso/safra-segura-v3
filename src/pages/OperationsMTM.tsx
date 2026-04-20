@@ -72,12 +72,12 @@ const OperationsMTM = () => {
 
   // Detail dialog collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    identificacao: true,
-    datas: true,
-    mercado: true,
-    resultado: true,
+    identificacao: false,
+    datas: false,
+    mercado: false,
     custos: false,
     basis: false,
+    resultado: false,
   });
   const toggleSection = (key: string) =>
     setExpandedSections(v => ({ ...v, [key]: !v[key] }));
