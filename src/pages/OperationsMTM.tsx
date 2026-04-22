@@ -831,6 +831,122 @@ const OperationsMTM = () => {
                 <DetailRow label="Prêmio opção" value={snap?.option_premium_current != null ? fmtBrl(snap.option_premium_current) : '—'} />
               </CollapsibleSection>
 
+              <CollapsibleSection sectionKey="entrada" label="Preço de Entrada (Executado)">
+                {(() => {
+                  const order: any = matchedOrder;
+                  const executed = order?.executed_legs as any[] | null | undefined;
+                  const legsSource = (executed?.length ? executed : (order?.legs as any[])) ?? [];
+                  const isFallback = !(executed && executed.length > 0);
+                  const isB3 = String(order?.exchange ?? '').toLowerCase() === 'b3';
+                  const validLegs = legsSource.filter((l: any) => ['futures', 'option', 'ndf'].includes(l.leg_type));
+
+                  if (validLegs.length === 0) {
+                    return <p className="text-sm text-muted-foreground">Nenhuma perna de hedge encontrada</p>;
+                  }
+
+                  const fmtMoney = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(v);
+                  const fmtCt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  const fmtVol = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+                  let anyFallback = false;
+                  let anyFxMissing = false;
+
+                  const buildSuffix = (i: number, isNdf: boolean) => {
+                    const fb = isFallback;
+                    const fx = !isNdf && !!convertedLegPrices.fxMissing[i];
+                    if (fb) anyFallback = true;
+                    if (fx) anyFxMissing = true;
+                    const marks = [fb && '*', fx && '**'].filter(Boolean);
+                    return marks.length ? ` ${marks.join(',')}` : '';
+                  };
+
+                  const rendered = legsSource.map((leg: any, i: number) => {
+                    if (!['futures', 'option', 'ndf'].includes(leg.leg_type)) return null;
+
+                    if (leg.leg_type === 'futures') {
+                      const suffix = buildSuffix(i, false);
+                      let priceLabel: string;
+                      if (isB3) {
+                        priceLabel = typeof leg.price === 'number' ? `${fmtMoney(leg.price)}/sc` : '—';
+                      } else if (convertedLegPrices.fxMissing[i]) {
+                        priceLabel = 'R$ —/sc';
+                      } else if (convertedLegPrices.status === 'loading') {
+                        priceLabel = 'carregando...';
+                      } else if (convertedLegPrices.status === 'error') {
+                        priceLabel = 'erro';
+                      } else if (convertedLegPrices.status === 'ready' && convertedLegPrices.values[i] != null) {
+                        priceLabel = `${fmtMoney(convertedLegPrices.values[i] as number)}/sc`;
+                      } else {
+                        priceLabel = '—';
+                      }
+                      return (
+                        <div key={i} className="flex justify-between py-1">
+                          <span className="text-muted-foreground text-sm">
+                            Futuro {leg.ticker ?? '—'} · {leg.direction ?? '—'} · {fmtCt(Number(leg.contracts ?? 0))} ct
+                          </span>
+                          <span className="text-sm font-medium">{priceLabel}{suffix}</span>
+                        </div>
+                      );
+                    }
+
+                    if (leg.leg_type === 'option') {
+                      const suffix = buildSuffix(i, false);
+                      const optType = String(leg.option_type ?? '').toLowerCase() === 'put' ? 'Put' : 'Call';
+                      const strikeLabel = isB3
+                        ? (typeof leg.strike === 'number' ? fmtMoney(leg.strike) : '—')
+                        : (typeof leg.strike === 'number' ? `USD ${leg.strike.toFixed(4)}/bu` : '—');
+                      let premiumLabel: string;
+                      if (isB3) {
+                        premiumLabel = typeof leg.premium === 'number' ? `${fmtMoney(leg.premium)}/sc` : '—';
+                      } else if (convertedLegPrices.fxMissing[i]) {
+                        premiumLabel = 'R$ —/sc';
+                      } else if (convertedLegPrices.status === 'loading') {
+                        premiumLabel = 'carregando...';
+                      } else if (convertedLegPrices.status === 'error') {
+                        premiumLabel = 'erro';
+                      } else if (convertedLegPrices.status === 'ready' && convertedLegPrices.values[i] != null) {
+                        premiumLabel = `${fmtMoney(convertedLegPrices.values[i] as number)}/sc`;
+                      } else {
+                        premiumLabel = '—';
+                      }
+                      return (
+                        <div key={i} className="flex justify-between py-1">
+                          <span className="text-muted-foreground text-sm">
+                            Opção {optType} K={strikeLabel} · {leg.direction ?? '—'} · {fmtCt(Number(leg.contracts ?? 0))} ct
+                          </span>
+                          <span className="text-sm font-medium">{premiumLabel}{suffix}</span>
+                        </div>
+                      );
+                    }
+
+                    // ndf
+                    const suffix = buildSuffix(i, true);
+                    return (
+                      <div key={i} className="flex justify-between py-1">
+                        <span className="text-muted-foreground text-sm">
+                          Câmbio NDF · {leg.direction ?? '—'} · USD {fmtVol(Number(leg.volume_units ?? 0))}
+                        </span>
+                        <span className="text-sm font-medium">
+                          {typeof leg.ndf_rate === 'number' ? fmtMoney(leg.ndf_rate) : '—'}{suffix}
+                        </span>
+                      </div>
+                    );
+                  });
+
+                  return (
+                    <>
+                      {rendered}
+                      {anyFallback && (
+                        <p className="text-xs text-muted-foreground mt-2">* Preço da precificação original — ordem sem execução registrada</p>
+                      )}
+                      {anyFxMissing && (
+                        <p className="text-xs text-muted-foreground mt-1">** Câmbio não disponível para conversão</p>
+                      )}
+                    </>
+                  );
+                })()}
+              </CollapsibleSection>
+
               <CollapsibleSection sectionKey="custos" label="Custos de Originação">
                 <DetailRow label="Financeiro" value={fmt4(costs.financial_brl ?? costs.financeiro_brl ?? costs.financial)} />
                 <DetailRow label="Armazenagem" value={fmt4(costs.storage_brl ?? costs.armazenagem_brl ?? costs.storage)} />
