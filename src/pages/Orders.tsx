@@ -697,15 +697,16 @@ const Orders = () => {
   };
 
   const openExecutionModal = (order: HedgeOrder) => {
-    const orderLegs = (order.legs as any[]) ?? [];
-    setExecutionLegs(orderLegs.map((l: any) => ({
-      ...l,
-      _displayPrice: isSoybeanCbot(order.commodity, order.exchange) && l.leg_type === 'futures'
-        ? String((l.price ?? 0) * 100)
-        : String(l.price ?? ''),
-      _displayQty: String(l.volume_units ?? l.contracts ?? ''),
-      _notes: l.notes ?? '',
-    })));
+    const orderLegs = ((order.legs as any[]) ?? []).filter((l: any) => l.leg_type !== 'seguro');
+    setExecutionLegs(orderLegs.map((l: any) => {
+      const isNdf = l.leg_type === 'ndf';
+      return {
+        ...l,
+        _displayQty: isNdf ? String(l.volume_units ?? '') : String(l.contracts ?? ''),
+        _displayPrice: isNdf ? String(l.ndf_rate ?? '') : String(l.price ?? ''),
+        _notes: l.notes ?? '',
+      };
+    }));
     setExecutionModal(order);
   };
 
@@ -721,22 +722,44 @@ const Orders = () => {
       }
     }
     try {
-      const executedLegs = executionLegs.map((leg: any) => {
-        let price = parseFloat(leg._displayPrice);
-        if (isSoybeanCbot(executionModal.commodity, executionModal.exchange) && leg.leg_type === 'futures') {
-          price = price / 100; // cents → USD/bushel
+      const executedLegs: any[] = [];
+      for (const leg of executionLegs) {
+        const qty = parseFloat(leg._displayQty);
+        const priceVal = parseFloat(leg._displayPrice);
+
+        // Strip helper UI fields
+        const { _displayPrice, _displayQty, _notes, ...rest } = leg;
+
+        if (leg.leg_type === 'ndf') {
+          const merged: any = {
+            ...rest,
+            volume_units: qty,
+            ndf_rate: priceVal,
+            notes: _notes || undefined,
+          };
+          // Ensure no residual price is persisted on NDF legs
+          delete merged.price;
+          executedLegs.push(merged);
+        } else {
+          // futures / option
+          let contractSize: number;
+          try {
+            contractSize = getContractSize(executionModal.commodity, executionModal.exchange);
+          } catch (e) {
+            toast.error('Tamanho de contrato desconhecido', {
+              description: e instanceof Error ? e.message : String(e),
+            });
+            return;
+          }
+          executedLegs.push({
+            ...rest,
+            contracts: qty,
+            volume_units: qty * contractSize,
+            price: priceVal,
+            notes: _notes || undefined,
+          });
         }
-        return {
-          ...leg,
-          price,
-          contracts: leg.leg_type !== 'ndf' ? parseFloat(leg._displayQty) : leg.contracts,
-          volume_units: leg.leg_type === 'ndf' ? parseFloat(leg._displayQty) : leg.volume_units,
-          notes: leg._notes || undefined,
-          _displayPrice: undefined,
-          _displayQty: undefined,
-          _notes: undefined,
-        };
-      });
+      }
 
       await updateOrder.mutateAsync({
         id: executionModal.id,
