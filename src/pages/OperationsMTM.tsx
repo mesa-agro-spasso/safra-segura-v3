@@ -739,10 +739,12 @@ const OperationsMTM = () => {
                 <DetailRow label="Físico (atual)" value={fmtBrl(snap?.physical_price_current)} />
                 <DetailRow label="Câmbio spot" value={snap?.spot_rate_current != null ? `R$ ${snap.spot_rate_current.toFixed(4)}` : '—'} />
                 <DetailRow
-                  label="NDF estimado"
-                  value={(detailResult.ndf_estimated_rate as number) != null
-                    ? `R$ ${(detailResult.ndf_estimated_rate as number).toFixed(4)}`
-                    : '—'}
+                  label="NDF originação"
+                  value={
+                    (matchedOrder?.operation?.pricing_snapshots?.outputs_json as any)?.exchange_rate != null
+                      ? `R$ ${Number((matchedOrder?.operation?.pricing_snapshots?.outputs_json as any)?.exchange_rate).toFixed(4)}`
+                      : '—'
+                  }
                 />
                 <DetailRow label="Prêmio opção" value={snap?.option_premium_current != null ? fmtBrl(snap.option_premium_current) : '—'} />
               </CollapsibleSection>
