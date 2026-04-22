@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useHedgeOrders } from '@/hooks/useHedgeOrders';
 import { useMarketData } from '@/hooks/useMarketData';
 import { useMtmSnapshots, useSaveMtmSnapshot } from '@/hooks/useMtmSnapshots';
@@ -75,12 +76,103 @@ const OperationsMTM = () => {
     identificacao: false,
     datas: false,
     mercado: false,
+    entrada: false,
     custos: false,
     basis: false,
     resultado: false,
   });
+
+  // Converted execution prices for "Preço de Entrada (Executado)" section
+  const [convertedLegPrices, setConvertedLegPrices] = useState<{
+    status: 'idle' | 'loading' | 'ready' | 'error';
+    values: Record<number, number | null>;
+    fxMissing: Record<number, boolean>;
+  }>({ status: 'idle', values: {}, fxMissing: {} });
   const toggleSection = (key: string) =>
     setExpandedSections(v => ({ ...v, [key]: !v[key] }));
+
+  // Convert executed leg prices (USD/bu → BRL/sc) when MTM detail dialog opens
+  const matchedOrderForDetail = useMemo(() => {
+    if (!detailResult) return null;
+    return orders?.find(o => o.operation_id === detailResult.operation_id) ?? null;
+  }, [detailResult, orders]);
+
+  useEffect(() => {
+    if (!detailResult || !matchedOrderForDetail) {
+      setConvertedLegPrices({ status: 'idle', values: {}, fxMissing: {} });
+      return;
+    }
+
+    const order: any = matchedOrderForDetail;
+    const executed = order.executed_legs as any[] | null | undefined;
+    const legsSource = (executed?.length ? executed : (order.legs as any[])) ?? [];
+
+    const ndfLeg = legsSource.find((l: any) => l.leg_type === 'ndf');
+    const fallbackFx = order.operation?.pricing_snapshots?.outputs_json?.exchange_rate;
+    const exchangeRate = ndfLeg?.ndf_rate ?? fallbackFx ?? null;
+
+    const isB3 = String(order.exchange ?? '').toLowerCase() === 'b3';
+
+    // Build conversion tasks for futures (price) and option (premium) legs
+    type Task = { idx: number; value: number };
+    const tasks: Task[] = [];
+    const fxMissing: Record<number, boolean> = {};
+    const values: Record<number, number | null> = {};
+
+    legsSource.forEach((leg: any, i: number) => {
+      if (leg.leg_type === 'futures') {
+        if (isB3) return; // already in BRL/sc — handled at render
+        if (typeof leg.price !== 'number') return;
+        if (exchangeRate == null) { fxMissing[i] = true; values[i] = null; return; }
+        tasks.push({ idx: i, value: leg.price });
+      } else if (leg.leg_type === 'option') {
+        if (isB3) return;
+        if (typeof leg.premium !== 'number') return;
+        if (exchangeRate == null) { fxMissing[i] = true; values[i] = null; return; }
+        tasks.push({ idx: i, value: leg.premium });
+      }
+    });
+
+    if (tasks.length === 0) {
+      setConvertedLegPrices({ status: 'ready', values, fxMissing });
+      return;
+    }
+
+    let cancelled = false;
+    setConvertedLegPrices({ status: 'loading', values: {}, fxMissing: {} });
+
+    (async () => {
+      try {
+        const results = await Promise.all(tasks.map(async (t) => {
+          const { data, error } = await supabase.functions.invoke('api-proxy', {
+            body: {
+              endpoint: '/utils/convert-price',
+              body: {
+                value: t.value,
+                from_unit: 'usd_per_bushel',
+                to_unit: 'brl_per_sack',
+                commodity: order.commodity === 'soybean' ? 'soybean' : 'corn',
+                exchange_rate: exchangeRate,
+              },
+            },
+          });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          return { idx: t.idx, value: (data?.value_converted ?? data?.converted ?? data?.value) as number };
+        }));
+        if (cancelled) return;
+        const finalValues = { ...values };
+        results.forEach(r => { finalValues[r.idx] = r.value; });
+        setConvertedLegPrices({ status: 'ready', values: finalValues, fxMissing });
+      } catch (e) {
+        if (cancelled) return;
+        setConvertedLegPrices({ status: 'error', values: {}, fxMissing: {} });
+        toast.error('Erro ao converter preços de entrada');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [detailResult, matchedOrderForDetail?.id]);
 
   // Derived data
   const lastMtmCalculated = useMemo(() => {
@@ -737,6 +829,122 @@ const OperationsMTM = () => {
                 <DetailRow label="Físico (atual)" value={fmtBrl(snap?.physical_price_current)} />
                 <DetailRow label="Câmbio spot" value={snap?.spot_rate_current != null ? `R$ ${snap.spot_rate_current.toFixed(4)}` : '—'} />
                 <DetailRow label="Prêmio opção" value={snap?.option_premium_current != null ? fmtBrl(snap.option_premium_current) : '—'} />
+              </CollapsibleSection>
+
+              <CollapsibleSection sectionKey="entrada" label="Preço de Entrada (Executado)">
+                {(() => {
+                  const order: any = matchedOrder;
+                  const executed = order?.executed_legs as any[] | null | undefined;
+                  const legsSource = (executed?.length ? executed : (order?.legs as any[])) ?? [];
+                  const isFallback = !(executed && executed.length > 0);
+                  const isB3 = String(order?.exchange ?? '').toLowerCase() === 'b3';
+                  const validLegs = legsSource.filter((l: any) => ['futures', 'option', 'ndf'].includes(l.leg_type));
+
+                  if (validLegs.length === 0) {
+                    return <p className="text-sm text-muted-foreground">Nenhuma perna de hedge encontrada</p>;
+                  }
+
+                  const fmtMoney = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(v);
+                  const fmtCt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  const fmtVol = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+                  let anyFallback = false;
+                  let anyFxMissing = false;
+
+                  const buildSuffix = (i: number, isNdf: boolean) => {
+                    const fb = isFallback;
+                    const fx = !isNdf && !!convertedLegPrices.fxMissing[i];
+                    if (fb) anyFallback = true;
+                    if (fx) anyFxMissing = true;
+                    const marks = [fb && '*', fx && '**'].filter(Boolean);
+                    return marks.length ? ` ${marks.join(',')}` : '';
+                  };
+
+                  const rendered = legsSource.map((leg: any, i: number) => {
+                    if (!['futures', 'option', 'ndf'].includes(leg.leg_type)) return null;
+
+                    if (leg.leg_type === 'futures') {
+                      const suffix = buildSuffix(i, false);
+                      let priceLabel: string;
+                      if (isB3) {
+                        priceLabel = typeof leg.price === 'number' ? `${fmtMoney(leg.price)}/sc` : '—';
+                      } else if (convertedLegPrices.fxMissing[i]) {
+                        priceLabel = 'R$ —/sc';
+                      } else if (convertedLegPrices.status === 'loading') {
+                        priceLabel = 'carregando...';
+                      } else if (convertedLegPrices.status === 'error') {
+                        priceLabel = 'erro';
+                      } else if (convertedLegPrices.status === 'ready' && convertedLegPrices.values[i] != null) {
+                        priceLabel = `${fmtMoney(convertedLegPrices.values[i] as number)}/sc`;
+                      } else {
+                        priceLabel = '—';
+                      }
+                      return (
+                        <div key={i} className="flex justify-between py-1">
+                          <span className="text-muted-foreground text-sm">
+                            Futuro {leg.ticker ?? '—'} · {leg.direction ?? '—'} · {fmtCt(Number(leg.contracts ?? 0))} ct
+                          </span>
+                          <span className="text-sm font-medium">{priceLabel}{suffix}</span>
+                        </div>
+                      );
+                    }
+
+                    if (leg.leg_type === 'option') {
+                      const suffix = buildSuffix(i, false);
+                      const optType = String(leg.option_type ?? '').toLowerCase() === 'put' ? 'Put' : 'Call';
+                      const strikeLabel = isB3
+                        ? (typeof leg.strike === 'number' ? fmtMoney(leg.strike) : '—')
+                        : (typeof leg.strike === 'number' ? `USD ${leg.strike.toFixed(4)}/bu` : '—');
+                      let premiumLabel: string;
+                      if (isB3) {
+                        premiumLabel = typeof leg.premium === 'number' ? `${fmtMoney(leg.premium)}/sc` : '—';
+                      } else if (convertedLegPrices.fxMissing[i]) {
+                        premiumLabel = 'R$ —/sc';
+                      } else if (convertedLegPrices.status === 'loading') {
+                        premiumLabel = 'carregando...';
+                      } else if (convertedLegPrices.status === 'error') {
+                        premiumLabel = 'erro';
+                      } else if (convertedLegPrices.status === 'ready' && convertedLegPrices.values[i] != null) {
+                        premiumLabel = `${fmtMoney(convertedLegPrices.values[i] as number)}/sc`;
+                      } else {
+                        premiumLabel = '—';
+                      }
+                      return (
+                        <div key={i} className="flex justify-between py-1">
+                          <span className="text-muted-foreground text-sm">
+                            Opção {optType} K={strikeLabel} · {leg.direction ?? '—'} · {fmtCt(Number(leg.contracts ?? 0))} ct
+                          </span>
+                          <span className="text-sm font-medium">{premiumLabel}{suffix}</span>
+                        </div>
+                      );
+                    }
+
+                    // ndf
+                    const suffix = buildSuffix(i, true);
+                    return (
+                      <div key={i} className="flex justify-between py-1">
+                        <span className="text-muted-foreground text-sm">
+                          Câmbio NDF · {leg.direction ?? '—'} · USD {fmtVol(Number(leg.volume_units ?? 0))}
+                        </span>
+                        <span className="text-sm font-medium">
+                          {typeof leg.ndf_rate === 'number' ? fmtMoney(leg.ndf_rate) : '—'}{suffix}
+                        </span>
+                      </div>
+                    );
+                  });
+
+                  return (
+                    <>
+                      {rendered}
+                      {anyFallback && (
+                        <p className="text-xs text-muted-foreground mt-2">* Preço da precificação original — ordem sem execução registrada</p>
+                      )}
+                      {anyFxMissing && (
+                        <p className="text-xs text-muted-foreground mt-1">** Câmbio não disponível para conversão</p>
+                      )}
+                    </>
+                  );
+                })()}
               </CollapsibleSection>
 
               <CollapsibleSection sectionKey="custos" label="Custos de Originação">
