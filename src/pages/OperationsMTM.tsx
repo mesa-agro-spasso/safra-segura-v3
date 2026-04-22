@@ -76,10 +76,18 @@ const OperationsMTM = () => {
     identificacao: false,
     datas: false,
     mercado: false,
+    entrada: false,
     custos: false,
     basis: false,
     resultado: false,
   });
+
+  // Converted execution prices for "Preço de Entrada (Executado)" section
+  const [convertedLegPrices, setConvertedLegPrices] = useState<{
+    status: 'idle' | 'loading' | 'ready' | 'error';
+    values: Record<number, number | null>;
+    fxMissing: Record<number, boolean>;
+  }>({ status: 'idle', values: {}, fxMissing: {} });
   const toggleSection = (key: string) =>
     setExpandedSections(v => ({ ...v, [key]: !v[key] }));
 
