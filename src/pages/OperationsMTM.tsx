@@ -91,6 +91,89 @@ const OperationsMTM = () => {
   const toggleSection = (key: string) =>
     setExpandedSections(v => ({ ...v, [key]: !v[key] }));
 
+  // Convert executed leg prices (USD/bu → BRL/sc) when MTM detail dialog opens
+  const matchedOrderForDetail = useMemo(() => {
+    if (!detailResult) return null;
+    return orders?.find(o => o.operation_id === detailResult.operation_id) ?? null;
+  }, [detailResult, orders]);
+
+  useEffect(() => {
+    if (!detailResult || !matchedOrderForDetail) {
+      setConvertedLegPrices({ status: 'idle', values: {}, fxMissing: {} });
+      return;
+    }
+
+    const order: any = matchedOrderForDetail;
+    const executed = order.executed_legs as any[] | null | undefined;
+    const legsSource = (executed?.length ? executed : (order.legs as any[])) ?? [];
+
+    const ndfLeg = legsSource.find((l: any) => l.leg_type === 'ndf');
+    const fallbackFx = order.operation?.pricing_snapshots?.outputs_json?.exchange_rate;
+    const exchangeRate = ndfLeg?.ndf_rate ?? fallbackFx ?? null;
+
+    const isB3 = String(order.exchange ?? '').toLowerCase() === 'b3';
+
+    // Build conversion tasks for futures (price) and option (premium) legs
+    type Task = { idx: number; value: number };
+    const tasks: Task[] = [];
+    const fxMissing: Record<number, boolean> = {};
+    const values: Record<number, number | null> = {};
+
+    legsSource.forEach((leg: any, i: number) => {
+      if (leg.leg_type === 'futures') {
+        if (isB3) return; // already in BRL/sc — handled at render
+        if (typeof leg.price !== 'number') return;
+        if (exchangeRate == null) { fxMissing[i] = true; values[i] = null; return; }
+        tasks.push({ idx: i, value: leg.price });
+      } else if (leg.leg_type === 'option') {
+        if (isB3) return;
+        if (typeof leg.premium !== 'number') return;
+        if (exchangeRate == null) { fxMissing[i] = true; values[i] = null; return; }
+        tasks.push({ idx: i, value: leg.premium });
+      }
+    });
+
+    if (tasks.length === 0) {
+      setConvertedLegPrices({ status: 'ready', values, fxMissing });
+      return;
+    }
+
+    let cancelled = false;
+    setConvertedLegPrices({ status: 'loading', values: {}, fxMissing: {} });
+
+    (async () => {
+      try {
+        const results = await Promise.all(tasks.map(async (t) => {
+          const { data, error } = await supabase.functions.invoke('api-proxy', {
+            body: {
+              endpoint: '/utils/convert-price',
+              body: {
+                value: t.value,
+                from_unit: 'usd_per_bushel',
+                to_unit: 'brl_per_sack',
+                commodity: order.commodity === 'soybean' ? 'soybean' : 'corn',
+                exchange_rate: exchangeRate,
+              },
+            },
+          });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          return { idx: t.idx, value: (data?.value_converted ?? data?.converted ?? data?.value) as number };
+        }));
+        if (cancelled) return;
+        const finalValues = { ...values };
+        results.forEach(r => { finalValues[r.idx] = r.value; });
+        setConvertedLegPrices({ status: 'ready', values: finalValues, fxMissing });
+      } catch (e) {
+        if (cancelled) return;
+        setConvertedLegPrices({ status: 'error', values: {}, fxMissing: {} });
+        toast.error('Erro ao converter preços de entrada');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [detailResult, matchedOrderForDetail?.id]);
+
   // Derived data
   const lastMtmCalculated = useMemo(() => {
     if (!mtmSnapshots?.length) return null;
