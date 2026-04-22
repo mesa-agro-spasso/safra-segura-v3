@@ -62,6 +62,24 @@ function isSoybeanCbot(commodity: string, exchange: string) {
   return commodity === 'soybean' && exchange.toLowerCase() === 'cbot';
 }
 
+const CONTRACT_SIZE_BY_COMMODITY: Record<string, Record<string, number>> = {
+  soybean: { cbot: 5000 },
+  corn: { cbot: 5000, b3: 450 },
+};
+
+function getContractSize(commodity: string, exchange: string): number {
+  const size = CONTRACT_SIZE_BY_COMMODITY[commodity]?.[exchange.toLowerCase()];
+  if (!size) throw new Error(`Contract size unknown for ${commodity}/${exchange}`);
+  return size;
+}
+
+function getExecutionPriceLabel(leg_type: string, commodity: string, exchange: string): string {
+  if (leg_type === 'ndf') return 'BRL/USD';
+  if (exchange.toLowerCase() === 'cbot') return 'USD/bushel';
+  if (exchange.toLowerCase() === 'b3') return 'BRL/sc';
+  return '';
+}
+
 const Orders = () => {
   const [commodityFilter, setCommodityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -679,15 +697,16 @@ const Orders = () => {
   };
 
   const openExecutionModal = (order: HedgeOrder) => {
-    const orderLegs = (order.legs as any[]) ?? [];
-    setExecutionLegs(orderLegs.map((l: any) => ({
-      ...l,
-      _displayPrice: isSoybeanCbot(order.commodity, order.exchange) && l.leg_type === 'futures'
-        ? String((l.price ?? 0) * 100)
-        : String(l.price ?? ''),
-      _displayQty: String(l.volume_units ?? l.contracts ?? ''),
-      _notes: l.notes ?? '',
-    })));
+    const orderLegs = ((order.legs as any[]) ?? []).filter((l: any) => l.leg_type !== 'seguro');
+    setExecutionLegs(orderLegs.map((l: any) => {
+      const isNdf = l.leg_type === 'ndf';
+      return {
+        ...l,
+        _displayQty: isNdf ? String(l.volume_units ?? '') : String(l.contracts ?? ''),
+        _displayPrice: isNdf ? String(l.ndf_rate ?? '') : String(l.price ?? ''),
+        _notes: l.notes ?? '',
+      };
+    }));
     setExecutionModal(order);
   };
 
@@ -703,22 +722,44 @@ const Orders = () => {
       }
     }
     try {
-      const executedLegs = executionLegs.map((leg: any) => {
-        let price = parseFloat(leg._displayPrice);
-        if (isSoybeanCbot(executionModal.commodity, executionModal.exchange) && leg.leg_type === 'futures') {
-          price = price / 100; // cents → USD/bushel
+      const executedLegs: any[] = [];
+      for (const leg of executionLegs) {
+        const qty = parseFloat(leg._displayQty);
+        const priceVal = parseFloat(leg._displayPrice);
+
+        // Strip helper UI fields
+        const { _displayPrice, _displayQty, _notes, ...rest } = leg;
+
+        if (leg.leg_type === 'ndf') {
+          const merged: any = {
+            ...rest,
+            volume_units: qty,
+            ndf_rate: priceVal,
+            notes: _notes || undefined,
+          };
+          // Ensure no residual price is persisted on NDF legs
+          delete merged.price;
+          executedLegs.push(merged);
+        } else {
+          // futures / option
+          let contractSize: number;
+          try {
+            contractSize = getContractSize(executionModal.commodity, executionModal.exchange);
+          } catch (e) {
+            toast.error('Tamanho de contrato desconhecido', {
+              description: e instanceof Error ? e.message : String(e),
+            });
+            return;
+          }
+          executedLegs.push({
+            ...rest,
+            contracts: qty,
+            volume_units: qty * contractSize,
+            price: priceVal,
+            notes: _notes || undefined,
+          });
         }
-        return {
-          ...leg,
-          price,
-          contracts: leg.leg_type !== 'ndf' ? parseFloat(leg._displayQty) : leg.contracts,
-          volume_units: leg.leg_type === 'ndf' ? parseFloat(leg._displayQty) : leg.volume_units,
-          notes: leg._notes || undefined,
-          _displayPrice: undefined,
-          _displayQty: undefined,
-          _notes: undefined,
-        };
-      });
+      }
 
       await updateOrder.mutateAsync({
         id: executionModal.id,
@@ -1419,7 +1460,9 @@ const Orders = () => {
             <p className="text-xs font-semibold text-muted-foreground uppercase">Pernas — edite com os valores reais</p>
             <div className="space-y-3">
               {executionLegs.map((leg: any, i: number) => {
-                const isCbotSoy = isSoybeanCbot(executionModal.commodity, executionModal.exchange) && leg.leg_type === 'futures';
+                const isNdf = leg.leg_type === 'ndf';
+                const qtyLabel = isNdf ? 'Volume USD' : 'Contratos';
+                const priceUnit = getExecutionPriceLabel(leg.leg_type, executionModal.commodity, executionModal.exchange);
                 return (
                   <div key={i} className="bg-muted/30 rounded p-3 space-y-2">
                     <div className="flex gap-3 text-xs text-muted-foreground">
@@ -1429,7 +1472,7 @@ const Orders = () => {
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[10px]">Quantidade</Label>
+                        <Label className="text-[10px]">{qtyLabel}</Label>
                         <Input
                           className="h-8 text-xs"
                           type="number"
@@ -1443,7 +1486,7 @@ const Orders = () => {
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[10px]">Preço{isCbotSoy ? ' (cents/bu)' : ''}</Label>
+                        <Label className="text-[10px]">Preço</Label>
                         <Input
                           className="h-8 text-xs"
                           type="number"
@@ -1455,7 +1498,7 @@ const Orders = () => {
                             setExecutionLegs(updated);
                           }}
                         />
-                        {isCbotSoy && <p className="text-[10px] text-muted-foreground">USD cents/bushel</p>}
+                        {priceUnit && <p className="text-[10px] text-muted-foreground">{priceUnit}</p>}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px]">Obs.</Label>
