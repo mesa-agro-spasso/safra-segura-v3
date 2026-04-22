@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useHedgeOrders } from '@/hooks/useHedgeOrders';
 import { useMarketData } from '@/hooks/useMarketData';
 import { useMtmSnapshots, useSaveMtmSnapshot } from '@/hooks/useMtmSnapshots';
