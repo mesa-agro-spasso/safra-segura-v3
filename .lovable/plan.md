@@ -1,101 +1,134 @@
 
 
-# Corrigir bugs no modal de execução em Orders.tsx
+# Nova seção "Preço de Entrada (Executado)" no modal MTM
 
 ## Escopo
-Apenas `src/pages/Orders.tsx` — funções `openExecutionModal` e `handleExecutionConfirm` + 2 helpers no topo do arquivo. Nenhuma alteração em `autoPopulateLegs`, `handleBuildOrder`, `handleSaveOrder`, `handleManualSave`, drawer, schema do banco ou outros arquivos.
+Apenas `src/pages/OperationsMTM.tsx`. A Edge Function `api-proxy` NÃO é tocada — o endpoint `/utils/convert-price` já está no whitelist gerenciado manualmente.
 
-## Mudanças
+## Mudanças em `src/pages/OperationsMTM.tsx`
 
-### 1. Helpers no topo do arquivo (antes do componente `Orders`)
+### 1. Estado de seções colapsáveis
+Adicionar `entrada: false` ao objeto `expandedSections`:
 ```ts
-const CONTRACT_SIZE_BY_COMMODITY: Record<string, Record<string, number>> = {
-  soybean: { cbot: 5000 },
-  corn: { cbot: 5000, b3: 450 },
+{ identificacao:false, datas:false, mercado:false, entrada:false, custos:false, basis:false, resultado:false }
+```
+
+### 2. Novo estado para preços convertidos
+```ts
+const [convertedLegPrices, setConvertedLegPrices] = useState<{
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  values: Record<number, number | null>;   // index da leg → preço BRL/sc
+  fxMissing: Record<number, boolean>;      // marca legs sem câmbio
+}>({ status: 'idle', values: {}, fxMissing: {} });
+```
+
+### 3. useEffect com guard de race condition
+Disparado quando `detailResult` muda. Localiza `matchedOrder` via `orders?.find(...)`:
+
+```ts
+const executed = matchedOrder?.executed_legs as any[] | null | undefined;
+const legsSource = (executed?.length ? executed : (matchedOrder?.legs as any[])) ?? [];
+const isFallback = !(executed && executed.length > 0);
+```
+
+**Câmbio:**
+- `ndfLeg = legsSource.find(l => l.leg_type === 'ndf')`
+- Se existe → `exchange_rate = ndfLeg.ndf_rate`
+- Senão → `matchedOrder?.operation?.pricing_snapshots?.outputs_json?.exchange_rate`
+
+**Conversões em paralelo** — montar lista única `[{ idx, value, kind: 'price'|'premium' }]` cobrindo futures (`leg.price`) e option (`leg.premium`). Pular legs de milho B3 (`exchange === 'b3'`) e legs sem câmbio (marcar `fxMissing[idx] = true`).
+
+Para cada item conversível:
+```ts
+supabase.functions.invoke('api-proxy', {
+  body: { endpoint: '/utils/convert-price', body: {
+    value, from_unit:'usd_per_bushel', to_unit:'brl_per_sack',
+    commodity: matchedOrder.commodity === 'soybean' ? 'soybean' : 'corn',
+    exchange_rate,
+  }},
+})
+```
+
+Padrão de cancelamento:
+```ts
+let cancelled = false;
+(async () => {
+  setConvertedLegPrices({ status:'loading', values:{}, fxMissing:{} });
+  try {
+    const results = await Promise.all(...);
+    if (!cancelled) setConvertedLegPrices({ status:'ready', values, fxMissing });
+  } catch (e) {
+    if (!cancelled) {
+      setConvertedLegPrices({ status:'error', values:{}, fxMissing:{} });
+      toast.error('Erro ao converter preços de entrada');
+    }
+  }
+})();
+return () => { cancelled = true; };
+```
+Dependências: `[detailResult, matchedOrder?.id]`.
+
+### 4. Nova `<CollapsibleSection sectionKey="entrada" label="Preço de Entrada (Executado)">`
+Inserida entre as seções "mercado" e "custos".
+
+**Lógica de render:**
+1. Recomputar `legsSource`, `isFallback`, `exchange_rate`.
+2. `validLegs = legsSource.filter(l => ['futures','option','ndf'].includes(l.leg_type))`.
+3. Se `validLegs.length === 0` → `<p className="text-sm text-muted-foreground">Nenhuma perna de hedge encontrada</p>`.
+4. Para cada leg, linha `flex justify-between py-1`.
+
+**Formatadores locais:**
+```ts
+const fmtMoney = (v:number) => new Intl.NumberFormat('pt-BR',{ style:'currency', currency:'BRL', minimumFractionDigits:2, maximumFractionDigits:4 }).format(v);
+const fmtCt    = (v:number) => v.toLocaleString('pt-BR',{ minimumFractionDigits:2, maximumFractionDigits:2 });
+const fmtVol   = (v:number) => v.toLocaleString('pt-BR',{ maximumFractionDigits:2 });
+```
+
+**Sufixos por linha** (combináveis):
+```ts
+const suffix = `${isFallback ? ' *' : ''}${fxMissing[i] ? ' **' : ''}`;
+// Exemplos: " *", " **", " *,**" — usar formato " *,**" quando ambos
+const buildSuffix = () => {
+  const marks = [isFallback && '*', fxMissing[i] && '**'].filter(Boolean);
+  return marks.length ? ` ${marks.join(',')}` : '';
 };
-
-function getContractSize(commodity: string, exchange: string): number {
-  const size = CONTRACT_SIZE_BY_COMMODITY[commodity]?.[exchange.toLowerCase()];
-  if (!size) throw new Error(`Contract size unknown for ${commodity}/${exchange}`);
-  return size;
-}
-
-function getExecutionPriceLabel(leg_type: string, commodity: string, exchange: string): string {
-  if (leg_type === 'ndf') return 'BRL/USD';
-  if (exchange.toLowerCase() === 'cbot') return 'USD/bushel';
-  if (exchange.toLowerCase() === 'b3') return 'BRL/sc';
-  return '';
-}
 ```
 
-### 2. `openExecutionModal` — pré-preenchimento por tipo de leg
-Remover qualquer multiplicação `*100`. Filtrar legs `seguro` antes do map:
-```ts
-const orderLegs = ((order.legs as any[]) ?? []).filter(l => l.leg_type !== 'seguro');
-```
+**Renderização por tipo:**
 
-Para cada leg em `orderLegs`:
-- `futures` / `option`:
-  - `_displayQty = String(leg.contracts ?? '')`, label "Contratos"
-  - `_displayPrice = String(leg.price ?? '')` (canônico, sem dividir por 100)
-- `ndf`:
-  - `_displayQty = String(leg.volume_units ?? '')`, label "Volume USD"
-  - `_displayPrice = String(leg.ndf_rate ?? '')` — **NÃO** usar `leg.price` (dado legado corrompido pelo bug 2)
+- **futures**:  
+  `Futuro {ticker} · {direction} · {fmtCt(contracts)} ct       {priceLabel}{suffix}`
+  - exchange === 'b3' → `${fmtMoney(leg.price)}/sc`
+  - status loading → `'carregando...'`
+  - status error → `'erro'`
+  - fxMissing[i] → `'R$ —/sc'`
+  - ready → `${fmtMoney(values[i])}/sc`
 
-`unit_label` preservado via spread `...leg` no estado local.
+- **option**:  
+  `Opção {Call|Put} K={strike} · {direction} · {fmtCt(contracts)} ct    {premiumLabel}{suffix}`
+  - strike CBOT → `USD ${strike.toFixed(4)}/bu`
+  - strike B3 → `${fmtMoney(strike)}/sc`
+  - premium segue mesma lógica de futures (B3 direto, CBOT via API)
 
-### 3. `handleExecutionConfirm` — gravação por tipo de leg
-Para cada leg editada, montar `executed_legs[i]` preservando todos os campos originais via spread (`...leg`) e sobrescrevendo apenas:
+- **ndf**:  
+  `Câmbio NDF · {direction} · USD {fmtVol(volume_units)}      {fmtMoney(ndf_rate)}{suffix}`
+  - sem conversão; `ndf_rate` direto. Suffix aplica apenas `*` (fallback) — NDF nunca é fxMissing.
 
-**futures / option:**
-```ts
-{
-  ...leg,                                  // preserva ticker, currency, direction, unit_label etc.
-  contracts: parseFloat(_displayQty),
-  volume_units: parseFloat(_displayQty) * getContractSize(order.commodity, order.exchange),
-  price: parseFloat(_displayPrice),        // canônico, sem /100
-  // ndf_rate NÃO é tocado
-}
-```
+5. **Notas de rodapé** (após o map, símbolos distintos):
+- Se alguma linha tem `isFallback` → `<p className="text-xs text-muted-foreground">* Preço da precificação original — ordem sem execução registrada</p>`
+- Se alguma linha tem `fxMissing` → `<p className="text-xs text-muted-foreground">** Câmbio não disponível para conversão</p>`
+- Linhas com ambos os marcadores exibem `*,**` no sufixo.
 
-**ndf:**
-```ts
-const merged = {
-  ...leg,                                  // preserva currency, direction, unit_label="USD" etc.
-  volume_units: parseFloat(_displayQty),
-  ndf_rate: parseFloat(_displayPrice),     // BRL/USD canônico
-};
-delete merged.price;                       // garante que nenhum price residual fique gravado
-return merged;
-```
-
-### 4. UI do modal
-- Label do campo quantidade muda dinamicamente: "Contratos" para futures/option, "Volume USD" para NDF.
-- Label do campo preço continua "Preço", com texto discreto (`text-xs text-muted-foreground` abaixo do input) exibindo `getExecutionPriceLabel(leg.leg_type, order.commodity, order.exchange)`.
-
-### 5. Validações (em `handleExecutionConfirm`)
-- Manter `qty > 0` e `price > 0` existentes.
-- Envolver chamadas a `getContractSize` em `try/catch`; em erro: `toast.error('Tamanho de contrato desconhecido', { description: e.message })` e `return` (sem propagar exceção).
-
-### 6. Preservações obrigatórias
-- `stopPropagation` dos botões de ação na tabela.
-- Update de `operations.status = 'HEDGE_CONFIRMADO'` após execução.
-- Invalidação de queries react-query (`hedge_orders`, `pending-operations`, etc.) já existentes.
-- `unit_label` vem do spread `...leg` — não reescrever manualmente.
-
-## Resultado esperado (exemplo MAD_SOJA_260422_001)
-Mesa digita: futures `Contratos=0.66, Preço=11.885`; NDF `Volume USD=8218.33, Preço=5.12`.
-
-`executed_legs` gravado:
-```json
-[
-  { "leg_type":"futures","ticker":"ZSQ26","currency":"USD","direction":"sell",
-    "contracts":0.66,"volume_units":3300,"unit_label":"bushels","price":11.885 },
-  { "leg_type":"ndf","currency":"USD","direction":"sell",
-    "volume_units":8218.33,"unit_label":"USD","ndf_rate":5.12 }
-]
-```
+## Constraints
+- Nenhum cálculo financeiro local — conversão USD/bu→BRL/sc passa exclusivamente por `/utils/convert-price`.
+- Nenhuma alteração fora de `src/pages/OperationsMTM.tsx`.
+- Nenhuma alteração na Edge Function `api-proxy`.
+- Nenhuma query nova ao Supabase — usa `matchedOrder` já carregado via `useHedgeOrders`.
+- Cancelamento via flag `cancelled` no cleanup do useEffect.
+- `Promise.all` paralelo para conversões da mesma operação.
+- Label exato: `"Preço de Entrada (Executado)"`.
+- Posição: entre "Snapshot de Mercado" e "Custos de Originação".
 
 ## Fora de escopo
-Backfill das 5 ordens seed, nova seção "Preço de Entrada (Executado)" no MTM, qualquer outro arquivo, schema do banco, autoPopulate/build/save originais.
+Backfill de ordens seed, alterações em hooks/schema/outros componentes, edição da Edge Function.
 
