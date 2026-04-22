@@ -1460,7 +1460,9 @@ const Orders = () => {
             <p className="text-xs font-semibold text-muted-foreground uppercase">Pernas — edite com os valores reais</p>
             <div className="space-y-3">
               {executionLegs.map((leg: any, i: number) => {
-                const isCbotSoy = isSoybeanCbot(executionModal.commodity, executionModal.exchange) && leg.leg_type === 'futures';
+                const isNdf = leg.leg_type === 'ndf';
+                const qtyLabel = isNdf ? 'Volume USD' : 'Contratos';
+                const priceUnit = getExecutionPriceLabel(leg.leg_type, executionModal.commodity, executionModal.exchange);
                 return (
                   <div key={i} className="bg-muted/30 rounded p-3 space-y-2">
                     <div className="flex gap-3 text-xs text-muted-foreground">
@@ -1470,7 +1472,7 @@ const Orders = () => {
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[10px]">Quantidade</Label>
+                        <Label className="text-[10px]">{qtyLabel}</Label>
                         <Input
                           className="h-8 text-xs"
                           type="number"
@@ -1484,7 +1486,7 @@ const Orders = () => {
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[10px]">Preço{isCbotSoy ? ' (cents/bu)' : ''}</Label>
+                        <Label className="text-[10px]">Preço</Label>
                         <Input
                           className="h-8 text-xs"
                           type="number"
@@ -1496,7 +1498,7 @@ const Orders = () => {
                             setExecutionLegs(updated);
                           }}
                         />
-                        {isCbotSoy && <p className="text-[10px] text-muted-foreground">USD cents/bushel</p>}
+                        {priceUnit && <p className="text-[10px] text-muted-foreground">{priceUnit}</p>}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px]">Obs.</Label>
