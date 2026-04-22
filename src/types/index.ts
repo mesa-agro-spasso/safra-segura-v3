@@ -119,7 +119,6 @@ export interface MtmSnapshot {
   mtm_total_brl: number;
   mtm_per_sack_brl: number;
   total_exposure_brl: number;
-  ndf_estimated_rate?: number | null;
   calculated_by: string | null;
   calculated_at: string;
   snapshot_date: string;

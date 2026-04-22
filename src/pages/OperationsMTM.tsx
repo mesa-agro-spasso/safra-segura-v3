@@ -125,7 +125,6 @@ const OperationsMTM = () => {
       total_exposure_brl: snap.total_exposure_brl,
       volume_sacks: snap.volume_sacks,
       calculated_at: snap.calculated_at,
-      ndf_estimated_rate: snap.ndf_estimated_rate ?? null,
       market_snapshot: {
         futures_price_current: snap.futures_price_current,
         physical_price_current: snap.physical_price_current,
@@ -300,7 +299,6 @@ const OperationsMTM = () => {
             mtm_total_brl: r.mtm_total_brl as number,
             mtm_per_sack_brl: r.mtm_per_sack_brl as number,
             total_exposure_brl: r.total_exposure_brl as number,
-            ndf_estimated_rate: (r.ndf_estimated_rate as number) ?? null,
             calculated_by: user?.id ?? null,
           });
         }
@@ -738,14 +736,6 @@ const OperationsMTM = () => {
                 <DetailRow label="Futuros (atual)" value={snap?.futures_price_current != null ? `USD ${snap.futures_price_current.toFixed(4)}/bu` : '—'} />
                 <DetailRow label="Físico (atual)" value={fmtBrl(snap?.physical_price_current)} />
                 <DetailRow label="Câmbio spot" value={snap?.spot_rate_current != null ? `R$ ${snap.spot_rate_current.toFixed(4)}` : '—'} />
-                <DetailRow
-                  label="NDF originação"
-                  value={
-                    (matchedOrder?.operation?.pricing_snapshots?.outputs_json as any)?.exchange_rate != null
-                      ? `R$ ${Number((matchedOrder?.operation?.pricing_snapshots?.outputs_json as any)?.exchange_rate).toFixed(4)}`
-                      : '—'
-                  }
-                />
                 <DetailRow label="Prêmio opção" value={snap?.option_premium_current != null ? fmtBrl(snap.option_premium_current) : '—'} />
               </CollapsibleSection>
 

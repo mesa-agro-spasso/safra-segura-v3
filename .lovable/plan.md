@@ -1,47 +1,53 @@
 
 
-# Persistir `ndf_estimated_rate` no fluxo MTM
+# OperationsMTM Dialog: seções colapsáveis + custos/basis
 
-## 1. `src/types/index.ts`
-Adicionar ao tipo `MtmSnapshot`:
+## 1. `src/hooks/useOperations.ts`
+Adicionar `outputs_json` ao select do `useOperationsWithDetails`:
 ```ts
-ndf_estimated_rate?: number | null;
+.select('*, warehouses(display_name), pricing_snapshots(trade_date, payment_date, grain_reception_date, sale_date, ticker, origination_price_brl, futures_price_brl, exchange_rate, outputs_json)')
 ```
+Atualizar também o tipo `OperationWithDetails` em `src/types/index.ts` para incluir `outputs_json: Record<string, unknown>` (mantém o restante).
 
-## 2. `src/pages/OperationsMTM.tsx` — `handleCalculate`
-No payload do `saveMtm.mutateAsync`, adicionar:
+## 2. `src/pages/OperationsMTM.tsx` — dialog `detailResult`
+
+### Estado novo (no componente do dialog ou no pai que renderiza)
 ```ts
-ndf_estimated_rate: (r.ndf_estimated_rate as number) ?? null,
+const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+  identificacao: true, datas: true, mercado: true, resultado: true,
+  custos: false, basis: false,
+});
+const toggleSection = (key: string) => setExpandedSections(v => ({ ...v, [key]: !v[key] }));
 ```
 
-## 3. `src/pages/OperationsMTM.tsx` — `snapshotResults` useMemo
-No objeto mapeado de cada `snap`, adicionar:
+### Helper local
+Componente `CollapsibleSection({ sectionKey, label, children })` que renderiza `<Separator />` + botão chevron `▾/▸` e mostra `children` quando expandido.
+
+### Refatoração do corpo do dialog
+Envolver cada bloco existente em `<CollapsibleSection>`:
+- **identificacao** — Operação, Commodity, Volume
+- **datas** — Entrada, Pagamento, Recepção, Saída
+- **mercado** — Futuros atual, Físico atual, Câmbio spot, Prêmio opção
+- **resultado** — Físico, Futuros, NDF, Opção, Total, Por Saca, Break-even, Físico alvo, Exposição Total
+
+### Novas seções (colapsadas por default)
+Ler de `matchedOrder.operation.pricing_snapshots.outputs_json`:
 ```ts
-ndf_estimated_rate: snap.ndf_estimated_rate ?? null,
+const outputsJson = (matchedOrder?.operation?.pricing_snapshots?.outputs_json as Record<string, any>) ?? {};
+const costs = outputsJson.costs ?? {};
+const engineResult = outputsJson.engine_result ?? {};
 ```
 
-## 4. `src/pages/OperationsMTM.tsx` — dialog `detailResult`
-Substituir a linha atual de "NDF estimado" por:
-```tsx
-<DetailRow
-  label="NDF estimado"
-  value={
-    (detailResult.ndf_estimated_rate as number) != null
-      ? `R$ ${(detailResult.ndf_estimated_rate as number).toFixed(4)}`
-      : '—'
-  }
-/>
-```
+- **custos** — Financeiro, Armazenagem, Corretagem, Custo de mesa, Total (todos R$/sc, 4 decimais)
+- **basis** — Target basis, Purchased basis, Breakeven basis (todos R$/sc, 4 decimais)
 
-## Efeito
-- Ao clicar "Calcular MTM", o valor é persistido em `mtm_snapshots.ndf_estimated_rate`.
-- Ao recarregar a página, o valor é recuperado do banco e exibido no dialog.
-- Snapshots antigos exibem "—" até serem recalculados.
+Formatador: `(v) => typeof v === 'number' ? v.toFixed(4) : '—'` com prefixo `R$ `.
 
 ## Pré-condições
-- Coluna `ndf_estimated_rate numeric` já existe em `mtm_snapshots` (confirmado).
-- `DetailRow` e `detailResult` já existem no componente.
+- `Separator` já importado (`@/components/ui/separator`)
+- Dialog `detailResult` já existe e tem acesso a `matchedOrder`
+- `useState` já importado
 
 ## Fora de escopo
-Qualquer outra lógica, query, campo ou seção do dialog.
+- Lógica de cálculo MTM, queries, demais dialogs/colunas, estilos globais.
 

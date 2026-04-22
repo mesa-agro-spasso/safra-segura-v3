@@ -222,7 +222,6 @@ export type Database = {
           mtm_per_sack_brl: number
           mtm_physical_brl: number
           mtm_total_brl: number
-          ndf_estimated_rate: number | null
           operation_id: string
           physical_price_current: number
           snapshot_date: string
@@ -241,7 +240,6 @@ export type Database = {
           mtm_per_sack_brl: number
           mtm_physical_brl: number
           mtm_total_brl: number
-          ndf_estimated_rate?: number | null
           operation_id: string
           physical_price_current: number
           snapshot_date?: string
@@ -260,7 +258,6 @@ export type Database = {
           mtm_per_sack_brl?: number
           mtm_physical_brl?: number
           mtm_total_brl?: number
-          ndf_estimated_rate?: number | null
           operation_id?: string
           physical_price_current?: number
           snapshot_date?: string
