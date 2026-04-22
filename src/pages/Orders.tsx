@@ -62,6 +62,24 @@ function isSoybeanCbot(commodity: string, exchange: string) {
   return commodity === 'soybean' && exchange.toLowerCase() === 'cbot';
 }
 
+const CONTRACT_SIZE_BY_COMMODITY: Record<string, Record<string, number>> = {
+  soybean: { cbot: 5000 },
+  corn: { cbot: 5000, b3: 450 },
+};
+
+function getContractSize(commodity: string, exchange: string): number {
+  const size = CONTRACT_SIZE_BY_COMMODITY[commodity]?.[exchange.toLowerCase()];
+  if (!size) throw new Error(`Contract size unknown for ${commodity}/${exchange}`);
+  return size;
+}
+
+function getExecutionPriceLabel(leg_type: string, commodity: string, exchange: string): string {
+  if (leg_type === 'ndf') return 'BRL/USD';
+  if (exchange.toLowerCase() === 'cbot') return 'USD/bushel';
+  if (exchange.toLowerCase() === 'b3') return 'BRL/sc';
+  return '';
+}
+
 const Orders = () => {
   const [commodityFilter, setCommodityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
