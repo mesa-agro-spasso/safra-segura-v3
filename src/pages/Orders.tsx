@@ -169,6 +169,24 @@ const Orders = () => {
     });
   }, [ordersRaw, warehouseFilter, operations]);
 
+  const operationIds = useMemo(
+    () => [...new Set((orders ?? []).map(o => o.operation_id).filter(Boolean))],
+    [orders]
+  );
+  const { data: operationStatusMap } = useQuery({
+    queryKey: ['operation-statuses', operationIds],
+    enabled: operationIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('operations')
+        .select('id, status')
+        .in('id', operationIds);
+      const map: Record<string, string> = {};
+      (data ?? []).forEach((op: any) => { map[op.id] = op.status; });
+      return map;
+    },
+  });
+
   const operationWarehouseMap = useMemo(() => {
     const map: Record<string, string> = {};
     operations?.forEach(op => {
