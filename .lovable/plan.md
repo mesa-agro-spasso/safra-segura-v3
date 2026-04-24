@@ -1,85 +1,77 @@
-# Update Orders.tsx Closing Workflow
+# Update Closing Buttons in Orders.tsx and OperationsMTM.tsx
 
 ## Scope
-Only `src/pages/Orders.tsx`. Two specific changes to streamline the closing workflow.
+Two specific files with targeted button logic changes for the operation closing workflow.
 
 ## Changes
 
-### 1. Change HEDGE_CONFIRMADO button action (line ~1375)
-Replace the "Solicitar Enc." button that calls `handleRequestClosingFromOrder` with a "Confirmar Enc." button that opens the closing modal directly.
+### 1. Orders.tsx - Lines 1399-1408
+Replace the two EXECUTED closing button blocks with corrected logic:
 
-**Current:**
-```tsx
-{o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'HEDGE_CONFIRMADO' && (
-  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRequestClosingFromOrder(o)}>
-    Solicitar Enc.
-  </Button>
-)}
-```
-
-**New:**
+**Current code:**
 ```tsx
 {o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'HEDGE_CONFIRMADO' && (
   <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleOpenClosingOrderModal(o)}>
     Confirmar Enc.
   </Button>
 )}
+{o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'ENCERRAMENTO_APROVADO' && (
+  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleOpenClosingOrderModal(o)}>
+    Confirmar Enc.
+  </Button>
+)}
 ```
 
-### 2. Update handleOpenClosingOrderModal to handle missing closing_order (line ~836-845)
-Modify the function to fall back to hedge_order executed_legs when no closing_order exists yet.
-
-**Current:**
+**New code:**
 ```tsx
-const { data, error } = await supabase
-  .from('closing_orders')
-  .select('id, legs, physical_price_brl, physical_volume_sacks')
-  .eq('operation_id', order.operation_id)
-  .order('created_at', { ascending: false })
-  .limit(1)
-  .maybeSingle();
-if (error) throw error;
-const rawLegs = ((data?.legs as any[]) ?? []).filter((l: any) => l.leg_type !== 'seguro');
+{o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'HEDGE_CONFIRMADO' && (
+  <Button variant="ghost" size="sm" className="h-7 text-xs"
+    onClick={() => handleRequestClosingFromOrder(o)}>
+    Solicitar Enc.
+  </Button>
+)}
+{o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'ENCERRAMENTO_APROVADO' && (
+  <Button variant="ghost" size="sm" className="h-7 text-xs"
+    onClick={() => handleOpenClosingOrderModal(o)}>
+    Confirmar Enc.
+  </Button>
+)}
 ```
 
-**New:**
+**Key change:** HEDGE_CONFIRMADO now shows "Solicitar Enc." calling `handleRequestClosingFromOrder` instead of "Confirmar Enc."
+
+### 2. OperationsMTM.tsx - Lines 596-617
+Replace the TableCell closing actions with the specified blocks:
+
+**New code:**
 ```tsx
-const { data, error } = await supabase
-  .from('closing_orders')
-  .select('id, legs, physical_price_brl, physical_volume_sacks')
-  .eq('operation_id', order.operation_id)
-  .order('created_at', { ascending: false })
-  .limit(1)
-  .maybeSingle();
-if (error && error.code !== 'PGRST116') throw error;
-
-// If no closing_order exists yet, mirror legs from the hedge_order executed_legs
-let rawLegs: any[] = [];
-if (data?.legs) {
-  rawLegs = ((data.legs as any[]) ?? []).filter((l: any) => l.leg_type !== 'seguro');
-} else {
-  const { data: hedgeData } = await supabase
-    .from('hedge_orders')
-    .select('executed_legs')
-    .eq('operation_id', order.operation_id)
-    .eq('status', 'EXECUTED')
-    .order('executed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const executedLegs = (hedgeData?.executed_legs as any[]) ?? [];
-  rawLegs = executedLegs
-    .filter((l: any) => l.leg_type !== 'seguro')
-    .map((l: any) => ({
-      ...l,
-      direction: l.direction === 'sell' ? 'buy' : 'sell',
-      price: null,
-      ndf_rate: null,
-    }));
-}
+<TableCell onClick={(e) => e.stopPropagation()}>
+  {op.status === 'HEDGE_CONFIRMADO' && (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-7 text-xs"
+      onClick={() => handleRequestClosing(op.id)}
+    >
+      Solicitar Encerramento
+    </Button>
+  )}
+  {op.status === 'ENCERRAMENTO_APROVADO' && (
+    <Button
+      size="sm"
+      variant="default"
+      className="h-7 text-xs"
+      onClick={() => handleOpenClosingModal(op)}
+    >
+      Confirmar Encerramento
+    </Button>
+  )}
+</TableCell>
 ```
+
+Note: No button shown for ENCERRAMENTO_SOLICITADO status (as specified).
 
 ## Constraints
-- Only the two specified code blocks are modified
+- Only modify the specified code blocks
 - No changes to imports, types, or other functions
-- The fallback logic mirrors the legs from executed hedge orders and inverts the direction (sell → buy, buy → sell) since closing reverses the position
+- Preserve all styling (variant, size, className)
