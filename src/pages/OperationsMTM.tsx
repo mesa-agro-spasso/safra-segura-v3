@@ -443,6 +443,63 @@ const OperationsMTM = () => {
     }
   };
 
+  const handleRequestClosing = async (operationId: string) => {
+    try {
+      await callApi(`/closing/${operationId}/request`, {
+        notes: null,
+        created_by: user?.id ?? null,
+      });
+      toast.success('Encerramento solicitado. Aguardando assinaturas.');
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao solicitar encerramento');
+    }
+  };
+
+  const handleOpenClosingModal = async (op: OperationWithDetails) => {
+    setClosingOperation(op);
+    setClosingPhysicalPrice('');
+    setClosingPhysicalVolume(String(op.volume_sacks));
+    const ps = op.pricing_snapshots;
+    setClosingOriginationPrice(ps?.origination_price_brl ? String(ps.origination_price_brl) : '');
+    try {
+      const { data } = await supabase
+        .from('closing_orders')
+        .select('legs')
+        .eq('operation_id', op.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      setClosingLegs((data?.legs as any[]) ?? []);
+    } catch {
+      setClosingLegs([]);
+    }
+  };
+
+  const handleExecuteClosing = async () => {
+    if (!closingOperation || !user) return;
+    setClosingSubmitting(true);
+    try {
+      await callApi(`/closing/${closingOperation.id}/execute`, {
+        physical_price_brl: parseFloat(closingPhysicalPrice),
+        physical_volume_sacks: parseFloat(closingPhysicalVolume),
+        origination_price_brl: parseFloat(closingOriginationPrice),
+        executed_legs: closingLegs,
+        insurance_cost_brl: 0,
+        executed_by: user.id,
+      });
+      toast.success('Operação encerrada com sucesso.');
+      setClosingOperation(null);
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao encerrar operação');
+    } finally {
+      setClosingSubmitting(false);
+    }
+  };
+
   const StatusDot = ({ date, label }: { date: string; label: string }) => {
     const d = new Date(date);
     const hoursAgo = Math.floor((Date.now() - d.getTime()) / 3_600_000);
