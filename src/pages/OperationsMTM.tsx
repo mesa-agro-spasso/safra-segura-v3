@@ -72,8 +72,17 @@ const OperationsMTM = () => {
   // Filters state
   const [filterWarehouse, setFilterWarehouse] = useState('all');
   const [filterCommodity, setFilterCommodity] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<'active' | 'closed' | 'all'>('active');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [chartByOperation, setChartByOperation] = useState(false);
+
+  // Closing state
+  const [closingOperation, setClosingOperation] = useState<OperationWithDetails | null>(null);
+  const [closingLegs, setClosingLegs] = useState<any[]>([]);
+  const [closingPhysicalPrice, setClosingPhysicalPrice] = useState('');
+  const [closingPhysicalVolume, setClosingPhysicalVolume] = useState('');
+  const [closingOriginationPrice, setClosingOriginationPrice] = useState('');
+  const [closingSubmitting, setClosingSubmitting] = useState(false);
 
   // Detail dialog collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
