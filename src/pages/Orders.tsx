@@ -817,6 +817,92 @@ const Orders = () => {
     }
   };
 
+  // === Closing (encerramento) handlers ===
+  const handleRequestClosingFromOrder = async (order: HedgeOrder) => {
+    if (!order.operation_id) return;
+    try {
+      await callApi(`/closing/${order.operation_id}/request`, {});
+      toast.success('Encerramento solicitado');
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+      queryClient.invalidateQueries({ queryKey: ['operation-statuses'] });
+      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao solicitar encerramento');
+    }
+  };
+
+  const handleOpenClosingOrderModal = async (order: HedgeOrder) => {
+    if (!order.operation_id) return;
+    try {
+      const { data, error } = await supabase
+        .from('closing_orders')
+        .select('id, legs, physical_price_brl, physical_volume_sacks')
+        .eq('operation_id', order.operation_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      const rawLegs = ((data?.legs as any[]) ?? []).filter((l: any) => l.leg_type !== 'seguro');
+      setClosingOrderLegs(rawLegs.map((l: any) => {
+        const isNdf = l.leg_type === 'ndf';
+        return {
+          ...l,
+          _displayPrice: isNdf ? String(l.ndf_rate ?? '') : String(l.price ?? ''),
+        };
+      }));
+      setClosingOrderPhysicalPrice(data?.physical_price_brl != null ? String(data.physical_price_brl) : '');
+      setClosingOrderPhysicalVolume(data?.physical_volume_sacks != null ? String(data.physical_volume_sacks) : '');
+      setClosingOrderOriginationPrice(order.origination_price_brl != null ? String(order.origination_price_brl) : '');
+      setClosingOrderModal(order);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao carregar dados de encerramento');
+    }
+  };
+
+  const handleExecuteClosingFromOrder = async () => {
+    if (!closingOrderModal?.operation_id) return;
+    const physPrice = parseFloat(closingOrderPhysicalPrice);
+    const physVol = parseFloat(closingOrderPhysicalVolume);
+    const origPrice = parseFloat(closingOrderOriginationPrice);
+    if (!physPrice || !physVol || !origPrice) {
+      toast.error('Preencha preço físico, volume físico e preço de originação');
+      return;
+    }
+    const legsPayload = closingOrderLegs.map((l: any) => {
+      const { _displayPrice, ...rest } = l;
+      const priceVal = parseFloat(_displayPrice);
+      if (l.leg_type === 'ndf') {
+        const merged: any = { ...rest, ndf_rate: priceVal };
+        delete merged.price;
+        return merged;
+      }
+      return { ...rest, price: priceVal };
+    });
+    setClosingOrderSubmitting(true);
+    try {
+      await callApi(`/closing/${closingOrderModal.operation_id}/execute`, {
+        physical_price_brl: physPrice,
+        physical_volume_sacks: physVol,
+        origination_price_brl: origPrice,
+        legs: legsPayload,
+      });
+      toast.success('Encerramento confirmado');
+      setClosingOrderModal(null);
+      setClosingOrderLegs([]);
+      setClosingOrderPhysicalPrice('');
+      setClosingOrderPhysicalVolume('');
+      setClosingOrderOriginationPrice('');
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+      queryClient.invalidateQueries({ queryKey: ['operation-statuses'] });
+      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao executar encerramento');
+    } finally {
+      setClosingOrderSubmitting(false);
+    }
+  };
+
   const getLegPriceLabel = (leg: Leg): string => {
     if (leg.leg_type === 'ndf') return 'R$/USD';
     if (leg.leg_type === 'futures' && isSoybeanCbot(com, bench)) return 'USD cents/bushel';
