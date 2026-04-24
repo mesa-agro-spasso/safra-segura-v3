@@ -31,6 +31,8 @@ const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'second
   EM_APROVACAO: { label: 'Em Aprovação', variant: 'outline', className: 'border-yellow-500 text-yellow-500' },
   APROVADA: { label: 'Aprovada', variant: 'outline', className: 'border-blue-500 text-blue-500' },
   HEDGE_CONFIRMADO: { label: 'Hedge Confirmado', variant: 'default' },
+  ENCERRAMENTO_SOLICITADO: { label: 'Enc. Solicitado', variant: 'outline', className: 'border-orange-500 text-orange-500' },
+  ENCERRAMENTO_APROVADO: { label: 'Enc. Aprovado', variant: 'outline', className: 'border-blue-500 text-blue-500' },
   MONITORAMENTO: { label: 'Monitoramento', variant: 'outline', className: 'border-green-500 text-green-500' },
   ENCERRADA: { label: 'Encerrada', variant: 'secondary' },
   CANCELADA: { label: 'Cancelada', variant: 'destructive' },
