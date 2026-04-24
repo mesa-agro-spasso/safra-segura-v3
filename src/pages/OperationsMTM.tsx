@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useHedgeOrders } from '@/hooks/useHedgeOrders';
 import { useMarketData } from '@/hooks/useMarketData';
