@@ -210,6 +210,33 @@ const OperationsMTM = () => {
     return allOrders.filter(o => o.operation_id === selectedOperation.id);
   }, [selectedOperation, allOrders]);
 
+  const filteredOperations = useMemo(() => {
+    if (!operations) return [];
+    const STATUS_ORDER: Record<string, number> = {
+      ENCERRAMENTO_APROVADO: 1,
+      ENCERRAMENTO_SOLICITADO: 2,
+      HEDGE_CONFIRMADO: 3,
+      APROVADA: 4,
+      EM_APROVACAO: 5,
+      SUBMETIDA: 6,
+      RASCUNHO: 7,
+      ENCERRADA: 98,
+      CANCELADA: 99,
+      REPROVADA: 99,
+    };
+    const filtered = filterStatus === 'active'
+      ? operations.filter(op => !['ENCERRADA', 'CANCELADA', 'REPROVADA'].includes(op.status))
+      : filterStatus === 'closed'
+      ? operations.filter(op => op.status === 'ENCERRADA')
+      : operations;
+    return [...filtered].sort((a, b) => {
+      const orderA = STATUS_ORDER[a.status] ?? 50;
+      const orderB = STATUS_ORDER[b.status] ?? 50;
+      if (orderA !== orderB) return orderA - orderB;
+      return new Date(b.created_at ?? '').getTime() - new Date(a.created_at ?? '').getTime();
+    });
+  }, [operations, filterStatus]);
+
   // Snapshot-based results (loaded from DB when no fresh calculation exists)
   const snapshotResults = useMemo(() => {
     if (!mtmSnapshots?.length || !orders?.length) return null;
