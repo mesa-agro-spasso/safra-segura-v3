@@ -841,8 +841,32 @@ const Orders = () => {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (error) throw error;
-      const rawLegs = ((data?.legs as any[]) ?? []).filter((l: any) => l.leg_type !== 'seguro');
+      if (error && error.code !== 'PGRST116') throw error;
+
+      // If no closing_order exists yet, mirror legs from the hedge_order executed_legs
+      let rawLegs: any[] = [];
+      if (data?.legs) {
+        rawLegs = ((data.legs as any[]) ?? []).filter((l: any) => l.leg_type !== 'seguro');
+      } else {
+        const { data: hedgeData } = await supabase
+          .from('hedge_orders')
+          .select('executed_legs')
+          .eq('operation_id', order.operation_id)
+          .eq('status', 'EXECUTED')
+          .order('executed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const executedLegs = (hedgeData?.executed_legs as any[]) ?? [];
+        rawLegs = executedLegs
+          .filter((l: any) => l.leg_type !== 'seguro')
+          .map((l: any) => ({
+            ...l,
+            direction: l.direction === 'sell' ? 'buy' : 'sell',
+            price: null,
+            ndf_rate: null,
+          }));
+      }
       setClosingOrderLegs(rawLegs.map((l: any) => {
         const isNdf = l.leg_type === 'ndf';
         return {
@@ -1373,8 +1397,8 @@ const Orders = () => {
                             </>
                           )}
                           {o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'HEDGE_CONFIRMADO' && (
-                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRequestClosingFromOrder(o)}>
-                              Solicitar Enc.
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleOpenClosingOrderModal(o)}>
+                              Confirmar Enc.
                             </Button>
                           )}
                           {o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'ENCERRAMENTO_APROVADO' && (
