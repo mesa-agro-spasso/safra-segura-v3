@@ -52,6 +52,69 @@ export type Database = {
           },
         ]
       }
+      closing_orders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          executed_at: string | null
+          executed_by: string | null
+          executed_legs: Json | null
+          hedge_order_id: string
+          id: string
+          legs: Json
+          notes: string | null
+          operation_id: string
+          physical_price_brl: number | null
+          physical_volume_sacks: number | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          executed_at?: string | null
+          executed_by?: string | null
+          executed_legs?: Json | null
+          hedge_order_id: string
+          id?: string
+          legs?: Json
+          notes?: string | null
+          operation_id: string
+          physical_price_brl?: number | null
+          physical_volume_sacks?: number | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          executed_at?: string | null
+          executed_by?: string | null
+          executed_legs?: Json | null
+          hedge_order_id?: string
+          id?: string
+          legs?: Json
+          notes?: string | null
+          operation_id?: string
+          physical_price_brl?: number | null
+          physical_volume_sacks?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closing_orders_hedge_order_id_fkey"
+            columns: ["hedge_order_id"]
+            isOneToOne: false
+            referencedRelation: "hedge_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "closing_orders_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hedge_orders: {
         Row: {
           cancellation_reason: string | null
@@ -153,6 +216,66 @@ export type Database = {
           },
         ]
       }
+      historical_basis: {
+        Row: {
+          basis_brl_per_sack: number
+          benchmark: string
+          commodity: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          reference_date: string
+          series_year: string
+          source: string | null
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          basis_brl_per_sack: number
+          benchmark: string
+          commodity: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          reference_date: string
+          series_year: string
+          source?: string | null
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          basis_brl_per_sack?: number
+          benchmark?: string
+          commodity?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          reference_date?: string
+          series_year?: string
+          source?: string | null
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_basis_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_basis_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_data: {
         Row: {
           commodity: string
@@ -209,6 +332,62 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      market_data_history: {
+        Row: {
+          benchmark: string | null
+          commodity: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          exp_date: string | null
+          id: string
+          notes: string | null
+          price: number
+          price_unit: string
+          reference_date: string
+          source: string | null
+          ticker: string
+        }
+        Insert: {
+          benchmark?: string | null
+          commodity?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency: string
+          exp_date?: string | null
+          id?: string
+          notes?: string | null
+          price: number
+          price_unit: string
+          reference_date: string
+          source?: string | null
+          ticker: string
+        }
+        Update: {
+          benchmark?: string | null
+          commodity?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          exp_date?: string | null
+          id?: string
+          notes?: string | null
+          price?: number
+          price_unit?: string
+          reference_date?: string
+          source?: string | null
+          ticker?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_data_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mtm_snapshots: {
         Row: {
@@ -282,8 +461,59 @@ export type Database = {
           },
         ]
       }
+      operation_pnl: {
+        Row: {
+          calculated_at: string
+          custo_compra_brl: number | null
+          custo_hedge_brl: number | null
+          id: string
+          insurance_cost_brl: number | null
+          operation_id: string
+          option_exit_pnl_brl: number | null
+          receita_venda_brl: number | null
+          resultado_brl_sc: number | null
+          resultado_liquido_brl: number | null
+          volume_sacks: number | null
+        }
+        Insert: {
+          calculated_at?: string
+          custo_compra_brl?: number | null
+          custo_hedge_brl?: number | null
+          id?: string
+          insurance_cost_brl?: number | null
+          operation_id: string
+          option_exit_pnl_brl?: number | null
+          receita_venda_brl?: number | null
+          resultado_brl_sc?: number | null
+          resultado_liquido_brl?: number | null
+          volume_sacks?: number | null
+        }
+        Update: {
+          calculated_at?: string
+          custo_compra_brl?: number | null
+          custo_hedge_brl?: number | null
+          id?: string
+          insurance_cost_brl?: number | null
+          operation_id?: string
+          option_exit_pnl_brl?: number | null
+          receita_venda_brl?: number | null
+          resultado_brl_sc?: number | null
+          resultado_liquido_brl?: number | null
+          volume_sacks?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operation_pnl_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: true
+            referencedRelation: "operations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operations: {
         Row: {
+          closing_order_id: string | null
           commodity: string
           created_at: string
           created_by: string | null
@@ -300,6 +530,7 @@ export type Database = {
           warehouse_id: string
         }
         Insert: {
+          closing_order_id?: string | null
           commodity: string
           created_at?: string
           created_by?: string | null
@@ -316,6 +547,7 @@ export type Database = {
           warehouse_id: string
         }
         Update: {
+          closing_order_id?: string | null
           commodity?: string
           created_at?: string
           created_by?: string | null
@@ -332,6 +564,13 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "operations_closing_order_id_fkey"
+            columns: ["closing_order_id"]
+            isOneToOne: false
+            referencedRelation: "closing_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "operations_created_by_fkey"
             columns: ["created_by"]
@@ -405,6 +644,57 @@ export type Database = {
             columns: ["registered_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      physical_prices: {
+        Row: {
+          commodity: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          price_brl_per_sack: number
+          reference_date: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          commodity: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          price_brl_per_sack: number
+          reference_date: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          commodity?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          price_brl_per_sack?: number
+          reference_date?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physical_prices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physical_prices_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
