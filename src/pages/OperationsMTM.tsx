@@ -1205,6 +1205,105 @@ const OperationsMTM = () => {
           </Dialog>
         );
       })()}
+
+      {/* Closing modal */}
+      {closingOperation && (
+        <Dialog open onOpenChange={(o) => { if (!o) setClosingOperation(null); }}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Confirmar Encerramento — {closingOperation.warehouses?.display_name ?? '—'}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Preço Físico Venda (R$/sc)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={closingPhysicalPrice}
+                    onChange={(e) => setClosingPhysicalPrice(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Volume Vendido (sacas)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={closingPhysicalVolume}
+                    onChange={(e) => setClosingPhysicalVolume(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Preço Originação (R$/sc)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={closingOriginationPrice}
+                  onChange={(e) => setClosingOriginationPrice(e.target.value)}
+                />
+              </div>
+
+              {closingLegs.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Pernas de Encerramento
+                  </p>
+                  {closingLegs.map((leg: any, i: number) => (
+                    <div key={i} className="border rounded p-2 space-y-1">
+                      <p className="text-xs font-medium">{leg.leg_type} · {leg.direction}</p>
+                      {leg.leg_type === 'ndf' ? (
+                        <div>
+                          <label className="text-xs text-muted-foreground">Taxa NDF (BRL/USD)</label>
+                          <Input
+                            type="number"
+                            step="0.0001"
+                            value={leg.ndf_rate ?? ''}
+                            onChange={(e) => {
+                              const updated = [...closingLegs];
+                              updated[i] = { ...updated[i], ndf_rate: parseFloat(e.target.value) || null };
+                              setClosingLegs(updated);
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Preço {leg.currency === 'USD' ? '(USD/bu)' : '(R$/sc)'}
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.0001"
+                            value={leg.price ?? ''}
+                            onChange={(e) => {
+                              const updated = [...closingLegs];
+                              updated[i] = { ...updated[i], price: parseFloat(e.target.value) || null };
+                              setClosingLegs(updated);
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setClosingOperation(null)} disabled={closingSubmitting}>
+                Cancelar
+              </Button>
+              <Button onClick={handleExecuteClosing} disabled={closingSubmitting}>
+                {closingSubmitting ? 'Encerrando...' : 'Confirmar Encerramento'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
