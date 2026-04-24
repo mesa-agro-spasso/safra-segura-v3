@@ -687,6 +687,14 @@ const Orders = () => {
   const [executionModal, setExecutionModal] = useState<HedgeOrder | null>(null);
   const [executionLegs, setExecutionLegs] = useState<any[]>([]);
 
+  // Closing (encerramento) state
+  const [closingOrderModal, setClosingOrderModal] = useState<HedgeOrder | null>(null);
+  const [closingOrderLegs, setClosingOrderLegs] = useState<any[]>([]);
+  const [closingOrderPhysicalPrice, setClosingOrderPhysicalPrice] = useState('');
+  const [closingOrderPhysicalVolume, setClosingOrderPhysicalVolume] = useState('');
+  const [closingOrderOriginationPrice, setClosingOrderOriginationPrice] = useState('');
+  const [closingOrderSubmitting, setClosingOrderSubmitting] = useState(false);
+
   const handleSimpleTransition = async (orderId: string, newStatus: string) => {
     try {
       await updateOrder.mutateAsync({ id: orderId, status: newStatus } as any);
