@@ -543,7 +543,19 @@ const OperationsMTM = () => {
             <p className="text-muted-foreground text-center py-12">Nenhuma operação encontrada.</p>
           ) : (
             <Card>
-              <CardHeader><CardTitle className="text-sm">Todas as Operações</CardTitle></CardHeader>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Todas as Operações</CardTitle>
+                  <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as 'active' | 'closed' | 'all')}>
+                    <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Ativas</SelectItem>
+                      <SelectItem value="closed">Encerradas</SelectItem>
+                      <SelectItem value="all">Todas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
@@ -558,10 +570,11 @@ const OperationsMTM = () => {
                       <TableHead>Recepção</TableHead>
                       <TableHead>Saída</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {operations.map((op) => {
+                    {filteredOperations.map((op) => {
                       const ps = op.pricing_snapshots;
                       const badge = STATUS_BADGE[op.status] ?? { label: op.status, variant: 'secondary' as const };
                       return (
@@ -579,6 +592,28 @@ const OperationsMTM = () => {
                             <Badge variant={badge.variant} className={badge.className}>
                               {badge.label}
                             </Badge>
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {op.status === 'HEDGE_CONFIRMADO' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => handleRequestClosing(op.id)}
+                              >
+                                Solicitar Encerramento
+                              </Button>
+                            )}
+                            {op.status === 'ENCERRAMENTO_APROVADO' && (
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="h-7 text-xs"
+                                onClick={() => handleOpenClosingModal(op)}
+                              >
+                                Confirmar Encerramento
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
