@@ -49,6 +49,7 @@ const OperationsMTM = () => {
   const saveMtm = useSaveMtmSnapshot();
   const { user } = useAuth();
   const { data: pricingParameters } = usePricingParameters();
+  const queryClient = useQueryClient();
 
   // Operations hooks
   const { data: operations, isLoading: loadingOperations } = useOperationsWithDetails();
