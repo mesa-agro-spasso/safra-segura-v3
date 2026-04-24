@@ -169,6 +169,24 @@ const Orders = () => {
     });
   }, [ordersRaw, warehouseFilter, operations]);
 
+  const operationIds = useMemo(
+    () => [...new Set((orders ?? []).map(o => o.operation_id).filter(Boolean))],
+    [orders]
+  );
+  const { data: operationStatusMap } = useQuery({
+    queryKey: ['operation-statuses', operationIds],
+    enabled: operationIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('operations')
+        .select('id, status')
+        .in('id', operationIds);
+      const map: Record<string, string> = {};
+      (data ?? []).forEach((op: any) => { map[op.id] = op.status; });
+      return map;
+    },
+  });
+
   const operationWarehouseMap = useMemo(() => {
     const map: Record<string, string> = {};
     operations?.forEach(op => {
@@ -669,6 +687,14 @@ const Orders = () => {
   const [executionModal, setExecutionModal] = useState<HedgeOrder | null>(null);
   const [executionLegs, setExecutionLegs] = useState<any[]>([]);
 
+  // Closing (encerramento) state
+  const [closingOrderModal, setClosingOrderModal] = useState<HedgeOrder | null>(null);
+  const [closingOrderLegs, setClosingOrderLegs] = useState<any[]>([]);
+  const [closingOrderPhysicalPrice, setClosingOrderPhysicalPrice] = useState('');
+  const [closingOrderPhysicalVolume, setClosingOrderPhysicalVolume] = useState('');
+  const [closingOrderOriginationPrice, setClosingOrderOriginationPrice] = useState('');
+  const [closingOrderSubmitting, setClosingOrderSubmitting] = useState(false);
+
   const handleSimpleTransition = async (orderId: string, newStatus: string) => {
     try {
       await updateOrder.mutateAsync({ id: orderId, status: newStatus } as any);
@@ -788,6 +814,92 @@ const Orders = () => {
       setExecutionLegs([]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao confirmar execução');
+    }
+  };
+
+  // === Closing (encerramento) handlers ===
+  const handleRequestClosingFromOrder = async (order: HedgeOrder) => {
+    if (!order.operation_id) return;
+    try {
+      await callApi(`/closing/${order.operation_id}/request`, {});
+      toast.success('Encerramento solicitado');
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+      queryClient.invalidateQueries({ queryKey: ['operation-statuses'] });
+      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao solicitar encerramento');
+    }
+  };
+
+  const handleOpenClosingOrderModal = async (order: HedgeOrder) => {
+    if (!order.operation_id) return;
+    try {
+      const { data, error } = await supabase
+        .from('closing_orders')
+        .select('id, legs, physical_price_brl, physical_volume_sacks')
+        .eq('operation_id', order.operation_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      const rawLegs = ((data?.legs as any[]) ?? []).filter((l: any) => l.leg_type !== 'seguro');
+      setClosingOrderLegs(rawLegs.map((l: any) => {
+        const isNdf = l.leg_type === 'ndf';
+        return {
+          ...l,
+          _displayPrice: isNdf ? String(l.ndf_rate ?? '') : String(l.price ?? ''),
+        };
+      }));
+      setClosingOrderPhysicalPrice(data?.physical_price_brl != null ? String(data.physical_price_brl) : '');
+      setClosingOrderPhysicalVolume(data?.physical_volume_sacks != null ? String(data.physical_volume_sacks) : '');
+      setClosingOrderOriginationPrice(order.origination_price_brl != null ? String(order.origination_price_brl) : '');
+      setClosingOrderModal(order);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao carregar dados de encerramento');
+    }
+  };
+
+  const handleExecuteClosingFromOrder = async () => {
+    if (!closingOrderModal?.operation_id) return;
+    const physPrice = parseFloat(closingOrderPhysicalPrice);
+    const physVol = parseFloat(closingOrderPhysicalVolume);
+    const origPrice = parseFloat(closingOrderOriginationPrice);
+    if (!physPrice || !physVol || !origPrice) {
+      toast.error('Preencha preço físico, volume físico e preço de originação');
+      return;
+    }
+    const legsPayload = closingOrderLegs.map((l: any) => {
+      const { _displayPrice, ...rest } = l;
+      const priceVal = parseFloat(_displayPrice);
+      if (l.leg_type === 'ndf') {
+        const merged: any = { ...rest, ndf_rate: priceVal };
+        delete merged.price;
+        return merged;
+      }
+      return { ...rest, price: priceVal };
+    });
+    setClosingOrderSubmitting(true);
+    try {
+      await callApi(`/closing/${closingOrderModal.operation_id}/execute`, {
+        physical_price_brl: physPrice,
+        physical_volume_sacks: physVol,
+        origination_price_brl: origPrice,
+        legs: legsPayload,
+      });
+      toast.success('Encerramento confirmado');
+      setClosingOrderModal(null);
+      setClosingOrderLegs([]);
+      setClosingOrderPhysicalPrice('');
+      setClosingOrderPhysicalVolume('');
+      setClosingOrderOriginationPrice('');
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+      queryClient.invalidateQueries({ queryKey: ['operation-statuses'] });
+      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao executar encerramento');
+    } finally {
+      setClosingOrderSubmitting(false);
     }
   };
 
@@ -1260,6 +1372,16 @@ const Orders = () => {
                               </Button>
                             </>
                           )}
+                          {o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'HEDGE_CONFIRMADO' && (
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRequestClosingFromOrder(o)}>
+                              Solicitar Enc.
+                            </Button>
+                          )}
+                          {o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'ENCERRAMENTO_APROVADO' && (
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleOpenClosingOrderModal(o)}>
+                              Confirmar Enc.
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1520,6 +1642,74 @@ const Orders = () => {
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => { setExecutionModal(null); setExecutionLegs([]); }}>Cancelar</Button>
               <Button onClick={handleExecutionConfirm}>Confirmar Execução</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Closing order modal */}
+      {closingOrderModal && (
+        <Dialog open={!!closingOrderModal} onOpenChange={(o) => { if (!o) setClosingOrderModal(null); }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Confirmar Encerramento — {closingOrderModal.display_code ?? '—'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Preço físico (R$/sc)</Label>
+                  <Input type="number" step="0.01" value={closingOrderPhysicalPrice}
+                    onChange={(e) => setClosingOrderPhysicalPrice(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Volume físico (sacas)</Label>
+                  <Input type="number" step="0.01" value={closingOrderPhysicalVolume}
+                    onChange={(e) => setClosingOrderPhysicalVolume(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Preço originação (R$/sc)</Label>
+                  <Input type="number" step="0.01" value={closingOrderOriginationPrice}
+                    onChange={(e) => setClosingOrderOriginationPrice(e.target.value)} />
+                </div>
+              </div>
+
+              {closingOrderLegs.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Pernas de encerramento</p>
+                  {closingOrderLegs.map((leg, i) => (
+                    <div key={i} className="grid grid-cols-4 gap-2 items-end border rounded p-2">
+                      <div className="text-xs">
+                        <p className="font-medium">{leg.leg_type} ({leg.direction})</p>
+                        <p className="text-muted-foreground">{leg.ticker ?? '—'}</p>
+                      </div>
+                      <div className="space-y-1 col-span-2">
+                        <Label className="text-[10px]">
+                          {leg.leg_type === 'ndf' ? 'NDF rate (R$/USD)' : 'Preço'}
+                        </Label>
+                        <Input className="h-8 text-xs" type="number" step="0.0001"
+                          value={leg._displayPrice ?? ''}
+                          onChange={(e) => {
+                            const updated = [...closingOrderLegs];
+                            updated[i] = { ...updated[i], _displayPrice: e.target.value };
+                            setClosingOrderLegs(updated);
+                          }} />
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {leg.leg_type === 'ndf' ? `Vol: ${leg.volume_units ?? '—'}` : `Contratos: ${leg.contracts ?? '—'}`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setClosingOrderModal(null)} disabled={closingOrderSubmitting}>
+                Cancelar
+              </Button>
+              <Button onClick={handleExecuteClosingFromOrder}
+                disabled={closingOrderSubmitting || !closingOrderPhysicalPrice || !closingOrderPhysicalVolume || !closingOrderOriginationPrice}>
+                {closingOrderSubmitting ? 'Encerrando...' : 'Confirmar Encerramento'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
