@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useHedgeOrders } from '@/hooks/useHedgeOrders';
 import { useMarketData } from '@/hooks/useMarketData';
@@ -30,6 +31,8 @@ const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'second
   EM_APROVACAO: { label: 'Em Aprovação', variant: 'outline', className: 'border-yellow-500 text-yellow-500' },
   APROVADA: { label: 'Aprovada', variant: 'outline', className: 'border-blue-500 text-blue-500' },
   HEDGE_CONFIRMADO: { label: 'Hedge Confirmado', variant: 'default' },
+  ENCERRAMENTO_SOLICITADO: { label: 'Enc. Solicitado', variant: 'outline', className: 'border-orange-500 text-orange-500' },
+  ENCERRAMENTO_APROVADO: { label: 'Enc. Aprovado', variant: 'outline', className: 'border-blue-500 text-blue-500' },
   MONITORAMENTO: { label: 'Monitoramento', variant: 'outline', className: 'border-green-500 text-green-500' },
   ENCERRADA: { label: 'Encerrada', variant: 'secondary' },
   CANCELADA: { label: 'Cancelada', variant: 'destructive' },
@@ -46,6 +49,7 @@ const OperationsMTM = () => {
   const saveMtm = useSaveMtmSnapshot();
   const { user } = useAuth();
   const { data: pricingParameters } = usePricingParameters();
+  const queryClient = useQueryClient();
 
   // Operations hooks
   const { data: operations, isLoading: loadingOperations } = useOperationsWithDetails();
@@ -68,8 +72,17 @@ const OperationsMTM = () => {
   // Filters state
   const [filterWarehouse, setFilterWarehouse] = useState('all');
   const [filterCommodity, setFilterCommodity] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<'active' | 'closed' | 'all'>('active');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [chartByOperation, setChartByOperation] = useState(false);
+
+  // Closing state
+  const [closingOperation, setClosingOperation] = useState<OperationWithDetails | null>(null);
+  const [closingLegs, setClosingLegs] = useState<any[]>([]);
+  const [closingPhysicalPrice, setClosingPhysicalPrice] = useState('');
+  const [closingPhysicalVolume, setClosingPhysicalVolume] = useState('');
+  const [closingOriginationPrice, setClosingOriginationPrice] = useState('');
+  const [closingSubmitting, setClosingSubmitting] = useState(false);
 
   // Detail dialog collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -196,6 +209,33 @@ const OperationsMTM = () => {
     if (!selectedOperation || !allOrders) return [];
     return allOrders.filter(o => o.operation_id === selectedOperation.id);
   }, [selectedOperation, allOrders]);
+
+  const filteredOperations = useMemo(() => {
+    if (!operations) return [];
+    const STATUS_ORDER: Record<string, number> = {
+      ENCERRAMENTO_APROVADO: 1,
+      ENCERRAMENTO_SOLICITADO: 2,
+      HEDGE_CONFIRMADO: 3,
+      APROVADA: 4,
+      EM_APROVACAO: 5,
+      SUBMETIDA: 6,
+      RASCUNHO: 7,
+      ENCERRADA: 98,
+      CANCELADA: 99,
+      REPROVADA: 99,
+    };
+    const filtered = filterStatus === 'active'
+      ? operations.filter(op => !['ENCERRADA', 'CANCELADA', 'REPROVADA'].includes(op.status))
+      : filterStatus === 'closed'
+      ? operations.filter(op => op.status === 'ENCERRADA')
+      : operations;
+    return [...filtered].sort((a, b) => {
+      const orderA = STATUS_ORDER[a.status] ?? 50;
+      const orderB = STATUS_ORDER[b.status] ?? 50;
+      if (orderA !== orderB) return orderA - orderB;
+      return new Date(b.created_at ?? '').getTime() - new Date(a.created_at ?? '').getTime();
+    });
+  }, [operations, filterStatus]);
 
   // Snapshot-based results (loaded from DB when no fresh calculation exists)
   const snapshotResults = useMemo(() => {
@@ -403,6 +443,63 @@ const OperationsMTM = () => {
     }
   };
 
+  const handleRequestClosing = async (operationId: string) => {
+    try {
+      await callApi(`/closing/${operationId}/request`, {
+        notes: null,
+        created_by: user?.id ?? null,
+      });
+      toast.success('Encerramento solicitado. Aguardando assinaturas.');
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao solicitar encerramento');
+    }
+  };
+
+  const handleOpenClosingModal = async (op: OperationWithDetails) => {
+    setClosingOperation(op);
+    setClosingPhysicalPrice('');
+    setClosingPhysicalVolume(String(op.volume_sacks));
+    const ps = op.pricing_snapshots;
+    setClosingOriginationPrice(ps?.origination_price_brl ? String(ps.origination_price_brl) : '');
+    try {
+      const { data } = await supabase
+        .from('closing_orders')
+        .select('legs')
+        .eq('operation_id', op.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      setClosingLegs((data?.legs as any[]) ?? []);
+    } catch {
+      setClosingLegs([]);
+    }
+  };
+
+  const handleExecuteClosing = async () => {
+    if (!closingOperation || !user) return;
+    setClosingSubmitting(true);
+    try {
+      await callApi(`/closing/${closingOperation.id}/execute`, {
+        physical_price_brl: parseFloat(closingPhysicalPrice),
+        physical_volume_sacks: parseFloat(closingPhysicalVolume),
+        origination_price_brl: parseFloat(closingOriginationPrice),
+        executed_legs: closingLegs,
+        insurance_cost_brl: 0,
+        executed_by: user.id,
+      });
+      toast.success('Operação encerrada com sucesso.');
+      setClosingOperation(null);
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao encerrar operação');
+    } finally {
+      setClosingSubmitting(false);
+    }
+  };
+
   const StatusDot = ({ date, label }: { date: string; label: string }) => {
     const d = new Date(date);
     const hoursAgo = Math.floor((Date.now() - d.getTime()) / 3_600_000);
@@ -446,7 +543,19 @@ const OperationsMTM = () => {
             <p className="text-muted-foreground text-center py-12">Nenhuma operação encontrada.</p>
           ) : (
             <Card>
-              <CardHeader><CardTitle className="text-sm">Todas as Operações</CardTitle></CardHeader>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Todas as Operações</CardTitle>
+                  <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as 'active' | 'closed' | 'all')}>
+                    <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Ativas</SelectItem>
+                      <SelectItem value="closed">Encerradas</SelectItem>
+                      <SelectItem value="all">Todas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
@@ -461,10 +570,11 @@ const OperationsMTM = () => {
                       <TableHead>Recepção</TableHead>
                       <TableHead>Saída</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {operations.map((op) => {
+                    {filteredOperations.map((op) => {
                       const ps = op.pricing_snapshots;
                       const badge = STATUS_BADGE[op.status] ?? { label: op.status, variant: 'secondary' as const };
                       return (
@@ -482,6 +592,28 @@ const OperationsMTM = () => {
                             <Badge variant={badge.variant} className={badge.className}>
                               {badge.label}
                             </Badge>
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {op.status === 'HEDGE_CONFIRMADO' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => handleRequestClosing(op.id)}
+                              >
+                                Solicitar Encerramento
+                              </Button>
+                            )}
+                            {op.status === 'ENCERRAMENTO_APROVADO' && (
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="h-7 text-xs"
+                                onClick={() => handleOpenClosingModal(op)}
+                              >
+                                Confirmar Encerramento
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -1073,6 +1205,105 @@ const OperationsMTM = () => {
           </Dialog>
         );
       })()}
+
+      {/* Closing modal */}
+      {closingOperation && (
+        <Dialog open onOpenChange={(o) => { if (!o) setClosingOperation(null); }}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Confirmar Encerramento — {closingOperation.warehouses?.display_name ?? '—'}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Preço Físico Venda (R$/sc)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={closingPhysicalPrice}
+                    onChange={(e) => setClosingPhysicalPrice(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Volume Vendido (sacas)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={closingPhysicalVolume}
+                    onChange={(e) => setClosingPhysicalVolume(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Preço Originação (R$/sc)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={closingOriginationPrice}
+                  onChange={(e) => setClosingOriginationPrice(e.target.value)}
+                />
+              </div>
+
+              {closingLegs.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Pernas de Encerramento
+                  </p>
+                  {closingLegs.map((leg: any, i: number) => (
+                    <div key={i} className="border rounded p-2 space-y-1">
+                      <p className="text-xs font-medium">{leg.leg_type} · {leg.direction}</p>
+                      {leg.leg_type === 'ndf' ? (
+                        <div>
+                          <label className="text-xs text-muted-foreground">Taxa NDF (BRL/USD)</label>
+                          <Input
+                            type="number"
+                            step="0.0001"
+                            value={leg.ndf_rate ?? ''}
+                            onChange={(e) => {
+                              const updated = [...closingLegs];
+                              updated[i] = { ...updated[i], ndf_rate: parseFloat(e.target.value) || null };
+                              setClosingLegs(updated);
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Preço {leg.currency === 'USD' ? '(USD/bu)' : '(R$/sc)'}
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.0001"
+                            value={leg.price ?? ''}
+                            onChange={(e) => {
+                              const updated = [...closingLegs];
+                              updated[i] = { ...updated[i], price: parseFloat(e.target.value) || null };
+                              setClosingLegs(updated);
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setClosingOperation(null)} disabled={closingSubmitting}>
+                Cancelar
+              </Button>
+              <Button onClick={handleExecuteClosing} disabled={closingSubmitting}>
+                {closingSubmitting ? 'Encerrando...' : 'Confirmar Encerramento'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
