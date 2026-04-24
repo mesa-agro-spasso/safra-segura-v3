@@ -1382,6 +1382,11 @@ const Orders = () => {
                               Confirmar Enc.
                             </Button>
                           )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
