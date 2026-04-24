@@ -116,7 +116,7 @@ export default function Approvals() {
         .select(
           '*, pricing_snapshot:pricing_snapshots(payment_date), warehouse:warehouses(display_name)',
         )
-        .eq('status', 'EM_APROVACAO');
+        .in('status', ['EM_APROVACAO', 'ENCERRAMENTO_SOLICITADO']);
       if (error) throw error;
       return data ?? [];
     },
@@ -176,6 +176,7 @@ export default function Approvals() {
         return {
           operationId: op.id,
           displayCode: ho?.display_code ?? '—',
+          isClosing: op.status === 'ENCERRAMENTO_SOLICITADO',
           warehouse: op.warehouse?.display_name ?? '—',
           commodity: op.commodity,
           volumeSacks,
@@ -284,12 +285,26 @@ export default function Approvals() {
 
       const newCollected = [...signing.collected, selectedRole];
       if (allSigned(signing.required, newCollected)) {
+        const { data: opData } = await supabase
+          .from('operations')
+          .select('status')
+          .eq('id', signing.operationId)
+          .single();
+
+        const nextStatus = opData?.status === 'ENCERRAMENTO_SOLICITADO'
+          ? 'ENCERRAMENTO_APROVADO'
+          : 'APROVADA';
+
         const { error: updateError } = await supabase
           .from('operations')
-          .update({ status: 'APROVADA' })
+          .update({ status: nextStatus })
           .eq('id', signing.operationId);
         if (updateError) throw updateError;
-        toast.success('Operação totalmente aprovada');
+        toast.success(
+          nextStatus === 'ENCERRAMENTO_APROVADO'
+            ? 'Encerramento aprovado'
+            : 'Operação totalmente aprovada'
+        );
       } else {
         toast.success('Assinatura registrada');
       }
@@ -350,7 +365,16 @@ export default function Approvals() {
               <TableBody>
                 {rows.map((row) => (
                   <TableRow key={row.operationId}>
-                    <TableCell className="font-mono text-xs">{row.displayCode}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      <div className="flex items-center gap-2">
+                        {row.displayCode}
+                        {row.isClosing && (
+                          <Badge variant="outline" className="border-orange-500 text-orange-500 text-[10px]">
+                            Encerramento
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{row.warehouse}</TableCell>
                     <TableCell className="capitalize">{row.commodity}</TableCell>
                     <TableCell className="text-right">
