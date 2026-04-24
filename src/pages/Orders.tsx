@@ -1647,6 +1647,74 @@ const Orders = () => {
         </Dialog>
       )}
 
+      {/* Closing order modal */}
+      {closingOrderModal && (
+        <Dialog open={!!closingOrderModal} onOpenChange={(o) => { if (!o) setClosingOrderModal(null); }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Confirmar Encerramento — {closingOrderModal.display_code ?? '—'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Preço físico (R$/sc)</Label>
+                  <Input type="number" step="0.01" value={closingOrderPhysicalPrice}
+                    onChange={(e) => setClosingOrderPhysicalPrice(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Volume físico (sacas)</Label>
+                  <Input type="number" step="0.01" value={closingOrderPhysicalVolume}
+                    onChange={(e) => setClosingOrderPhysicalVolume(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Preço originação (R$/sc)</Label>
+                  <Input type="number" step="0.01" value={closingOrderOriginationPrice}
+                    onChange={(e) => setClosingOrderOriginationPrice(e.target.value)} />
+                </div>
+              </div>
+
+              {closingOrderLegs.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Pernas de encerramento</p>
+                  {closingOrderLegs.map((leg, i) => (
+                    <div key={i} className="grid grid-cols-4 gap-2 items-end border rounded p-2">
+                      <div className="text-xs">
+                        <p className="font-medium">{leg.leg_type} ({leg.direction})</p>
+                        <p className="text-muted-foreground">{leg.ticker ?? '—'}</p>
+                      </div>
+                      <div className="space-y-1 col-span-2">
+                        <Label className="text-[10px]">
+                          {leg.leg_type === 'ndf' ? 'NDF rate (R$/USD)' : 'Preço'}
+                        </Label>
+                        <Input className="h-8 text-xs" type="number" step="0.0001"
+                          value={leg._displayPrice ?? ''}
+                          onChange={(e) => {
+                            const updated = [...closingOrderLegs];
+                            updated[i] = { ...updated[i], _displayPrice: e.target.value };
+                            setClosingOrderLegs(updated);
+                          }} />
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {leg.leg_type === 'ndf' ? `Vol: ${leg.volume_units ?? '—'}` : `Contratos: ${leg.contracts ?? '—'}`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setClosingOrderModal(null)} disabled={closingOrderSubmitting}>
+                Cancelar
+              </Button>
+              <Button onClick={handleExecuteClosingFromOrder}
+                disabled={closingOrderSubmitting || !closingOrderPhysicalPrice || !closingOrderPhysicalVolume || !closingOrderOriginationPrice}>
+                {closingOrderSubmitting ? 'Encerrando...' : 'Confirmar Encerramento'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Insurance selection modal */}
       <Dialog open={insuranceModalLegIndex !== null} onOpenChange={handleInsuranceModalClose}>
         <DialogContent className="max-w-lg">
