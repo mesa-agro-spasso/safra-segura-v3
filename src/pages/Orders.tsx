@@ -1372,11 +1372,16 @@ const Orders = () => {
                               </Button>
                             </>
                           )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                          {o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'HEDGE_CONFIRMADO' && (
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRequestClosingFromOrder(o)}>
+                              Solicitar Enc.
+                            </Button>
+                          )}
+                          {o.status === 'EXECUTED' && o.operation_id && operationStatusMap?.[o.operation_id] === 'ENCERRAMENTO_APROVADO' && (
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleOpenClosingOrderModal(o)}>
+                              Confirmar Enc.
+                            </Button>
+                          )}
               </TableBody>
             </Table>
           )}
