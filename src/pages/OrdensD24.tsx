@@ -317,8 +317,14 @@ const OrdensD24: React.FC = () => {
   const legsSummary = (order: HedgeOrder): string => {
     const legs = (order.legs ?? []) as Array<Record<string, unknown>>;
     if (!legs.length) return '--';
-    return legs.map(l => `${l.leg_type ?? l.instrument_type ?? '?'}(${l.direction ?? '?'})`).join(' + ');
+    return legs.map(l => `${l.leg_type ?? '?'}(${l.direction ?? '?'})`).join(' + ');
   };
+
+  const activeFiltersCount =
+    (praca.size > 0 ? 1 : 0) +
+    (commodity.size > 0 ? 1 : 0) +
+    (operacao.size > 0 ? 1 : 0) +
+    (status.size > 0 ? 1 : 0);
 
   return (
     <div className="p-6 space-y-6">
