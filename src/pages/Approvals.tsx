@@ -129,7 +129,7 @@ export default function Approvals() {
     queryKey: ['pending-hedge-orders', operationIds],
     enabled: operationIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('hedge_orders')
         .select('operation_id, display_code, origination_price_brl, volume_sacks, status')
         .in('operation_id', operationIds)
@@ -222,7 +222,7 @@ export default function Approvals() {
       const reason = rejectReason.trim();
       const nowIso = new Date().toISOString();
 
-      const { error: orderError } = await supabase
+      const { error: orderError } = await (supabase as any)
         .from('hedge_orders')
         .update({
           status: 'CANCELLED',

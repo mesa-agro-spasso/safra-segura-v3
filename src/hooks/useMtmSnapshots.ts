@@ -6,7 +6,7 @@ export function useMtmSnapshots(operationId?: string) {
   return useQuery({
     queryKey: ['mtm_snapshots', operationId],
     queryFn: async () => {
-      let query = supabase
+      let query = (supabase as any)
         .from('mtm_snapshots')
         .select('*')
         .order('snapshot_date', { ascending: false })
@@ -24,7 +24,7 @@ export function useSaveMtmSnapshot() {
   return useMutation({
     mutationFn: async (snapshot: Omit<MtmSnapshot, 'id' | 'calculated_at' | 'snapshot_date'>) => {
       const today = new Date().toISOString().split('T')[0];
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('mtm_snapshots')
         .upsert(
           { ...snapshot, snapshot_date: today } as never,

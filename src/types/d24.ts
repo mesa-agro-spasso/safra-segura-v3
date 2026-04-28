@@ -83,3 +83,36 @@ export interface OperationBalanceOut {
   is_fully_closed: boolean;
   is_partially_closed: boolean;
 }
+
+export interface OperationSummaryIn {
+  operation_id: string;
+  display_code: string;
+  volume_sacks: number;
+  existing_orders: OrderIn[];
+  mtm_total_brl?: number;
+}
+
+export interface ClosingAllocationProposalOut {
+  operation_id: string;
+  display_code: string;
+  current_volume_sacks: number;
+  volume_to_close_sacks: number;
+  allocation_reason: string;
+  mtm_at_allocation?: number;
+}
+
+export interface AllocateBatchRequest {
+  warehouse_id: string;
+  commodity: string;   // 'soybean' | 'corn'
+  exchange: string;    // 'cbot' | 'b3'
+  target_volume_sacks: number;
+  strategy: string;    // 'MAX_PROFIT' | 'MAX_LOSS' | 'PROPORTIONAL'
+  operations: OperationSummaryIn[];
+}
+
+export interface AllocateBatchResponse {
+  proposals: ClosingAllocationProposalOut[];
+  total_volume_allocated_sacks: number;
+  strategy_used: string;
+  warnings: string[];
+}

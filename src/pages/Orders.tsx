@@ -594,7 +594,7 @@ const Orders = () => {
       }
 
       // Step 3: Fetch display_code
-      const { data: insertedOrders } = await supabase
+      const { data: insertedOrders } = await (supabase as any)
         .from('hedge_orders')
         .select('display_code')
         .eq('operation_id', operationId)
@@ -834,7 +834,7 @@ const Orders = () => {
   const handleOpenClosingOrderModal = async (order: HedgeOrder) => {
     if (!order.operation_id) return;
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('closing_orders')
         .select('id, legs, physical_price_brl, physical_volume_sacks')
         .eq('operation_id', order.operation_id)
@@ -848,7 +848,7 @@ const Orders = () => {
       if (data?.legs) {
         rawLegs = ((data.legs as any[]) ?? []).filter((l: any) => l.leg_type !== 'seguro');
       } else {
-        const { data: hedgeData } = await supabase
+        const { data: hedgeData } = await (supabase as any)
           .from('hedge_orders')
           .select('executed_legs')
           .eq('operation_id', order.operation_id)

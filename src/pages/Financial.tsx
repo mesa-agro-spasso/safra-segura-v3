@@ -90,7 +90,7 @@ export default function Financial() {
     queryKey: ['payment-events-by-op', opIds.sort().join(',')],
     enabled: opIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('payment_events')
         .select('id, operation_id, status, realized_date, notes')
         .in('operation_id', opIds);
@@ -161,7 +161,7 @@ export default function Financial() {
     setSaving(true);
     try {
       if (payDialog.paymentEvent) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('payment_events')
           .update({
             status: 'paid',
@@ -175,7 +175,7 @@ export default function Financial() {
         if (!payDialog.payment_date) {
           throw new Error('Operação sem data de pagamento prevista.');
         }
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('payment_events')
           .insert({
             operation_id: payDialog.id,

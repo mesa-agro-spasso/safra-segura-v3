@@ -54,7 +54,7 @@ export function usePendingApprovalsCount() {
       const operationIds = operations.map((o: any) => o.id);
 
       const [{ data: hedgeOrders }, { data: signatures }] = await Promise.all([
-        supabase
+        (supabase as any)
           .from('hedge_orders')
           .select('operation_id, volume_sacks, status')
           .in('operation_id', operationIds)

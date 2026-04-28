@@ -464,7 +464,7 @@ const OperationsMTM = () => {
     const ps = op.pricing_snapshots;
     setClosingOriginationPrice(ps?.origination_price_brl ? String(ps.origination_price_brl) : '');
     try {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('closing_orders')
         .select('legs')
         .eq('operation_id', op.id)

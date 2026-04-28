@@ -1,5 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type {
+  AllocateBatchRequest,
+  AllocateBatchResponse,
   HedgePlanItemIn,
   OperationBalanceOut,
   OperationIn,
@@ -69,8 +71,8 @@ export async function validateExecution(
 }
 
 export async function allocateClosingBatch(
-  payload: Record<string, unknown>,
-): Promise<unknown> {
+  payload: AllocateBatchRequest,
+): Promise<AllocateBatchResponse> {
   const { data, error } = await supabase.functions.invoke('api-proxy', {
     body: {
       endpoint: '/closing-batches/allocate',
@@ -78,5 +80,5 @@ export async function allocateClosingBatch(
     },
   });
   if (error) throw error;
-  return data;
+  return data as AllocateBatchResponse;
 }

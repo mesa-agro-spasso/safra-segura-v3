@@ -42,7 +42,7 @@ export default function DayDetailPanel({ open, onClose, date, events }: DayDetai
     if (!payTarget?.resource.payment_event_id || !realizedDate) return;
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('payment_events')
         .update({
           status: 'paid',
