@@ -40,6 +40,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const p = data as UserProfile | null;
       setProfile(p);
+      // Apply theme preference to document root
+      if (p?.theme === 'light') {
+        document.documentElement.classList.remove('dark');
+      } else {
+        document.documentElement.classList.add('dark');
+      }
       return p;
     } catch {
       setProfile(null);
