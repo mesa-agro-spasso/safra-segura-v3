@@ -4,6 +4,52 @@
 
 @layer base {
   :root {
+    /* Light theme — high contrast on light surfaces */
+    --background: 0 0% 100%;
+    --foreground: 178 40% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 178 40% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 178 40% 10%;
+
+    --primary: 178 48% 30%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 178 25% 94%;
+    --secondary-foreground: 178 40% 14%;
+
+    --muted: 178 20% 95%;
+    --muted-foreground: 178 15% 35%;
+
+    --accent: 178 25% 92%;
+    --accent-foreground: 178 40% 14%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 178 20% 86%;
+    --input: 178 20% 88%;
+    --ring: 178 48% 30%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 178 30% 96%;
+    --sidebar-foreground: 178 40% 18%;
+    --sidebar-primary: 178 48% 30%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 178 25% 90%;
+    --sidebar-accent-foreground: 178 40% 14%;
+    --sidebar-border: 178 20% 84%;
+    --sidebar-ring: 178 48% 30%;
+
+    --warning: 38 92% 42%;
+    --warning-foreground: 0 0% 100%;
+  }
+
+  .dark {
+    /* Dark theme — original palette */
     --background: 178 40% 6%;
     --foreground: 210 40% 92%;
 
@@ -20,7 +66,7 @@
     --secondary-foreground: 210 40% 92%;
 
     --muted: 178 25% 14%;
-    --muted-foreground: 178 20% 55%;
+    --muted-foreground: 178 20% 65%;
 
     --accent: 178 25% 16%;
     --accent-foreground: 210 40% 92%;
@@ -31,8 +77,6 @@
     --border: 178 25% 16%;
     --input: 178 25% 18%;
     --ring: 178 48% 35%;
-
-    --radius: 0.5rem;
 
     --sidebar-background: 178 48% 7%;
     --sidebar-foreground: 210 40% 85%;
