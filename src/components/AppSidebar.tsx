@@ -1,8 +1,11 @@
 import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
+import { supabase } from '@/integrations/supabase/client';
 import logo from '/logo-safra-segura.png';
 import iconCollapsed from '/icon-48x48.png';
 import {
@@ -18,6 +21,15 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+
+const ROLE_LABELS: Record<string, string> = {
+  mesa: 'Mesa',
+  comercial_n1: 'Comercial N1',
+  comercial_n2: 'Comercial N2',
+  admin: 'Admin',
+};
+const formatRole = (r: string) =>
+  ROLE_LABELS[r] ?? r.charAt(0).toUpperCase() + r.slice(1).replace(/_/g, ' ');
 
 const items = [
   { title: 'Tabela de Preços', url: '/', icon: TableProperties },
