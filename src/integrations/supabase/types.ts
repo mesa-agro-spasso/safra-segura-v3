@@ -52,170 +52,6 @@ export type Database = {
           },
         ]
       }
-      closing_orders: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          executed_at: string | null
-          executed_by: string | null
-          executed_legs: Json | null
-          hedge_order_id: string
-          id: string
-          legs: Json
-          notes: string | null
-          operation_id: string
-          physical_price_brl: number | null
-          physical_volume_sacks: number | null
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          executed_at?: string | null
-          executed_by?: string | null
-          executed_legs?: Json | null
-          hedge_order_id: string
-          id?: string
-          legs?: Json
-          notes?: string | null
-          operation_id: string
-          physical_price_brl?: number | null
-          physical_volume_sacks?: number | null
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          executed_at?: string | null
-          executed_by?: string | null
-          executed_legs?: Json | null
-          hedge_order_id?: string
-          id?: string
-          legs?: Json
-          notes?: string | null
-          operation_id?: string
-          physical_price_brl?: number | null
-          physical_volume_sacks?: number | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "closing_orders_hedge_order_id_fkey"
-            columns: ["hedge_order_id"]
-            isOneToOne: false
-            referencedRelation: "hedge_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "closing_orders_operation_id_fkey"
-            columns: ["operation_id"]
-            isOneToOne: false
-            referencedRelation: "operations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      hedge_orders: {
-        Row: {
-          cancellation_reason: string | null
-          cancelled_at: string | null
-          cancelled_by: string | null
-          commodity: string
-          confirmation_message: string | null
-          created_at: string
-          created_by: string | null
-          display_code: string | null
-          exchange: string
-          executed_at: string | null
-          executed_by: string | null
-          executed_legs: Json | null
-          id: string
-          legs: Json
-          notes: string | null
-          operation_id: string
-          order_message: string | null
-          origination_price_brl: number
-          status: string
-          stonex_confirmation_text: string | null
-          volume_sacks: number
-        }
-        Insert: {
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          commodity: string
-          confirmation_message?: string | null
-          created_at?: string
-          created_by?: string | null
-          display_code?: string | null
-          exchange: string
-          executed_at?: string | null
-          executed_by?: string | null
-          executed_legs?: Json | null
-          id?: string
-          legs?: Json
-          notes?: string | null
-          operation_id: string
-          order_message?: string | null
-          origination_price_brl: number
-          status?: string
-          stonex_confirmation_text?: string | null
-          volume_sacks: number
-        }
-        Update: {
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          commodity?: string
-          confirmation_message?: string | null
-          created_at?: string
-          created_by?: string | null
-          display_code?: string | null
-          exchange?: string
-          executed_at?: string | null
-          executed_by?: string | null
-          executed_legs?: Json | null
-          id?: string
-          legs?: Json
-          notes?: string | null
-          operation_id?: string
-          order_message?: string | null
-          origination_price_brl?: number
-          status?: string
-          stonex_confirmation_text?: string | null
-          volume_sacks?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "hedge_orders_cancelled_by_fkey"
-            columns: ["cancelled_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "hedge_orders_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "hedge_orders_executed_by_fkey"
-            columns: ["executed_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "hedge_orders_operation_id_fkey"
-            columns: ["operation_id"]
-            isOneToOne: false
-            referencedRelation: "operations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       historical_basis: {
         Row: {
           basis_brl_per_sack: number
@@ -389,200 +225,104 @@ export type Database = {
           },
         ]
       }
-      mtm_snapshots: {
-        Row: {
-          calculated_at: string
-          calculated_by: string | null
-          futures_price_current: number
-          id: string
-          mtm_futures_brl: number
-          mtm_ndf_brl: number
-          mtm_option_brl: number
-          mtm_per_sack_brl: number
-          mtm_physical_brl: number
-          mtm_total_brl: number
-          operation_id: string
-          physical_price_current: number
-          snapshot_date: string
-          spot_rate_current: number | null
-          total_exposure_brl: number
-          volume_sacks: number
-        }
-        Insert: {
-          calculated_at?: string
-          calculated_by?: string | null
-          futures_price_current: number
-          id?: string
-          mtm_futures_brl: number
-          mtm_ndf_brl?: number
-          mtm_option_brl?: number
-          mtm_per_sack_brl: number
-          mtm_physical_brl: number
-          mtm_total_brl: number
-          operation_id: string
-          physical_price_current: number
-          snapshot_date?: string
-          spot_rate_current?: number | null
-          total_exposure_brl: number
-          volume_sacks: number
-        }
-        Update: {
-          calculated_at?: string
-          calculated_by?: string | null
-          futures_price_current?: number
-          id?: string
-          mtm_futures_brl?: number
-          mtm_ndf_brl?: number
-          mtm_option_brl?: number
-          mtm_per_sack_brl?: number
-          mtm_physical_brl?: number
-          mtm_total_brl?: number
-          operation_id?: string
-          physical_price_current?: number
-          snapshot_date?: string
-          spot_rate_current?: number | null
-          total_exposure_brl?: number
-          volume_sacks?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mtm_snapshots_calculated_by_fkey"
-            columns: ["calculated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mtm_snapshots_operation_id_fkey"
-            columns: ["operation_id"]
-            isOneToOne: false
-            referencedRelation: "operations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      operation_pnl: {
-        Row: {
-          calculated_at: string
-          custo_compra_brl: number | null
-          custo_hedge_brl: number | null
-          id: string
-          insurance_cost_brl: number | null
-          operation_id: string
-          option_exit_pnl_brl: number | null
-          receita_venda_brl: number | null
-          resultado_brl_sc: number | null
-          resultado_liquido_brl: number | null
-          volume_sacks: number | null
-        }
-        Insert: {
-          calculated_at?: string
-          custo_compra_brl?: number | null
-          custo_hedge_brl?: number | null
-          id?: string
-          insurance_cost_brl?: number | null
-          operation_id: string
-          option_exit_pnl_brl?: number | null
-          receita_venda_brl?: number | null
-          resultado_brl_sc?: number | null
-          resultado_liquido_brl?: number | null
-          volume_sacks?: number | null
-        }
-        Update: {
-          calculated_at?: string
-          custo_compra_brl?: number | null
-          custo_hedge_brl?: number | null
-          id?: string
-          insurance_cost_brl?: number | null
-          operation_id?: string
-          option_exit_pnl_brl?: number | null
-          receita_venda_brl?: number | null
-          resultado_brl_sc?: number | null
-          resultado_liquido_brl?: number | null
-          volume_sacks?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "operation_pnl_operation_id_fkey"
-            columns: ["operation_id"]
-            isOneToOne: true
-            referencedRelation: "operations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       operations: {
         Row: {
-          closing_order_id: string | null
+          balance_snapshot: Json | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          closed_at: string | null
           commodity: string
           created_at: string
-          created_by: string | null
+          created_by: string
+          display_code: string | null
+          exchange: string
+          fully_closed_volume_sacks: number | null
+          grain_reception_date: string
+          hedge_plan: Json
           id: string
+          internal_tags: string[] | null
           notes: string | null
-          parent_operation_id: string | null
+          origination_price_brl: number
+          payment_date: string
           pricing_snapshot_id: string | null
-          rejected_at: string | null
-          rejected_by: string | null
-          rejection_reason: string | null
+          producer_id: string | null
+          sale_date: string
           status: string
+          trade_date: string
           updated_at: string
           volume_sacks: number
           warehouse_id: string
         }
         Insert: {
-          closing_order_id?: string | null
+          balance_snapshot?: Json | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          closed_at?: string | null
           commodity: string
           created_at?: string
-          created_by?: string | null
+          created_by: string
+          display_code?: string | null
+          exchange: string
+          fully_closed_volume_sacks?: number | null
+          grain_reception_date: string
+          hedge_plan?: Json
           id?: string
+          internal_tags?: string[] | null
           notes?: string | null
-          parent_operation_id?: string | null
+          origination_price_brl: number
+          payment_date: string
           pricing_snapshot_id?: string | null
-          rejected_at?: string | null
-          rejected_by?: string | null
-          rejection_reason?: string | null
+          producer_id?: string | null
+          sale_date: string
           status?: string
+          trade_date: string
           updated_at?: string
           volume_sacks: number
           warehouse_id: string
         }
         Update: {
-          closing_order_id?: string | null
+          balance_snapshot?: Json | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          closed_at?: string | null
           commodity?: string
           created_at?: string
-          created_by?: string | null
+          created_by?: string
+          display_code?: string | null
+          exchange?: string
+          fully_closed_volume_sacks?: number | null
+          grain_reception_date?: string
+          hedge_plan?: Json
           id?: string
+          internal_tags?: string[] | null
           notes?: string | null
-          parent_operation_id?: string | null
+          origination_price_brl?: number
+          payment_date?: string
           pricing_snapshot_id?: string | null
-          rejected_at?: string | null
-          rejected_by?: string | null
-          rejection_reason?: string | null
+          producer_id?: string | null
+          sale_date?: string
           status?: string
+          trade_date?: string
           updated_at?: string
           volume_sacks?: number
           warehouse_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "operations_closing_order_id_fkey"
-            columns: ["closing_order_id"]
-            isOneToOne: false
-            referencedRelation: "closing_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "operations_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "operations_pricing_snapshot_id_fkey"
             columns: ["pricing_snapshot_id"]
             isOneToOne: false
             referencedRelation: "pricing_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operations_producer_id_fkey"
+            columns: ["producer_id"]
+            isOneToOne: false
+            referencedRelation: "producers"
             referencedColumns: ["id"]
           },
           {
@@ -594,56 +334,117 @@ export type Database = {
           },
         ]
       }
-      payment_events: {
+      orders: {
         Row: {
-          amount_brl: number
-          created_at: string | null
+          batch_id: string | null
+          brokerage_per_contract: number | null
+          closes_order_id: string | null
+          contracts: number
+          created_at: string
+          currency: string
+          direction: string
+          exchange_rate_at_execution: number | null
+          executed_at: string
+          executed_by: string
+          expiration_date: string | null
           id: string
+          instrument_type: string
+          is_closing: boolean
+          is_counterparty_insurance: boolean | null
+          ndf_maturity: string | null
+          ndf_rate: number | null
+          ndf_table_version_id: string | null
           notes: string | null
           operation_id: string
-          realized_date: string | null
-          registered_by: string | null
-          scheduled_date: string
-          status: string
-          updated_at: string | null
+          option_type: string | null
+          premium: number | null
+          price: number | null
+          source_hedge_plan_item: Json | null
+          stonex_confirmation_text: string | null
+          strike: number | null
+          ticker: string | null
+          volume_units: number
         }
         Insert: {
-          amount_brl: number
-          created_at?: string | null
+          batch_id?: string | null
+          brokerage_per_contract?: number | null
+          closes_order_id?: string | null
+          contracts: number
+          created_at?: string
+          currency: string
+          direction: string
+          exchange_rate_at_execution?: number | null
+          executed_at?: string
+          executed_by: string
+          expiration_date?: string | null
           id?: string
+          instrument_type: string
+          is_closing?: boolean
+          is_counterparty_insurance?: boolean | null
+          ndf_maturity?: string | null
+          ndf_rate?: number | null
+          ndf_table_version_id?: string | null
           notes?: string | null
           operation_id: string
-          realized_date?: string | null
-          registered_by?: string | null
-          scheduled_date: string
-          status?: string
-          updated_at?: string | null
+          option_type?: string | null
+          premium?: number | null
+          price?: number | null
+          source_hedge_plan_item?: Json | null
+          stonex_confirmation_text?: string | null
+          strike?: number | null
+          ticker?: string | null
+          volume_units: number
         }
         Update: {
-          amount_brl?: number
-          created_at?: string | null
+          batch_id?: string | null
+          brokerage_per_contract?: number | null
+          closes_order_id?: string | null
+          contracts?: number
+          created_at?: string
+          currency?: string
+          direction?: string
+          exchange_rate_at_execution?: number | null
+          executed_at?: string
+          executed_by?: string
+          expiration_date?: string | null
           id?: string
+          instrument_type?: string
+          is_closing?: boolean
+          is_counterparty_insurance?: boolean | null
+          ndf_maturity?: string | null
+          ndf_rate?: number | null
+          ndf_table_version_id?: string | null
           notes?: string | null
           operation_id?: string
-          realized_date?: string | null
-          registered_by?: string | null
-          scheduled_date?: string
-          status?: string
-          updated_at?: string | null
+          option_type?: string | null
+          premium?: number | null
+          price?: number | null
+          source_hedge_plan_item?: Json | null
+          stonex_confirmation_text?: string | null
+          strike?: number | null
+          ticker?: string | null
+          volume_units?: number
         }
         Relationships: [
           {
-            foreignKeyName: "payment_events_operation_id_fkey"
-            columns: ["operation_id"]
+            foreignKeyName: "orders_batch_id_fkey"
+            columns: ["batch_id"]
             isOneToOne: false
-            referencedRelation: "operations"
+            referencedRelation: "warehouse_closing_batches"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "payment_events_registered_by_fkey"
-            columns: ["registered_by"]
+            foreignKeyName: "orders_closes_order_id_fkey"
+            columns: ["closes_order_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
             referencedColumns: ["id"]
           },
         ]
@@ -887,53 +688,92 @@ export type Database = {
           },
         ]
       }
+      producers: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+        }
+        Relationships: []
+      }
       signatures: {
         Row: {
-          created_at: string | null
+          batch_id: string | null
+          below_authorized_price: boolean | null
+          created_at: string
+          decision: string
+          flow_type: string
           id: string
           ip_address: string | null
+          justification: string | null
           notes: string | null
           operation_id: string
+          policy_version_id: string | null
           role_used: string
-          signature_type: string
           signed_at: string
+          substituting_commercial_n1: boolean | null
           user_id: string
         }
         Insert: {
-          created_at?: string | null
+          batch_id?: string | null
+          below_authorized_price?: boolean | null
+          created_at?: string
+          decision: string
+          flow_type: string
           id?: string
           ip_address?: string | null
+          justification?: string | null
           notes?: string | null
           operation_id: string
+          policy_version_id?: string | null
           role_used: string
-          signature_type: string
           signed_at?: string
+          substituting_commercial_n1?: boolean | null
           user_id: string
         }
         Update: {
-          created_at?: string | null
+          batch_id?: string | null
+          below_authorized_price?: boolean | null
+          created_at?: string
+          decision?: string
+          flow_type?: string
           id?: string
           ip_address?: string | null
+          justification?: string | null
           notes?: string | null
           operation_id?: string
+          policy_version_id?: string | null
           role_used?: string
-          signature_type?: string
           signed_at?: string
+          substituting_commercial_n1?: boolean | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "signatures_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_closing_batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "signatures_operation_id_fkey"
             columns: ["operation_id"]
             isOneToOne: false
             referencedRelation: "operations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "signatures_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -949,6 +789,7 @@ export type Database = {
           id: string
           is_admin: boolean
           status: string
+          theme: string
           updated_at: string
         }
         Insert: {
@@ -961,6 +802,7 @@ export type Database = {
           id: string
           is_admin?: boolean
           status?: string
+          theme?: string
           updated_at?: string
         }
         Update: {
@@ -973,6 +815,7 @@ export type Database = {
           id?: string
           is_admin?: boolean
           status?: string
+          theme?: string
           updated_at?: string
         }
         Relationships: []
@@ -1005,6 +848,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "users_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warehouse_closing_batches: {
+        Row: {
+          affected_operations_count: number | null
+          allocation_snapshot: Json | null
+          allocation_strategy: string
+          commodity: string
+          created_at: string
+          created_by: string
+          exchange: string
+          generated_orders_count: number | null
+          id: string
+          mtm_snapshot_used_at: string | null
+          mtm_staleness_warning: string | null
+          notes: string | null
+          total_volume_sacks: number
+          warehouse_id: string
+        }
+        Insert: {
+          affected_operations_count?: number | null
+          allocation_snapshot?: Json | null
+          allocation_strategy: string
+          commodity: string
+          created_at?: string
+          created_by: string
+          exchange: string
+          generated_orders_count?: number | null
+          id?: string
+          mtm_snapshot_used_at?: string | null
+          mtm_staleness_warning?: string | null
+          notes?: string | null
+          total_volume_sacks: number
+          warehouse_id: string
+        }
+        Update: {
+          affected_operations_count?: number | null
+          allocation_snapshot?: Json | null
+          allocation_strategy?: string
+          commodity?: string
+          created_at?: string
+          created_by?: string
+          exchange?: string
+          generated_orders_count?: number | null
+          id?: string
+          mtm_snapshot_used_at?: string | null
+          mtm_staleness_warning?: string | null
+          notes?: string | null
+          total_volume_sacks?: number
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_closing_batches_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
