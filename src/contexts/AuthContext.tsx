@@ -72,8 +72,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Then listen for changes — do NOT await Supabase calls inside this callback
     // (causes deadlock per Supabase docs)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      } else {
+        setIsPasswordRecovery(false);
+      }
       setSession(session);
       setUser(session?.user ?? null);
 
