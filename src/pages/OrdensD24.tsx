@@ -595,7 +595,8 @@ const ExecutionModal: React.FC<ExecutionModalProps> = ({ order, operation, userI
 
     const opBuild = buildOperationIn();
     if (!opBuild.ok) {
-      setValidations(prev => prev.map((v, j) => j === i ? { status: 'error', errorMsg: opBuild.reason } : v));
+      const reason = opBuild.reason;
+      setValidations(prev => prev.map((v, j) => j === i ? { status: 'error', errorMsg: reason } : v));
       return;
     }
 
