@@ -335,22 +335,38 @@ const OrdensD24: React.FC = () => {
       {/* Filtros */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <CardTitle className="text-base">Filtros</CardTitle>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={selectAll}>Selecionar Todos</Button>
-              <Button size="sm" variant="outline" onClick={clearAll}>Limpar Filtros</Button>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(o => !o)}
+            className="flex items-center justify-between w-full gap-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <ChevronDown className={`h-4 w-4 transition-transform ${filtersOpen ? '' : '-rotate-90'}`} />
+              <CardTitle className="text-base">Filtros</CardTitle>
+              {!filtersOpen && activeFiltersCount > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {activeFiltersCount} {activeFiltersCount === 1 ? 'filtro ativo' : 'filtros ativos'}
+                </Badge>
+              )}
             </div>
-          </div>
+            {filtersOpen && (
+              <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                <Button size="sm" variant="outline" onClick={selectAll}>Selecionar Todos</Button>
+                <Button size="sm" variant="outline" onClick={clearAll}>Limpar Filtros</Button>
+              </div>
+            )}
+          </button>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <MultiSelect label="Praça" options={pracaOptions} selected={praca} onChange={setPraca} />
-            <MultiSelect label="Commodity" options={COMMODITY_OPTIONS} selected={commodity} onChange={setCommodity} />
-            <MultiSelect label="Operação" options={operationOptions} selected={operacao} onChange={setOperacao} />
-            <MultiSelect label="Status" options={STATUS_OPTIONS.map(s => ({ value: s, label: s }))} selected={status} onChange={setStatus} />
-          </div>
-        </CardContent>
+        {filtersOpen && (
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              <MultiSelect label="Praça" options={pracaOptions} selected={praca} onChange={setPraca} />
+              <MultiSelect label="Commodity" options={COMMODITY_OPTIONS} selected={commodity} onChange={setCommodity} />
+              <MultiSelect label="Operação" options={operationOptions} selected={operacao} onChange={setOperacao} />
+              <MultiSelect label="Status" options={STATUS_OPTIONS.map(s => ({ value: s, label: s }))} selected={status} onChange={setStatus} />
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* Tabela */}
