@@ -491,24 +491,37 @@ const DetailSheet: React.FC<{ order: HedgeOrder | null; onClose: () => void }> =
             </section>
             <Separator />
             <section>
-              <h3 className="font-semibold mb-2">Pernas</h3>
-              <div className="space-y-3">
-                {((order.legs ?? []) as Array<Record<string, unknown>>).map((leg, i) => (
-                  <div key={i} className="border border-border rounded p-2">
-                    <dl className="grid grid-cols-2 gap-y-1">
-                      {Object.entries(leg)
-                        .filter(([, v]) => v !== null && v !== undefined && v !== '')
-                        .map(([k, v]) => (
-                          <React.Fragment key={k}>
-                            <dt className="text-muted-foreground text-xs">{k}</dt>
-                            <dd className="text-xs">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
-                          </React.Fragment>
-                        ))}
-                    </dl>
-                  </div>
-                ))}
-                {(!order.legs || order.legs.length === 0) && <div className="text-muted-foreground text-xs">Sem legs</div>}
-              </div>
+              {(() => {
+                const executedLegs = (order.executed_legs ?? []) as Array<Record<string, unknown>>;
+                const useExecuted =
+                  order.status === 'EXECUTED' && executedLegs.length > 0;
+                const legsToShow = useExecuted
+                  ? executedLegs
+                  : ((order.legs ?? []) as Array<Record<string, unknown>>);
+                const label = useExecuted ? 'Pernas executadas' : 'Pernas planejadas';
+                return (
+                  <>
+                    <h3 className="font-semibold mb-2">{label}</h3>
+                    <div className="space-y-3">
+                      {legsToShow.map((leg, i) => (
+                        <div key={i} className="border border-border rounded p-2">
+                          <dl className="grid grid-cols-2 gap-y-1">
+                            {Object.entries(leg)
+                              .filter(([, v]) => v !== null && v !== undefined && v !== '')
+                              .map(([k, v]) => (
+                                <React.Fragment key={k}>
+                                  <dt className="text-muted-foreground text-xs">{k}</dt>
+                                  <dd className="text-xs">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
+                                </React.Fragment>
+                              ))}
+                          </dl>
+                        </div>
+                      ))}
+                      {legsToShow.length === 0 && <div className="text-muted-foreground text-xs">Sem legs</div>}
+                    </div>
+                  </>
+                );
+              })()}
             </section>
           </div>
         )}
