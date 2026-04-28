@@ -1,17 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Aguarda o evento PASSWORD_RECOVERY que confirma sessão válida
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        setSessionReady(true);
+      }
+    });
+    // Também verifica se já há sessão ativa (caso o evento já tenha disparado)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setSessionReady(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,33 +61,40 @@ const ResetPassword = () => {
           <p className="text-sm text-muted-foreground">Redefinir senha</p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-password">Nova senha</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-              />
+          {!sessionReady ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Validando link de recuperação...</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirmar nova senha</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Alterando...' : 'Alterar senha'}
-            </Button>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nova senha</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={!sessionReady || loading}>
+                {loading ? 'Alterando...' : 'Alterar senha'}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,26 +1,28 @@
-# Corrigir fluxo de reset de senha
+## Corrigir fluxo de espera do token em ResetPassword
 
-Quando o usuário clica no link de recuperação enviado por email, o Supabase emite o evento `PASSWORD_RECOVERY` e cria uma sessão temporária. Hoje o app trata isso como login normal, então o `ProtectedRoute` pode redirecionar antes da página `/redefinir-senha` montar (ex.: se o link cair em outra rota, ou em corridas com o `loading`). A correção expõe esse estado no contexto e faz o `ProtectedRoute` deixar passar.
+Substituir a implementação de `src/pages/ResetPassword.tsx` para aguardar o Supabase processar o token de recuperação antes de exibir o formulário.
 
-## Arquivos alterados (2)
+### Mudanças em `src/pages/ResetPassword.tsx`
 
-### 1. `src/contexts/AuthContext.tsx`
+1. **Imports**: adicionar `useEffect` ao import de `react`.
 
-- Adicionar state `isPasswordRecovery: boolean` (default `false`).
-- No callback do `supabase.auth.onAuthStateChange`, antes da lógica existente:
-  - Se `event === 'PASSWORD_RECOVERY'` → `setIsPasswordRecovery(true)`.
-  - Caso contrário → `setIsPasswordRecovery(false)`.
-- Adicionar `isPasswordRecovery` à interface `AuthContextType`.
-- Incluir `isPasswordRecovery` no `value` do `AuthContext.Provider`.
-- Nenhuma outra lógica (fetchProfile, theme, signIn/signUp/signOut) é tocada.
+2. **Estado novo**: `sessionReady: boolean` (default `false`).
 
-### 2. `src/components/ProtectedRoute.tsx`
+3. **useEffect na montagem**:
+   - Subscrever em `supabase.auth.onAuthStateChange` — quando o evento for `PASSWORD_RECOVERY` e houver `session`, setar `sessionReady = true`.
+   - Em paralelo, chamar `supabase.auth.getSession()` e, se já houver sessão, setar `sessionReady = true` (cobre o caso do evento já ter disparado antes do mount).
+   - Cleanup: `subscription.unsubscribe()`.
 
-- Consumir `isPasswordRecovery` do `useAuth()`.
-- Logo no início do componente (antes de checar `loading`, `user`, `profile`), se `isPasswordRecovery` for `true`, retornar `<>{children}</>` — bypass total dos redirects.
-- Resto do componente permanece igual.
+4. **Render condicional dentro do `<CardContent>`**:
+   - Se `!sessionReady`: exibir um spinner centralizado (ícone `Loader2` do `lucide-react` com `animate-spin`) no lugar do formulário.
+   - Se `sessionReady`: exibir o formulário atual (campos de nova senha, confirmar senha, botão).
 
-## Fora do escopo
+5. **Botão "Alterar senha"**: `disabled={!sessionReady || loading}`.
 
-- `Login.tsx`, `ResetPassword.tsx`, `App.tsx` e demais arquivos não são alterados.
-- Sem migrations, sem Edge Functions.
+6. **Layout**: manter Card centralizado com logo e header inalterados. `handleSubmit` permanece idêntico.
+
+### Não alterar
+
+- Nenhum outro arquivo.
+- Nenhuma migration, edge function ou config.
+- Lógica de `AuthContext` (já trata `isPasswordRecovery`) e `ProtectedRoute` permanecem intactas — esta página é pública (fora do `ProtectedRoute`).
