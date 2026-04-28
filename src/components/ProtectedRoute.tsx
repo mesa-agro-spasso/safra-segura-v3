@@ -2,7 +2,11 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, isPasswordRecovery } = useAuth();
+
+  if (isPasswordRecovery) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (
