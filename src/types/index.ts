@@ -131,6 +131,7 @@ export interface UserProfile {
   status: 'pending' | 'active' | 'disabled';
   access_level: 'limited' | 'full';
   is_admin: boolean;
+  theme: 'dark' | 'light';
   created_at: string;
   updated_at: string;
   approved_at: string | null;
