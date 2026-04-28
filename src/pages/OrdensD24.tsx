@@ -178,6 +178,7 @@ const OrdensD24: React.FC = () => {
   const [commodity, setCommodity] = useState<Set<string>>(new Set());
   const [operacao, setOperacao] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<Set<string>>(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // ── Modals
   const [detailOrder, setDetailOrder] = useState<HedgeOrder | null>(null);
