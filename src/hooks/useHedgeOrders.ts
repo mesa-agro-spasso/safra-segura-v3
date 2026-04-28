@@ -6,7 +6,7 @@ export function useHedgeOrders(filters?: { commodity?: string; status?: string }
   return useQuery({
     queryKey: ['hedge_orders', filters],
     queryFn: async () => {
-      let query = supabase
+      let query = (supabase as any)
         .from('hedge_orders')
         .select('*, operation:operations(warehouse_id, warehouses(display_name), pricing_snapshots(trade_date, payment_date, grain_reception_date, sale_date, outputs_json))')
         .order('created_at', { ascending: false });
@@ -23,7 +23,7 @@ export function useCreateHedgeOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (order: Omit<HedgeOrder, 'id' | 'created_at' | 'display_code' | 'executed_legs' | 'executed_at' | 'executed_by' | 'cancelled_at' | 'cancelled_by' | 'cancellation_reason'>) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('hedge_orders')
         .insert(order as never)
         .select()
@@ -39,7 +39,7 @@ export function useUpdateHedgeOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<HedgeOrder>) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('hedge_orders')
         .update(updates as never)
         .eq('id', id);
