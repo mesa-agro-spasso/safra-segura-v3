@@ -46,6 +46,17 @@ export function AppSidebar() {
   const { signOut, user, profile } = useAuth();
   const { isAdmin } = useAuthorization();
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
+  const { data: userRoles = [] } = useQuery({
+    queryKey: ['sidebar-user-roles', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await (supabase.from('users') as any)
+        .select('roles')
+        .eq('id', user!.id)
+        .maybeSingle();
+      return (data?.roles as string[] | undefined) ?? [];
+    },
+  });
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -115,9 +126,19 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-3">
         {!collapsed && (
-          <p className="text-xs text-sidebar-foreground/50 truncate mb-2">
-            {profile?.full_name || user?.email || ''}
-          </p>
+          <div className="mb-2 space-y-0.5">
+            <Link
+              to="/perfil"
+              className="block text-xs text-sidebar-foreground/70 hover:text-sidebar-foreground truncate transition-colors"
+            >
+              {profile?.full_name || user?.email || ''}
+            </Link>
+            {userRoles.length > 0 && (
+              <p className="text-[10px] text-sidebar-foreground/40 truncate">
+                {userRoles.map(formatRole).join(' · ')}
+              </p>
+            )}
+          </div>
         )}
         <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground">
           <LogOut className="mr-2 h-4 w-4" />
