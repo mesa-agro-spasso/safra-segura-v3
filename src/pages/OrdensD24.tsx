@@ -178,6 +178,7 @@ const OrdensD24: React.FC = () => {
   const [commodity, setCommodity] = useState<Set<string>>(new Set());
   const [operacao, setOperacao] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<Set<string>>(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // ── Modals
   const [detailOrder, setDetailOrder] = useState<HedgeOrder | null>(null);
@@ -316,8 +317,14 @@ const OrdensD24: React.FC = () => {
   const legsSummary = (order: HedgeOrder): string => {
     const legs = (order.legs ?? []) as Array<Record<string, unknown>>;
     if (!legs.length) return '--';
-    return legs.map(l => `${l.leg_type ?? l.instrument_type ?? '?'}(${l.direction ?? '?'})`).join(' + ');
+    return legs.map(l => `${l.leg_type ?? '?'}(${l.direction ?? '?'})`).join(' + ');
   };
+
+  const activeFiltersCount =
+    (praca.size > 0 ? 1 : 0) +
+    (commodity.size > 0 ? 1 : 0) +
+    (operacao.size > 0 ? 1 : 0) +
+    (status.size > 0 ? 1 : 0);
 
   return (
     <div className="p-6 space-y-6">
@@ -328,22 +335,38 @@ const OrdensD24: React.FC = () => {
       {/* Filtros */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <CardTitle className="text-base">Filtros</CardTitle>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={selectAll}>Selecionar Todos</Button>
-              <Button size="sm" variant="outline" onClick={clearAll}>Limpar Filtros</Button>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(o => !o)}
+            className="flex items-center justify-between w-full gap-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <ChevronDown className={`h-4 w-4 transition-transform ${filtersOpen ? '' : '-rotate-90'}`} />
+              <CardTitle className="text-base">Filtros</CardTitle>
+              {!filtersOpen && activeFiltersCount > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {activeFiltersCount} {activeFiltersCount === 1 ? 'filtro ativo' : 'filtros ativos'}
+                </Badge>
+              )}
             </div>
-          </div>
+            {filtersOpen && (
+              <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                <Button size="sm" variant="outline" onClick={selectAll}>Selecionar Todos</Button>
+                <Button size="sm" variant="outline" onClick={clearAll}>Limpar Filtros</Button>
+              </div>
+            )}
+          </button>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <MultiSelect label="Praça" options={pracaOptions} selected={praca} onChange={setPraca} />
-            <MultiSelect label="Commodity" options={COMMODITY_OPTIONS} selected={commodity} onChange={setCommodity} />
-            <MultiSelect label="Operação" options={operationOptions} selected={operacao} onChange={setOperacao} />
-            <MultiSelect label="Status" options={STATUS_OPTIONS.map(s => ({ value: s, label: s }))} selected={status} onChange={setStatus} />
-          </div>
-        </CardContent>
+        {filtersOpen && (
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              <MultiSelect label="Praça" options={pracaOptions} selected={praca} onChange={setPraca} />
+              <MultiSelect label="Commodity" options={COMMODITY_OPTIONS} selected={commodity} onChange={setCommodity} />
+              <MultiSelect label="Operação" options={operationOptions} selected={operacao} onChange={setOperacao} />
+              <MultiSelect label="Status" options={STATUS_OPTIONS.map(s => ({ value: s, label: s }))} selected={status} onChange={setStatus} />
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* Tabela */}
@@ -468,24 +491,37 @@ const DetailSheet: React.FC<{ order: HedgeOrder | null; onClose: () => void }> =
             </section>
             <Separator />
             <section>
-              <h3 className="font-semibold mb-2">Pernas</h3>
-              <div className="space-y-3">
-                {((order.legs ?? []) as Array<Record<string, unknown>>).map((leg, i) => (
-                  <div key={i} className="border border-border rounded p-2">
-                    <dl className="grid grid-cols-2 gap-y-1">
-                      {Object.entries(leg)
-                        .filter(([, v]) => v !== null && v !== undefined && v !== '')
-                        .map(([k, v]) => (
-                          <React.Fragment key={k}>
-                            <dt className="text-muted-foreground text-xs">{k}</dt>
-                            <dd className="text-xs">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
-                          </React.Fragment>
-                        ))}
-                    </dl>
-                  </div>
-                ))}
-                {(!order.legs || order.legs.length === 0) && <div className="text-muted-foreground text-xs">Sem legs</div>}
-              </div>
+              {(() => {
+                const executedLegs = (order.executed_legs ?? []) as Array<Record<string, unknown>>;
+                const useExecuted =
+                  order.status === 'EXECUTED' && executedLegs.length > 0;
+                const legsToShow = useExecuted
+                  ? executedLegs
+                  : ((order.legs ?? []) as Array<Record<string, unknown>>);
+                const label = useExecuted ? 'Pernas executadas' : 'Pernas planejadas';
+                return (
+                  <>
+                    <h3 className="font-semibold mb-2">{label}</h3>
+                    <div className="space-y-3">
+                      {legsToShow.map((leg, i) => (
+                        <div key={i} className="border border-border rounded p-2">
+                          <dl className="grid grid-cols-2 gap-y-1">
+                            {Object.entries(leg)
+                              .filter(([, v]) => v !== null && v !== undefined && v !== '')
+                              .map(([k, v]) => (
+                                <React.Fragment key={k}>
+                                  <dt className="text-muted-foreground text-xs">{k}</dt>
+                                  <dd className="text-xs">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
+                                </React.Fragment>
+                              ))}
+                          </dl>
+                        </div>
+                      ))}
+                      {legsToShow.length === 0 && <div className="text-muted-foreground text-xs">Sem legs</div>}
+                    </div>
+                  </>
+                );
+              })()}
             </section>
           </div>
         )}
