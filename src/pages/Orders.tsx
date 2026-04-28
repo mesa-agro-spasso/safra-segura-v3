@@ -604,7 +604,7 @@ const Orders = () => {
 
       // Step 4: Create payment event (non-blocking)
       try {
-        await supabase.from('payment_events').insert({
+        await (supabase as any).from('payment_events').insert({
           operation_id: operationId,
           scheduled_date: selectedSnapshotData?.payment_date,
           amount_brl: (selectedSnapshotData?.origination_price_brl ?? 0) * parseFloat(volume),
