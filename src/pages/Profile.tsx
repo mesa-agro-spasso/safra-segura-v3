@@ -47,11 +47,12 @@ const Profile = () => {
         .select('roles')
         .eq('id', user!.id)
         .maybeSingle();
-      return (data?.roles as string[] | undefined) ?? [];
+      const r = data?.roles;
+      return Array.isArray(r) ? (r as string[]) : [];
     },
   });
 
-  const roles = rolesData ?? [];
+  const roles = Array.isArray(rolesData) ? rolesData : [];
 
   const handleSaveName = async () => {
     if (!user) return;
