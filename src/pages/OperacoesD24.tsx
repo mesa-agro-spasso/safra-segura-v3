@@ -76,20 +76,23 @@ const STATUS_ORDER: Record<string, number> = {
 const fmtDate = (d?: string | null) =>
   d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 
+const fmtDateTime = (s?: string | null) =>
+  s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+
 const fmtBrl = (v: unknown) => `R$ ${((v as number) ?? 0).toFixed(2)}`;
 
 // ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
 
 interface Col { key: string; label: string; }
 
-function usePersistedColumns(storageKey: string, columns: Col[]) {
+function usePersistedColumns(storageKey: string, columns: Col[], defaultKeys?: string[]) {
   const allKeys = useMemo(() => columns.map(c => c.key), [columns]);
   const [visible, setVisible] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) return new Set(JSON.parse(raw) as string[]);
     } catch { /* noop */ }
-    return new Set(allKeys);
+    return new Set(defaultKeys ?? allKeys);
   });
   const update = (next: Set<string>) => {
     setVisible(next);
@@ -154,15 +157,28 @@ const OP_COLUMNS: Col[] = [
 ];
 
 const MTM_COLUMNS: Col[] = [
-  { key: 'operacao', label: 'Operação' },
-  { key: 'commodity', label: 'Commodity' },
-  { key: 'praca', label: 'Praça' },
-  { key: 'trade_date', label: 'Entrada' },
-  { key: 'sale_date', label: 'Saída' },
-  { key: 'mtm_total', label: 'Total MTM' },
+  { key: 'operacao',     label: 'Operação' },
+  { key: 'commodity',    label: 'Commodity' },
+  { key: 'praca',        label: 'Praça' },
+  { key: 'volume',       label: 'Volume (sc)' },
+  { key: 'trade_date',   label: 'Data Entrada' },
+  { key: 'sale_date',    label: 'Data Saída' },
+  { key: 'fisico_atual', label: 'Físico Atual (R$/sc)' },
+  { key: 'mtm_fisico',   label: 'MTM Físico' },
+  { key: 'mtm_futuros',  label: 'MTM Futuros' },
+  { key: 'mtm_ndf',      label: 'MTM NDF' },
+  { key: 'mtm_opcao',    label: 'MTM Opção' },
+  { key: 'mtm_total',    label: 'Total MTM' },
   { key: 'mtm_per_sack', label: 'Por Saca' },
-  { key: 'breakeven', label: 'Break-even' },
-  { key: 'fisico_alvo', label: 'Físico Alvo' },
+  { key: 'breakeven',    label: 'Break-even' },
+  { key: 'fisico_alvo',  label: 'Físico Alvo' },
+  { key: 'exposicao',    label: 'Exposição Total' },
+  { key: 'calculado_em', label: 'Calculado em' },
+];
+
+const MTM_DEFAULT_VISIBLE = [
+  'operacao','commodity','praca','trade_date','sale_date',
+  'mtm_total','mtm_per_sack','breakeven','fisico_alvo',
 ];
 
 const SUMMARY_COLUMNS: Col[] = [
@@ -189,7 +205,7 @@ const OperacoesD24: React.FC = () => {
 
   // Tab + column states
   const opCols = usePersistedColumns('cols_operacoes', OP_COLUMNS);
-  const mtmCols = usePersistedColumns('cols_mtm', MTM_COLUMNS);
+  const mtmCols = usePersistedColumns('cols_mtm', MTM_COLUMNS, MTM_DEFAULT_VISIBLE);
   const sumCols = usePersistedColumns('cols_resumo', SUMMARY_COLUMNS);
 
   // Operations tab state
@@ -579,15 +595,23 @@ const OperacoesD24: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {mtmCols.visible.has('operacao') && <TableHead>Operação</TableHead>}
-                      {mtmCols.visible.has('commodity') && <TableHead>Commodity</TableHead>}
-                      {mtmCols.visible.has('praca') && <TableHead>Praça</TableHead>}
-                      {mtmCols.visible.has('trade_date') && <TableHead>Entrada</TableHead>}
-                      {mtmCols.visible.has('sale_date') && <TableHead>Saída</TableHead>}
-                      {mtmCols.visible.has('mtm_total') && <TableHead>Total</TableHead>}
+                      {mtmCols.visible.has('operacao')     && <TableHead>Operação</TableHead>}
+                      {mtmCols.visible.has('commodity')    && <TableHead>Commodity</TableHead>}
+                      {mtmCols.visible.has('praca')        && <TableHead>Praça</TableHead>}
+                      {mtmCols.visible.has('volume')       && <TableHead>Volume (sc)</TableHead>}
+                      {mtmCols.visible.has('trade_date')   && <TableHead>Data Entrada</TableHead>}
+                      {mtmCols.visible.has('sale_date')    && <TableHead>Data Saída</TableHead>}
+                      {mtmCols.visible.has('fisico_atual') && <TableHead>Físico Atual</TableHead>}
+                      {mtmCols.visible.has('mtm_fisico')   && <TableHead>MTM Físico</TableHead>}
+                      {mtmCols.visible.has('mtm_futuros')  && <TableHead>MTM Futuros</TableHead>}
+                      {mtmCols.visible.has('mtm_ndf')      && <TableHead>MTM NDF</TableHead>}
+                      {mtmCols.visible.has('mtm_opcao')    && <TableHead>MTM Opção</TableHead>}
+                      {mtmCols.visible.has('mtm_total')    && <TableHead>Total</TableHead>}
                       {mtmCols.visible.has('mtm_per_sack') && <TableHead>Por Saca</TableHead>}
-                      {mtmCols.visible.has('breakeven') && <TableHead>Break-even</TableHead>}
-                      {mtmCols.visible.has('fisico_alvo') && <TableHead>Físico Alvo</TableHead>}
+                      {mtmCols.visible.has('breakeven')    && <TableHead>Break-even</TableHead>}
+                      {mtmCols.visible.has('fisico_alvo')  && <TableHead>Físico Alvo</TableHead>}
+                      {mtmCols.visible.has('exposicao')    && <TableHead>Exposição Total</TableHead>}
+                      {mtmCols.visible.has('calculado_em') && <TableHead>Calculado em</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -596,19 +620,31 @@ const OperacoesD24: React.FC = () => {
                       const ps = matched?.operation?.pricing_snapshots;
                       const wName = matched?.operation?.warehouses?.display_name ?? '—';
                       const total = (r.mtm_total_brl as number) ?? 0;
+                      const physInput = physicalPrices[r.operation_id as string];
+                      const physVal = physInput
+                        ? parseFloat(physInput)
+                        : (r as any).market_snapshot?.physical_price_current;
                       return (
                         <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
-                          {mtmCols.visible.has('operacao') && <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>}
-                          {mtmCols.visible.has('commodity') && <TableCell>{matched?.commodity === 'soybean' ? 'Soja' : matched?.commodity === 'corn' ? 'Milho' : '—'}</TableCell>}
-                          {mtmCols.visible.has('praca') && <TableCell>{wName}</TableCell>}
-                          {mtmCols.visible.has('trade_date') && <TableCell>{fmtDate(ps?.trade_date)}</TableCell>}
-                          {mtmCols.visible.has('sale_date') && <TableCell>{fmtDate(ps?.sale_date)}</TableCell>}
-                          {mtmCols.visible.has('mtm_total') && (
+                          {mtmCols.visible.has('operacao')     && <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>}
+                          {mtmCols.visible.has('commodity')    && <TableCell>{matched?.commodity === 'soybean' ? 'Soja' : matched?.commodity === 'corn' ? 'Milho' : '—'}</TableCell>}
+                          {mtmCols.visible.has('praca')        && <TableCell>{wName}</TableCell>}
+                          {mtmCols.visible.has('volume')       && <TableCell>{((matched?.volume_sacks ?? (r as any).volume_sacks ?? 0) as number).toLocaleString('pt-BR')}</TableCell>}
+                          {mtmCols.visible.has('trade_date')   && <TableCell>{fmtDate(ps?.trade_date)}</TableCell>}
+                          {mtmCols.visible.has('sale_date')    && <TableCell>{fmtDate(ps?.sale_date)}</TableCell>}
+                          {mtmCols.visible.has('fisico_atual') && <TableCell>{physVal != null ? `R$ ${Number(physVal).toFixed(2)}` : '—'}</TableCell>}
+                          {mtmCols.visible.has('mtm_fisico')   && <TableCell>{fmtBrl((r as any).mtm_physical_brl)}</TableCell>}
+                          {mtmCols.visible.has('mtm_futuros')  && <TableCell>{fmtBrl((r as any).mtm_futures_brl)}</TableCell>}
+                          {mtmCols.visible.has('mtm_ndf')      && <TableCell>{fmtBrl((r as any).mtm_ndf_brl)}</TableCell>}
+                          {mtmCols.visible.has('mtm_opcao')    && <TableCell>{fmtBrl((r as any).mtm_option_brl)}</TableCell>}
+                          {mtmCols.visible.has('mtm_total')    && (
                             <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>R$ {total.toFixed(2)}</TableCell>
                           )}
                           {mtmCols.visible.has('mtm_per_sack') && <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>}
-                          {mtmCols.visible.has('breakeven') && <TableCell className="text-xs tabular-nums">R$ {calcBreakeven(r).toFixed(2)}/sc</TableCell>}
-                          {mtmCols.visible.has('fisico_alvo') && <TableCell className="text-xs tabular-nums">R$ {calcTargetPhysical(r).toFixed(2)}/sc</TableCell>}
+                          {mtmCols.visible.has('breakeven')    && <TableCell className="text-xs tabular-nums">R$ {calcBreakeven(r).toFixed(2)}/sc</TableCell>}
+                          {mtmCols.visible.has('fisico_alvo')  && <TableCell className="text-xs tabular-nums">R$ {calcTargetPhysical(r).toFixed(2)}/sc</TableCell>}
+                          {mtmCols.visible.has('exposicao')    && <TableCell>{fmtBrl((r as any).total_exposure_brl)}</TableCell>}
+                          {mtmCols.visible.has('calculado_em') && <TableCell className="text-xs">{fmtDateTime((r as any).calculated_at)}</TableCell>}
                         </TableRow>
                       );
                     })}
