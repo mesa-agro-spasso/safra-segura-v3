@@ -1,57 +1,59 @@
-## Plano: Migrar Approvals.tsx e usePendingApprovalsCount.ts para D24
+# Aprovações — filtros e seção "Assinadas por mim"
 
-Migrar a tela de aprovações e o contador de aprovações pendentes para o modelo D24, eliminando dependência da tabela legada `hedge_orders` e adotando a lógica baseada em `signatures.flow_type='OPENING'` sobre operações `DRAFT`.
+Único arquivo modificado: `src/pages/Approvals.tsx`.
 
-### Arquivo 1: `src/pages/Approvals.tsx`
+## 1. Ampliar query `pending-operations-d24`
 
-**1.1 Substituir query `pending-operations`**
-- Remover query atual que filtra `operations` por `status IN ('EM_APROVACAO', 'ENCERRAMENTO_SOLICITADO')`.
-- Nova query `pending-operations-d24`:
-  - Primeiro busca `signatures` com `flow_type='OPENING'` para coletar `operation_id` distintos.
-  - Depois busca `operations` com esses IDs, filtrando `status='DRAFT'`, com joins em `warehouses(display_name)` e `pricing_snapshots(payment_date)`.
+Remover o `.eq('status', 'DRAFT')` para trazer todas as operações que tenham assinatura `OPENING`. O filtro de status passa a ser feito no `useMemo` para classificar entre Pendente e Assinada-por-mim.
 
-**1.2 Remover query `pending-hedge-orders`**
-- Remover por completo a query e a variável `hedgeOrders`.
+```ts
+const { data: operations = [] } = useQuery({
+  queryKey: ['pending-operations-d24'],
+  staleTime: 0,
+  queryFn: async () => {
+    const { data: sigs } = await (supabase as any)
+      .from('signatures').select('operation_id').eq('flow_type', 'OPENING');
+    const ids = [...new Set((sigs ?? []).map((s: any) => s.operation_id as string))];
+    if (!ids.length) return [];
+    const { data, error } = await (supabase as any)
+      .from('operations')
+      .select('*, warehouses(display_name), pricing_snapshots(payment_date)')
+      .in('id', ids);
+    if (error) throw error;
+    return data ?? [];
+  },
+});
+```
 
-**1.3 Atualizar query `pending-signatures`**
-- Trocar `.from('signatures')` por `.from('signatures' as any)` e remover o join `signer:users(full_name)` (não é mais usado nas linhas).
+## 2. Reestruturar `useMemo` em duas listas
 
-**1.4 Reescrever `useMemo rows`**
-- Não mais procurar por `ho` em `hedgeOrders`. Derivar tudo direto de `op`:
-  - `displayCode` = `op.display_code ?? op.id.slice(0,8)`
-  - `warehouse` = `op.warehouses?.display_name`
-  - `paymentDate` = `op.pricing_snapshots?.payment_date`
-  - `volumeSacks` = `op.volume_sacks`
-  - `valueBRL` = `volumeSacks * op.origination_price_brl`
-  - `isClosing` = `false`
-- Filtrar assinaturas com `decision === 'APPROVE'` para `userAlreadySigned`.
-- Manter filtro final `!userAlreadySigned && availableForUser.length > 0`.
+- `pendingRows`: operações `DRAFT` onde o usuário ainda não assinou e tem papel disponível (lógica atual).
+- `signedRows`: operações com assinatura OPENING `APPROVE` do usuário logado (qualquer status).
 
-**1.5 Reescrever `handleSign`**
-- Inserir em `signatures` com campos D24: `flow_type: 'OPENING'`, `decision: 'APPROVE'`, `notes`, `signed_at`.
-- Remover update de `operations.status` (não há mais `APROVADA` no D24). Apenas mostrar toast indicando que todas as assinaturas foram coletadas quando `allSigned` for verdadeiro.
-- Invalidar queries: `pending-signatures`, `pending-operations-d24`, `signatures-for-ops`, `pending-approvals-count`.
+Cada row mantém os mesmos campos (warehouse, commodity, volumeSacks, valueBRL, paymentDate, collected, missing, required, displayCode, operationId), além de `status` para badge na seção "Assinadas".
 
-**1.6 Reescrever `handleReject`**
-- Remover update em `hedge_orders` por completo.
-- Update em `operations`: `status='CANCELLED'`, `cancellation_reason`, `cancelled_at`, `cancelled_by`.
-- Insert em `signatures` com `flow_type: 'OPENING'`, `decision: 'REJECT'`, `notes`.
-- Invalidar queries D24 (sem `hedge-orders`).
+## 3. Filtros
 
-### Arquivo 2: `src/hooks/usePendingApprovalsCount.ts`
+Adicionar estados:
+```ts
+const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
+const [filterCommodity, setFilterCommodity] = useState<string>('all');
+const [filterPaymentFrom, setFilterPaymentFrom] = useState<string>('');
+const [filterPaymentTo, setFilterPaymentTo] = useState<string>('');
+```
 
-**2.1 Reescrever `queryFn`**
-- Remover a busca por `hedge_orders` por completo.
-- Buscar `users.roles` e `approval_policies` ativa em paralelo.
-- Buscar `signatures` com `flow_type='OPENING'` para descobrir IDs de operações em fluxo.
-- Buscar `operations` com esses IDs filtrando `status='DRAFT'` e todas as `signatures` daqueles IDs (em paralelo).
-- Para cada operação, considerar apenas assinaturas com `decision='APPROVE'` no cálculo de `collected`/`userAlreadySigned`.
-- Calcular `volumeTons` direto de `op.volume_sacks` (não mais `ho.volume_sacks`).
-- Manter mesma lógica de matching de roles e contagem.
+Derivar `warehouseOptions` e `commodityOptions` distintas a partir de `pendingRows ∪ signedRows`.
 
-### Restrições aplicadas
-- Apenas dois arquivos modificados.
-- Nenhum novo hook ou Edge Function.
-- Casts `as any` para `signatures`/`operations` quando necessário (tipos podem estar desatualizados).
-- Helpers `KG_PER_SACK`, `ROLES_TIERS`, `countBy`, `getMissingRoles`, `getRequiredRoles`, `allSigned` permanecem inalterados.
-- UI da tabela e dos diálogos permanece idêntica — apenas a fonte dos dados muda.
+Aplicar a mesma função `applyFilters(rows)` para gerar `filteredPending` e `filteredSigned`.
+
+UI dos filtros: Card acima dos dois resultados, com Select (Praça), Select (Commodity), Input type=date (de) e Input type=date (até), além de botão "Limpar".
+
+## 4. UI
+
+- Substituir referências de `rows` por `filteredPending` no Card "Pendentes".
+- Novo Card "Assinadas por mim ({filteredSigned.length})" abaixo, com tabela read-only (sem coluna Ação, linhas com `opacity-70`) e badge de status.
+
+## Restrições
+- Apenas `src/pages/Approvals.tsx`.
+- Sem hooks ou Edge Functions novos.
+- Casts `as any` mantidos.
