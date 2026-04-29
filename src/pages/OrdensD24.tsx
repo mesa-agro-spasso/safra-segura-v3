@@ -299,7 +299,7 @@ const OrdensD24: React.FC = () => {
               <MultiSelect label="Praça" options={pracaOptions} selected={praca} onChange={setPraca} />
               <MultiSelect label="Commodity" options={COMMODITY_OPTIONS} selected={commodity} onChange={setCommodity} />
               <MultiSelect label="Operação" options={operationOptions} selected={operacao} onChange={setOperacao} />
-              <MultiSelect label="Status" options={STATUS_OPTIONS.map(s => ({ value: s, label: s }))} selected={status} onChange={setStatus} />
+              
             </div>
           </CardContent>
         )}
