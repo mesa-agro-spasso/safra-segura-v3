@@ -1836,19 +1836,17 @@ const OperacoesD24: React.FC = () => {
       </Dialog>
 
       {/* ── Register Execution Dialog (placeholder) ── */}
-      <Dialog open={!!registerExecutionOp} onOpenChange={(o) => { if (!o) setRegisterExecutionOp(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Registrar Execução — {registerExecutionOp?.warehouses?.display_name ?? '—'}</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Funcionalidade de registro de execução será implementada na próxima etapa.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRegisterExecutionOp(null)}>Fechar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RegisterExecutionModal
+        operation={registerExecutionOp}
+        userId={user?.id ?? null}
+        onClose={() => setRegisterExecutionOp(null)}
+        onExecuted={() => {
+          queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+          queryClient.invalidateQueries({ queryKey: ['operations'] });
+          setRegisterExecutionOp(null);
+          toast.success('Execução registrada — operação avançada para ACTIVE');
+        }}
+      />
     </div>
   );
 };
