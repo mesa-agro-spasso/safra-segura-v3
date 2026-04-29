@@ -217,118 +217,50 @@ const OrdensD24: React.FC = () => {
 
   // ── Filtering + sort
   const filtered = useMemo(() => {
-    const list = orders.filter(order => {
+    const list = (orders as any[]).filter((order: any) => {
       const op = opById.get(order.operation_id);
       // Praça
       if (praca.size > 0) {
         if (!op || !praca.has(op.warehouse_id)) return false;
       }
-      // Commodity (commodity|exchange)
+      // Commodity (commodity|exchange) — derived from operation
       if (commodity.size > 0) {
-        const key = `${order.commodity}|${order.exchange.toLowerCase()}`;
+        const key = `${op?.commodity}|${((op as any)?.exchange ?? 'cbot').toLowerCase()}`;
         if (!commodity.has(key)) return false;
       }
       // Operação
       if (operacao.size > 0) {
         if (!operacao.has(order.operation_id)) return false;
       }
-      // Status
-      if (status.size > 0) {
-        if (!status.has(order.status)) return false;
-      }
       return true;
     });
 
-    return [...list].sort((a, b) => {
-      const diff = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
-      if (diff !== 0) return diff;
+    return [...list].sort((a: any, b: any) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [orders, opById, praca, commodity, operacao, status]);
+  }, [orders, opById, praca, commodity, operacao]);
 
   // ── Filter actions
   const selectAll = () => {
     setPraca(new Set(pracaOptions.map(o => o.value)));
     setCommodity(new Set(COMMODITY_OPTIONS.map(o => o.value)));
     setOperacao(new Set(operationOptions.map(o => o.value)));
-    setStatus(new Set(STATUS_OPTIONS));
   };
   const clearAll = () => {
-    setPraca(new Set()); setCommodity(new Set()); setOperacao(new Set()); setStatus(new Set());
+    setPraca(new Set()); setCommodity(new Set()); setOperacao(new Set());
   };
 
-  // ── Direct status transitions
-  const transition = async (order: HedgeOrder, newStatus: string) => {
-    try {
-      await updateOrder.mutateAsync({ id: order.id, status: newStatus } as never);
-      toast.success(`Ordem ${order.display_code ?? order.id.slice(0, 8)}${newStatus === 'SENT' ? ' enviada' : ' aprovada'}`);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`Falha: ${msg}`);
-    }
-  };
+  // D24: ordens são imutáveis — sem ações de transição.
+  const renderActions = (_order: any) => null;
 
-  // ── Cancel / Reject submit
-  const submitReason = async () => {
-    if (!reasonModal || !reasonText.trim()) return;
-    const { order, mode } = reasonModal;
-    const reason = mode === 'reject' ? `[Rejeição] ${reasonText.trim()}` : reasonText.trim();
-    try {
-      await updateOrder.mutateAsync({
-        id: order.id,
-        status: 'CANCELLED',
-        cancellation_reason: reason,
-        cancelled_at: new Date().toISOString(),
-        cancelled_by: user?.id,
-      } as never);
-      toast.success(`Ordem ${order.display_code ?? order.id.slice(0, 8)} ${mode === 'reject' ? 'rejeitada' : 'cancelada'}`);
-      setReasonModal(null); setReasonText('');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`Falha: ${msg}`);
-    }
-  };
-
-  const renderActions = (order: HedgeOrder) => {
-    const stop = (e: React.MouseEvent) => e.stopPropagation();
-    if (order.status === 'GENERATED') {
-      return (
-        <div className="flex gap-1 justify-end" onClick={stop}>
-          <Button size="sm" variant="default" onClick={() => transition(order, 'SENT')}>Enviar</Button>
-          <Button size="sm" variant="destructive" onClick={() => { setReasonModal({ order, mode: 'cancel' }); setReasonText(''); }}>Cancelar</Button>
-        </div>
-      );
-    }
-    if (order.status === 'SENT') {
-      return (
-        <div className="flex gap-1 justify-end" onClick={stop}>
-          <Button size="sm" variant="default" onClick={() => transition(order, 'APPROVED')}>Aprovar</Button>
-          <Button size="sm" variant="destructive" onClick={() => { setReasonModal({ order, mode: 'reject' }); setReasonText(''); }}>Rejeitar</Button>
-        </div>
-      );
-    }
-    if (order.status === 'APPROVED') {
-      return (
-        <div className="flex gap-1 justify-end" onClick={stop}>
-          <Button size="sm" variant="default" onClick={() => setExecuteOrder(order)}>Executar</Button>
-          <Button size="sm" variant="destructive" onClick={() => { setReasonModal({ order, mode: 'cancel' }); setReasonText(''); }}>Cancelar</Button>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const legsSummary = (order: HedgeOrder): string => {
-    const legs = (order.legs ?? []) as Array<Record<string, unknown>>;
-    if (!legs.length) return '--';
-    return legs.map(l => `${l.leg_type ?? '?'}(${l.direction ?? '?'})`).join(' + ');
+  const legsSummary = (order: any): string => {
+    return `${order.instrument_type}(${order.direction})`;
   };
 
   const activeFiltersCount =
     (praca.size > 0 ? 1 : 0) +
     (commodity.size > 0 ? 1 : 0) +
-    (operacao.size > 0 ? 1 : 0) +
-    (status.size > 0 ? 1 : 0);
+    (operacao.size > 0 ? 1 : 0);
 
   return (
     <div className="p-6 space-y-6">
