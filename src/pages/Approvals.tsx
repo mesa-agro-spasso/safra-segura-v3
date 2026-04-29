@@ -17,6 +17,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { AlertCircle } from 'lucide-react';
 
 const KG_PER_SACK = 60;
@@ -78,6 +79,12 @@ export default function Approvals() {
   const [rejecting, setRejecting] = useState<SigningTarget | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  // Filtros
+  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
+  const [filterCommodity, setFilterCommodity] = useState<string>('all');
+  const [filterPaymentFrom, setFilterPaymentFrom] = useState<string>('');
+  const [filterPaymentTo, setFilterPaymentTo] = useState<string>('');
+
   // 1. Roles do usuário logado
   const { data: userRoles = [] } = useQuery({
     queryKey: ['current-user-roles', user?.id],
@@ -121,8 +128,7 @@ export default function Approvals() {
       const { data, error } = await (supabase as any)
         .from('operations')
         .select('*, warehouses(display_name), pricing_snapshots(payment_date)')
-        .in('id', ids)
-        .eq('status', 'DRAFT');
+        .in('id', ids);
       if (error) throw error;
       return data ?? [];
     },
@@ -150,44 +156,84 @@ export default function Approvals() {
 
   const effectivePolicy = policy ?? { threshold_x_tons: Infinity, threshold_y_tons: 0 };
 
-  const rows = useMemo(() => {
-    return operations
-      .map((op: any) => {
-        const opSignatures = signatures.filter((s: any) => s.operation_id === op.id);
-        const collected = opSignatures.map((s: any) => s.role_used);
-        const userAlreadySigned = opSignatures.some(
-          (s: any) => s.user_id === user?.id && s.decision === 'APPROVE'
-        );
+  const allRows = useMemo(() => {
+    return operations.map((op: any) => {
+      const opSignatures = signatures.filter((s: any) => s.operation_id === op.id);
+      const collected = opSignatures.map((s: any) => s.role_used);
+      const userAlreadySigned = opSignatures.some(
+        (s: any) => s.user_id === user?.id && s.decision === 'APPROVE'
+      );
 
-        const volumeSacks = Number(op.volume_sacks ?? 0);
-        const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
-        const required = getRequiredRoles(volumeTons, effectivePolicy as any);
-        const missing = getMissingRoles(required, collected);
-        const availableForUser = userRoles.filter((r) => missing.includes(r));
+      const volumeSacks = Number(op.volume_sacks ?? 0);
+      const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
+      const required = getRequiredRoles(volumeTons, effectivePolicy as any);
+      const missing = getMissingRoles(required, collected);
+      const availableForUser = userRoles.filter((r) => missing.includes(r));
 
-        const originationPrice = Number(op.origination_price_brl ?? 0);
-        const valueBRL = volumeSacks * originationPrice;
+      const originationPrice = Number(op.origination_price_brl ?? 0);
+      const valueBRL = volumeSacks * originationPrice;
 
-        return {
-          operationId: op.id,
-          displayCode: op.display_code ?? op.id.slice(0, 8),
-          isClosing: false,
-          warehouse: op.warehouses?.display_name ?? '—',
-          commodity: op.commodity,
-          volumeSacks,
-          valueBRL,
-          paymentDate: op.pricing_snapshots?.payment_date ?? null,
-          collected,
-          required,
-          missing,
-          availableForUser,
-          userAlreadySigned,
-        };
-      })
-      .filter((r) => !r.userAlreadySigned && r.availableForUser.length > 0);
+      return {
+        operationId: op.id,
+        displayCode: op.display_code ?? op.id.slice(0, 8),
+        isClosing: false,
+        status: op.status as string,
+        warehouse: op.warehouses?.display_name ?? '—',
+        commodity: op.commodity as string,
+        volumeSacks,
+        valueBRL,
+        paymentDate: (op.pricing_snapshots?.payment_date ?? null) as string | null,
+        collected,
+        required,
+        missing,
+        availableForUser,
+        userAlreadySigned,
+      };
+    });
   }, [operations, signatures, userRoles, effectivePolicy, user?.id]);
 
-  const openSign = (row: (typeof rows)[number]) => {
+  const pendingRows = useMemo(
+    () => allRows.filter((r) => r.status === 'DRAFT' && !r.userAlreadySigned && r.availableForUser.length > 0),
+    [allRows]
+  );
+
+  const signedRows = useMemo(
+    () => allRows.filter((r) => r.userAlreadySigned),
+    [allRows]
+  );
+
+  const warehouseOptions = useMemo(() => {
+    const set = new Set<string>();
+    allRows.forEach((r) => r.warehouse && set.add(r.warehouse));
+    return Array.from(set).sort();
+  }, [allRows]);
+
+  const commodityOptions = useMemo(() => {
+    const set = new Set<string>();
+    allRows.forEach((r) => r.commodity && set.add(r.commodity));
+    return Array.from(set).sort();
+  }, [allRows]);
+
+  const applyFilters = (list: typeof allRows) =>
+    list.filter((r) => {
+      if (filterWarehouse !== 'all' && r.warehouse !== filterWarehouse) return false;
+      if (filterCommodity !== 'all' && r.commodity !== filterCommodity) return false;
+      if (filterPaymentFrom && (!r.paymentDate || r.paymentDate < filterPaymentFrom)) return false;
+      if (filterPaymentTo && (!r.paymentDate || r.paymentDate > filterPaymentTo)) return false;
+      return true;
+    });
+
+  const filteredPending = useMemo(() => applyFilters(pendingRows), [pendingRows, filterWarehouse, filterCommodity, filterPaymentFrom, filterPaymentTo]);
+  const filteredSigned = useMemo(() => applyFilters(signedRows), [signedRows, filterWarehouse, filterCommodity, filterPaymentFrom, filterPaymentTo]);
+
+  const clearFilters = () => {
+    setFilterWarehouse('all');
+    setFilterCommodity('all');
+    setFilterPaymentFrom('');
+    setFilterPaymentTo('');
+  };
+
+  const openSign = (row: (typeof pendingRows)[number]) => {
     setSigning({
       operationId: row.operationId,
       displayCode: row.displayCode,
@@ -199,7 +245,7 @@ export default function Approvals() {
     setNotes('');
   };
 
-  const openReject = (row: (typeof rows)[number]) => {
+  const openReject = (row: (typeof pendingRows)[number]) => {
     setRejecting({
       operationId: row.operationId,
       displayCode: row.displayCode,
@@ -307,10 +353,53 @@ export default function Approvals() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Pendentes</CardTitle>
+          <CardTitle>Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Praça</Label>
+              <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {warehouseOptions.map((w) => (
+                    <SelectItem key={w} value={w}>{w}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Commodity</Label>
+              <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {commodityOptions.map((c) => (
+                    <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Pagamento (de)</Label>
+              <Input type="date" value={filterPaymentFrom} onChange={(e) => setFilterPaymentFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Pagamento (até)</Label>
+              <Input type="date" value={filterPaymentTo} onChange={(e) => setFilterPaymentTo(e.target.value)} />
+            </div>
+            <Button variant="outline" onClick={clearFilters}>Limpar</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pendentes ({filteredPending.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredPending.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">
               Nenhuma operação aguardando sua assinatura.
             </p>
@@ -329,7 +418,7 @@ export default function Approvals() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
+                {filteredPending.map((row) => (
                   <TableRow key={row.operationId}>
                     <TableCell className="font-mono text-xs">
                       <div className="flex items-center gap-2">
@@ -370,6 +459,65 @@ export default function Approvals() {
                         <Button size="sm" variant="destructive" onClick={() => openReject(row)}>
                           Recusar
                         </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Assinadas por mim ({filteredSigned.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredSigned.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              Você ainda não assinou nenhuma operação.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Praça</TableHead>
+                  <TableHead>Commodity</TableHead>
+                  <TableHead className="text-right">Volume (sacas)</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead>Data Pagamento</TableHead>
+                  <TableHead>Assinaturas</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSigned.map((row) => (
+                  <TableRow key={row.operationId} className="opacity-70">
+                    <TableCell className="font-mono text-xs">{row.displayCode}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{row.status}</Badge>
+                    </TableCell>
+                    <TableCell>{row.warehouse}</TableCell>
+                    <TableCell className="capitalize">{row.commodity}</TableCell>
+                    <TableCell className="text-right">
+                      {row.volumeSacks.toLocaleString('pt-BR')}
+                    </TableCell>
+                    <TableCell className="text-right">{formatBRL(row.valueBRL)}</TableCell>
+                    <TableCell>{formatDate(row.paymentDate)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {row.collected.map((r, i) => (
+                          <Badge key={`c-${i}`} className="bg-emerald-600 hover:bg-emerald-600/90 text-primary-foreground">
+                            {r}
+                          </Badge>
+                        ))}
+                        {row.missing.map((r, i) => (
+                          <Badge key={`m-${i}`} variant="outline" className="text-muted-foreground">
+                            {r}
+                          </Badge>
+                        ))}
                       </div>
                     </TableCell>
                   </TableRow>
