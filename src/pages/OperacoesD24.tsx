@@ -1209,9 +1209,11 @@ const OperacoesD24: React.FC = () => {
                   </TableHeader>
                   <TableBody>
                     {displayResults.map((r, i) => {
-                      const matched = orders?.find(o => o.operation_id === r.operation_id);
-                      const ps = matched?.operation?.pricing_snapshots;
-                      const wName = matched?.operation?.warehouses?.display_name ?? '—';
+                      const matched = (operations ?? []).find(
+                        op => op.id === (r.operation_id as string)
+                      );
+                      const ps = (matched as any)?.pricing_snapshots;
+                      const wName = (matched as any)?.warehouses?.display_name ?? '—';
                       const total = (r.mtm_total_brl as number) ?? 0;
                       const physInput = physicalPrices[r.operation_id as string];
                       const physVal = physInput
@@ -1288,9 +1290,9 @@ const OperacoesD24: React.FC = () => {
                         : opAny.commodity === 'corn' ? 'Milho' : (opAny.commodity ?? '—');
                       return (
                         <TableRow key={op.id}>
-                          <TableCell className="font-mono text-xs">{op.id.slice(0, 8)}</TableCell>
+                          <TableCell className="font-mono text-xs">{(op as any).display_code ?? op.id.slice(0, 8)}</TableCell>
                           <TableCell>{op.warehouses?.display_name ?? '—'}</TableCell>
-                          <TableCell>{commodityLabel}</TableCell>
+                          <TableCell>{op.commodity === 'soybean' ? 'Soja' : 'Milho'}</TableCell>
                           <TableCell>{Number(op.volume_sacks ?? 0).toLocaleString('pt-BR')}</TableCell>
                           <TableCell>R$ {Number(opAny.origination_price_brl ?? 0).toFixed(2)}</TableCell>
                           <TableCell>
