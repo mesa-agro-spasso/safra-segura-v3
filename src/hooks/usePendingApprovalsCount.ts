@@ -41,42 +41,48 @@ export function usePendingApprovalsCount() {
     enabled: !!user?.id,
     refetchInterval: 30_000,
     queryFn: async () => {
-      const [{ data: userRow }, { data: policy }, { data: ops }] = await Promise.all([
+      const [{ data: userRow }, { data: policy }] = await Promise.all([
         supabase.from('users').select('roles').eq('id', user!.id).maybeSingle(),
         supabase.from('approval_policies').select('*').eq('is_active', true).maybeSingle(),
-        supabase.from('operations').select('id, volume_sacks').eq('status', 'EM_APROVACAO'),
       ]);
 
       const userRoles = (userRow?.roles ?? []) as string[];
-      const operations = ops ?? [];
-      if (!userRoles.length || !operations.length) return 0;
+      if (!userRoles.length) return 0;
 
-      const operationIds = operations.map((o: any) => o.id);
+      const { data: sigs } = await (supabase as any)
+        .from('signatures')
+        .select('operation_id')
+        .eq('flow_type', 'OPENING');
+      const ids = [...new Set((sigs ?? []).map((s: any) => s.operation_id))] as string[];
+      if (!ids.length) return 0;
 
-      const [{ data: hedgeOrders }, { data: signatures }] = await Promise.all([
+      const [{ data: ops }, { data: allSigs }] = await Promise.all([
         (supabase as any)
-          .from('hedge_orders')
-          .select('operation_id, volume_sacks, status')
-          .in('operation_id', operationIds)
-          .neq('status', 'CANCELLED'),
-        supabase
+          .from('operations')
+          .select('id, volume_sacks')
+          .in('id', ids)
+          .eq('status', 'DRAFT'),
+        (supabase as any)
           .from('signatures')
-          .select('operation_id, role_used, user_id')
-          .in('operation_id', operationIds),
+          .select('operation_id, role_used, user_id, decision')
+          .in('operation_id', ids),
       ]);
+
+      const operations = ops ?? [];
+      if (!operations.length) return 0;
 
       const effectivePolicy = policy ?? { threshold_x_tons: Infinity, threshold_y_tons: 0 };
 
       let count = 0;
       for (const op of operations as any[]) {
-        const ho = (hedgeOrders ?? []).find((h: any) => h.operation_id === op.id);
-        if (!ho) continue;
-        const opSigs = (signatures ?? []).filter((s: any) => s.operation_id === op.id);
+        const opSigs = (allSigs ?? []).filter(
+          (s: any) => s.operation_id === op.id && s.decision === 'APPROVE'
+        );
         const userAlreadySigned = opSigs.some((s: any) => s.user_id === user!.id);
         if (userAlreadySigned) continue;
 
         const collected = opSigs.map((s: any) => s.role_used);
-        const volumeSacks = Number(ho?.volume_sacks ?? op.volume_sacks ?? 0);
+        const volumeSacks = Number(op.volume_sacks ?? 0);
         const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
         const required = getRequiredRoles(volumeTons, effectivePolicy as any);
         const missing = getMissingRoles(required, collected);
