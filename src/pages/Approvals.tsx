@@ -122,8 +122,7 @@ export default function Approvals() {
       const { data, error } = await (supabase as any)
         .from('operations')
         .select('*, warehouses(display_name), pricing_snapshots(payment_date)')
-        .in('id', ids)
-        .eq('status', 'DRAFT');
+        .in('id', ids);
       if (error) throw error;
       return data ?? [];
     },
