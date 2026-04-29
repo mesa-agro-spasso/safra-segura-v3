@@ -107,16 +107,22 @@ export default function Approvals() {
     },
   });
 
-  // 3. Operações em EM_APROVACAO
+  // 3. Operações DRAFT com assinatura OPENING já enviada (D24)
   const { data: operations = [] } = useQuery({
-    queryKey: ['pending-operations'],
+    queryKey: ['pending-operations-d24'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: sigs, error: sigErr } = await (supabase as any)
+        .from('signatures')
+        .select('operation_id')
+        .eq('flow_type', 'OPENING');
+      if (sigErr) throw sigErr;
+      const ids = [...new Set((sigs ?? []).map((s: any) => s.operation_id))];
+      if (!ids.length) return [];
+      const { data, error } = await (supabase as any)
         .from('operations')
-        .select(
-          '*, pricing_snapshot:pricing_snapshots(payment_date), warehouse:warehouses(display_name)',
-        )
-        .in('status', ['EM_APROVACAO', 'ENCERRAMENTO_SOLICITADO']);
+        .select('*, warehouses(display_name), pricing_snapshots(payment_date)')
+        .in('id', ids)
+        .eq('status', 'DRAFT');
       if (error) throw error;
       return data ?? [];
     },
@@ -124,29 +130,14 @@ export default function Approvals() {
 
   const operationIds = useMemo(() => operations.map((o: any) => o.id), [operations]);
 
-  // 4. Hedge orders
-  const { data: hedgeOrders = [] } = useQuery({
-    queryKey: ['pending-hedge-orders', operationIds],
-    enabled: operationIds.length > 0,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('hedge_orders')
-        .select('operation_id, display_code, origination_price_brl, volume_sacks, status')
-        .in('operation_id', operationIds)
-        .neq('status', 'CANCELLED');
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  // 5. Signatures
+  // 4. Signatures
   const { data: signatures = [] } = useQuery({
     queryKey: ['pending-signatures', operationIds],
     enabled: operationIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('signatures')
-        .select('*, signer:users(full_name)')
+        .select('*')
         .in('operation_id', operationIds);
       if (error) throw error;
       return data ?? [];
