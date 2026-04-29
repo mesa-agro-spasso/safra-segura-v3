@@ -909,62 +909,98 @@ const OperacoesD24: React.FC = () => {
     });
   }, [displayResults, orders]);
 
-  // ── handleCalculate (replicated from OperationsMTM, no simplification)
+  // ── handleCalculate (D24: reads from operations + orders D24)
   const handleCalculate = async () => {
-    if (!orders?.length || !marketData?.length) {
-      toast.error('Dados insuficientes');
-      return;
-    }
+    if (!marketData?.length) { toast.error('Dados de mercado ausentes'); return; }
+    if (!activeOpsForMtm.length) { toast.error('Nenhuma operação ativa'); return; }
+
     setCalculating(true);
     try {
-      const spotFx = marketData.find((m) => m.commodity === 'FX')?.price ?? null;
+      const spotFx = marketData.find(m => m.commodity === 'FX')?.price ?? null;
       const sigmaMap: Record<string, number> = {};
-      pricingParameters?.forEach((p) => { sigmaMap[p.id] = p.sigma; });
+      pricingParameters?.forEach(p => { sigmaMap[p.id] = p.sigma; });
 
-      const positions = await Promise.all(orders.map(async (o) => {
-        const legs = o.legs as {
-          leg_type: string; ticker: string;
-          option_type?: string; strike?: number; expiration_date?: string;
-        }[];
-        const futuresLeg = legs.find((l) => l.leg_type === 'futures');
-        const optionLeg = legs.find((l) => l.leg_type === 'option');
+      const positions = await Promise.all(activeOpsForMtm.map(async (op) => {
+        const opD24 = op as any;
+        const opOrders = (d24Orders ?? []).filter((o: any) => o.operation_id === op.id);
 
-        const futuresPrice = futuresLeg
-          ? (marketData.find((m) => m.ticker === futuresLeg.ticker)?.price ?? 0)
+        const legs = opOrders.map((o: any) => ({
+          leg_type: o.instrument_type,
+          direction: o.direction,
+          currency: o.currency,
+          ticker: o.ticker ?? '',
+          contracts: o.contracts,
+          volume_units: o.volume_units,
+          price: o.price ?? null,
+          ndf_rate: o.ndf_rate ?? null,
+          ndf_maturity: o.ndf_maturity ?? null,
+          option_type: o.option_type ?? null,
+          strike: o.strike ?? null,
+          premium: o.premium ?? null,
+          expiration_date: o.expiration_date ?? null,
+          is_counterparty_insurance: o.is_counterparty_insurance ?? false,
+          unit_label: opD24.exchange?.toLowerCase() === 'b3' ? 'sc' : 'bu',
+        }));
+
+        const futuresLeg = legs.find(l => l.leg_type === 'futures');
+        const optionLeg = legs.find(l => l.leg_type === 'option');
+
+        const futuresPrice = futuresLeg?.ticker
+          ? (marketData.find(m => m.ticker === futuresLeg.ticker)?.price ?? 0)
           : 0;
 
         const fxRate = spotFx ?? 5.0;
-        const BUSHELS_PER_SACK = o.commodity === 'soybean' ? 2.20462 : 2.3622;
-        const F_brl = o.commodity === 'soybean'
+        const BUSHELS_PER_SACK = opD24.commodity === 'soybean' ? 2.20462 : 2.3622;
+        const F_brl = opD24.commodity === 'soybean'
           ? futuresPrice * BUSHELS_PER_SACK * fxRate
           : futuresPrice;
 
         let optionPremiumCurrent: number | null = null;
-
         if (optionLeg?.strike && optionLeg?.expiration_date) {
           const today = new Date();
           const expDate = new Date(optionLeg.expiration_date);
           const T_days = Math.max(1, Math.round((expDate.getTime() - today.getTime()) / 86400000));
-          const sigma = o.commodity === 'soybean'
+          const sigma = opD24.commodity === 'soybean'
             ? (sigmaMap['soybean_cbot'] ?? 0.35)
             : (sigmaMap['corn_b3'] ?? 0.17);
-          const r = 0.149;
           try {
             const premiumResult = await callApi<{ premium: number }>('/pricing/option-premium', {
-              F: F_brl, K: optionLeg.strike, T_days, r, sigma,
+              F: F_brl, K: optionLeg.strike, T_days, r: 0.149, sigma,
               option_type: optionLeg.option_type ?? 'call',
             });
             optionPremiumCurrent = premiumResult?.premium ?? null;
-          } catch (optErr) {
-            toast.error(`Erro ao calcular prêmio de opção: ${optErr instanceof Error ? optErr.message : JSON.stringify(optErr)}`);
-          }
+          } catch { /* non-blocking */ }
         }
 
+        const hedgeOrder = {
+          operation_id: op.id,
+          commodity: opD24.commodity,
+          exchange: opD24.exchange ?? 'cbot',
+          broker: '',
+          broker_account: '',
+          volume_sacks: op.volume_sacks,
+          origination_price_brl: opD24.origination_price_brl ?? 0,
+          futures_price: futuresPrice,
+          futures_price_currency: opD24.exchange?.toLowerCase() === 'b3' ? 'BRL' : 'USD',
+          exchange_rate: spotFx,
+          trade_date: opD24.trade_date ?? '',
+          payment_date: opD24.payment_date ?? '',
+          grain_reception_date: opD24.grain_reception_date ?? opD24.payment_date ?? '',
+          sale_date: opD24.sale_date ?? '',
+          legs,
+          counterparty_insurance: null,
+          pricing_snapshot: {},
+          generated_at: new Date().toISOString(),
+          status: 'EXECUTED',
+          order_message: '',
+          confirmation_message: '',
+        };
+
         return {
-          order: JSON.parse(JSON.stringify(o)),
+          order: hedgeOrder,
           snapshot: {
             futures_price_current: futuresPrice,
-            physical_price_current: parseFloat(physicalPrices[o.operation_id] || '0'),
+            physical_price_current: parseFloat(physicalPrices[op.id] || '0'),
             spot_rate_current: spotFx,
             option_premium_current: optionPremiumCurrent,
           },
