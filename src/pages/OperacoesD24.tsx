@@ -1600,7 +1600,7 @@ const OperacoesD24: React.FC = () => {
                       {operationSignatures.map((s: any) => (
                         <div key={s.id} className="rounded-md border p-3 text-sm space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="font-medium">{s.signer?.full_name ?? (typeof s.user_id === 'string' ? s.user_id.slice(0, 8) : '—')}</span>
+                            <span className="font-medium">{typeof s.user_id === 'string' ? s.user_id.slice(0, 8) : '—'}</span>
                             <Badge variant="outline">{s.decision}</Badge>
                           </div>
                           <div className="text-xs text-muted-foreground">
