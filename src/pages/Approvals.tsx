@@ -79,6 +79,12 @@ export default function Approvals() {
   const [rejecting, setRejecting] = useState<SigningTarget | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  // Filtros
+  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
+  const [filterCommodity, setFilterCommodity] = useState<string>('all');
+  const [filterPaymentFrom, setFilterPaymentFrom] = useState<string>('');
+  const [filterPaymentTo, setFilterPaymentTo] = useState<string>('');
+
   // 1. Roles do usuário logado
   const { data: userRoles = [] } = useQuery({
     queryKey: ['current-user-roles', user?.id],
