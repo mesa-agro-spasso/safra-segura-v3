@@ -169,7 +169,7 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
         operation_id: operation.id,
         instrument_type: leg.instrument_type,
         direction: leg.direction,
-        currency: leg.currency,
+        currency: isNdf ? 'BRL' : leg.currency,
         contracts: qty,
         volume_units: isNdf ? qty : qty * CONTRACT_SIZE,
         executed_at: new Date().toISOString(),
@@ -735,7 +735,7 @@ const OperacoesD24: React.FC = () => {
           flow_type: 'APROVACAO',
           user_id: user.id,
           role_used: 'mesa',
-          decision: 'PENDING',
+          decision: 'APPROVE',
           signed_at: new Date().toISOString(),
         } as never);
       if (error) throw new Error(error.message ?? JSON.stringify(error));
@@ -751,7 +751,12 @@ const OperacoesD24: React.FC = () => {
     try {
       const { error } = await supabase
         .from('operations' as any)
-        .update({ status: 'CANCELLED' })
+        .update({
+          status: 'CANCELLED',
+          cancellation_reason: 'Cancelado pela mesa',
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: user?.id ?? null,
+        })
         .eq('id', op.id);
       if (error) throw new Error(error.message ?? JSON.stringify(error));
       toast.success('Operação cancelada');
