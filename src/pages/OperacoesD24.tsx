@@ -1540,50 +1540,47 @@ const OperacoesD24: React.FC = () => {
                 </Section>
 
                 {/* 4. Plano de Hedge */}
-                <Section title="Plano de Hedge" defaultOpen>
-                  {!isDraft && (
-                    planLegs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Nenhum plano definido.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {planLegs.map((leg: any, i: number) => (
-                          <div key={i} className="rounded-md border p-3 space-y-1 text-sm">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="outline">{leg.instrument_type}</Badge>
-                              <Badge variant="secondary">{leg.direction}</Badge>
-                              <Badge variant="outline">{leg.currency}</Badge>
-                            </div>
-                            <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
-                              {leg.ticker && <Row label="Ticker">{leg.ticker}</Row>}
-                              {leg.contracts != null && <Row label="Contratos">{leg.contracts}</Row>}
-                              {leg.volume_units != null && <Row label="Volume">{Number(leg.volume_units).toLocaleString('pt-BR')}</Row>}
-                              {leg.price_estimated != null && <Row label="Preço estimado">{Number(leg.price_estimated).toFixed(4)}</Row>}
-                              {leg.ndf_rate != null && <Row label="NDF rate">{Number(leg.ndf_rate).toFixed(4)}</Row>}
-                              {leg.ndf_maturity && <Row label="NDF maturity">{fmtDate(leg.ndf_maturity)}</Row>}
-                              {leg.option_type && <Row label="Tipo opção">{leg.option_type}</Row>}
-                              {leg.strike != null && <Row label="Strike">{Number(leg.strike).toFixed(4)}</Row>}
-                              {leg.premium != null && <Row label="Prêmio">{Number(leg.premium).toFixed(4)}</Row>}
-                              {leg.expiration_date && <Row label="Vencimento">{fmtDate(leg.expiration_date)}</Row>}
-                              {leg.notes && <Row label="Notas">{leg.notes}</Row>}
-                            </div>
+                <Section
+                  title="Plano de Hedge"
+                  defaultOpen
+                  action={isDraft ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs"
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditPlanOp(selectedOperation); }}
+                    >
+                      Editar
+                    </Button>
+                  ) : undefined}
+                >
+                  {planLegs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum plano definido.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {planLegs.map((leg: any, i: number) => (
+                        <div key={i} className="rounded-md border p-3 space-y-1 text-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">{leg.instrument_type}</Badge>
+                            <Badge variant="secondary">{leg.direction}</Badge>
+                            <Badge variant="outline">{leg.currency}</Badge>
                           </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-
-                  {isDraft && (
-                    <HedgePlanEditor
-                      operation={selectedOperation}
-                      opD24={opD24}
-                      planLegs={planLegs}
-                      userId={user?.id ?? ''}
-                      onSaved={() => {
-                        queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
-                        queryClient.invalidateQueries({ queryKey: ['operations'] });
-                      }}
-                      copyToClipboard={copyToClipboard}
-                    />
+                          <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                            {leg.ticker && <Row label="Ticker">{leg.ticker}</Row>}
+                            {leg.contracts != null && <Row label="Contratos">{leg.contracts}</Row>}
+                            {leg.volume_units != null && <Row label="Volume">{Number(leg.volume_units).toLocaleString('pt-BR')}</Row>}
+                            {leg.price_estimated != null && <Row label="Preço estimado">{Number(leg.price_estimated).toFixed(4)}</Row>}
+                            {leg.ndf_rate != null && <Row label="NDF rate">{Number(leg.ndf_rate).toFixed(4)}</Row>}
+                            {leg.ndf_maturity && <Row label="NDF maturity">{fmtDate(leg.ndf_maturity)}</Row>}
+                            {leg.option_type && <Row label="Tipo opção">{leg.option_type}</Row>}
+                            {leg.strike != null && <Row label="Strike">{Number(leg.strike).toFixed(4)}</Row>}
+                            {leg.premium != null && <Row label="Prêmio">{Number(leg.premium).toFixed(4)}</Row>}
+                            {leg.expiration_date && <Row label="Vencimento">{fmtDate(leg.expiration_date)}</Row>}
+                            {leg.notes && <Row label="Notas">{leg.notes}</Row>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </Section>
 
