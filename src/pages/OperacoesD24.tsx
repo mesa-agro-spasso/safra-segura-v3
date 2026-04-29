@@ -92,11 +92,11 @@ interface HedgePlanEditorProps {
 }
 
 const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, planLegs, userId, onSaved, copyToClipboard }) => {
-  const [editLegs, setEditLegs] = React.useState<EditableLeg[]>(() =>
+  const [editLegsRaw, setEditLegsRaw] = React.useState<EditableLeg[]>(() =>
     planLegs.map((l: any) => ({
       instrument_type: (l.instrument_type ?? 'futures') as EditableLeg['instrument_type'],
       direction: (l.direction ?? 'sell') as 'buy' | 'sell',
-      currency: l.currency ?? 'USD',
+      currency: l.currency ?? (l.instrument_type === 'ndf' ? 'BRL' : 'USD'),
       ticker: l.ticker ?? '',
       contracts: l.contracts != null ? String(l.contracts) : '',
       price_estimated: l.price_estimated != null ? String(l.price_estimated) : '',
@@ -111,13 +111,19 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
     }))
   );
 
-  const [planValidation, setPlanValidation] = React.useState<{
-    legResults: Array<{ status: 'idle' | 'loading' | 'done' | 'error'; result?: ValidateExecutionResponse; errorMsg?: string }>;
-    newOrderMsg: string | null;
-    newConfirmMsg: string | null;
+  const [messages, setMessages] = React.useState<{
+    order_message: string;
+    confirmation_message: string;
   } | null>(null);
-
+  const [generatingMessages, setGeneratingMessages] = React.useState(false);
   const [savingPlan, setSavingPlan] = React.useState(false);
+
+  // Wrapper: any edit to legs invalidates previously generated messages.
+  const editLegs = editLegsRaw;
+  const setEditLegs: React.Dispatch<React.SetStateAction<EditableLeg[]>> = (updater) => {
+    setEditLegsRaw(updater);
+    setMessages(null);
+  };
 
   const buildLegPayload = (l: EditableLeg) => ({
     instrument_type: l.instrument_type,
@@ -136,67 +142,25 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
     notes: l.notes || undefined,
   });
 
-  const handleValidatePlan = async () => {
-    const initial = editLegs.map(() => ({ status: 'loading' as const }));
-    setPlanValidation({ legResults: initial, newOrderMsg: null, newConfirmMsg: null });
-
-    const opIn: OperationIn = {
-      id: operation.id,
-      warehouse_id: operation.warehouse_id,
-      commodity: opD24.commodity,
-      exchange: opD24.exchange ?? '',
-      volume_sacks: operation.volume_sacks,
-      origination_price_brl: opD24.origination_price_brl ?? 0,
-      trade_date: opD24.trade_date ?? '',
-      payment_date: opD24.payment_date ?? '',
-      grain_reception_date: opD24.grain_reception_date ?? '',
-      sale_date: opD24.sale_date ?? '',
-      status: opD24.status,
-      hedge_plan: [],
-    } as any;
-
-    const exchange = (opD24.exchange ?? 'cbot') as string;
-    const CONTRACT_SIZE = exchange.toLowerCase() === 'b3' ? 450 : 5000;
-
-    const updatedResults: Array<{ status: 'idle' | 'loading' | 'done' | 'error'; result?: ValidateExecutionResponse; errorMsg?: string }> =
-      editLegs.map(() => ({ status: 'loading' as const }));
-
-    for (let i = 0; i < editLegs.length; i++) {
-      const leg = editLegs[i];
-      const isNdf = leg.instrument_type === 'ndf';
-      const qty = parseFloat(leg.contracts) || 0;
-      const newOrder: OrderIn = {
-        operation_id: operation.id,
-        instrument_type: leg.instrument_type,
-        direction: leg.direction,
-        currency: isNdf ? 'BRL' : leg.currency,
-        contracts: qty,
-        volume_units: isNdf ? qty : qty * CONTRACT_SIZE,
-        executed_at: new Date().toISOString(),
-        executed_by: userId || '00000000-0000-0000-0000-000000000000',
-        is_closing: false,
-        ticker: leg.ticker || undefined,
-        price: !isNdf && leg.price_estimated ? parseFloat(leg.price_estimated) : undefined,
-        ndf_rate: isNdf && leg.ndf_rate ? parseFloat(leg.ndf_rate) : undefined,
-        ndf_maturity: leg.ndf_maturity || undefined,
-        option_type: leg.instrument_type === 'option' ? leg.option_type : undefined,
-        strike: leg.strike ? parseFloat(leg.strike) : undefined,
-        premium: leg.premium ? parseFloat(leg.premium) : undefined,
-        expiration_date: leg.expiration_date || undefined,
-        is_counterparty_insurance: leg.is_counterparty_insurance,
-        notes: leg.notes || undefined,
-      } as any;
-      try {
-        const res = await validateExecution(opIn, [], newOrder);
-        updatedResults[i] = { status: 'done', result: res };
-      } catch (e: unknown) {
-        updatedResults[i] = { status: 'error', errorMsg: e instanceof Error ? e.message : String(e) };
-      }
-    }
-
-    let newOrderMsg: string | null = null;
-    let newConfirmMsg: string | null = null;
+  const handleGenerateMessages = async () => {
+    if (generatingMessages) return;
+    setGeneratingMessages(true);
     try {
+      const opIn: OperationIn = {
+        id: operation.id,
+        warehouse_id: operation.warehouse_id,
+        commodity: opD24.commodity,
+        exchange: opD24.exchange ?? '',
+        volume_sacks: operation.volume_sacks,
+        origination_price_brl: opD24.origination_price_brl ?? 0,
+        trade_date: opD24.trade_date ?? '',
+        payment_date: opD24.payment_date ?? '',
+        grain_reception_date: opD24.grain_reception_date ?? '',
+        sale_date: opD24.sale_date ?? '',
+        status: opD24.status,
+        hedge_plan: editLegs.map(buildLegPayload) as any,
+      } as any;
+
       const snap = operation.pricing_snapshots as any;
       const outputs = (snap?.outputs_json ?? {}) as Record<string, unknown>;
       const psIn: PricingSnapshotIn = {
@@ -206,25 +170,27 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
         futures_price_brl: snap?.futures_price_brl ?? undefined,
         exchange_rate: snap?.exchange_rate ?? undefined,
       } as any;
-      const planIn: OperationIn = { ...opIn, hedge_plan: editLegs.map(buildLegPayload) as any };
-      const resp = await buildHedgePlan(planIn, psIn);
-      newOrderMsg = resp.order_message;
-      newConfirmMsg = resp.confirmation_message;
-    } catch (e) {
-      toast.error('Erro ao regenerar mensagens: ' + (e instanceof Error ? e.message : String(e)));
-    }
 
-    setPlanValidation({ legResults: updatedResults, newOrderMsg, newConfirmMsg });
+      const resp = await buildHedgePlan(opIn, psIn);
+      setMessages({
+        order_message: resp.order_message,
+        confirmation_message: resp.confirmation_message,
+      });
+    } catch (e) {
+      toast.error('Erro ao gerar mensagens: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setGeneratingMessages(false);
+    }
   };
 
   const handleSavePlan = async () => {
-    if (!planValidation || savingPlan) return;
+    if (!messages || savingPlan) return;
     setSavingPlan(true);
     try {
       const newHedgePlan = {
         plan: editLegs.map(buildLegPayload),
-        order_message: planValidation.newOrderMsg,
-        confirmation_message: planValidation.newConfirmMsg,
+        order_message: messages.order_message,
+        confirmation_message: messages.confirmation_message,
       };
       const { error } = await supabase
         .from('operations' as any)
@@ -234,7 +200,7 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
       toast.success('Plano salvo');
       onSaved();
       setSavingPlan(false);
-      setPlanValidation(null);
+      setMessages(null);
     } catch (e) {
       toast.error('Erro ao salvar: ' + (e instanceof Error ? e.message : String(e)));
       setSavingPlan(false);
@@ -371,45 +337,6 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
             </div>
           </div>
 
-          {planValidation?.legResults?.[i] && (() => {
-            const v = planValidation.legResults?.[i];
-            if (!v) return null;
-            if (v.status === 'loading') return <p className="text-xs text-muted-foreground">Validando...</p>;
-            if (v.status === 'error') return (
-              <div className="rounded border border-red-500 bg-red-500/10 text-red-400 px-2 py-1 text-xs">{v.errorMsg}</div>
-            );
-            if (v.status === 'done' && v.result) {
-              const hasError = (v.result.structural_errors?.length ?? 0) > 0
-                || v.result.business_alerts?.some(a => a.level === 'ERROR');
-              return (
-                <div className="space-y-1">
-                  {v.result.structural_errors?.map((e, k) => (
-                    <div key={`s${k}`} className="rounded border border-red-500 bg-red-500/10 text-red-400 px-2 py-1 text-xs flex items-start gap-1">
-                      <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" /><span>{e}</span>
-                    </div>
-                  ))}
-                  {v.result.business_alerts?.map((a, k) => {
-                    const cls = a.level === 'ERROR'
-                      ? 'border-red-500 bg-red-500/10 text-red-400'
-                      : a.level === 'WARNING'
-                      ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
-                      : 'border-blue-500 bg-blue-500/10 text-blue-400';
-                    return (
-                      <div key={`b${k}`} className={`rounded border ${cls} px-2 py-1 text-xs flex items-start gap-1`}>
-                        <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" /><span>{a.message}</span>
-                      </div>
-                    );
-                  })}
-                  {v.result.is_valid && !hasError && (
-                    <div className="rounded border border-green-500 bg-green-500/10 text-green-400 px-2 py-1 text-xs flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Leg válida
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            return null;
-          })()}
         </div>
       ))}
 
@@ -417,44 +344,36 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
         <Plus className="h-3 w-3 mr-1" /> Adicionar Perna
       </Button>
 
-      {planValidation?.newOrderMsg && (
+      {messages?.order_message && (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-muted-foreground">Mensagem da Ordem (regenerada)</span>
-            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(planValidation.newOrderMsg!)}>
+            <span className="text-xs font-semibold text-muted-foreground">Mensagem da Ordem</span>
+            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(messages.order_message)}>
               <Copy className="h-3 w-3" />
             </Button>
           </div>
-          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{planValidation.newOrderMsg}</pre>
+          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{messages.order_message}</pre>
         </div>
       )}
-      {planValidation?.newConfirmMsg && (
+      {messages?.confirmation_message && (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-muted-foreground">Confirmação (regenerada)</span>
-            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(planValidation.newConfirmMsg!)}>
+            <span className="text-xs font-semibold text-muted-foreground">Confirmação</span>
+            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(messages.confirmation_message)}>
               <Copy className="h-3 w-3" />
             </Button>
           </div>
-          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{planValidation.newConfirmMsg}</pre>
+          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{messages.confirmation_message}</pre>
         </div>
       )}
 
       <div className="flex gap-2 pt-2">
-        <Button size="sm" variant="outline" onClick={handleValidatePlan}
-          disabled={editLegs.length === 0 || (planValidation?.legResults.some(v => v.status === 'loading') ?? false)}>
-          Validar Plano
+        <Button size="sm" variant="outline" onClick={handleGenerateMessages}
+          disabled={editLegs.length === 0 || generatingMessages}>
+          {generatingMessages ? 'Gerando...' : 'Gerar Mensagens'}
         </Button>
         <Button size="sm" onClick={handleSavePlan}
-          disabled={
-            savingPlan
-            || !planValidation
-            || planValidation.legResults.some(v => v.status !== 'done')
-            || planValidation.legResults.some(v =>
-              (v.result?.structural_errors?.length ?? 0) > 0
-              || (v.result?.business_alerts?.some(a => a.level === 'ERROR') ?? false)
-            )
-          }>
+          disabled={savingPlan || !messages}>
           {savingPlan ? 'Salvando...' : 'Salvar Plano'}
         </Button>
       </div>
