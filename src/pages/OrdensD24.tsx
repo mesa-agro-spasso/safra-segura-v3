@@ -183,6 +183,9 @@ const OrdensD24: React.FC = () => {
   const { data: warehouses = [] } = useActiveArmazens();
   const { data: operationsRaw = [] } = useOperations();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { data: marketData = [] } = useMarketData();
+  const [closingOrder, setClosingOrder] = useState<any | null>(null);
 
   const operations = operationsRaw as OperationRow[];
 
