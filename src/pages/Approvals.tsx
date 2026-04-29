@@ -234,25 +234,25 @@ export default function Approvals() {
         .neq('status', 'CANCELLED');
       if (orderError) throw orderError;
 
-      const { error: opError } = await supabase
+      const { error: opError } = await (supabase as any)
         .from('operations')
         .update({
           status: 'CANCELADA',
           rejection_reason: reason,
           rejected_by: user.id,
           rejected_at: nowIso,
-        })
+        } as never)
         .eq('id', rejecting.operationId);
       if (opError) throw opError;
 
-      const { error: sigError } = await supabase.from('signatures').insert({
+      const { error: sigError } = await (supabase as any).from('signatures').insert({
         operation_id: rejecting.operationId,
         user_id: user.id,
         role_used: rejecting.available[0],
         signature_type: 'REPROVACAO',
         notes: reason,
         signed_at: nowIso,
-      });
+      } as never);
       if (sigError) throw sigError;
 
       toast.success('Operação recusada');
@@ -273,14 +273,14 @@ export default function Approvals() {
     if (!signing || !selectedRole || !user) return;
     setSubmitting(true);
     try {
-      const { error: insertError } = await supabase.from('signatures').insert({
+      const { error: insertError } = await (supabase as any).from('signatures').insert({
         operation_id: signing.operationId,
         user_id: user.id,
         role_used: selectedRole,
         signature_type: 'APROVACAO',
         notes: notes || null,
         signed_at: new Date().toISOString(),
-      });
+      } as never);
       if (insertError) throw insertError;
 
       const newCollected = [...signing.collected, selectedRole];
