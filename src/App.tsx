@@ -17,6 +17,7 @@ import OrdensD24 from "./pages/OrdensD24";
 import Approvals from "./pages/Approvals";
 import Operations from "./pages/Operations";
 import OperationsMTM from "./pages/OperationsMTM";
+import OperacoesD24 from "./pages/OperacoesD24";
 import MTM from "./pages/MTM";
 import Market from "./pages/Market";
 import Settings from "./pages/Settings";
@@ -43,6 +44,7 @@ const App = () => (
               <Route path="/ordens-d24" element={<OrdensD24 />} />
               <Route path="/aprovacoes" element={<Approvals />} />
               <Route path="/operacoes-mtm" element={<OperationsMTM />} />
+              <Route path="/operacoes-d24" element={<OperacoesD24 />} />
               <Route path="/operacoes" element={<Operations />} />
               <Route path="/mtm" element={<MTM />} />
               <Route path="/mercado" element={<Market />} />
