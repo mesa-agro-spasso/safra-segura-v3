@@ -116,7 +116,7 @@ export default function Approvals() {
         .select('operation_id')
         .eq('flow_type', 'OPENING');
       if (sigErr) throw sigErr;
-      const ids = [...new Set((sigs ?? []).map((s: any) => s.operation_id))];
+      const ids = [...new Set((sigs ?? []).map((s: any) => s.operation_id as string))];
       if (!ids.length) return [];
       const { data, error } = await (supabase as any)
         .from('operations')
@@ -126,9 +126,13 @@ export default function Approvals() {
       if (error) throw error;
       return data ?? [];
     },
+    staleTime: 0,
   });
 
-  const operationIds = useMemo(() => operations.map((o: any) => o.id), [operations]);
+  const operationIds = useMemo(
+    () => (operations as any[]).map((o: any) => o.id as string),
+    [operations]
+  );
 
   // 4. Signatures
   const { data: signatures = [] } = useQuery({
