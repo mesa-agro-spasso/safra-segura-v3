@@ -1,51 +1,35 @@
-# Migrar aba MTM para orders D24
+## Migrar `handleCalculate` para `/mtm/run-d24`
 
-## Problema
-A aba MTM em `src/pages/OperacoesD24.tsx` consome `useHedgeOrders({ status: 'EXECUTED' })`, que aponta para a tabela legada `hedge_orders` (vazia/inexistente no fluxo D24). Por isso, operações `ACTIVE`/`PARTIALLY_CLOSED` nunca aparecem para cálculo de MTM, mesmo após "Registrar Execução".
+Único arquivo tocado: `src/pages/OperacoesD24.tsx`.
 
-## Escopo
-Apenas `src/pages/OperacoesD24.tsx`. Nenhum hook novo, nenhuma Edge Function nova, nenhum outro arquivo tocado.
+### Mudança
 
-## Mudanças
+Substituir o corpo da função `handleCalculate` (linhas 913–1047) — que monta um `HedgeOrder` legado e chama `/mtm/run` — por uma versão que:
 
-### 1. Nova query `d24Orders`
-Adicionar junto às demais queries (após linha ~561), buscando todas as `orders` abertas (`is_closing = false`) via `supabase.from('orders' as any)`. Mantém compatibilidade com RLS atual (SELECT permitido a authenticated).
+1. Mantém os guards iniciais (`marketData`, `activeOpsForMtm`).
+2. Para cada operação ativa, monta um payload **D24 nativo** com três blocos:
+   - `operation`: id, commodity, exchange, volume_sacks, origination_price_brl, datas.
+   - `orders`: lista mapeada de `d24Orders` (campos: instrument_type, direction, currency, contracts, volume_units, is_closing, ticker, price, ndf_rate, ndf_maturity, option_type, strike, premium, expiration_date, is_counterparty_insurance).
+   - `snapshot`: `futures_price_current`, `physical_price_current`, `spot_rate_current`, `option_premium_current`.
+3. Mantém o cálculo de `optionPremiumCurrent` via `/pricing/option-premium` (preserva conversão `F_brl` por commodity, `BUSHELS_PER_SACK`, sigma de `pricingParameters`).
+4. Chama `callApi('/mtm/run-d24', { positions })` em vez de `/mtm/run`.
+5. Persiste resultados via `saveMtm.mutateAsync` exatamente como hoje (mesma forma de `r.market_snapshot`, mesmos campos do snapshot do banco).
 
-### 2. Reescrever `handleCalculate` (linhas ~890–980)
-- Trocar fonte de `orders` (hedge_orders) por `operations` filtradas por status `ACTIVE` ou `PARTIALLY_CLOSED`.
-- Para cada operação, agrupar suas `orders` D24 (via `d24Orders.filter(operation_id === op.id)`) e converter cada `order` em uma `leg` no formato legado esperado pelo endpoint `/mtm/run` da API Python (mantendo o contrato atual do backend, sem mexer no Render).
-- Calcular `optionPremiumCurrent` via `/pricing/option-premium` quando houver leg de opção (lógica preservada).
-- Montar payload `hedgeOrder` no shape legado e chamar `/mtm/run` com `positions`.
-- Persistir resultados via `saveMtm.mutateAsync` (lógica preservada).
-- Mensagens de erro: "Dados de mercado ausentes" / "Nenhuma operação ativa".
+### Removido
 
-### 3. Tabela "Operações Ativas — Inputs" (linhas ~1211–1251)
-- Trocar a fonte de `orders` (hedge_orders) por `activeOpsForMtm = operations.filter(status ∈ {ACTIVE, PARTIALLY_CLOSED})`.
-- Renderizar uma linha por operação D24, usando:
-  - `op.id` como chave de `physicalPrices`
-  - `op.warehouses?.display_name` (praça)
-  - `(op as any).commodity` (com label PT)
-  - `op.volume_sacks`
-  - `(op as any).origination_price_brl`
-- Render condicional passa a depender de `activeOpsForMtm.length`.
+- Construção do objeto `hedgeOrder` legado (broker, broker_account, futures_price_currency, pricing_snapshot, status, order_message, etc.).
+- Construção das `legs` no formato legado (`leg_type`, `unit_label`).
+- O guard de debug temporário `totalLegs === 0` (não se aplica mais — o backend D24 lida com orders vazias).
 
-### 4. Botões "Calcular MTM" (linhas 1123 e 1198)
-- Substituir `disabled={calculating || !orders?.length}` por `disabled={calculating || !activeOpsForMtm.length}`.
+### Preservado
 
-### 5. STATUS_BADGE (linhas ~405–417)
-Adicionar 3 entradas D24:
-- `ACTIVE` → "Ativa", verde
-- `PARTIALLY_CLOSED` → "Parcial. Encerrada", laranja outline
-- `CLOSED` → "Encerrada", secondary
+- Guards `marketData` / `activeOpsForMtm`.
+- `setCalculating` start/finally.
+- Lookup de `futuresPrice` via `marketData.find(m => m.ticker === ...)`.
+- Chamada e fallback silencioso de `/pricing/option-premium`.
+- Loop de persistência `saveMtm.mutateAsync` e toasts de sucesso/erro.
 
-(Os legados em PT permanecem para compatibilidade com operações antigas.)
+### Fora de escopo
 
-## Notas técnicas
-- `useHedgeOrders` continua importado e usado pela tabela "Resultado MTM" (mapeia metadados via `orders?.find(o => o.operation_id === r.operation_id)` para praça/commodity/datas em `displayResults`). Como essa tabela é alimentada por `mtmSnapshots` (cache) ou pelo resultado de `/mtm/run`, e ambos retornam `operation_id`, o `find` simplesmente devolverá `undefined` para operações D24, caindo nos fallbacks `'—'` já existentes. Aceitável nesta fatia — a aba volta a funcionar e os metadados da tabela de resultado podem ser migrados em iteração futura.
-- Triggers de DB já garantem que operações com `orders` abertas estão em `ACTIVE`/`PARTIALLY_CLOSED`, então o filtro por status é suficiente.
-- `d24Orders` invalidação não é crítica aqui (cálculo MTM é manual via botão), mas a queryKey `['d24-orders-active']` permite invalidação futura se necessário.
-
-## Fora de escopo
-- Migrar a tabela "Resultado MTM" para usar `operations` em vez de `orders` legados (segue funcional com fallbacks).
-- Refatorar `snapshotResults` (depende de `orders?.length` apenas como guard, não bloqueia exibição depois de calcular).
-- Remover `useHedgeOrders` do arquivo.
+- Nenhum outro arquivo. UI, queries, badges e tabela de resultados permanecem como estão.
+- Endpoint `/mtm/run-d24` na API Python: assumido como já existente (contrato definido pelo payload acima).
