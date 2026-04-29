@@ -1011,6 +1011,13 @@ const OperacoesD24: React.FC = () => {
         };
       }));
 
+      // Debug temporário
+      const totalLegs = positions.reduce((s, p: any) => s + (p.order?.legs?.length ?? 0), 0);
+      if (totalLegs === 0) {
+        toast.error('Nenhuma leg encontrada nas orders. Verifique se as orders foram carregadas.');
+        return;
+      }
+
       const result = await callApi<{ results: Record<string, unknown>[] }>('/mtm/run', { positions });
 
       if (result?.results) {
