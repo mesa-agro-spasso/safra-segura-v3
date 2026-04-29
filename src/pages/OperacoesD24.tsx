@@ -337,45 +337,6 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
             </div>
           </div>
 
-          {planValidation?.legResults?.[i] && (() => {
-            const v = planValidation.legResults?.[i];
-            if (!v) return null;
-            if (v.status === 'loading') return <p className="text-xs text-muted-foreground">Validando...</p>;
-            if (v.status === 'error') return (
-              <div className="rounded border border-red-500 bg-red-500/10 text-red-400 px-2 py-1 text-xs">{v.errorMsg}</div>
-            );
-            if (v.status === 'done' && v.result) {
-              const hasError = (v.result.structural_errors?.length ?? 0) > 0
-                || v.result.business_alerts?.some(a => a.level === 'ERROR');
-              return (
-                <div className="space-y-1">
-                  {v.result.structural_errors?.map((e, k) => (
-                    <div key={`s${k}`} className="rounded border border-red-500 bg-red-500/10 text-red-400 px-2 py-1 text-xs flex items-start gap-1">
-                      <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" /><span>{e}</span>
-                    </div>
-                  ))}
-                  {v.result.business_alerts?.map((a, k) => {
-                    const cls = a.level === 'ERROR'
-                      ? 'border-red-500 bg-red-500/10 text-red-400'
-                      : a.level === 'WARNING'
-                      ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
-                      : 'border-blue-500 bg-blue-500/10 text-blue-400';
-                    return (
-                      <div key={`b${k}`} className={`rounded border ${cls} px-2 py-1 text-xs flex items-start gap-1`}>
-                        <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" /><span>{a.message}</span>
-                      </div>
-                    );
-                  })}
-                  {v.result.is_valid && !hasError && (
-                    <div className="rounded border border-green-500 bg-green-500/10 text-green-400 px-2 py-1 text-xs flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Leg válida
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            return null;
-          })()}
         </div>
       ))}
 
@@ -383,44 +344,36 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
         <Plus className="h-3 w-3 mr-1" /> Adicionar Perna
       </Button>
 
-      {planValidation?.newOrderMsg && (
+      {messages?.order_message && (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-muted-foreground">Mensagem da Ordem (regenerada)</span>
-            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(planValidation.newOrderMsg!)}>
+            <span className="text-xs font-semibold text-muted-foreground">Mensagem da Ordem</span>
+            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(messages.order_message)}>
               <Copy className="h-3 w-3" />
             </Button>
           </div>
-          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{planValidation.newOrderMsg}</pre>
+          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{messages.order_message}</pre>
         </div>
       )}
-      {planValidation?.newConfirmMsg && (
+      {messages?.confirmation_message && (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-muted-foreground">Confirmação (regenerada)</span>
-            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(planValidation.newConfirmMsg!)}>
+            <span className="text-xs font-semibold text-muted-foreground">Confirmação</span>
+            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(messages.confirmation_message)}>
               <Copy className="h-3 w-3" />
             </Button>
           </div>
-          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{planValidation.newConfirmMsg}</pre>
+          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{messages.confirmation_message}</pre>
         </div>
       )}
 
       <div className="flex gap-2 pt-2">
-        <Button size="sm" variant="outline" onClick={handleValidatePlan}
-          disabled={editLegs.length === 0 || (planValidation?.legResults.some(v => v.status === 'loading') ?? false)}>
-          Validar Plano
+        <Button size="sm" variant="outline" onClick={handleGenerateMessages}
+          disabled={editLegs.length === 0 || generatingMessages}>
+          {generatingMessages ? 'Gerando...' : 'Gerar Mensagens'}
         </Button>
         <Button size="sm" onClick={handleSavePlan}
-          disabled={
-            savingPlan
-            || !planValidation
-            || planValidation.legResults.some(v => v.status !== 'done')
-            || planValidation.legResults.some(v =>
-              (v.result?.structural_errors?.length ?? 0) > 0
-              || (v.result?.business_alerts?.some(a => a.level === 'ERROR') ?? false)
-            )
-          }>
+          disabled={savingPlan || !messages}>
           {savingPlan ? 'Salvando...' : 'Salvar Plano'}
         </Button>
       </div>
