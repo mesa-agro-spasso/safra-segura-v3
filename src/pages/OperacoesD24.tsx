@@ -1178,7 +1178,7 @@ const OperacoesD24: React.FC = () => {
                   <CardTitle className="text-sm">Resultado MTM</CardTitle>
                   <div className="flex gap-2">
                     <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
-                    <Button onClick={handleCalculate} disabled={calculating || !orders?.length} size="sm">
+                    <Button onClick={handleCalculate} disabled={calculating || !activeOpsForMtm.length} size="sm">
                       <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
                       {calculating ? 'Calculando...' : 'Calcular MTM'}
                     </Button>
@@ -1253,7 +1253,7 @@ const OperacoesD24: React.FC = () => {
                   <CardTitle className="text-sm">Resultado MTM</CardTitle>
                   <div className="flex gap-2">
                     <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
-                    <Button onClick={handleCalculate} disabled={calculating || !orders?.length} size="sm">
+                    <Button onClick={handleCalculate} disabled={calculating || !activeOpsForMtm.length} size="sm">
                       <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
                       {calculating ? 'Calculando...' : 'Calcular MTM'}
                     </Button>
@@ -1266,7 +1266,7 @@ const OperacoesD24: React.FC = () => {
             </Card>
           )}
 
-          {orders?.length ? (
+          {activeOpsForMtm.length ? (
             <Card>
               <CardHeader><CardTitle className="text-sm">Operações Ativas — Inputs</CardTitle></CardHeader>
               <CardContent>
@@ -1282,26 +1282,32 @@ const OperacoesD24: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map(o => (
-                      <TableRow key={o.id}>
-                        <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
-                        <TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
-                        <TableCell>{o.commodity}</TableCell>
-                        <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
-                        <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number" step="0.01" className="h-8 w-28" placeholder="0.00"
-                            value={physicalPrices[o.operation_id] || ''}
-                            onChange={(e) => setPhysicalPrices(p => {
-                              const updated = { ...p, [o.operation_id]: e.target.value };
-                              try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch { /* noop */ }
-                              return updated;
-                            })}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {activeOpsForMtm.map(op => {
+                      const opAny = op as any;
+                      const commodityLabel = opAny.commodity === 'soybean'
+                        ? 'Soja'
+                        : opAny.commodity === 'corn' ? 'Milho' : (opAny.commodity ?? '—');
+                      return (
+                        <TableRow key={op.id}>
+                          <TableCell className="font-mono text-xs">{op.id.slice(0, 8)}</TableCell>
+                          <TableCell>{op.warehouses?.display_name ?? '—'}</TableCell>
+                          <TableCell>{commodityLabel}</TableCell>
+                          <TableCell>{Number(op.volume_sacks ?? 0).toLocaleString('pt-BR')}</TableCell>
+                          <TableCell>R$ {Number(opAny.origination_price_brl ?? 0).toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Input
+                              type="number" step="0.01" className="h-8 w-28" placeholder="0.00"
+                              value={physicalPrices[op.id] || ''}
+                              onChange={(e) => setPhysicalPrices(p => {
+                                const updated = { ...p, [op.id]: e.target.value };
+                                try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch { /* noop */ }
+                                return updated;
+                              })}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
