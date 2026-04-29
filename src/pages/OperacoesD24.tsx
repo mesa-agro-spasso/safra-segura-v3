@@ -414,6 +414,9 @@ const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'second
   MONITORAMENTO: { label: 'Monitoramento', variant: 'outline', className: 'border-green-500 text-green-500' },
   ENCERRADA: { label: 'Encerrada', variant: 'secondary' },
   CANCELADA: { label: 'Cancelada', variant: 'destructive' },
+  ACTIVE: { label: 'Ativa', variant: 'default', className: 'bg-green-600 text-white' },
+  PARTIALLY_CLOSED: { label: 'Parcial. Encerrada', variant: 'outline', className: 'border-orange-500 text-orange-500' },
+  CLOSED: { label: 'Encerrada', variant: 'secondary' },
 };
 
 const STATUS_ORDER: Record<string, number> = {
