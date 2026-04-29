@@ -1401,11 +1401,14 @@ const OperacoesD24: React.FC = () => {
 
             const isDraft = opD24.status === 'DRAFT' || opD24.status === 'RASCUNHO';
 
-            const Section: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = true, children }) => (
+            const Section: React.FC<{ title: string; defaultOpen?: boolean; action?: React.ReactNode; children: React.ReactNode }> = ({ title, defaultOpen = true, action, children }) => (
               <Collapsible defaultOpen={defaultOpen} className="border rounded-md">
                 <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180">
                   <span>{title}</span>
-                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                  <span className="flex items-center gap-2">
+                    {action}
+                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                  </span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-3 pb-3 pt-1">
                   {children}
