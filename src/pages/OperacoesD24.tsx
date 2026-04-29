@@ -904,6 +904,159 @@ const OperacoesD24: React.FC = () => {
             const statusBadge = STATUS_BADGE[selectedOperation.status] ?? { label: selectedOperation.status, variant: 'secondary' as const };
             const commodityLabel = selectedOperation.commodity === 'soybean' ? 'Soja CBOT' : selectedOperation.commodity === 'corn' ? 'Milho B3' : selectedOperation.commodity;
 
+            const isDraft = opD24.status === 'DRAFT' || opD24.status === 'RASCUNHO';
+
+            const [editLegs, setEditLegs] = React.useState<EditableLeg[]>(() =>
+              planLegs.map((l: any) => ({
+                instrument_type: (l.instrument_type ?? 'futures') as EditableLeg['instrument_type'],
+                direction: (l.direction ?? 'sell') as 'buy' | 'sell',
+                currency: l.currency ?? 'USD',
+                ticker: l.ticker ?? '',
+                contracts: l.contracts != null ? String(l.contracts) : '',
+                price_estimated: l.price_estimated != null ? String(l.price_estimated) : '',
+                ndf_rate: l.ndf_rate != null ? String(l.ndf_rate) : '',
+                ndf_maturity: l.ndf_maturity ?? '',
+                option_type: (l.option_type ?? 'call') as 'call' | 'put',
+                strike: l.strike != null ? String(l.strike) : '',
+                premium: l.premium != null ? String(l.premium) : '',
+                expiration_date: l.expiration_date ?? '',
+                notes: l.notes ?? '',
+                is_counterparty_insurance: l.is_counterparty_insurance ?? false,
+              }))
+            );
+
+            const [planValidation, setPlanValidation] = React.useState<{
+              legResults: Array<{ status: 'idle' | 'loading' | 'done' | 'error'; result?: ValidateExecutionResponse; errorMsg?: string }>;
+              newOrderMsg: string | null;
+              newConfirmMsg: string | null;
+            } | null>(null);
+
+            const [savingPlan, setSavingPlan] = React.useState(false);
+
+            const buildLegPayload = (l: EditableLeg) => ({
+              instrument_type: l.instrument_type,
+              direction: l.direction,
+              currency: l.currency,
+              ticker: l.ticker || undefined,
+              contracts: l.contracts ? parseFloat(l.contracts) : undefined,
+              price_estimated: l.price_estimated ? parseFloat(l.price_estimated) : undefined,
+              ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
+              ndf_maturity: l.ndf_maturity || undefined,
+              option_type: l.instrument_type === 'option' ? l.option_type : undefined,
+              strike: l.strike ? parseFloat(l.strike) : undefined,
+              premium: l.premium ? parseFloat(l.premium) : undefined,
+              expiration_date: l.expiration_date || undefined,
+              is_counterparty_insurance: l.is_counterparty_insurance,
+              notes: l.notes || undefined,
+            });
+
+            const handleValidatePlan = async () => {
+              if (!isDraft) return;
+              const initial = editLegs.map(() => ({ status: 'loading' as const }));
+              setPlanValidation({ legResults: initial, newOrderMsg: null, newConfirmMsg: null });
+
+              const opIn: OperationIn = {
+                id: selectedOperation.id,
+                warehouse_id: selectedOperation.warehouse_id,
+                commodity: opD24.commodity,
+                exchange: opD24.exchange ?? '',
+                volume_sacks: selectedOperation.volume_sacks,
+                origination_price_brl: opD24.origination_price_brl ?? 0,
+                trade_date: opD24.trade_date ?? '',
+                payment_date: opD24.payment_date ?? '',
+                grain_reception_date: opD24.grain_reception_date ?? '',
+                sale_date: opD24.sale_date ?? '',
+                status: opD24.status,
+                hedge_plan: [],
+              } as any;
+
+              const exchange = (opD24.exchange ?? 'cbot') as string;
+              const CONTRACT_SIZE = exchange.toLowerCase() === 'b3' ? 450 : 5000;
+
+              const updatedResults: typeof initial extends Array<infer _T> ? Array<{ status: 'idle' | 'loading' | 'done' | 'error'; result?: ValidateExecutionResponse; errorMsg?: string }> : never =
+                editLegs.map(() => ({ status: 'loading' as const }));
+
+              for (let i = 0; i < editLegs.length; i++) {
+                const leg = editLegs[i];
+                const isNdf = leg.instrument_type === 'ndf';
+                const qty = parseFloat(leg.contracts) || 0;
+                const newOrder: OrderIn = {
+                  operation_id: selectedOperation.id,
+                  instrument_type: leg.instrument_type,
+                  direction: leg.direction,
+                  currency: leg.currency,
+                  contracts: qty,
+                  volume_units: isNdf ? qty : qty * CONTRACT_SIZE,
+                  executed_at: new Date().toISOString(),
+                  executed_by: user?.id ?? '',
+                  is_closing: false,
+                  ticker: leg.ticker || undefined,
+                  price: !isNdf && leg.price_estimated ? parseFloat(leg.price_estimated) : undefined,
+                  ndf_rate: isNdf && leg.ndf_rate ? parseFloat(leg.ndf_rate) : undefined,
+                  ndf_maturity: leg.ndf_maturity || undefined,
+                  option_type: leg.instrument_type === 'option' ? leg.option_type : undefined,
+                  strike: leg.strike ? parseFloat(leg.strike) : undefined,
+                  premium: leg.premium ? parseFloat(leg.premium) : undefined,
+                  expiration_date: leg.expiration_date || undefined,
+                  is_counterparty_insurance: leg.is_counterparty_insurance,
+                  notes: leg.notes || undefined,
+                } as any;
+                try {
+                  const res = await validateExecution(opIn, [], newOrder);
+                  updatedResults[i] = { status: 'done', result: res };
+                } catch (e: unknown) {
+                  updatedResults[i] = { status: 'error', errorMsg: e instanceof Error ? e.message : String(e) };
+                }
+              }
+
+              let newOrderMsg: string | null = null;
+              let newConfirmMsg: string | null = null;
+              try {
+                const snap = selectedOperation.pricing_snapshots as any;
+                const outputs = (snap?.outputs_json ?? {}) as Record<string, unknown>;
+                const psIn: PricingSnapshotIn = {
+                  ticker: snap?.ticker ?? '',
+                  payment_date: snap?.payment_date ?? opD24.payment_date ?? '',
+                  futures_price_usd: typeof outputs.futures_price_usd === 'number' ? (outputs.futures_price_usd as number) : undefined,
+                  futures_price_brl: snap?.futures_price_brl ?? undefined,
+                  exchange_rate: snap?.exchange_rate ?? undefined,
+                } as any;
+                const planIn: OperationIn = { ...opIn, hedge_plan: editLegs.map(buildLegPayload) as any };
+                const resp = await buildHedgePlan(planIn, psIn);
+                newOrderMsg = resp.order_message;
+                newConfirmMsg = resp.confirmation_message;
+              } catch (e) {
+                toast.error('Erro ao regenerar mensagens: ' + (e instanceof Error ? e.message : String(e)));
+              }
+
+              setPlanValidation({ legResults: updatedResults, newOrderMsg, newConfirmMsg });
+            };
+
+            const handleSavePlan = async () => {
+              if (!planValidation || savingPlan) return;
+              setSavingPlan(true);
+              try {
+                const newHedgePlan = {
+                  plan: editLegs.map(buildLegPayload),
+                  order_message: planValidation.newOrderMsg,
+                  confirmation_message: planValidation.newConfirmMsg,
+                };
+                const { error } = await supabase
+                  .from('operations' as any)
+                  .update({ hedge_plan: newHedgePlan } as any)
+                  .eq('id', selectedOperation.id);
+                if (error) throw new Error(error.message ?? JSON.stringify(error));
+                toast.success('Plano salvo');
+                queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+                queryClient.invalidateQueries({ queryKey: ['operations'] });
+                setSavingPlan(false);
+                setPlanValidation(null);
+              } catch (e) {
+                toast.error('Erro ao salvar: ' + (e instanceof Error ? e.message : String(e)));
+                setSavingPlan(false);
+              }
+            };
+
             const Section: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = true, children }) => (
               <Collapsible defaultOpen={defaultOpen} className="border rounded-md">
                 <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180">
