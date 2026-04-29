@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useOperations } from '@/hooks/useOperations';
+import { useMarketData } from '@/hooks/useMarketData';
 import { useAuth } from '@/contexts/AuthContext';
 import { validateExecution, type ValidateExecutionResponse } from '@/services/d24Api';
 import type { HedgePlanItemIn, OperationIn, OrderIn } from '@/types/d24';
@@ -181,6 +183,9 @@ const OrdensD24: React.FC = () => {
   const { data: warehouses = [] } = useActiveArmazens();
   const { data: operationsRaw = [] } = useOperations();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { data: marketData = [] } = useMarketData();
+  const [closingOrder, setClosingOrder] = useState<any | null>(null);
 
   const operations = operationsRaw as OperationRow[];
 
@@ -266,6 +271,13 @@ const OrdensD24: React.FC = () => {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Ordens D24</h1>
+        <Button
+          size="sm"
+          onClick={() => navigate('/operacoes-d24')}
+          title="Para criar uma nova ordem, crie ou selecione uma operação em Operações D24"
+        >
+          Nova Ordem
+        </Button>
       </div>
 
       {/* Filtros */}
@@ -299,7 +311,6 @@ const OrdensD24: React.FC = () => {
               <MultiSelect label="Praça" options={pracaOptions} selected={praca} onChange={setPraca} />
               <MultiSelect label="Commodity" options={COMMODITY_OPTIONS} selected={commodity} onChange={setCommodity} />
               <MultiSelect label="Operação" options={operationOptions} selected={operacao} onChange={setOperacao} />
-              
             </div>
           </CardContent>
         )}
@@ -312,12 +323,14 @@ const OrdensD24: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Praça</TableHead>
-                <TableHead>ID Operação</TableHead>
-                <TableHead>Commodity</TableHead>
+                <TableHead>Operação</TableHead>
+                <TableHead>Instrumento</TableHead>
+                <TableHead>Direção</TableHead>
+                <TableHead>Ticker</TableHead>
+                <TableHead className="text-right">Contratos</TableHead>
+                <TableHead className="text-right">Preço/Taxa</TableHead>
                 <TableHead className="text-right">Volume (sc)</TableHead>
-                <TableHead className="text-right">Preço orig.</TableHead>
-                <TableHead>Pernas</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Encerramento</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -325,27 +338,43 @@ const OrdensD24: React.FC = () => {
             <TableBody>
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma ordem</TableCell>
+                  <TableCell colSpan={11} className="text-center text-muted-foreground py-8">Nenhuma ordem</TableCell>
                 </TableRow>
               )}
               {filtered.map((order: any) => {
-                const op = opById.get(order.operation_id);
-                const pracaName = op ? warehouseNameById.get(op.warehouse_id) ?? op.warehouse_id : '--';
-                const opCode = op?.display_code ?? `${order.id.slice(0, 8)}…`;
-                const orderCommodity = op?.commodity ?? '--';
-                const volumeSacks = op?.volume_sacks ?? null;
-                const originationPrice = (op as any)?.origination_price_brl ?? null;
+                const op: any = opById.get(order.operation_id);
+                const pracaName =
+                  op?.warehouses?.display_name
+                  ?? warehouseNameById.get(op?.warehouse_id ?? '')
+                  ?? '—';
+                const opCode = op?.display_code ?? order.operation_id.slice(0, 8);
+                const isNdf = order.instrument_type === 'ndf';
+                const priceCell = isNdf
+                  ? (order.ndf_rate != null ? `${Number(order.ndf_rate).toFixed(4)} BRL/USD` : '—')
+                  : (order.price != null ? Number(order.price).toFixed(4) : '—');
                 return (
                   <TableRow key={order.id}>
                     <TableCell>{pracaName}</TableCell>
                     <TableCell className="font-mono text-xs">{opCode}</TableCell>
-                    <TableCell><CommodityBadge commodity={orderCommodity} /></TableCell>
-                    <TableCell className="text-right">{formatNumberBR(volumeSacks)}</TableCell>
-                    <TableCell className="text-right">R$ {formatNumberBR(originationPrice, 2)}</TableCell>
-                    <TableCell className="text-xs">{legsSummary(order)}</TableCell>
-                    <TableCell><StatusBadge status="EXECUTED" /></TableCell>
-                    <TableCell className="text-xs">{formatDateBR(order.created_at)}</TableCell>
-                    <TableCell className="text-right">{renderActions(order)}</TableCell>
+                    <TableCell><Badge variant="outline">{order.instrument_type}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary">{order.direction}</Badge></TableCell>
+                    <TableCell className="font-mono text-xs">{order.ticker ?? '—'}</TableCell>
+                    <TableCell className="text-right">
+                      {Number(order.contracts).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                    </TableCell>
+                    <TableCell className="text-right">{priceCell}</TableCell>
+                    <TableCell className="text-right">
+                      {Number(order.volume_units).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    </TableCell>
+                    <TableCell>{order.is_closing ? 'Sim' : '—'}</TableCell>
+                    <TableCell className="text-xs">{formatDateBR(order.executed_at ?? order.created_at)}</TableCell>
+                    <TableCell className="text-right">
+                      {!order.is_closing && (
+                        <Button size="sm" variant="outline" onClick={() => setClosingOrder(order)}>
+                          Fechar
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -353,11 +382,157 @@ const OrdensD24: React.FC = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <CloseOrderModal
+        order={closingOrder}
+        operation={closingOrder ? opById.get(closingOrder.operation_id) ?? null : null}
+        marketData={marketData as any[]}
+        userId={user?.id ?? null}
+        onClose={() => setClosingOrder(null)}
+        onClosed={() => {
+          setClosingOrder(null);
+          queryClient.invalidateQueries({ queryKey: ['d24-orders-all'] });
+          queryClient.invalidateQueries({ queryKey: ['operations'] });
+        }}
+      />
     </div>
   );
 };
 
 export default OrdensD24;
+
+// ───────────────────────── Close Order Modal ─────────────────────────
+
+interface CloseOrderModalProps {
+  order: any | null;
+  operation: any | null;
+  marketData: any[];
+  userId: string | null;
+  onClose: () => void;
+  onClosed: () => void;
+}
+
+const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
+  order, operation, marketData, userId, onClose, onClosed,
+}) => {
+  const isOpen = order !== null;
+  const isNdf = order?.instrument_type === 'ndf';
+  const exchange = (operation as any)?.exchange?.toLowerCase() ?? 'cbot';
+  const CONTRACT_SIZE = exchange === 'b3' ? 450 : 5000;
+  const oppositeDirection = order?.direction === 'sell' ? 'buy' : 'sell';
+
+  const defaultPrice = useMemo(() => {
+    if (!order) return '';
+    if (isNdf) {
+      const fx = marketData.find((m: any) => m.commodity === 'FX')?.price;
+      return fx != null ? String(fx) : '';
+    }
+    const px = marketData.find((m: any) => m.ticker === order.ticker)?.price;
+    return px != null ? String(px) : '';
+  }, [order, isNdf, marketData]);
+
+  const [contracts, setContracts] = useState('');
+  const [price, setPrice] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  React.useEffect(() => {
+    if (order) {
+      setContracts(String(order.contracts ?? ''));
+      setPrice(defaultPrice);
+      setNotes('');
+    }
+  }, [order, defaultPrice]);
+
+  if (!order) return null;
+
+  const priceLabel = isNdf
+    ? 'Taxa executada (BRL/USD)'
+    : `Preço executado (${priceUnitLabel(order.instrument_type, exchange)})`;
+
+  const handleConfirm = async () => {
+    if (!userId) { toast.error('Usuário não autenticado'); return; }
+    const qty = parseFloat(contracts);
+    if (!qty || qty <= 0) { toast.error('Contratos inválidos'); return; }
+    setSubmitting(true);
+    try {
+      const payload = {
+        operation_id: order.operation_id,
+        instrument_type: order.instrument_type,
+        direction: oppositeDirection,
+        currency: order.currency,
+        contracts: qty,
+        volume_units: isNdf ? qty : qty * CONTRACT_SIZE,
+        price: !isNdf && price ? parseFloat(price) : null,
+        ndf_rate: isNdf && price ? parseFloat(price) : null,
+        ndf_maturity: order.ndf_maturity ?? null,
+        option_type: order.option_type ?? null,
+        strike: order.strike ?? null,
+        premium: order.premium ?? null,
+        expiration_date: order.expiration_date ?? null,
+        ticker: order.ticker ?? null,
+        is_counterparty_insurance: false,
+        executed_at: new Date().toISOString(),
+        executed_by: userId,
+        is_closing: true,
+        closes_order_id: order.id,
+        notes: notes || null,
+      };
+      const { error } = await supabase.from('orders' as any).insert(payload as never);
+      if (error) throw new Error(error.message);
+      toast.success('Ordem fechada');
+      onClosed();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao fechar ordem');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            Fechar Ordem — {order.instrument_type} {order.direction} {order.ticker ?? ''}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <div>
+            <Label>Direção (auto, oposta)</Label>
+            <Input value={oppositeDirection} readOnly className="bg-muted" />
+          </div>
+          <div>
+            <Label>Contratos</Label>
+            <Input
+              type="number"
+              value={contracts}
+              onChange={e => setContracts(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>{priceLabel}</Label>
+            <Input
+              type="number"
+              value={price}
+              onChange={e => setPrice(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Observações</Label>
+            <Textarea value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancelar</Button>
+          <Button onClick={handleConfirm} disabled={submitting}>
+            {submitting ? 'Fechando…' : 'Confirmar fechamento'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 // ───────────────────────── Detail Sheet ─────────────────────────
 
