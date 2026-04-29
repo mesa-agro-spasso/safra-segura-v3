@@ -1,132 +1,135 @@
-# Plano — Nova tela `OperacoesD24.tsx` (revisado)
+## Ajuste único em `src/pages/OperacoesD24.tsx`
 
-## Escopo
-Criar `src/pages/OperacoesD24.tsx` (arquivo novo) e adicionar import + rota `/operacoes-d24` em `src/App.tsx` (única alteração fora do arquivo novo). Nenhum hook ou serviço novo — tudo reutilizado.
+Nenhum outro arquivo é tocado. As mudanças se concentram em três blocos: o hook de persistência de colunas, a definição `MTM_COLUMNS`, e o `<TableHeader>`/`<TableBody>` da tabela MTM.
 
-## Estrutura de alto nível
-```text
-OperacoesD24
-├── Header (título + StatusDot último MTM/mercado)
-└── Tabs
-    ├── Operações  → ColumnSelector + filtro Ativas/Encerradas/Todas + "Nova Operação"
-    ├── MTM        → disclaimer + tabela resultados (ColumnSelector) + "Calcular MTM" + inputs físico
-    └── Resumo     → 3 cards + tabela por perna (ColumnSelector) + gráfico recharts toggle
-```
+### 1. Estender `usePersistedColumns` para aceitar defaults parciais
 
-## Componente local `ColumnSelector`
-Popover com ícone `Columns` (lucide), checkboxes por coluna, botões "Todas"/"Nenhuma".
-Estado em `Set<string>`, persistido em `localStorage` por chave (`cols_operacoes`, `cols_mtm`, `cols_resumo`). Coluna "Ações" fica fora do seletor (sempre visível).
+A versão atual (linhas 85–99) inicializa com **todas** as colunas visíveis quando `localStorage` está vazio. Para que as novas colunas adicionadas (volume, fisico_atual, mtm_fisico, mtm_futuros, mtm_ndf, mtm_opcao, exposicao, calculado_em) iniciem **desativadas** sem afetar o comportamento de `OP_COLUMNS` e `SUMMARY_COLUMNS`, adicionar um terceiro parâmetro opcional `defaultKeys?: string[]`. Quando informado, esse conjunto é usado como fallback; quando omitido, mantém o comportamento atual (todas visíveis).
 
-## Aba Operações
-- Fonte: `useOperationsWithDetails`.
-- Sort/badges: `STATUS_ORDER` e `STATUS_BADGE` copiados de `OperationsMTM.tsx`.
-- Colunas (default ON): `praca, commodity, ticker, volume, preco_orig, trade_date, payment_date, reception_date, sale_date, status`.
-- Linha → `Sheet right sm:max-w-2xl` com `Tabs Detalhes | MTM`:
-  - **Detalhes**: identificação, precificação (do `pricing_snapshots`), datas, ordens vinculadas (`useHedgeOrders` filtrado por `operation_id`).
-  - **MTM**: snapshot mais recente do `useMtmSnapshots` para a operação, ou mensagem vazia.
-- Coluna **Ações** fixa: botão "Encerrar" se `status === 'HEDGE_CONFIRMADO'`.
-
-## Modal Nova Operação
-Disclaimer fixo no topo. Campos: Praça (`useActiveArmazens`), Commodity (`soybean|cbot` / `corn|b3`), Volume sacas, Preço originação R$/sc, Snapshot referência (`usePricingSnapshots` filtrado por commodity+benchmark), Trade date (default hoje), Notas. Snapshot auto-preenche `payment_date / grain_reception_date / sale_date` (editáveis depois).
-
-**Botão "Gerar Plano"**:
-1. Monta `OperationIn` com `status='DRAFT', hedge_plan=[]`, `origination_price_brl` do form.
-2. Monta `PricingSnapshotIn`: `ticker`, `payment_date`, `futures_price_usd` (`outputs_json.futures_price_usd`), `futures_price_brl` (coluna direta), `exchange_rate` (`exchange_rate ?? outputs_json.exchange_rate`).
-3. `buildHedgePlan(op, ps)` → exibe `plan[]`, `order_message`, `confirmation_message`.
-
-**Botão "Confirmar e Salvar"** — INSERT direto via `(supabase as any).from('operations').insert({...})` com **todos** os campos obrigatórios:
 ```ts
-{
-  warehouse_id,
-  commodity,
-  exchange,
-  volume_sacks,
-  origination_price_brl,            // ← obrigatório, vem do form
-  trade_date,
-  payment_date,
-  grain_reception_date,
-  sale_date,
-  status: 'DRAFT',
-  pricing_snapshot_id,
-  notes,
-  hedge_plan: plan,                 // JSONB do buildHedgePlan
-  created_by: user.id,
+function usePersistedColumns(storageKey: string, columns: Col[], defaultKeys?: string[]) {
+  const allKeys = useMemo(() => columns.map(c => c.key), [columns]);
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* noop */ }
+    return new Set(defaultKeys ?? allKeys);
+  });
+  // ... resto inalterado
 }
 ```
-Toast com `display_code ?? id.slice(0,8)`, fecha modal, invalida `['operations_with_details']` e `['operations']`.
 
-## Modal Encerramento (Block Closing)
-Disclaimer fixo no topo. Campos: Volume a encerrar (default `volume_sacks`), Estratégia (`PROPORTIONAL` default / `MAX_PROFIT` / `MAX_LOSS`).
+### 2. Substituir `MTM_COLUMNS` (linhas 156–166) pela lista completa
 
-**Botão "Calcular Proposta"**:
-1. Filtra `operations` por mesmo `warehouse_id` + `commodity`, status `HEDGE_CONFIRMADO`.
-2. Para cada operação, junta as `hedge_orders` correspondentes com `status='EXECUTED'` (do `useHedgeOrders()` carregado).
-3. **Conversão `HedgeOrder → OrderIn[]` via flatMap das legs** (instrument_type vem da leg, não da ordem):
-   ```ts
-   const existingOrders: OrderIn[] = hedgeOrdersDaOperacao.flatMap(ho =>
-     ((ho.executed_legs ?? ho.legs) as any[]).map(leg => ({
-       operation_id: ho.operation_id,
-       instrument_type: leg.leg_type,
-       direction: leg.direction,
-       currency: leg.currency ?? 'USD',
-       contracts: leg.contracts ?? 0,
-       volume_units: leg.volume_units ?? 0,
-       executed_at: ho.executed_at ?? new Date().toISOString(),
-       executed_by: ho.executed_by ?? '',
-       is_closing: false,
-       ticker: leg.ticker,
-       price: leg.price,
-       ndf_rate: leg.ndf_rate,
-     }))
-   );
-   ```
-4. Monta `OperationSummaryIn[]` com `operation_id, display_code, volume_sacks, existing_orders, mtm_total_brl` (do snapshot mais recente em `useMtmSnapshots`).
-5. `allocateClosingBatch({ warehouse_id, commodity, exchange, target_volume_sacks, strategy, operations })`.
-6. Renderiza tabela `proposals` (display_code, volume_to_close, allocation_reason, mtm_at_allocation) e blocos amarelos para `warnings`.
-
-**Botão "Confirmar Encerramento"** (Fase 4): toast "Funcionalidade de persistência será implementada na Fase 5" + fecha modal. Sem persistência.
-
-## Aba MTM
-Resultados: `results` state (após cálculo) ou `snapshotResults` derivados de `useMtmSnapshots` (latest por `operation_id`).
-
-Disclaimer amarelo fixo no topo.
-
-Colunas (default ON): `operacao, commodity, praca, trade_date, sale_date, mtm_total, mtm_per_sack, breakeven, fisico_alvo`.
-
-Tabela inputs abaixo: linha por `useHedgeOrders({ status: 'EXECUTED' })`, preço físico R$/sc com `sessionStorage['mtm_physical_prices']` (mesma chave do OperationsMTM).
-
-**"Calcular MTM"**: copiar `handleCalculate` de `OperationsMTM.tsx` literal — `BUSHELS_PER_SACK`, `sigmaMap`, prêmio de opção via `callApi('/pricing/option-premium', ...)`, `callApi('/mtm/run', { positions })`, persistência via `useSaveMtmSnapshot`.
-
-**Fórmulas D20 (autorizadas)**:
 ```ts
-calcBreakeven       = (physical - mtm_per_sack) * (1 + executionSpread)
-calcTargetPhysical  = (physical - mtm_per_sack + targetProfit) * (1 + executionSpread)
+const MTM_COLUMNS: Col[] = [
+  { key: 'operacao',     label: 'Operação' },
+  { key: 'commodity',    label: 'Commodity' },
+  { key: 'praca',        label: 'Praça' },
+  { key: 'volume',       label: 'Volume (sc)' },
+  { key: 'trade_date',   label: 'Data Entrada' },
+  { key: 'sale_date',    label: 'Data Saída' },
+  { key: 'fisico_atual', label: 'Físico Atual (R$/sc)' },
+  { key: 'mtm_fisico',   label: 'MTM Físico' },
+  { key: 'mtm_futuros',  label: 'MTM Futuros' },
+  { key: 'mtm_ndf',      label: 'MTM NDF' },
+  { key: 'mtm_opcao',    label: 'MTM Opção' },
+  { key: 'mtm_total',    label: 'Total MTM' },
+  { key: 'mtm_per_sack', label: 'Por Saca' },
+  { key: 'breakeven',    label: 'Break-even' },
+  { key: 'fisico_alvo',  label: 'Físico Alvo' },
+  { key: 'exposicao',    label: 'Exposição Total' },
+  { key: 'calculado_em', label: 'Calculado em' },
+];
+
+const MTM_DEFAULT_VISIBLE = [
+  'operacao','commodity','praca','trade_date','sale_date',
+  'mtm_total','mtm_per_sack','breakeven','fisico_alvo',
+];
 ```
-Fallback: `physicalPrices` vazio → usa `r.market_snapshot.physical_price_current`.
-`executionSpread` e `targetProfit` (por commodity) de `usePricingParameters`.
 
-**Dialog detalhe MTM**: copiar 7 seções colapsáveis (`identificacao, datas, mercado, entrada, custos, basis, resultado`), incluindo conversão USD/bu→BRL/sc via `/utils/convert-price` (state `convertedLegPrices`).
+E na linha 192, passar o default:
 
-## Aba Resumo
-3 cards (Operações Ativas, Resultado Total, Resultado por Saca, com cor por sinal). Tabela por perna (Físico/Futuros/NDF/Opção/Total) com colunas (default ON): `perna, valor, pct`. Gráfico recharts `BarChart` com `Switch` Por perna ↔ Por operação.
+```ts
+const mtmCols = usePersistedColumns('cols_mtm', MTM_COLUMNS, MTM_DEFAULT_VISIBLE);
+```
 
-## `src/App.tsx`
+### 3. Atualizar `<TableHeader>` e `<TableBody>` da MTM (linhas 580–615)
+
+Renomear "Entrada"/"Saída" para "Data Entrada"/"Data Saída" e adicionar as novas células. Helper local de formatação de data-hora:
+
+```ts
+const fmtDateTime = (s?: string | null) =>
+  s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+```
+
+(declarado próximo a `fmtDate` no topo do arquivo, linha ~78)
+
+Cabeçalho — substituir bloco atual (linhas 580–591) por:
+
 ```tsx
-import OperacoesD24 from "./pages/OperacoesD24";
-// dentro do bloco protegido, ao lado de /operacoes-mtm:
-<Route path="/operacoes-d24" element={<OperacoesD24 />} />
+<TableHeader>
+  <TableRow>
+    {mtmCols.visible.has('operacao')     && <TableHead>Operação</TableHead>}
+    {mtmCols.visible.has('commodity')    && <TableHead>Commodity</TableHead>}
+    {mtmCols.visible.has('praca')        && <TableHead>Praça</TableHead>}
+    {mtmCols.visible.has('volume')       && <TableHead>Volume (sc)</TableHead>}
+    {mtmCols.visible.has('trade_date')   && <TableHead>Data Entrada</TableHead>}
+    {mtmCols.visible.has('sale_date')    && <TableHead>Data Saída</TableHead>}
+    {mtmCols.visible.has('fisico_atual') && <TableHead>Físico Atual</TableHead>}
+    {mtmCols.visible.has('mtm_fisico')   && <TableHead>MTM Físico</TableHead>}
+    {mtmCols.visible.has('mtm_futuros')  && <TableHead>MTM Futuros</TableHead>}
+    {mtmCols.visible.has('mtm_ndf')      && <TableHead>MTM NDF</TableHead>}
+    {mtmCols.visible.has('mtm_opcao')    && <TableHead>MTM Opção</TableHead>}
+    {mtmCols.visible.has('mtm_total')    && <TableHead>Total</TableHead>}
+    {mtmCols.visible.has('mtm_per_sack') && <TableHead>Por Saca</TableHead>}
+    {mtmCols.visible.has('breakeven')    && <TableHead>Break-even</TableHead>}
+    {mtmCols.visible.has('fisico_alvo')  && <TableHead>Físico Alvo</TableHead>}
+    {mtmCols.visible.has('exposicao')    && <TableHead>Exposição Total</TableHead>}
+    {mtmCols.visible.has('calculado_em') && <TableHead>Calculado em</TableHead>}
+  </TableRow>
+</TableHeader>
 ```
 
-## Restrições
-- Sem importar `OperationsMTM.tsx` ou `Orders.tsx` (replicar código).
-- Sem nova Edge Function. `callApi` para `/mtm/run`, `/pricing/option-premium`, `/utils/convert-price`.
-- Sem cálculo local exceto break-even e físico alvo (D20).
-- `sessionStorage` apenas para `mtm_physical_prices`. ColumnSelector → `localStorage`.
-- Casts `as any` / `as never` permitidos onde tipos do Supabase não cobrem colunas D24.
+Corpo — substituir bloco atual (linhas 599–613) acrescentando as novas células e mantendo a ordem do header:
 
-## Riscos
-1. `useHedgeOrders` consulta `hedge_orders` (paridade com OrdensD24/OperationsMTM); fora do escopo trocar para `orders`.
-2. Modal de encerramento Fase 4 não persiste — esperado pelo escopo.
-3. Triggers existentes preenchem `display_code` e `updated_at` da operação automaticamente.
+```tsx
+const matched = orders?.find(o => o.operation_id === r.operation_id);
+const ps = matched?.operation?.pricing_snapshots;
+const wName = matched?.operation?.warehouses?.display_name ?? '—';
+const total = (r.mtm_total_brl as number) ?? 0;
+const physInput = physicalPrices[r.operation_id as string];
+const physVal = physInput
+  ? parseFloat(physInput)
+  : (r as any).market_snapshot?.physical_price_current;
 
-Após aprovação, gero o arquivo completo `OperacoesD24.tsx` e o diff de `App.tsx`.
+return (
+  <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
+    {mtmCols.visible.has('operacao')     && <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>}
+    {mtmCols.visible.has('commodity')    && <TableCell>{matched?.commodity === 'soybean' ? 'Soja' : matched?.commodity === 'corn' ? 'Milho' : '—'}</TableCell>}
+    {mtmCols.visible.has('praca')        && <TableCell>{wName}</TableCell>}
+    {mtmCols.visible.has('volume')       && <TableCell>{((matched?.volume_sacks ?? (r as any).volume_sacks ?? 0) as number).toLocaleString('pt-BR')}</TableCell>}
+    {mtmCols.visible.has('trade_date')   && <TableCell>{fmtDate(ps?.trade_date)}</TableCell>}
+    {mtmCols.visible.has('sale_date')    && <TableCell>{fmtDate(ps?.sale_date)}</TableCell>}
+    {mtmCols.visible.has('fisico_atual') && <TableCell>{physVal != null ? `R$ ${Number(physVal).toFixed(2)}` : '—'}</TableCell>}
+    {mtmCols.visible.has('mtm_fisico')   && <TableCell>{fmtBrl((r as any).mtm_physical_brl)}</TableCell>}
+    {mtmCols.visible.has('mtm_futuros')  && <TableCell>{fmtBrl((r as any).mtm_futures_brl)}</TableCell>}
+    {mtmCols.visible.has('mtm_ndf')      && <TableCell>{fmtBrl((r as any).mtm_ndf_brl)}</TableCell>}
+    {mtmCols.visible.has('mtm_opcao')    && <TableCell>{fmtBrl((r as any).mtm_option_brl)}</TableCell>}
+    {mtmCols.visible.has('mtm_total')    && <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>R$ {total.toFixed(2)}</TableCell>}
+    {mtmCols.visible.has('mtm_per_sack') && <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>}
+    {mtmCols.visible.has('breakeven')    && <TableCell className="text-xs tabular-nums">R$ {calcBreakeven(r).toFixed(2)}/sc</TableCell>}
+    {mtmCols.visible.has('fisico_alvo')  && <TableCell className="text-xs tabular-nums">R$ {calcTargetPhysical(r).toFixed(2)}/sc</TableCell>}
+    {mtmCols.visible.has('exposicao')    && <TableCell>{fmtBrl((r as any).total_exposure_brl)}</TableCell>}
+    {mtmCols.visible.has('calculado_em') && <TableCell className="text-xs">{fmtDateTime((r as any).calculated_at)}</TableCell>}
+  </TableRow>
+);
+```
+
+### Notas de escopo
+
+- `OP_COLUMNS` (Operações) **mantém** os labels "Entrada"/"Saída" — escopo do pedido é a aba MTM.
+- A segunda referência a `MTM_COLUMNS` na linha 625 (segundo card de resultado MTM) automaticamente herda os novos defaults via `mtmCols`, sem alteração de código.
+- Casts `as any` seguem o padrão já adotado no arquivo para campos D24 não cobertos pelos tipos gerados do Supabase.
+- Usuários que já têm `cols_mtm` salvo no `localStorage` mantêm sua seleção atual; novas colunas só aparecem desativadas para quem nunca personalizou.
