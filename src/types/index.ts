@@ -193,6 +193,8 @@ export interface OperationWithDetails {
     origination_price_brl: number;
     futures_price_brl: number;
     exchange_rate: number | null;
+    target_basis_brl: number | null;
+    additional_discount_brl: number;
     outputs_json?: Record<string, unknown>;
   } | null;
 }
