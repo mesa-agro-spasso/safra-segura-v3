@@ -146,36 +146,57 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
     if (generatingMessages) return;
     setGeneratingMessages(true);
     try {
-      const opIn: OperationIn = {
-        id: operation.id,
-        warehouse_id: operation.warehouse_id,
-        commodity: opD24.commodity,
-        exchange: opD24.exchange ?? '',
-        volume_sacks: operation.volume_sacks,
-        origination_price_brl: opD24.origination_price_brl ?? 0,
-        trade_date: opD24.trade_date ?? '',
-        payment_date: opD24.payment_date ?? '',
-        grain_reception_date: opD24.grain_reception_date ?? '',
-        sale_date: opD24.sale_date ?? '',
-        status: opD24.status,
-        hedge_plan: editLegs.map(buildLegPayload) as any,
-      } as any;
-
       const snap = operation.pricing_snapshots as any;
       const outputs = (snap?.outputs_json ?? {}) as Record<string, unknown>;
-      const psIn: PricingSnapshotIn = {
-        ticker: snap?.ticker ?? '',
-        payment_date: snap?.payment_date ?? opD24.payment_date ?? '',
-        futures_price_usd: typeof outputs.futures_price_usd === 'number' ? (outputs.futures_price_usd as number) : undefined,
-        futures_price_brl: snap?.futures_price_brl ?? undefined,
-        exchange_rate: snap?.exchange_rate ?? undefined,
-      } as any;
+      const isCbotSoy = opD24.commodity === 'soybean' && (opD24.exchange ?? '').toLowerCase() === 'cbot';
+      const futuresPriceUsd = typeof outputs.futures_price_usd === 'number'
+        ? outputs.futures_price_usd as number : undefined;
+      const futuresPrice = isCbotSoy
+        ? (futuresPriceUsd ?? 0)
+        : (snap?.futures_price_brl ?? 0);
 
-      const resp = await buildHedgePlan(opIn, psIn);
-      setMessages({
-        order_message: resp.order_message,
-        confirmation_message: resp.confirmation_message,
+      const legsForApi = editLegs.map(l => ({
+        leg_type: l.instrument_type,
+        direction: l.direction,
+        currency: l.currency,
+        ticker: l.ticker || undefined,
+        contracts: l.contracts ? parseFloat(l.contracts) : undefined,
+        price: !['ndf'].includes(l.instrument_type) && l.price_estimated
+          ? parseFloat(l.price_estimated) : undefined,
+        ndf_rate: l.instrument_type === 'ndf' && l.ndf_rate
+          ? parseFloat(l.ndf_rate) : undefined,
+        ndf_maturity: l.ndf_maturity || undefined,
+        option_type: l.instrument_type === 'option' ? l.option_type : undefined,
+        strike: l.strike ? parseFloat(l.strike) : undefined,
+        premium: l.premium ? parseFloat(l.premium) : undefined,
+        expiration_date: l.expiration_date || undefined,
+        is_counterparty_insurance: l.is_counterparty_insurance,
+        notes: l.notes || undefined,
+      }));
+
+      const { data, error } = await supabase.functions.invoke('api-proxy', {
+        body: {
+          endpoint: '/orders/build',
+          body: {
+            commodity: opD24.commodity,
+            exchange: opD24.exchange ?? 'cbot',
+            origination_price_brl: opD24.origination_price_brl ?? 0,
+            futures_price: futuresPrice,
+            exchange_rate: snap?.exchange_rate ?? (typeof outputs.exchange_rate === 'number' ? outputs.exchange_rate : null),
+            ticker: snap?.ticker ?? '',
+            payment_date: snap?.payment_date ?? opD24.payment_date ?? '',
+            sale_date: opD24.sale_date ?? '',
+            grain_reception_date: opD24.grain_reception_date ?? opD24.payment_date ?? '',
+            volume_sacks: operation.volume_sacks,
+            use_custom_structure: true,
+            legs: legsForApi,
+          },
+        },
       });
+      if (error) throw error;
+      const orderMsg = data?.order?.order_message ?? data?.order_message ?? '';
+      const confirmMsg = data?.order?.confirmation_message ?? data?.confirmation_message ?? '';
+      setMessages({ order_message: orderMsg, confirmation_message: confirmMsg });
     } catch (e) {
       toast.error('Erro ao gerar mensagens: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
