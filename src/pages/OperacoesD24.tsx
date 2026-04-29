@@ -13,7 +13,9 @@ import { callApi } from '@/lib/api';
 import {
   buildHedgePlan,
   allocateClosingBatch,
+  validateExecution,
   type BuildHedgePlanResponse,
+  type ValidateExecutionResponse,
 } from '@/services/d24Api';
 import type {
   OperationIn,
@@ -41,7 +43,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Columns, Calculator, AlertTriangle, ChevronDown, Copy } from 'lucide-react';
+import { Columns, Calculator, AlertTriangle, ChevronDown, Copy, Trash2, Plus, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ───────────────────────── helpers (replicated, no cross-page imports) ─────────────────────────
