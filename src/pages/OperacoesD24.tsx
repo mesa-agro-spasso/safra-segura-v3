@@ -1782,7 +1782,7 @@ const OperacoesD24: React.FC = () => {
 
               <Section k="identificacao" label="Identificação">
                 <DetailRow label="Operação" value={(detailResult.operation_id as string)?.slice(0, 8) ?? '—'} />
-                <DetailRow label="Commodity" value={matched?.commodity ?? '—'} />
+                <DetailRow label="Commodity" value={matched?.commodity === 'soybean' ? 'Soja' : matched?.commodity === 'corn' ? 'Milho' : '—'} />
                 <DetailRow label="Volume" value={`${matched?.volume_sacks?.toLocaleString() ?? '—'} sc`} />
               </Section>
 
