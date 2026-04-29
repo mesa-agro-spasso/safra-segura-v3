@@ -353,10 +353,53 @@ export default function Approvals() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Pendentes</CardTitle>
+          <CardTitle>Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Praça</Label>
+              <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {warehouseOptions.map((w) => (
+                    <SelectItem key={w} value={w}>{w}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Commodity</Label>
+              <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {commodityOptions.map((c) => (
+                    <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Pagamento (de)</Label>
+              <Input type="date" value={filterPaymentFrom} onChange={(e) => setFilterPaymentFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Pagamento (até)</Label>
+              <Input type="date" value={filterPaymentTo} onChange={(e) => setFilterPaymentTo(e.target.value)} />
+            </div>
+            <Button variant="outline" onClick={clearFilters}>Limpar</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pendentes ({filteredPending.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredPending.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">
               Nenhuma operação aguardando sua assinatura.
             </p>
@@ -375,7 +418,7 @@ export default function Approvals() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
+                {filteredPending.map((row) => (
                   <TableRow key={row.operationId}>
                     <TableCell className="font-mono text-xs">
                       <div className="flex items-center gap-2">
@@ -416,6 +459,65 @@ export default function Approvals() {
                         <Button size="sm" variant="destructive" onClick={() => openReject(row)}>
                           Recusar
                         </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Assinadas por mim ({filteredSigned.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredSigned.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              Você ainda não assinou nenhuma operação.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Praça</TableHead>
+                  <TableHead>Commodity</TableHead>
+                  <TableHead className="text-right">Volume (sacas)</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead>Data Pagamento</TableHead>
+                  <TableHead>Assinaturas</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSigned.map((row) => (
+                  <TableRow key={row.operationId} className="opacity-70">
+                    <TableCell className="font-mono text-xs">{row.displayCode}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{row.status}</Badge>
+                    </TableCell>
+                    <TableCell>{row.warehouse}</TableCell>
+                    <TableCell className="capitalize">{row.commodity}</TableCell>
+                    <TableCell className="text-right">
+                      {row.volumeSacks.toLocaleString('pt-BR')}
+                    </TableCell>
+                    <TableCell className="text-right">{formatBRL(row.valueBRL)}</TableCell>
+                    <TableCell>{formatDate(row.paymentDate)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {row.collected.map((r, i) => (
+                          <Badge key={`c-${i}`} className="bg-emerald-600 hover:bg-emerald-600/90 text-primary-foreground">
+                            {r}
+                          </Badge>
+                        ))}
+                        {row.missing.map((r, i) => (
+                          <Badge key={`m-${i}`} variant="outline" className="text-muted-foreground">
+                            {r}
+                          </Badge>
+                        ))}
                       </div>
                     </TableCell>
                   </TableRow>
