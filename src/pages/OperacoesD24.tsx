@@ -922,8 +922,9 @@ const OperacoesD24: React.FC = () => {
       const sigmaMap: Record<string, number> = {};
       pricingParameters?.forEach(p => { sigmaMap[p.id] = p.sigma; });
 
-      const positions = await Promise.all(activeOpsForMtm.map(async (op) => {
+      const positions = (await Promise.all(activeOpsForMtm.map(async (op) => {
         const opD24 = op as any;
+        if (!opD24.exchange || !opD24.commodity) return null;
         const opOrders = (d24Orders ?? []).filter((o: any) => o.operation_id === op.id);
 
         // Encontra leg de futuros para preço de mercado atual
