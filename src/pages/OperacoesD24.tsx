@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOperations, useOperationsWithDetails } from '@/hooks/useOperations';
 import { useHedgeOrders } from '@/hooks/useHedgeOrders';
@@ -629,6 +629,8 @@ const OperacoesD24: React.FC = () => {
   const [selectedOperation, setSelectedOperation] = useState<OperationWithDetails | null>(null);
   const [newOpModal, setNewOpModal] = useState(false);
   const [closingOp, setClosingOp] = useState<OperationWithDetails | null>(null);
+  const [editPlanOp, setEditPlanOp] = useState<OperationWithDetails | null>(null);
+  const [registerExecutionOp, setRegisterExecutionOp] = useState<OperationWithDetails | null>(null);
 
   // MTM tab state (mirrors OperationsMTM)
   const [physicalPrices, setPhysicalPrices] = useState<Record<string, string>>(() => {
@@ -684,6 +686,124 @@ const OperacoesD24: React.FC = () => {
     if (!selectedOperation || !allOrders) return [];
     return allOrders.filter(o => o.operation_id === selectedOperation.id);
   }, [selectedOperation, allOrders]);
+
+  // ── Signatures (batch for table actions)
+  const operationIds = useMemo(
+    () => filteredOperations.map(op => op.id),
+    [filteredOperations]
+  );
+  const { data: signaturesForOps } = useQuery({
+    queryKey: ['signatures-for-ops', operationIds],
+    enabled: operationIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('signatures' as any)
+        .select('operation_id')
+        .in('operation_id', operationIds);
+      if (error) throw error;
+      return (data ?? []) as unknown as { operation_id: string }[];
+    },
+  });
+  const signedOperationIds = useMemo(
+    () => new Set((signaturesForOps ?? []).map(s => s.operation_id)),
+    [signaturesForOps]
+  );
+
+  // ── Signatures for the selected operation (Sheet detail)
+  const { data: operationSignatures } = useQuery({
+    queryKey: ['signatures', selectedOperation?.id],
+    enabled: !!selectedOperation?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('signatures' as any)
+        .select('*, signer:users(full_name)')
+        .eq('operation_id', selectedOperation!.id)
+        .order('signed_at', { ascending: true });
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  // ── Action handlers
+  const handleSendForSignature = async (op: OperationWithDetails) => {
+    if (!user?.id) return;
+    try {
+      const { error } = await supabase
+        .from('signatures' as any)
+        .insert({
+          operation_id: op.id,
+          flow_type: 'APROVACAO',
+          user_id: user.id,
+          role_used: 'mesa',
+          decision: 'PENDING',
+          signed_at: new Date().toISOString(),
+        } as never);
+      if (error) throw new Error(error.message ?? JSON.stringify(error));
+      toast.success('Enviado para assinatura');
+      queryClient.invalidateQueries({ queryKey: ['signatures-for-ops'] });
+      queryClient.invalidateQueries({ queryKey: ['signatures', op.id] });
+    } catch (e) {
+      toast.error('Erro: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
+
+  const handleCancelOperation = async (op: OperationWithDetails) => {
+    try {
+      const { error } = await supabase
+        .from('operations' as any)
+        .update({ status: 'CANCELLED' })
+        .eq('id', op.id);
+      if (error) throw new Error(error.message ?? JSON.stringify(error));
+      toast.success('Operação cancelada');
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+    } catch (e) {
+      toast.error('Erro: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
+
+  const renderOpActions = (op: OperationWithDetails) => {
+    const status = op.status;
+    const isDraft = status === 'DRAFT' || status === 'RASCUNHO';
+    if (isDraft) {
+      const signed = signedOperationIds.has(op.id);
+      return (
+        <div className="flex flex-wrap gap-1">
+          <Button size="sm" variant="outline" className="h-7 text-xs"
+            onClick={() => setEditPlanOp(op)}>
+            Editar Plano
+          </Button>
+          {!signed && (
+            <Button size="sm" variant="secondary" className="h-7 text-xs"
+              onClick={() => handleSendForSignature(op)}>
+              Enviar p/ Assinatura
+            </Button>
+          )}
+          {signed && (
+            <Button size="sm" variant="default" className="h-7 text-xs"
+              onClick={() => setRegisterExecutionOp(op)}>
+              Registrar Execução
+            </Button>
+          )}
+          <Button size="sm" variant="destructive" className="h-7 text-xs"
+            onClick={() => handleCancelOperation(op)}>
+            Cancelar
+          </Button>
+        </div>
+      );
+    }
+    if (status === 'ACTIVE' || status === 'PARTIALLY_CLOSED') {
+      return (
+        <div className="flex gap-1">
+          <Button size="sm" variant="outline" className="h-7 text-xs"
+            onClick={() => setClosingOp(op)}>
+            Encerrar
+          </Button>
+        </div>
+      );
+    }
+    return null;
+  };
 
   // ── Snapshot results derivation (cache-first like OperationsMTM)
   const snapshotResults = useMemo(() => {
@@ -940,7 +1060,7 @@ const OperacoesD24: React.FC = () => {
                       {opCols.visible.has('reception_date') && <TableHead>Recepção</TableHead>}
                       {opCols.visible.has('sale_date') && <TableHead>Saída</TableHead>}
                       {opCols.visible.has('status') && <TableHead>Status</TableHead>}
-                      <TableHead></TableHead>
+                      <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -964,11 +1084,7 @@ const OperacoesD24: React.FC = () => {
                             </TableCell>
                           )}
                           <TableCell onClick={(e) => e.stopPropagation()}>
-                            {op.status === 'HEDGE_CONFIRMADO' && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setClosingOp(op)}>
-                                Encerrar
-                              </Button>
-                            )}
+                            {renderOpActions(op)}
                           </TableCell>
                         </TableRow>
                       );
@@ -1285,11 +1401,14 @@ const OperacoesD24: React.FC = () => {
 
             const isDraft = opD24.status === 'DRAFT' || opD24.status === 'RASCUNHO';
 
-            const Section: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = true, children }) => (
+            const Section: React.FC<{ title: string; defaultOpen?: boolean; action?: React.ReactNode; children: React.ReactNode }> = ({ title, defaultOpen = true, action, children }) => (
               <Collapsible defaultOpen={defaultOpen} className="border rounded-md">
                 <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180">
                   <span>{title}</span>
-                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                  <span className="flex items-center gap-2">
+                    {action}
+                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                  </span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-3 pb-3 pt-1">
                   {children}
@@ -1421,50 +1540,47 @@ const OperacoesD24: React.FC = () => {
                 </Section>
 
                 {/* 4. Plano de Hedge */}
-                <Section title="Plano de Hedge" defaultOpen>
-                  {!isDraft && (
-                    planLegs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Nenhum plano definido.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {planLegs.map((leg: any, i: number) => (
-                          <div key={i} className="rounded-md border p-3 space-y-1 text-sm">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="outline">{leg.instrument_type}</Badge>
-                              <Badge variant="secondary">{leg.direction}</Badge>
-                              <Badge variant="outline">{leg.currency}</Badge>
-                            </div>
-                            <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
-                              {leg.ticker && <Row label="Ticker">{leg.ticker}</Row>}
-                              {leg.contracts != null && <Row label="Contratos">{leg.contracts}</Row>}
-                              {leg.volume_units != null && <Row label="Volume">{Number(leg.volume_units).toLocaleString('pt-BR')}</Row>}
-                              {leg.price_estimated != null && <Row label="Preço estimado">{Number(leg.price_estimated).toFixed(4)}</Row>}
-                              {leg.ndf_rate != null && <Row label="NDF rate">{Number(leg.ndf_rate).toFixed(4)}</Row>}
-                              {leg.ndf_maturity && <Row label="NDF maturity">{fmtDate(leg.ndf_maturity)}</Row>}
-                              {leg.option_type && <Row label="Tipo opção">{leg.option_type}</Row>}
-                              {leg.strike != null && <Row label="Strike">{Number(leg.strike).toFixed(4)}</Row>}
-                              {leg.premium != null && <Row label="Prêmio">{Number(leg.premium).toFixed(4)}</Row>}
-                              {leg.expiration_date && <Row label="Vencimento">{fmtDate(leg.expiration_date)}</Row>}
-                              {leg.notes && <Row label="Notas">{leg.notes}</Row>}
-                            </div>
+                <Section
+                  title="Plano de Hedge"
+                  defaultOpen
+                  action={isDraft ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs"
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditPlanOp(selectedOperation); }}
+                    >
+                      Editar
+                    </Button>
+                  ) : undefined}
+                >
+                  {planLegs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum plano definido.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {planLegs.map((leg: any, i: number) => (
+                        <div key={i} className="rounded-md border p-3 space-y-1 text-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">{leg.instrument_type}</Badge>
+                            <Badge variant="secondary">{leg.direction}</Badge>
+                            <Badge variant="outline">{leg.currency}</Badge>
                           </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-
-                  {isDraft && (
-                    <HedgePlanEditor
-                      operation={selectedOperation}
-                      opD24={opD24}
-                      planLegs={planLegs}
-                      userId={user?.id ?? ''}
-                      onSaved={() => {
-                        queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
-                        queryClient.invalidateQueries({ queryKey: ['operations'] });
-                      }}
-                      copyToClipboard={copyToClipboard}
-                    />
+                          <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                            {leg.ticker && <Row label="Ticker">{leg.ticker}</Row>}
+                            {leg.contracts != null && <Row label="Contratos">{leg.contracts}</Row>}
+                            {leg.volume_units != null && <Row label="Volume">{Number(leg.volume_units).toLocaleString('pt-BR')}</Row>}
+                            {leg.price_estimated != null && <Row label="Preço estimado">{Number(leg.price_estimated).toFixed(4)}</Row>}
+                            {leg.ndf_rate != null && <Row label="NDF rate">{Number(leg.ndf_rate).toFixed(4)}</Row>}
+                            {leg.ndf_maturity && <Row label="NDF maturity">{fmtDate(leg.ndf_maturity)}</Row>}
+                            {leg.option_type && <Row label="Tipo opção">{leg.option_type}</Row>}
+                            {leg.strike != null && <Row label="Strike">{Number(leg.strike).toFixed(4)}</Row>}
+                            {leg.premium != null && <Row label="Prêmio">{Number(leg.premium).toFixed(4)}</Row>}
+                            {leg.expiration_date && <Row label="Vencimento">{fmtDate(leg.expiration_date)}</Row>}
+                            {leg.notes && <Row label="Notas">{leg.notes}</Row>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </Section>
 
@@ -1521,6 +1637,28 @@ const OperacoesD24: React.FC = () => {
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+                </Section>
+
+                {/* 6.5. Assinaturas */}
+                <Section title={`Assinaturas (${operationSignatures?.length ?? 0})`} defaultOpen={false}>
+                  {(!operationSignatures || operationSignatures.length === 0) ? (
+                    <p className="text-sm text-muted-foreground">Nenhuma assinatura registrada.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {operationSignatures.map((s: any) => (
+                        <div key={s.id} className="rounded-md border p-3 text-sm space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{s.signer?.full_name ?? (typeof s.user_id === 'string' ? s.user_id.slice(0, 8) : '—')}</span>
+                            <Badge variant="outline">{s.decision}</Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {s.role_used} · {s.flow_type} · {fmtDateTime(s.signed_at)}
+                          </div>
+                          {s.notes && <p className="text-xs">{s.notes}</p>}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </Section>
@@ -1662,6 +1800,50 @@ const OperacoesD24: React.FC = () => {
         mtmSnapshots={mtmSnapshots ?? []}
         onClose={() => setClosingOp(null)}
       />
+
+      {/* ── Edit Hedge Plan Dialog ── */}
+      <Dialog open={!!editPlanOp} onOpenChange={(o) => { if (!o) setEditPlanOp(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Editar Plano de Hedge — {editPlanOp?.warehouses?.display_name ?? '—'} / {(editPlanOp as any)?.display_code ?? editPlanOp?.id.slice(0, 8)}
+            </DialogTitle>
+          </DialogHeader>
+          {editPlanOp && (() => {
+            const rawPlan = (editPlanOp as any).hedge_plan;
+            const planLegs = Array.isArray(rawPlan) ? rawPlan : (rawPlan?.plan ?? []);
+            return (
+              <HedgePlanEditor
+                operation={editPlanOp}
+                opD24={editPlanOp as any}
+                planLegs={planLegs}
+                userId={user?.id ?? ''}
+                onSaved={() => {
+                  queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+                  queryClient.invalidateQueries({ queryKey: ['operations'] });
+                  setEditPlanOp(null);
+                }}
+                copyToClipboard={(text: string) => { navigator.clipboard.writeText(text); toast.success('Copiado'); }}
+              />
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Register Execution Dialog (placeholder) ── */}
+      <Dialog open={!!registerExecutionOp} onOpenChange={(o) => { if (!o) setRegisterExecutionOp(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar Execução — {registerExecutionOp?.warehouses?.display_name ?? '—'}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Funcionalidade de registro de execução será implementada na próxima etapa.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegisterExecutionOp(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
