@@ -48,6 +48,40 @@ import { toast } from 'sonner';
 
 // ───────────────────────── helpers (replicated, no cross-page imports) ─────────────────────────
 
+type EditableLeg = {
+  instrument_type: 'futures' | 'ndf' | 'option';
+  direction: 'buy' | 'sell';
+  currency: string;
+  ticker: string;
+  contracts: string;
+  price_estimated: string;
+  ndf_rate: string;
+  ndf_maturity: string;
+  option_type: 'call' | 'put';
+  strike: string;
+  premium: string;
+  expiration_date: string;
+  notes: string;
+  is_counterparty_insurance: boolean;
+};
+
+const emptyLeg = (): EditableLeg => ({
+  instrument_type: 'futures',
+  direction: 'sell',
+  currency: 'USD',
+  ticker: '',
+  contracts: '',
+  price_estimated: '',
+  ndf_rate: '',
+  ndf_maturity: '',
+  option_type: 'call',
+  strike: '',
+  premium: '',
+  expiration_date: '',
+  notes: '',
+  is_counterparty_insurance: false,
+});
+
 const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; className?: string }> = {
   RASCUNHO: { label: 'Rascunho', variant: 'secondary' },
   DRAFT: { label: 'Rascunho', variant: 'secondary' },
