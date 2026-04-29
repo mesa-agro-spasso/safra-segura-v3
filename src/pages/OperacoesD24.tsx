@@ -1641,6 +1641,28 @@ const OperacoesD24: React.FC = () => {
                   )}
                 </Section>
 
+                {/* 6.5. Assinaturas */}
+                <Section title={`Assinaturas (${operationSignatures?.length ?? 0})`} defaultOpen={false}>
+                  {(!operationSignatures || operationSignatures.length === 0) ? (
+                    <p className="text-sm text-muted-foreground">Nenhuma assinatura registrada.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {operationSignatures.map((s: any) => (
+                        <div key={s.id} className="rounded-md border p-3 text-sm space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{s.signer?.full_name ?? (typeof s.user_id === 'string' ? s.user_id.slice(0, 8) : '—')}</span>
+                            <Badge variant="outline">{s.decision}</Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {s.role_used} · {s.flow_type} · {fmtDateTime(s.signed_at)}
+                          </div>
+                          {s.notes && <p className="text-xs">{s.notes}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Section>
+
                 {/* 7. MTM */}
                 <Section title="MTM" defaultOpen={false}>
                   {!opMtmSnapshot ? (
