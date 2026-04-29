@@ -924,12 +924,54 @@ const OperacoesD24: React.FC = () => {
                       <Row label="Futuros (BRL)">{ps.futures_price_brl != null ? `R$ ${Number(ps.futures_price_brl).toFixed(2)}` : '—'}</Row>
                       <Row label="Câmbio">{ps.exchange_rate != null ? Number(ps.exchange_rate).toFixed(4) : '—'}</Row>
                       <Row label="Target basis">{ps.target_basis_brl != null ? `R$ ${Number(ps.target_basis_brl).toFixed(2)}/sc` : '—'}</Row>
-                      <Row label="Desconto adicional">{ps.additional_discount_brl != null ? `R$ ${Number(ps.additional_discount_brl).toFixed(2)}/sc` : '—'}</Row>
-                      {ps.outputs_json && Object.entries(ps.outputs_json).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => (
-                        <Row key={k} label={<span className="font-mono text-xs">{k}</span>}>
-                          <span className="font-mono text-xs">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
-                        </Row>
-                      ))}
+                      <Row label={<span className="text-muted-foreground text-xs truncate">Desconto adicional</span>}>
+                        <span className="text-xs">
+                          {ps.additional_discount_brl != null
+                            ? `R$ ${Number(ps.additional_discount_brl).toFixed(2)}/sc`
+                            : '—'}
+                        </span>
+                      </Row>
+                      {Object.entries(ps.outputs_json ?? {})
+                        .filter(([, v]) => v !== null && v !== undefined)
+                        .map(([k, v]) => {
+                          const isObj = typeof v === 'object' && v !== null && !Array.isArray(v);
+                          if (isObj) {
+                            return (
+                              <Collapsible key={k} className="col-span-2">
+                                <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground font-mono py-0.5 w-full text-left hover:text-foreground [&[data-state=open]>svg]:rotate-180">
+                                  <ChevronDown className="h-3 w-3 transition-transform" />
+                                  {k}
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm pl-4 pt-1">
+                                    {Object.entries(v as Record<string, unknown>)
+                                      .filter(([, sv]) => sv !== null && sv !== undefined)
+                                      .map(([sk, sv]) => (
+                                        <React.Fragment key={sk}>
+                                          <span className="text-muted-foreground font-mono text-xs">{sk}</span>
+                                          <span className="text-xs break-all">
+                                            {typeof sv === 'number'
+                                              ? Number(sv).toLocaleString('pt-BR', { maximumFractionDigits: 4 })
+                                              : String(sv)}
+                                          </span>
+                                        </React.Fragment>
+                                      ))}
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            );
+                          }
+                          return (
+                            <React.Fragment key={k}>
+                              <span className="text-muted-foreground font-mono text-xs">{k}</span>
+                              <span className="text-xs break-all">
+                                {typeof v === 'number'
+                                  ? Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 4 })
+                                  : String(v)}
+                              </span>
+                            </React.Fragment>
+                          );
+                        })}
                     </div>
                   )}
                 </Section>
