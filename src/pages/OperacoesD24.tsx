@@ -616,18 +616,49 @@ const OperacoesD24: React.FC = () => {
   ]);
   const filteredOperations = useMemo(() => {
     if (!operations) return [];
-    const filtered = filterStatus === 'active'
+    const filtered = (filterStatus === 'active'
       ? operations.filter(op => !INACTIVE_STATUSES.has(op.status))
       : filterStatus === 'closed'
       ? operations.filter(op => op.status === 'ENCERRADA' || op.status === 'CLOSED')
-      : operations;
+      : operations)
+      .filter(op => filterWarehouse === 'all' || op.warehouse_id === filterWarehouse)
+      .filter(op => filterCommodity === 'all' || op.commodity === filterCommodity);
     return [...filtered].sort((a, b) => {
       const oa = STATUS_ORDER[a.status] ?? 50;
       const ob = STATUS_ORDER[b.status] ?? 50;
       if (oa !== ob) return oa - ob;
       return new Date(b.created_at ?? '').getTime() - new Date(a.created_at ?? '').getTime();
     });
-  }, [operations, filterStatus]);
+  }, [operations, filterStatus, filterWarehouse, filterCommodity]);
+
+  const handleExport = () => {
+    if (!filteredOperations.length) return;
+    const headers = ['Praça', 'Commodity', 'Ticker', 'Volume (sc)', 'Preço Orig.',
+      'Entrada', 'Pagamento', 'Recepção', 'Saída', 'Status'];
+    const rows = filteredOperations.map(op => {
+      const ps = op.pricing_snapshots;
+      return [
+        op.warehouses?.display_name ?? '—',
+        op.commodity === 'soybean' ? 'Soja' : 'Milho',
+        ps?.ticker ?? '—',
+        op.volume_sacks.toLocaleString('pt-BR'),
+        ps ? `R$ ${ps.origination_price_brl.toFixed(2)}` : '—',
+        ps?.trade_date ? new Date(ps.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+        ps?.payment_date ? new Date(ps.payment_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+        ps?.grain_reception_date ? new Date(ps.grain_reception_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+        ps?.sale_date ? new Date(ps.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+        op.status,
+      ].join(';');
+    });
+    const csv = [headers.join(';'), ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `operacoes_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const ordersForSelectedOperation = useMemo(() => {
     if (!selectedOperation || !allOrders) return [];
