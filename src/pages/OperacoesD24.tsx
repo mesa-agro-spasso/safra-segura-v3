@@ -92,11 +92,11 @@ interface HedgePlanEditorProps {
 }
 
 const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, planLegs, userId, onSaved, copyToClipboard }) => {
-  const [editLegs, setEditLegs] = React.useState<EditableLeg[]>(() =>
+  const [editLegsRaw, setEditLegsRaw] = React.useState<EditableLeg[]>(() =>
     planLegs.map((l: any) => ({
       instrument_type: (l.instrument_type ?? 'futures') as EditableLeg['instrument_type'],
       direction: (l.direction ?? 'sell') as 'buy' | 'sell',
-      currency: l.currency ?? 'USD',
+      currency: l.currency ?? (l.instrument_type === 'ndf' ? 'BRL' : 'USD'),
       ticker: l.ticker ?? '',
       contracts: l.contracts != null ? String(l.contracts) : '',
       price_estimated: l.price_estimated != null ? String(l.price_estimated) : '',
@@ -111,13 +111,19 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
     }))
   );
 
-  const [planValidation, setPlanValidation] = React.useState<{
-    legResults: Array<{ status: 'idle' | 'loading' | 'done' | 'error'; result?: ValidateExecutionResponse; errorMsg?: string }>;
-    newOrderMsg: string | null;
-    newConfirmMsg: string | null;
+  const [messages, setMessages] = React.useState<{
+    order_message: string;
+    confirmation_message: string;
   } | null>(null);
-
+  const [generatingMessages, setGeneratingMessages] = React.useState(false);
   const [savingPlan, setSavingPlan] = React.useState(false);
+
+  // Wrapper: any edit to legs invalidates previously generated messages.
+  const editLegs = editLegsRaw;
+  const setEditLegs: React.Dispatch<React.SetStateAction<EditableLeg[]>> = (updater) => {
+    setEditLegsRaw(updater);
+    setMessages(null);
+  };
 
   const buildLegPayload = (l: EditableLeg) => ({
     instrument_type: l.instrument_type,
