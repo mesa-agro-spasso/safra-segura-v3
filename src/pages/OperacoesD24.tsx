@@ -414,6 +414,9 @@ const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'second
   MONITORAMENTO: { label: 'Monitoramento', variant: 'outline', className: 'border-green-500 text-green-500' },
   ENCERRADA: { label: 'Encerrada', variant: 'secondary' },
   CANCELADA: { label: 'Cancelada', variant: 'destructive' },
+  ACTIVE: { label: 'Ativa', variant: 'default', className: 'bg-green-600 text-white' },
+  PARTIALLY_CLOSED: { label: 'Parcial. Encerrada', variant: 'outline', className: 'border-orange-500 text-orange-500' },
+  CLOSED: { label: 'Encerrada', variant: 'secondary' },
 };
 
 const STATUS_ORDER: Record<string, number> = {
@@ -559,6 +562,19 @@ const OperacoesD24: React.FC = () => {
   const saveMtm = useSaveMtmSnapshot();
   const { data: pricingParameters } = usePricingParameters();
   const { data: pricingSnapshots = [] } = usePricingSnapshots();
+
+  // D24 orders (open positions) for MTM tab
+  const { data: d24Orders } = useQuery({
+    queryKey: ['d24-orders-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders' as any)
+        .select('*')
+        .eq('is_closing', false);
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
 
   // Tab + column states
   const opCols = usePersistedColumns('cols_operacoes', OP_COLUMNS);
@@ -817,6 +833,12 @@ const OperacoesD24: React.FC = () => {
 
   const displayResults = results ?? (snapshotResults as Record<string, unknown>[] | null);
 
+  // ── D24 active operations available for MTM
+  const activeOpsForMtm = useMemo(
+    () => (operations ?? []).filter(op => op.status === 'ACTIVE' || op.status === 'PARTIALLY_CLOSED'),
+    [operations]
+  );
+
   // ── D20 formulas (authorized exception)
   const targetProfitSoybean = pricingParameters?.find(p => p.id === 'soybean_cbot')?.target_profit_brl_per_sack ?? 2.0;
   const targetProfitCorn = pricingParameters?.find(p => p.id === 'corn_b3')?.target_profit_brl_per_sack ?? 2.0;
@@ -887,62 +909,98 @@ const OperacoesD24: React.FC = () => {
     });
   }, [displayResults, orders]);
 
-  // ── handleCalculate (replicated from OperationsMTM, no simplification)
+  // ── handleCalculate (D24: reads from operations + orders D24)
   const handleCalculate = async () => {
-    if (!orders?.length || !marketData?.length) {
-      toast.error('Dados insuficientes');
-      return;
-    }
+    if (!marketData?.length) { toast.error('Dados de mercado ausentes'); return; }
+    if (!activeOpsForMtm.length) { toast.error('Nenhuma operação ativa'); return; }
+
     setCalculating(true);
     try {
-      const spotFx = marketData.find((m) => m.commodity === 'FX')?.price ?? null;
+      const spotFx = marketData.find(m => m.commodity === 'FX')?.price ?? null;
       const sigmaMap: Record<string, number> = {};
-      pricingParameters?.forEach((p) => { sigmaMap[p.id] = p.sigma; });
+      pricingParameters?.forEach(p => { sigmaMap[p.id] = p.sigma; });
 
-      const positions = await Promise.all(orders.map(async (o) => {
-        const legs = o.legs as {
-          leg_type: string; ticker: string;
-          option_type?: string; strike?: number; expiration_date?: string;
-        }[];
-        const futuresLeg = legs.find((l) => l.leg_type === 'futures');
-        const optionLeg = legs.find((l) => l.leg_type === 'option');
+      const positions = await Promise.all(activeOpsForMtm.map(async (op) => {
+        const opD24 = op as any;
+        const opOrders = (d24Orders ?? []).filter((o: any) => o.operation_id === op.id);
 
-        const futuresPrice = futuresLeg
-          ? (marketData.find((m) => m.ticker === futuresLeg.ticker)?.price ?? 0)
+        const legs = opOrders.map((o: any) => ({
+          leg_type: o.instrument_type,
+          direction: o.direction,
+          currency: o.currency,
+          ticker: o.ticker ?? '',
+          contracts: o.contracts,
+          volume_units: o.volume_units,
+          price: o.price ?? null,
+          ndf_rate: o.ndf_rate ?? null,
+          ndf_maturity: o.ndf_maturity ?? null,
+          option_type: o.option_type ?? null,
+          strike: o.strike ?? null,
+          premium: o.premium ?? null,
+          expiration_date: o.expiration_date ?? null,
+          is_counterparty_insurance: o.is_counterparty_insurance ?? false,
+          unit_label: opD24.exchange?.toLowerCase() === 'b3' ? 'sc' : 'bu',
+        }));
+
+        const futuresLeg = legs.find(l => l.leg_type === 'futures');
+        const optionLeg = legs.find(l => l.leg_type === 'option');
+
+        const futuresPrice = futuresLeg?.ticker
+          ? (marketData.find(m => m.ticker === futuresLeg.ticker)?.price ?? 0)
           : 0;
 
         const fxRate = spotFx ?? 5.0;
-        const BUSHELS_PER_SACK = o.commodity === 'soybean' ? 2.20462 : 2.3622;
-        const F_brl = o.commodity === 'soybean'
+        const BUSHELS_PER_SACK = opD24.commodity === 'soybean' ? 2.20462 : 2.3622;
+        const F_brl = opD24.commodity === 'soybean'
           ? futuresPrice * BUSHELS_PER_SACK * fxRate
           : futuresPrice;
 
         let optionPremiumCurrent: number | null = null;
-
         if (optionLeg?.strike && optionLeg?.expiration_date) {
           const today = new Date();
           const expDate = new Date(optionLeg.expiration_date);
           const T_days = Math.max(1, Math.round((expDate.getTime() - today.getTime()) / 86400000));
-          const sigma = o.commodity === 'soybean'
+          const sigma = opD24.commodity === 'soybean'
             ? (sigmaMap['soybean_cbot'] ?? 0.35)
             : (sigmaMap['corn_b3'] ?? 0.17);
-          const r = 0.149;
           try {
             const premiumResult = await callApi<{ premium: number }>('/pricing/option-premium', {
-              F: F_brl, K: optionLeg.strike, T_days, r, sigma,
+              F: F_brl, K: optionLeg.strike, T_days, r: 0.149, sigma,
               option_type: optionLeg.option_type ?? 'call',
             });
             optionPremiumCurrent = premiumResult?.premium ?? null;
-          } catch (optErr) {
-            toast.error(`Erro ao calcular prêmio de opção: ${optErr instanceof Error ? optErr.message : JSON.stringify(optErr)}`);
-          }
+          } catch { /* non-blocking */ }
         }
 
+        const hedgeOrder = {
+          operation_id: op.id,
+          commodity: opD24.commodity,
+          exchange: opD24.exchange ?? 'cbot',
+          broker: '',
+          broker_account: '',
+          volume_sacks: op.volume_sacks,
+          origination_price_brl: opD24.origination_price_brl ?? 0,
+          futures_price: futuresPrice,
+          futures_price_currency: opD24.exchange?.toLowerCase() === 'b3' ? 'BRL' : 'USD',
+          exchange_rate: spotFx,
+          trade_date: opD24.trade_date ?? '',
+          payment_date: opD24.payment_date ?? '',
+          grain_reception_date: opD24.grain_reception_date ?? opD24.payment_date ?? '',
+          sale_date: opD24.sale_date ?? '',
+          legs,
+          counterparty_insurance: null,
+          pricing_snapshot: {},
+          generated_at: new Date().toISOString(),
+          status: 'EXECUTED',
+          order_message: '',
+          confirmation_message: '',
+        };
+
         return {
-          order: JSON.parse(JSON.stringify(o)),
+          order: hedgeOrder,
           snapshot: {
             futures_price_current: futuresPrice,
-            physical_price_current: parseFloat(physicalPrices[o.operation_id] || '0'),
+            physical_price_current: parseFloat(physicalPrices[op.id] || '0'),
             spot_rate_current: spotFx,
             option_premium_current: optionPremiumCurrent,
           },
@@ -1120,7 +1178,7 @@ const OperacoesD24: React.FC = () => {
                   <CardTitle className="text-sm">Resultado MTM</CardTitle>
                   <div className="flex gap-2">
                     <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
-                    <Button onClick={handleCalculate} disabled={calculating || !orders?.length} size="sm">
+                    <Button onClick={handleCalculate} disabled={calculating || !activeOpsForMtm.length} size="sm">
                       <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
                       {calculating ? 'Calculando...' : 'Calcular MTM'}
                     </Button>
@@ -1195,7 +1253,7 @@ const OperacoesD24: React.FC = () => {
                   <CardTitle className="text-sm">Resultado MTM</CardTitle>
                   <div className="flex gap-2">
                     <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
-                    <Button onClick={handleCalculate} disabled={calculating || !orders?.length} size="sm">
+                    <Button onClick={handleCalculate} disabled={calculating || !activeOpsForMtm.length} size="sm">
                       <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
                       {calculating ? 'Calculando...' : 'Calcular MTM'}
                     </Button>
@@ -1208,7 +1266,7 @@ const OperacoesD24: React.FC = () => {
             </Card>
           )}
 
-          {orders?.length ? (
+          {activeOpsForMtm.length ? (
             <Card>
               <CardHeader><CardTitle className="text-sm">Operações Ativas — Inputs</CardTitle></CardHeader>
               <CardContent>
@@ -1224,26 +1282,32 @@ const OperacoesD24: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map(o => (
-                      <TableRow key={o.id}>
-                        <TableCell className="font-mono text-xs">{o.operation_id.slice(0, 8)}</TableCell>
-                        <TableCell>{o.operation?.warehouses?.display_name ?? '—'}</TableCell>
-                        <TableCell>{o.commodity}</TableCell>
-                        <TableCell>{o.volume_sacks.toLocaleString()}</TableCell>
-                        <TableCell>R$ {o.origination_price_brl.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number" step="0.01" className="h-8 w-28" placeholder="0.00"
-                            value={physicalPrices[o.operation_id] || ''}
-                            onChange={(e) => setPhysicalPrices(p => {
-                              const updated = { ...p, [o.operation_id]: e.target.value };
-                              try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch { /* noop */ }
-                              return updated;
-                            })}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {activeOpsForMtm.map(op => {
+                      const opAny = op as any;
+                      const commodityLabel = opAny.commodity === 'soybean'
+                        ? 'Soja'
+                        : opAny.commodity === 'corn' ? 'Milho' : (opAny.commodity ?? '—');
+                      return (
+                        <TableRow key={op.id}>
+                          <TableCell className="font-mono text-xs">{op.id.slice(0, 8)}</TableCell>
+                          <TableCell>{op.warehouses?.display_name ?? '—'}</TableCell>
+                          <TableCell>{commodityLabel}</TableCell>
+                          <TableCell>{Number(op.volume_sacks ?? 0).toLocaleString('pt-BR')}</TableCell>
+                          <TableCell>R$ {Number(opAny.origination_price_brl ?? 0).toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Input
+                              type="number" step="0.01" className="h-8 w-28" placeholder="0.00"
+                              value={physicalPrices[op.id] || ''}
+                              onChange={(e) => setPhysicalPrices(p => {
+                                const updated = { ...p, [op.id]: e.target.value };
+                                try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch { /* noop */ }
+                                return updated;
+                              })}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

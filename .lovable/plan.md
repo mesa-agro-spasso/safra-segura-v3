@@ -1,81 +1,51 @@
-## Substituir Dialog placeholder por RegisterExecutionModal funcional
+# Migrar aba MTM para orders D24
 
-Único arquivo modificado: `src/pages/OperacoesD24.tsx`.
+## Problema
+A aba MTM em `src/pages/OperacoesD24.tsx` consome `useHedgeOrders({ status: 'EXECUTED' })`, que aponta para a tabela legada `hedge_orders` (vazia/inexistente no fluxo D24). Por isso, operações `ACTIVE`/`PARTIALLY_CLOSED` nunca aparecem para cálculo de MTM, mesmo após "Registrar Execução".
 
-### 1. Novo componente `RegisterExecutionModal` (adicionar após `NewOperationModal`, ~linha 1856 área de componentes auxiliares)
+## Escopo
+Apenas `src/pages/OperacoesD24.tsx`. Nenhum hook novo, nenhuma Edge Function nova, nenhum outro arquivo tocado.
 
-Mesmo padrão de `HedgePlanEditor`/`NewOperationModal`: componente funcional separado com estado local via `useState`.
+## Mudanças
 
-**Tipos e props:**
-```typescript
-type ExecLeg = {
-  instrument_type: string;
-  direction: string;
-  currency: string;
-  ticker: string;
-  contracts: string;
-  price: string;
-  ndf_rate: string;
-  ndf_maturity: string;
-  option_type: string;
-  strike: string;
-  premium: string;
-  expiration_date: string;
-  notes: string;
-  is_counterparty_insurance: boolean;
-};
+### 1. Nova query `d24Orders`
+Adicionar junto às demais queries (após linha ~561), buscando todas as `orders` abertas (`is_closing = false`) via `supabase.from('orders' as any)`. Mantém compatibilidade com RLS atual (SELECT permitido a authenticated).
 
-interface RegisterExecutionModalProps {
-  operation: OperationWithDetails | null;
-  userId: string | null;
-  onClose: () => void;
-  onExecuted: () => void;
-}
-```
+### 2. Reescrever `handleCalculate` (linhas ~890–980)
+- Trocar fonte de `orders` (hedge_orders) por `operations` filtradas por status `ACTIVE` ou `PARTIALLY_CLOSED`.
+- Para cada operação, agrupar suas `orders` D24 (via `d24Orders.filter(operation_id === op.id)`) e converter cada `order` em uma `leg` no formato legado esperado pelo endpoint `/mtm/run` da API Python (mantendo o contrato atual do backend, sem mexer no Render).
+- Calcular `optionPremiumCurrent` via `/pricing/option-premium` quando houver leg de opção (lógica preservada).
+- Montar payload `hedgeOrder` no shape legado e chamar `/mtm/run` com `positions`.
+- Persistir resultados via `saveMtm.mutateAsync` (lógica preservada).
+- Mensagens de erro: "Dados de mercado ausentes" / "Nenhuma operação ativa".
 
-**Inicialização das legs:** `useEffect` disparado quando `operation` muda, lê `(operation as any).hedge_plan` (suporta tanto array direto quanto `{plan: [...]}`), mapeia para `ExecLeg[]` com strings (conforme spec). Reseta `stonexText` para `''`.
+### 3. Tabela "Operações Ativas — Inputs" (linhas ~1211–1251)
+- Trocar a fonte de `orders` (hedge_orders) por `activeOpsForMtm = operations.filter(status ∈ {ACTIVE, PARTIALLY_CLOSED})`.
+- Renderizar uma linha por operação D24, usando:
+  - `op.id` como chave de `physicalPrices`
+  - `op.warehouses?.display_name` (praça)
+  - `(op as any).commodity` (com label PT)
+  - `op.volume_sacks`
+  - `(op as any).origination_price_brl`
+- Render condicional passa a depender de `activeOpsForMtm.length`.
 
-**Layout:** `Dialog` aberto quando `operation !== null`. Para cada leg, um card com:
-- Header com 3 badges: `instrument_type`, `direction`, `currency`
-- Campos por tipo (futures / ndf / option) conforme spec
-- Label do preço/prêmio dinâmico baseado em `operation.exchange` (`cbot` → "USD/bushel", `b3` → "BRL/sc")
-- Campo Obs. sempre editável
+### 4. Botões "Calcular MTM" (linhas 1123 e 1198)
+- Substituir `disabled={calculating || !orders?.length}` por `disabled={calculating || !activeOpsForMtm.length}`.
 
-Abaixo das legs: `Textarea` para "Texto de confirmação StoneX (colar na íntegra)".
+### 5. STATUS_BADGE (linhas ~405–417)
+Adicionar 3 entradas D24:
+- `ACTIVE` → "Ativa", verde
+- `PARTIALLY_CLOSED` → "Parcial. Encerrada", laranja outline
+- `CLOSED` → "Encerrada", secondary
 
-**Botão "Confirmar Execução":**
-1. Valida cada leg: `contracts > 0` e (`price > 0` para futures/option) ou (`ndf_rate > 0` para ndf). Falha → `toast.error('Preencha todos os campos obrigatórios')`.
-2. Calcula `CONTRACT_SIZE` = 450 (b3) ou 5000 (cbot).
-3. Loop sequencial: INSERT em `orders` via `supabase.from('orders' as any).insert(payload as never)` — uma linha por leg, com payload exato da spec (incluindo `stonex_confirmation_text` em todas as linhas, `is_closing: false`, `executed_at`, `executed_by: userId`).
-4. Em qualquer erro: `toast.error` com mensagem.
-5. Sucesso: chama `onExecuted()`.
+(Os legados em PT permanecem para compatibilidade com operações antigas.)
 
-Estado de loading (`submitting`) desabilita o botão durante o INSERT.
+## Notas técnicas
+- `useHedgeOrders` continua importado e usado pela tabela "Resultado MTM" (mapeia metadados via `orders?.find(o => o.operation_id === r.operation_id)` para praça/commodity/datas em `displayResults`). Como essa tabela é alimentada por `mtmSnapshots` (cache) ou pelo resultado de `/mtm/run`, e ambos retornam `operation_id`, o `find` simplesmente devolverá `undefined` para operações D24, caindo nos fallbacks `'—'` já existentes. Aceitável nesta fatia — a aba volta a funcionar e os metadados da tabela de resultado podem ser migrados em iteração futura.
+- Triggers de DB já garantem que operações com `orders` abertas estão em `ACTIVE`/`PARTIALLY_CLOSED`, então o filtro por status é suficiente.
+- `d24Orders` invalidação não é crítica aqui (cálculo MTM é manual via botão), mas a queryKey `['d24-orders-active']` permite invalidação futura se necessário.
 
-### 2. Substituir o Dialog placeholder (linhas 1839–1851)
-
-Trocar o bloco `<Dialog open={!!registerExecutionOp} ...>...</Dialog>` por:
-
-```tsx
-<RegisterExecutionModal
-  operation={registerExecutionOp}
-  userId={user?.id ?? null}
-  onClose={() => setRegisterExecutionOp(null)}
-  onExecuted={() => {
-    queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
-    queryClient.invalidateQueries({ queryKey: ['operations'] });
-    setRegisterExecutionOp(null);
-    toast.success('Execução registrada — operação avançada para ACTIVE');
-  }}
-/>
-```
-
-(O toast e a invalidação ficam centralizados no `onExecuted` do parent, conforme spec — o componente filho não dispara o toast de sucesso final.)
-
-### Restrições respeitadas
-
-- Apenas `src/pages/OperacoesD24.tsx`.
-- Sem novos hooks, sem Edge Functions, sem novos imports além dos já presentes (Dialog, Button, Input, Label, Textarea, Badge, Select, supabase, toast — todos já importados pelo arquivo).
-- INSERT direto via `supabase.from('orders' as any)` para preservar a auth/RLS atual (`executed_by = auth.uid()`).
-- Avanço de status para `ACTIVE` é feito automaticamente pelo trigger `advance_operation_after_order` no banco — frontend só insere.
-- Apenas trechos modificados serão exibidos com contexto de localização.
+## Fora de escopo
+- Migrar a tabela "Resultado MTM" para usar `operations` em vez de `orders` legados (segue funcional com fallbacks).
+- Refatorar `snapshotResults` (depende de `orders?.length` apenas como guard, não bloqueia exibição depois de calcular).
+- Remover `useHedgeOrders` do arquivo.
