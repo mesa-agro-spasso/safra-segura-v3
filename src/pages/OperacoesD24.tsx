@@ -1060,7 +1060,7 @@ const OperacoesD24: React.FC = () => {
                       {opCols.visible.has('reception_date') && <TableHead>Recepção</TableHead>}
                       {opCols.visible.has('sale_date') && <TableHead>Saída</TableHead>}
                       {opCols.visible.has('status') && <TableHead>Status</TableHead>}
-                      <TableHead></TableHead>
+                      <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
