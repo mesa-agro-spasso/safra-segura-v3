@@ -701,7 +701,7 @@ const OperacoesD24: React.FC = () => {
         .select('operation_id')
         .in('operation_id', operationIds);
       if (error) throw error;
-      return data as { operation_id: string }[];
+      return (data ?? []) as unknown as { operation_id: string }[];
     },
   });
   const signedOperationIds = useMemo(
