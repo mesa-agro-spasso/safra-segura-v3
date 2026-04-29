@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { useHedgeOrders, useUpdateHedgeOrder } from '@/hooks/useHedgeOrders';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useOperations } from '@/hooks/useOperations';
 import { useAuth } from '@/contexts/AuthContext';
@@ -165,10 +166,20 @@ type OperationRow = Operation & {
 // ───────────────────────── main page ─────────────────────────
 
 const OrdensD24: React.FC = () => {
-  const { data: orders = [] } = useHedgeOrders();
+  const queryClient = useQueryClient();
+  const { data: orders = [] } = useQuery({
+    queryKey: ['d24-orders-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders' as any)
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
   const { data: warehouses = [] } = useActiveArmazens();
   const { data: operationsRaw = [] } = useOperations();
-  const updateOrder = useUpdateHedgeOrder();
   const { user } = useAuth();
 
   const operations = operationsRaw as OperationRow[];
@@ -177,14 +188,7 @@ const OrdensD24: React.FC = () => {
   const [praca, setPraca] = useState<Set<string>>(new Set());
   const [commodity, setCommodity] = useState<Set<string>>(new Set());
   const [operacao, setOperacao] = useState<Set<string>>(new Set());
-  const [status, setStatus] = useState<Set<string>>(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
-
-  // ── Modals
-  const [detailOrder, setDetailOrder] = useState<HedgeOrder | null>(null);
-  const [reasonModal, setReasonModal] = useState<{ order: HedgeOrder; mode: 'cancel' | 'reject' } | null>(null);
-  const [reasonText, setReasonText] = useState('');
-  const [executeOrder, setExecuteOrder] = useState<HedgeOrder | null>(null);
 
   // ── Maps
   const opById = useMemo(() => {
@@ -213,118 +217,50 @@ const OrdensD24: React.FC = () => {
 
   // ── Filtering + sort
   const filtered = useMemo(() => {
-    const list = orders.filter(order => {
+    const list = (orders as any[]).filter((order: any) => {
       const op = opById.get(order.operation_id);
       // Praça
       if (praca.size > 0) {
         if (!op || !praca.has(op.warehouse_id)) return false;
       }
-      // Commodity (commodity|exchange)
+      // Commodity (commodity|exchange) — derived from operation
       if (commodity.size > 0) {
-        const key = `${order.commodity}|${order.exchange.toLowerCase()}`;
+        const key = `${op?.commodity}|${((op as any)?.exchange ?? 'cbot').toLowerCase()}`;
         if (!commodity.has(key)) return false;
       }
       // Operação
       if (operacao.size > 0) {
         if (!operacao.has(order.operation_id)) return false;
       }
-      // Status
-      if (status.size > 0) {
-        if (!status.has(order.status)) return false;
-      }
       return true;
     });
 
-    return [...list].sort((a, b) => {
-      const diff = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
-      if (diff !== 0) return diff;
+    return [...list].sort((a: any, b: any) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [orders, opById, praca, commodity, operacao, status]);
+  }, [orders, opById, praca, commodity, operacao]);
 
   // ── Filter actions
   const selectAll = () => {
     setPraca(new Set(pracaOptions.map(o => o.value)));
     setCommodity(new Set(COMMODITY_OPTIONS.map(o => o.value)));
     setOperacao(new Set(operationOptions.map(o => o.value)));
-    setStatus(new Set(STATUS_OPTIONS));
   };
   const clearAll = () => {
-    setPraca(new Set()); setCommodity(new Set()); setOperacao(new Set()); setStatus(new Set());
+    setPraca(new Set()); setCommodity(new Set()); setOperacao(new Set());
   };
 
-  // ── Direct status transitions
-  const transition = async (order: HedgeOrder, newStatus: string) => {
-    try {
-      await updateOrder.mutateAsync({ id: order.id, status: newStatus } as never);
-      toast.success(`Ordem ${order.display_code ?? order.id.slice(0, 8)}${newStatus === 'SENT' ? ' enviada' : ' aprovada'}`);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`Falha: ${msg}`);
-    }
-  };
+  // D24: ordens são imutáveis — sem ações de transição.
+  const renderActions = (_order: any) => null;
 
-  // ── Cancel / Reject submit
-  const submitReason = async () => {
-    if (!reasonModal || !reasonText.trim()) return;
-    const { order, mode } = reasonModal;
-    const reason = mode === 'reject' ? `[Rejeição] ${reasonText.trim()}` : reasonText.trim();
-    try {
-      await updateOrder.mutateAsync({
-        id: order.id,
-        status: 'CANCELLED',
-        cancellation_reason: reason,
-        cancelled_at: new Date().toISOString(),
-        cancelled_by: user?.id,
-      } as never);
-      toast.success(`Ordem ${order.display_code ?? order.id.slice(0, 8)} ${mode === 'reject' ? 'rejeitada' : 'cancelada'}`);
-      setReasonModal(null); setReasonText('');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`Falha: ${msg}`);
-    }
-  };
-
-  const renderActions = (order: HedgeOrder) => {
-    const stop = (e: React.MouseEvent) => e.stopPropagation();
-    if (order.status === 'GENERATED') {
-      return (
-        <div className="flex gap-1 justify-end" onClick={stop}>
-          <Button size="sm" variant="default" onClick={() => transition(order, 'SENT')}>Enviar</Button>
-          <Button size="sm" variant="destructive" onClick={() => { setReasonModal({ order, mode: 'cancel' }); setReasonText(''); }}>Cancelar</Button>
-        </div>
-      );
-    }
-    if (order.status === 'SENT') {
-      return (
-        <div className="flex gap-1 justify-end" onClick={stop}>
-          <Button size="sm" variant="default" onClick={() => transition(order, 'APPROVED')}>Aprovar</Button>
-          <Button size="sm" variant="destructive" onClick={() => { setReasonModal({ order, mode: 'reject' }); setReasonText(''); }}>Rejeitar</Button>
-        </div>
-      );
-    }
-    if (order.status === 'APPROVED') {
-      return (
-        <div className="flex gap-1 justify-end" onClick={stop}>
-          <Button size="sm" variant="default" onClick={() => setExecuteOrder(order)}>Executar</Button>
-          <Button size="sm" variant="destructive" onClick={() => { setReasonModal({ order, mode: 'cancel' }); setReasonText(''); }}>Cancelar</Button>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const legsSummary = (order: HedgeOrder): string => {
-    const legs = (order.legs ?? []) as Array<Record<string, unknown>>;
-    if (!legs.length) return '--';
-    return legs.map(l => `${l.leg_type ?? '?'}(${l.direction ?? '?'})`).join(' + ');
+  const legsSummary = (order: any): string => {
+    return `${order.instrument_type}(${order.direction})`;
   };
 
   const activeFiltersCount =
     (praca.size > 0 ? 1 : 0) +
     (commodity.size > 0 ? 1 : 0) +
-    (operacao.size > 0 ? 1 : 0) +
-    (status.size > 0 ? 1 : 0);
+    (operacao.size > 0 ? 1 : 0);
 
   return (
     <div className="p-6 space-y-6">
@@ -363,7 +299,7 @@ const OrdensD24: React.FC = () => {
               <MultiSelect label="Praça" options={pracaOptions} selected={praca} onChange={setPraca} />
               <MultiSelect label="Commodity" options={COMMODITY_OPTIONS} selected={commodity} onChange={setCommodity} />
               <MultiSelect label="Operação" options={operationOptions} selected={operacao} onChange={setOperacao} />
-              <MultiSelect label="Status" options={STATUS_OPTIONS.map(s => ({ value: s, label: s }))} selected={status} onChange={setStatus} />
+              
             </div>
           </CardContent>
         )}
@@ -392,19 +328,22 @@ const OrdensD24: React.FC = () => {
                   <TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma ordem</TableCell>
                 </TableRow>
               )}
-              {filtered.map(order => {
+              {filtered.map((order: any) => {
                 const op = opById.get(order.operation_id);
                 const pracaName = op ? warehouseNameById.get(op.warehouse_id) ?? op.warehouse_id : '--';
-                const opCode = order.display_code ?? `${order.id.slice(0, 8)}…`;
+                const opCode = op?.display_code ?? `${order.id.slice(0, 8)}…`;
+                const orderCommodity = op?.commodity ?? '--';
+                const volumeSacks = op?.volume_sacks ?? null;
+                const originationPrice = (op as any)?.origination_price_brl ?? null;
                 return (
-                  <TableRow key={order.id} className="cursor-pointer" onClick={() => setDetailOrder(order)}>
+                  <TableRow key={order.id}>
                     <TableCell>{pracaName}</TableCell>
                     <TableCell className="font-mono text-xs">{opCode}</TableCell>
-                    <TableCell><CommodityBadge commodity={order.commodity} /></TableCell>
-                    <TableCell className="text-right">{formatNumberBR(order.volume_sacks)}</TableCell>
-                    <TableCell className="text-right">R$ {formatNumberBR(order.origination_price_brl, 2)}</TableCell>
+                    <TableCell><CommodityBadge commodity={orderCommodity} /></TableCell>
+                    <TableCell className="text-right">{formatNumberBR(volumeSacks)}</TableCell>
+                    <TableCell className="text-right">R$ {formatNumberBR(originationPrice, 2)}</TableCell>
                     <TableCell className="text-xs">{legsSummary(order)}</TableCell>
-                    <TableCell><StatusBadge status={order.status} /></TableCell>
+                    <TableCell><StatusBadge status="EXECUTED" /></TableCell>
                     <TableCell className="text-xs">{formatDateBR(order.created_at)}</TableCell>
                     <TableCell className="text-right">{renderActions(order)}</TableCell>
                   </TableRow>
@@ -414,45 +353,6 @@ const OrdensD24: React.FC = () => {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Detail Sheet */}
-      <DetailSheet order={detailOrder} onClose={() => setDetailOrder(null)} />
-
-      {/* Reason Modal */}
-      <Dialog open={!!reasonModal} onOpenChange={open => { if (!open) { setReasonModal(null); setReasonText(''); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{reasonModal?.mode === 'reject' ? 'Rejeitar ordem' : 'Cancelar ordem'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label>Motivo</Label>
-            <Textarea value={reasonText} onChange={e => setReasonText(e.target.value)} placeholder="Descreva o motivo..." rows={4} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setReasonModal(null); setReasonText(''); }}>Voltar</Button>
-            <Button onClick={submitReason} disabled={!reasonText.trim() || updateOrder.isPending}>Confirmar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Execution Modal */}
-      <ExecutionModal
-        order={executeOrder}
-        operation={executeOrder ? opById.get(executeOrder.operation_id) ?? null : null}
-        userId={user?.id ?? null}
-        onClose={() => setExecuteOrder(null)}
-        onExecuted={async (updates) => {
-          if (!executeOrder) return;
-          try {
-            await updateOrder.mutateAsync({ id: executeOrder.id, ...updates } as never);
-            toast.success(`Ordem ${executeOrder.display_code ?? executeOrder.id.slice(0, 8)} executada`);
-            setExecuteOrder(null);
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            toast.error(`Falha ao executar: ${msg}`);
-          }
-        }}
-      />
     </div>
   );
 };
