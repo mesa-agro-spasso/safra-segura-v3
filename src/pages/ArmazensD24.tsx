@@ -1,0 +1,528 @@
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useWarehouses, useActiveArmazens } from '@/hooks/useWarehouses';
+import { useOperationsWithDetails } from '@/hooks/useOperations';
+import { useMtmSnapshots } from '@/hooks/useMtmSnapshots';
+import { usePricingParameters } from '@/hooks/usePricingParameters';
+import type { Warehouse, OperationWithDetails, MtmSnapshot } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Separator } from '@/components/ui/separator';
+import { ChevronDown, ExternalLink, MapPin } from 'lucide-react';
+
+// ───────────────────────── helpers (replicated locally) ─────────────────────────
+
+const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; className?: string }> = {
+  RASCUNHO: { label: 'Rascunho', variant: 'secondary' },
+  DRAFT: { label: 'Rascunho', variant: 'secondary' },
+  SUBMETIDA: { label: 'Submetida', variant: 'outline' },
+  EM_APROVACAO: { label: 'Em Aprovação', variant: 'outline', className: 'border-yellow-500 text-yellow-500' },
+  APROVADA: { label: 'Aprovada', variant: 'outline', className: 'border-blue-500 text-blue-500' },
+  HEDGE_CONFIRMADO: { label: 'Hedge Confirmado', variant: 'default' },
+  ENCERRAMENTO_SOLICITADO: { label: 'Enc. Solicitado', variant: 'outline', className: 'border-orange-500 text-orange-500' },
+  ENCERRAMENTO_APROVADO: { label: 'Enc. Aprovado', variant: 'outline', className: 'border-blue-500 text-blue-500' },
+  MONITORAMENTO: { label: 'Monitoramento', variant: 'outline', className: 'border-green-500 text-green-500' },
+  ENCERRADA: { label: 'Encerrada', variant: 'secondary' },
+  CANCELADA: { label: 'Cancelada', variant: 'destructive' },
+  REPROVADA: { label: 'Reprovada', variant: 'destructive' },
+};
+
+const STATUS_ORDER: Record<string, number> = {
+  ENCERRAMENTO_APROVADO: 1,
+  ENCERRAMENTO_SOLICITADO: 2,
+  HEDGE_CONFIRMADO: 3,
+  APROVADA: 4,
+  EM_APROVACAO: 5,
+  SUBMETIDA: 6,
+  RASCUNHO: 7,
+  DRAFT: 7,
+  MONITORAMENTO: 8,
+  ENCERRADA: 98,
+  CANCELADA: 99,
+  REPROVADA: 99,
+};
+
+const ACTIVE_STATUSES = new Set([
+  'RASCUNHO', 'DRAFT', 'SUBMETIDA', 'EM_APROVACAO', 'APROVADA',
+  'HEDGE_CONFIRMADO', 'ENCERRAMENTO_SOLICITADO', 'ENCERRAMENTO_APROVADO', 'MONITORAMENTO',
+]);
+
+const fmtDate = (d?: string | null) =>
+  d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+
+const fmtBrl = (v: unknown) => {
+  const n = (v as number);
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  return `R$ ${n.toFixed(2)}`;
+};
+
+const fmtSc = (v: unknown) => {
+  const n = (v as number) ?? 0;
+  return n.toLocaleString('pt-BR');
+};
+
+const fmtPct = (v: number | null | undefined) => {
+  if (v === null || v === undefined) return '—';
+  return `${(v * 100).toFixed(2)}%`;
+};
+
+const fmtNum = (v: number | null | undefined, suffix = '') => {
+  if (v === null || v === undefined) return '—';
+  return `${v}${suffix ? ' ' + suffix : ''}`;
+};
+
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const cfg = STATUS_BADGE[status] ?? { label: status, variant: 'outline' as const };
+  return <Badge variant={cfg.variant} className={cfg.className}>{cfg.label}</Badge>;
+};
+
+// ───────────────────────── main page ─────────────────────────
+
+const ArmazensD24: React.FC = () => {
+  const navigate = useNavigate();
+  const { data: allWarehousesRaw = [] } = useWarehouses();
+  const { data: activeArmazens = [] } = useActiveArmazens();
+  const { data: operations = [] } = useOperationsWithDetails();
+  const { data: snapshots = [] } = useMtmSnapshots();
+  const { data: pricingParameters } = usePricingParameters();
+
+  const [tab, setTab] = useState<'posicao' | 'config'>('posicao');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
+
+  const executionSpread = pricingParameters?.[0]?.execution_spread_pct ?? 0.05;
+
+  // Active, non-HQ warehouses
+  const warehouses = useMemo(
+    () => (allWarehousesRaw ?? []).filter(w => w.type !== 'HQ' && w.active),
+    [allWarehousesRaw],
+  );
+
+  // Latest snapshot per operation
+  const latestByOpId = useMemo(() => {
+    const map: Record<string, MtmSnapshot> = {};
+    for (const s of snapshots ?? []) {
+      const cur = map[s.operation_id];
+      if (!cur || (s.calculated_at ?? '') > (cur.calculated_at ?? '')) {
+        map[s.operation_id] = s;
+      }
+    }
+    return map;
+  }, [snapshots]);
+
+  // Per-warehouse aggregates
+  const rows = useMemo(() => {
+    return warehouses.map(w => {
+      const ops = (operations ?? []).filter(
+        o => o.warehouse_id === w.id && ACTIVE_STATUSES.has(o.status),
+      );
+      const commodities = Array.from(new Set(ops.map(o => o.commodity)));
+      const volumeTotal = ops.reduce((acc, o) => acc + (o.volume_sacks ?? 0), 0);
+      const mtmTotal = ops.reduce((acc, o) => acc + (latestByOpId[o.id]?.mtm_total_brl ?? 0), 0);
+
+      let beNum = 0;
+      let beVol = 0;
+      for (const o of ops) {
+        const snap = latestByOpId[o.id];
+        if (!snap) continue;
+        const physical = snap.physical_price_current ?? 0;
+        const mtmPerSack = snap.mtm_per_sack_brl ?? 0;
+        const be = (physical - mtmPerSack) * (1 + executionSpread);
+        const v = o.volume_sacks ?? 0;
+        beNum += be * v;
+        beVol += v;
+      }
+      const breakevenMedio = beVol > 0 ? beNum / beVol : null;
+
+      const dates = ops
+        .map(o => o.pricing_snapshots?.sale_date)
+        .filter((d): d is string => !!d);
+      const proximoVencimento = dates.length
+        ? dates.sort((a, b) => a.localeCompare(b))[0]
+        : null;
+
+      const mix = { rascunho: 0, em_aprovacao: 0, hedge: 0, outros: 0 };
+      for (const o of ops) {
+        if (o.status === 'RASCUNHO' || o.status === 'DRAFT') mix.rascunho++;
+        else if (o.status === 'EM_APROVACAO') mix.em_aprovacao++;
+        else if (o.status === 'HEDGE_CONFIRMADO') mix.hedge++;
+        else mix.outros++;
+      }
+
+      return {
+        warehouse: w,
+        ops,
+        commodities,
+        volumeTotal,
+        mtmTotal,
+        breakevenMedio,
+        proximoVencimento,
+        mix,
+      };
+    });
+  }, [warehouses, operations, latestByOpId, executionSpread]);
+
+  const selected = useMemo(
+    () => rows.find(r => r.warehouse.id === selectedWarehouseId) ?? null,
+    [rows, selectedWarehouseId],
+  );
+
+  const selectedOpsSorted = useMemo(() => {
+    if (!selected) return [];
+    return [...selected.ops].sort((a, b) => {
+      const sa = STATUS_ORDER[a.status] ?? 50;
+      const sb = STATUS_ORDER[b.status] ?? 50;
+      if (sa !== sb) return sa - sb;
+      return (b.created_at ?? '').localeCompare(a.created_at ?? '');
+    });
+  }, [selected]);
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Armazéns</h1>
+          <p className="text-sm text-muted-foreground">
+            Posição consolidada e configuração por armazém.
+          </p>
+        </div>
+      </div>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as 'posicao' | 'config')}>
+        <TabsList>
+          <TabsTrigger value="posicao">Posição</TabsTrigger>
+          <TabsTrigger value="config">Configuração</TabsTrigger>
+        </TabsList>
+
+        {/* ───────────── Aba Posição ───────────── */}
+        <TabsContent value="posicao" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Posição por armazém</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Armazém</TableHead>
+                    <TableHead>Commodity</TableHead>
+                    <TableHead className="text-right">Op. ativas</TableHead>
+                    <TableHead className="text-right">Volume (sc)</TableHead>
+                    <TableHead className="text-right">MTM Total (R$)</TableHead>
+                    <TableHead className="text-right">Break-even médio</TableHead>
+                    <TableHead>Próx. venc.</TableHead>
+                    <TableHead>Status mix</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map(r => (
+                    <TableRow
+                      key={r.warehouse.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => setSelectedWarehouseId(r.warehouse.id)}
+                    >
+                      <TableCell>
+                        <div className="font-medium">{r.warehouse.display_name}</div>
+                        <div className="text-xs text-muted-foreground">{r.warehouse.abbr}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {r.commodities.length === 0
+                            ? <span className="text-muted-foreground">—</span>
+                            : r.commodities.map(c => (
+                                <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>
+                              ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">{r.ops.length}</TableCell>
+                      <TableCell className="text-right">{fmtSc(r.volumeTotal)}</TableCell>
+                      <TableCell className={`text-right ${r.mtmTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {fmtBrl(r.mtmTotal)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.breakevenMedio === null ? '—' : fmtBrl(r.breakevenMedio)}
+                      </TableCell>
+                      <TableCell>{fmtDate(r.proximoVencimento)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {r.mix.rascunho > 0 && (
+                            <Badge variant="secondary" className="text-[10px]">Rasc {r.mix.rascunho}</Badge>
+                          )}
+                          {r.mix.em_aprovacao > 0 && (
+                            <Badge variant="outline" className="text-[10px] border-yellow-500 text-yellow-500">Aprov {r.mix.em_aprovacao}</Badge>
+                          )}
+                          {r.mix.hedge > 0 && (
+                            <Badge variant="default" className="text-[10px]">Hedge {r.mix.hedge}</Badge>
+                          )}
+                          {r.mix.outros > 0 && (
+                            <Badge variant="outline" className="text-[10px]">Outros {r.mix.outros}</Badge>
+                          )}
+                          {r.ops.length === 0 && <span className="text-muted-foreground text-xs">—</span>}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {rows.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        Nenhum armazém ativo.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ───────────── Aba Configuração ───────────── */}
+        <TabsContent value="config" className="space-y-4">
+          {warehouses.map(w => (
+            <ConfigCard
+              key={w.id}
+              warehouse={w}
+              allWarehouses={allWarehousesRaw}
+              onEdit={() => navigate('/configuracoes')}
+            />
+          ))}
+          {warehouses.length === 0 && (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Nenhum armazém ativo.
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* ───────────── Sheet de detalhe ───────────── */}
+      <Sheet
+        open={!!selectedWarehouseId}
+        onOpenChange={(open) => { if (!open) setSelectedWarehouseId(null); }}
+      >
+        <SheetContent className="sm:max-w-2xl w-full overflow-y-auto">
+          {selected && (
+            <>
+              <SheetHeader>
+                <SheetTitle>
+                  <div className="flex items-center gap-2">
+                    <span>{selected.warehouse.display_name}</span>
+                    <Badge variant={selected.warehouse.active ? 'default' : 'secondary'} className="text-[10px]">
+                      {selected.warehouse.active ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </div>
+                </SheetTitle>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <MapPin className="h-3 w-3" />
+                  {selected.warehouse.city ?? '—'}{selected.warehouse.state ? ` / ${selected.warehouse.state}` : ''}
+                </div>
+              </SheetHeader>
+
+              <div className="grid grid-cols-3 gap-3 mt-4">
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Volume Total</p>
+                    <p className="text-lg font-semibold">{fmtSc(selected.volumeTotal)}<span className="text-xs text-muted-foreground ml-1">sc</span></p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">MTM Total</p>
+                    <p className={`text-lg font-semibold ${selected.mtmTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {fmtBrl(selected.mtmTotal)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Operações</p>
+                    <p className="text-lg font-semibold">{selected.ops.length}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Separator className="my-4" />
+
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                  Operações ativas
+                </p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Commodity</TableHead>
+                      <TableHead className="text-right">Volume</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Pagamento</TableHead>
+                      <TableHead>Saída</TableHead>
+                      <TableHead className="text-right">MTM (R$/sc)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedOpsSorted.map(o => {
+                      const snap = latestByOpId[o.id];
+                      const mtmPerSack = snap?.mtm_per_sack_brl;
+                      const code = (o as any).display_code ?? o.id.slice(0, 8);
+                      return (
+                        <TableRow key={o.id}>
+                          <TableCell className="font-mono text-xs">{code}</TableCell>
+                          <TableCell>{o.commodity}</TableCell>
+                          <TableCell className="text-right">{fmtSc(o.volume_sacks)}</TableCell>
+                          <TableCell><StatusBadge status={o.status} /></TableCell>
+                          <TableCell className="text-xs">{fmtDate(o.pricing_snapshots?.payment_date)}</TableCell>
+                          <TableCell className="text-xs">{fmtDate(o.pricing_snapshots?.sale_date)}</TableCell>
+                          <TableCell className={`text-right ${(mtmPerSack ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {mtmPerSack === undefined || mtmPerSack === null ? '—' : fmtBrl(mtmPerSack)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {selectedOpsSorted.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
+                          Nenhuma operação ativa.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+};
+
+// ───────────────────────── ConfigCard ─────────────────────────
+
+const ConfigCard: React.FC<{
+  warehouse: Warehouse;
+  allWarehouses: Warehouse[];
+  onEdit: () => void;
+}> = ({ warehouse: w, allWarehouses, onEdit }) => {
+  const [basisOpen, setBasisOpen] = useState(true);
+  const [costsOpen, setCostsOpen] = useState(false);
+
+  const basisCfg = (w.basis_config ?? {}) as any;
+
+  const renderBasis = (commodity: 'soybean' | 'corn', label: string) => {
+    const cfg = basisCfg?.[commodity];
+    if (cfg?.mode === 'reference_delta') {
+      const ref = allWarehouses.find(x => x.id === cfg.reference_warehouse_id);
+      const delta = cfg.delta_brl ?? 0;
+      const sign = delta >= 0 ? '+' : '';
+      return (
+        <div className="flex justify-between text-xs">
+          <span className="text-muted-foreground">{label}</span>
+          <span>
+            Referência: {ref?.display_name ?? '—'} {sign}R$ {Number(delta).toFixed(2)}
+          </span>
+        </div>
+      );
+    }
+    const value = cfg?.value;
+    return (
+      <div className="flex justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span>{value === null || value === undefined ? '—' : `R$ ${Number(value).toFixed(2)}/sc`}</span>
+      </div>
+    );
+  };
+
+  const costRow = (label: string, value: React.ReactNode) => (
+    <div className="flex justify-between text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-base">{w.display_name}</CardTitle>
+            <Badge variant="secondary" className="text-[10px]">{w.abbr}</Badge>
+          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <MapPin className="h-3 w-3" />
+            {w.city ?? '—'}{w.state ? ` / ${w.state}` : ''}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Basis */}
+        <Collapsible open={basisOpen} onOpenChange={setBasisOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground">
+            <span>Basis por commodity</span>
+            <ChevronDown className={`h-3 w-3 transition-transform ${basisOpen ? 'rotate-180' : ''}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2 space-y-1.5">
+            {renderBasis('soybean', 'Soja CBOT')}
+            {renderBasis('corn', 'Milho B3')}
+          </CollapsibleContent>
+        </Collapsible>
+
+        <Separator />
+
+        {/* Custos */}
+        <Collapsible open={costsOpen} onOpenChange={setCostsOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground">
+            <span>Custos</span>
+            <ChevronDown className={`h-3 w-3 transition-transform ${costsOpen ? 'rotate-180' : ''}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+              {costRow(
+                'Armazenagem',
+                w.storage_cost === null
+                  ? '—'
+                  : `R$ ${Number(w.storage_cost).toFixed(2)}${w.storage_cost_type ? ` (${w.storage_cost_type})` : ''}`,
+              )}
+              {costRow(
+                'Juros',
+                w.interest_rate === null
+                  ? '—'
+                  : `${(Number(w.interest_rate) * 100).toFixed(2)}%${w.interest_rate_period ? ` (${w.interest_rate_period})` : ''}`,
+              )}
+              {costRow(
+                'Corretagem CBOT',
+                w.brokerage_per_contract_cbot === null
+                  ? '—'
+                  : `US$ ${Number(w.brokerage_per_contract_cbot).toFixed(2)}/contrato`,
+              )}
+              {costRow(
+                'Corretagem B3',
+                w.brokerage_per_contract_b3 === null
+                  ? '—'
+                  : `R$ ${Number(w.brokerage_per_contract_b3).toFixed(2)}/contrato`,
+              )}
+              {costRow('Custo mesa', fmtPct(w.desk_cost_pct))}
+              {costRow('Quebra mensal', fmtPct(w.shrinkage_rate_monthly))}
+              {costRow(
+                'Recepção',
+                w.reception_cost === null ? '—' : `R$ ${Number(w.reception_cost).toFixed(2)}/sc`,
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <div className="border-t pt-3 flex justify-end">
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            <ExternalLink className="h-3 w-3 mr-1" />
+            Editar em Configurações
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ArmazensD24;

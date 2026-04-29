@@ -1,135 +1,144 @@
-## Ajuste único em `src/pages/OperacoesD24.tsx`
+## Plano: src/pages/ArmazensD24.tsx
 
-Nenhum outro arquivo é tocado. As mudanças se concentram em três blocos: o hook de persistência de colunas, a definição `MTM_COLUMNS`, e o `<TableHeader>`/`<TableBody>` da tabela MTM.
+### Arquivos tocados
+- **CRIAR** `src/pages/ArmazensD24.tsx`
+- **EDITAR** `src/App.tsx` — apenas adicionar import e rota
 
-### 1. Estender `usePersistedColumns` para aceitar defaults parciais
+Nenhum hook, serviço ou Edge Function novos. Sem escrita no banco.
 
-A versão atual (linhas 85–99) inicializa com **todas** as colunas visíveis quando `localStorage` está vazio. Para que as novas colunas adicionadas (volume, fisico_atual, mtm_fisico, mtm_futuros, mtm_ndf, mtm_opcao, exposicao, calculado_em) iniciem **desativadas** sem afetar o comportamento de `OP_COLUMNS` e `SUMMARY_COLUMNS`, adicionar um terceiro parâmetro opcional `defaultKeys?: string[]`. Quando informado, esse conjunto é usado como fallback; quando omitido, mantém o comportamento atual (todas visíveis).
+---
 
-```ts
-function usePersistedColumns(storageKey: string, columns: Col[], defaultKeys?: string[]) {
-  const allKeys = useMemo(() => columns.map(c => c.key), [columns]);
-  const [visible, setVisible] = useState<Set<string>>(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) return new Set(JSON.parse(raw) as string[]);
-    } catch { /* noop */ }
-    return new Set(defaultKeys ?? allKeys);
-  });
-  // ... resto inalterado
-}
-```
+### src/App.tsx — alteração mínima
 
-### 2. Substituir `MTM_COLUMNS` (linhas 156–166) pela lista completa
-
-```ts
-const MTM_COLUMNS: Col[] = [
-  { key: 'operacao',     label: 'Operação' },
-  { key: 'commodity',    label: 'Commodity' },
-  { key: 'praca',        label: 'Praça' },
-  { key: 'volume',       label: 'Volume (sc)' },
-  { key: 'trade_date',   label: 'Data Entrada' },
-  { key: 'sale_date',    label: 'Data Saída' },
-  { key: 'fisico_atual', label: 'Físico Atual (R$/sc)' },
-  { key: 'mtm_fisico',   label: 'MTM Físico' },
-  { key: 'mtm_futuros',  label: 'MTM Futuros' },
-  { key: 'mtm_ndf',      label: 'MTM NDF' },
-  { key: 'mtm_opcao',    label: 'MTM Opção' },
-  { key: 'mtm_total',    label: 'Total MTM' },
-  { key: 'mtm_per_sack', label: 'Por Saca' },
-  { key: 'breakeven',    label: 'Break-even' },
-  { key: 'fisico_alvo',  label: 'Físico Alvo' },
-  { key: 'exposicao',    label: 'Exposição Total' },
-  { key: 'calculado_em', label: 'Calculado em' },
-];
-
-const MTM_DEFAULT_VISIBLE = [
-  'operacao','commodity','praca','trade_date','sale_date',
-  'mtm_total','mtm_per_sack','breakeven','fisico_alvo',
-];
-```
-
-E na linha 192, passar o default:
-
-```ts
-const mtmCols = usePersistedColumns('cols_mtm', MTM_COLUMNS, MTM_DEFAULT_VISIBLE);
-```
-
-### 3. Atualizar `<TableHeader>` e `<TableBody>` da MTM (linhas 580–615)
-
-Renomear "Entrada"/"Saída" para "Data Entrada"/"Data Saída" e adicionar as novas células. Helper local de formatação de data-hora:
-
-```ts
-const fmtDateTime = (s?: string | null) =>
-  s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-```
-
-(declarado próximo a `fmtDate` no topo do arquivo, linha ~78)
-
-Cabeçalho — substituir bloco atual (linhas 580–591) por:
-
+Adicionar 1 import (ao lado de `OperacoesD24`):
 ```tsx
-<TableHeader>
-  <TableRow>
-    {mtmCols.visible.has('operacao')     && <TableHead>Operação</TableHead>}
-    {mtmCols.visible.has('commodity')    && <TableHead>Commodity</TableHead>}
-    {mtmCols.visible.has('praca')        && <TableHead>Praça</TableHead>}
-    {mtmCols.visible.has('volume')       && <TableHead>Volume (sc)</TableHead>}
-    {mtmCols.visible.has('trade_date')   && <TableHead>Data Entrada</TableHead>}
-    {mtmCols.visible.has('sale_date')    && <TableHead>Data Saída</TableHead>}
-    {mtmCols.visible.has('fisico_atual') && <TableHead>Físico Atual</TableHead>}
-    {mtmCols.visible.has('mtm_fisico')   && <TableHead>MTM Físico</TableHead>}
-    {mtmCols.visible.has('mtm_futuros')  && <TableHead>MTM Futuros</TableHead>}
-    {mtmCols.visible.has('mtm_ndf')      && <TableHead>MTM NDF</TableHead>}
-    {mtmCols.visible.has('mtm_opcao')    && <TableHead>MTM Opção</TableHead>}
-    {mtmCols.visible.has('mtm_total')    && <TableHead>Total</TableHead>}
-    {mtmCols.visible.has('mtm_per_sack') && <TableHead>Por Saca</TableHead>}
-    {mtmCols.visible.has('breakeven')    && <TableHead>Break-even</TableHead>}
-    {mtmCols.visible.has('fisico_alvo')  && <TableHead>Físico Alvo</TableHead>}
-    {mtmCols.visible.has('exposicao')    && <TableHead>Exposição Total</TableHead>}
-    {mtmCols.visible.has('calculado_em') && <TableHead>Calculado em</TableHead>}
-  </TableRow>
-</TableHeader>
+import ArmazensD24 from "./pages/ArmazensD24";
 ```
 
-Corpo — substituir bloco atual (linhas 599–613) acrescentando as novas células e mantendo a ordem do header:
-
+E 1 rota dentro do bloco protegido, ao lado de `/operacoes-d24`:
 ```tsx
-const matched = orders?.find(o => o.operation_id === r.operation_id);
-const ps = matched?.operation?.pricing_snapshots;
-const wName = matched?.operation?.warehouses?.display_name ?? '—';
-const total = (r.mtm_total_brl as number) ?? 0;
-const physInput = physicalPrices[r.operation_id as string];
-const physVal = physInput
-  ? parseFloat(physInput)
-  : (r as any).market_snapshot?.physical_price_current;
-
-return (
-  <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailResult(r)}>
-    {mtmCols.visible.has('operacao')     && <TableCell className="font-mono text-xs">{(r.operation_id as string)?.slice(0, 8)}</TableCell>}
-    {mtmCols.visible.has('commodity')    && <TableCell>{matched?.commodity === 'soybean' ? 'Soja' : matched?.commodity === 'corn' ? 'Milho' : '—'}</TableCell>}
-    {mtmCols.visible.has('praca')        && <TableCell>{wName}</TableCell>}
-    {mtmCols.visible.has('volume')       && <TableCell>{((matched?.volume_sacks ?? (r as any).volume_sacks ?? 0) as number).toLocaleString('pt-BR')}</TableCell>}
-    {mtmCols.visible.has('trade_date')   && <TableCell>{fmtDate(ps?.trade_date)}</TableCell>}
-    {mtmCols.visible.has('sale_date')    && <TableCell>{fmtDate(ps?.sale_date)}</TableCell>}
-    {mtmCols.visible.has('fisico_atual') && <TableCell>{physVal != null ? `R$ ${Number(physVal).toFixed(2)}` : '—'}</TableCell>}
-    {mtmCols.visible.has('mtm_fisico')   && <TableCell>{fmtBrl((r as any).mtm_physical_brl)}</TableCell>}
-    {mtmCols.visible.has('mtm_futuros')  && <TableCell>{fmtBrl((r as any).mtm_futures_brl)}</TableCell>}
-    {mtmCols.visible.has('mtm_ndf')      && <TableCell>{fmtBrl((r as any).mtm_ndf_brl)}</TableCell>}
-    {mtmCols.visible.has('mtm_opcao')    && <TableCell>{fmtBrl((r as any).mtm_option_brl)}</TableCell>}
-    {mtmCols.visible.has('mtm_total')    && <TableCell className={`font-bold ${total >= 0 ? 'text-green-400' : 'text-red-400'}`}>R$ {total.toFixed(2)}</TableCell>}
-    {mtmCols.visible.has('mtm_per_sack') && <TableCell>R$ {((r.mtm_per_sack_brl as number) ?? 0).toFixed(2)}/sc</TableCell>}
-    {mtmCols.visible.has('breakeven')    && <TableCell className="text-xs tabular-nums">R$ {calcBreakeven(r).toFixed(2)}/sc</TableCell>}
-    {mtmCols.visible.has('fisico_alvo')  && <TableCell className="text-xs tabular-nums">R$ {calcTargetPhysical(r).toFixed(2)}/sc</TableCell>}
-    {mtmCols.visible.has('exposicao')    && <TableCell>{fmtBrl((r as any).total_exposure_brl)}</TableCell>}
-    {mtmCols.visible.has('calculado_em') && <TableCell className="text-xs">{fmtDateTime((r as any).calculated_at)}</TableCell>}
-  </TableRow>
-);
+<Route path="/armazens-d24" element={<ArmazensD24 />} />
 ```
 
-### Notas de escopo
+Nenhuma outra mudança em App.tsx.
 
-- `OP_COLUMNS` (Operações) **mantém** os labels "Entrada"/"Saída" — escopo do pedido é a aba MTM.
-- A segunda referência a `MTM_COLUMNS` na linha 625 (segundo card de resultado MTM) automaticamente herda os novos defaults via `mtmCols`, sem alteração de código.
-- Casts `as any` seguem o padrão já adotado no arquivo para campos D24 não cobertos pelos tipos gerados do Supabase.
-- Usuários que já têm `cols_mtm` salvo no `localStorage` mantêm sua seleção atual; novas colunas só aparecem desativadas para quem nunca personalizou.
+---
+
+### src/pages/ArmazensD24.tsx — estrutura
+
+**Imports**
+- React, `useState`, `useMemo`
+- `useNavigate` de `react-router-dom`
+- Hooks: `useWarehouses`, `useActiveArmazens` de `@/hooks/useWarehouses`; `useOperationsWithDetails`; `useMtmSnapshots()` (sem filtro — pega tudo); `usePricingParameters`
+- Tipos: `Warehouse`, `OperationWithDetails`, `MtmSnapshot` de `@/types`
+- UI: `Card`, `CardHeader`, `CardTitle`, `CardContent`, `Tabs/TabsList/TabsTrigger/TabsContent`, `Table*`, `Badge`, `Button`, `Sheet/SheetContent/SheetHeader/SheetTitle`, `Collapsible/CollapsibleTrigger/CollapsibleContent`, `Separator`
+- Ícones: `MapPin`, `ChevronDown`, `Settings as SettingsIcon`, `ExternalLink`
+
+**Helpers locais (não importar de outras pages):**
+- `STATUS_BADGE` e `STATUS_ORDER` — replicados localmente (mesmo padrão de `OperacoesD24.tsx`)
+- `ACTIVE_STATUSES = new Set(['RASCUNHO','DRAFT','SUBMETIDA','EM_APROVACAO','APROVADA','HEDGE_CONFIRMADO','ENCERRAMENTO_SOLICITADO','ENCERRAMENTO_APROVADO','MONITORAMENTO'])` — todo status que não seja `ENCERRADA | CANCELADA | REPROVADA`
+- `fmtDate`, `fmtBrl`, `fmtSc` (volume formatado com pt-BR)
+
+**Fontes de dados (memoizado):**
+1. `warehouses = useWarehouses()` filtrado em `useMemo` por `type !== 'HQ' && active === true`
+2. `useActiveArmazens()` — usado apenas para resolver `display_name` de `reference_warehouse_id` na aba Configuração (referência nominal entre armazéns)
+3. `operations = useOperationsWithDetails()` 
+4. `snapshots = useMtmSnapshots()` (todos)
+5. `pricingParameters = usePricingParameters()` — `executionSpread = pricingParameters?.[0]?.execution_spread_pct ?? 0.05`
+
+**Snapshot mais recente por operação** (memo):
+Reduce por `operation_id` mantendo o de maior `calculated_at`. Mapa `latestByOpId: Record<string, MtmSnapshot>`.
+
+---
+
+### Aba "Posição" — tabela consolidada
+
+Para cada warehouse, computar via `useMemo`:
+- `ops = operations.filter(o => o.warehouse_id === w.id && ACTIVE_STATUSES.has(o.status))`
+- `commodities` = `Set` distinto de `o.commodity` em `ops`
+- `volumeTotal` = soma `o.volume_sacks`
+- `mtmTotal` = soma `latestByOpId[o.id]?.mtm_total_brl ?? 0`
+- `breakevenMedio` = média ponderada por volume:
+  - Para cada `o`: `snap = latestByOpId[o.id]`; se snap existe, calcular
+    - `physical = snap.physical_price_current` (sem input manual)
+    - `mtmPerSack = snap.mtm_per_sack_brl`
+    - `be_i = (physical - mtmPerSack) * (1 + executionSpread)` (extensão direta da exceção D20)
+    - acumula `Σ(be_i * volume_i)` e `Σ(volume_i)` apenas para os ops com snap
+  - resultado = `sum / sumVol`, ou `null` se `sumVol === 0`
+- `proximoVencimento` = menor `pricing_snapshots.sale_date` entre `ops` (string ISO; comparar com `localeCompare`)
+- `statusMix`: contagens por bucket: RASCUNHO (inclui DRAFT), EM_APROVACAO, HEDGE_CONFIRMADO, OUTROS (todos os demais ativos)
+
+**Renderização da tabela** (`<Table>`), colunas:
+| Armazém | Commodity | Op. ativas | Volume (sc) | MTM Total (R$) | Break-even médio | Próx. venc. | Status mix |
+
+- Armazém: `display_name` em texto + `abbr` em `text-xs text-muted-foreground`
+- Commodity: badges das commodities distintas
+- MTM Total: cor `text-green-500` se ≥0, `text-red-500` caso contrário; `fmtBrl`
+- Break-even médio: `fmtBrl(beMedio)` ou "—"
+- Próx. venc.: `fmtDate`
+- Status mix: row com 4 mini-badges pequenos (`text-[10px]`), cada um com label+count, somente exibe se count>0
+
+`<TableRow>` com `cursor-pointer hover:bg-muted/50` e `onClick` que define `selectedWarehouseId`.
+
+Sem operações ativas → todas as métricas em zero/traço, linha **não** é ocultada.
+
+---
+
+### Sheet de detalhe (lateral direita, `sm:max-w-2xl`)
+
+Aberto quando `selectedWarehouseId !== null`. `Sheet` controlado via `open` e `onOpenChange`.
+
+Cabeçalho: `display_name` · `city/state` · Badge "Ativo"/"Inativo"
+
+3 cards em grid:
+- Volume Total (sc): `fmtSc(volumeTotal)`
+- MTM Total: `fmtBrl(mtmTotal)` com cor por sinal
+- Operações: count
+
+Tabela das operações do armazém (apenas leitura), ordenadas por `STATUS_ORDER[status] ?? 50` ascendente, depois por `created_at` desc:
+| Código (`display_code` se houver, senão `id.slice(0,8)`) | Commodity | Volume (sc) | Status (badge) | Pagamento | Saída | MTM (R$/sc) |
+
+MTM/sc = `latestByOpId[o.id]?.mtm_per_sack_brl` formatado, com cor por sinal; "—" se sem snapshot.
+
+Sem botões de ação.
+
+---
+
+### Aba "Configuração"
+
+Lista vertical de `Card`, um por warehouse ativo (`type !== 'HQ'`).
+
+Cada card:
+
+**CardHeader:** `display_name` · `abbr` (chip muted) · `city/state` (text-xs)
+
+**Seção Basis** (`Collapsible` com `defaultOpen`):
+- Trigger: "Basis por commodity" + chevron
+- Para cada commodity em `['soybean', 'corn']` (labels: "Soja CBOT", "Milho B3"):
+  - Lê `cfg = (w.basis_config as any)?.[commodity]`
+  - Se `cfg.mode === 'reference_delta'`: renderiza `Referência: {warehouse_display_name} + delta R$ {delta_brl}` (resolve nome via `allWarehouses.find(x => x.id === cfg.reference_warehouse_id)?.display_name ?? '—'`)
+  - Caso contrário (fixed ou ausente): `R$ {cfg?.value ?? '—'}/sc`
+
+**Seção Custos** (`Collapsible`, fechado por default):
+Grid 2 colunas com pares label/valor:
+- Armazenagem: `storage_cost` + `(${storage_cost_type})`
+- Juros: `interest_rate` + `(${interest_rate_period})`
+- Corretagem CBOT: `brokerage_per_contract_cbot` USD/contrato
+- Corretagem B3: `brokerage_per_contract_b3` BRL/contrato
+- Custo mesa: `desk_cost_pct` em % (multiplicar por 100 se fração; assumir já em fração e exibir `(x*100).toFixed(2)%`)
+- Quebra mensal: `shrinkage_rate_monthly` mesmo padrão de %
+- Recepção: `reception_cost` R$/sc
+
+`null` → "—".
+
+**CardFooter (div com `border-t pt-3`):**
+Botão `variant="outline" size="sm"` "Editar em Configurações" + ícone `ExternalLink`, `onClick={() => navigate('/configuracoes')}`.
+
+---
+
+### Restrições reafirmadas
+- Sem imports de `Settings.tsx`, `OperacoesD24.tsx`, `OrdensD24.tsx` — helpers replicados localmente.
+- Sem novos hooks/serviços.
+- Único cálculo financeiro: break-even por operação (D20 já autorizada) e sua média ponderada.
+- Casts `as any` permitidos para `basis_config` e demais colunas D24.
+- Resposta final incluirá o conteúdo completo do novo arquivo + diff de App.tsx para revisão.
