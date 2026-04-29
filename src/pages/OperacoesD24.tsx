@@ -371,8 +371,9 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
             </div>
           </div>
 
-          {planValidation?.legResults[i] && (() => {
-            const v = planValidation.legResults[i];
+          {planValidation?.legResults?.[i] && (() => {
+            const v = planValidation.legResults?.[i];
+            if (!v) return null;
             if (v.status === 'loading') return <p className="text-xs text-muted-foreground">Validando...</p>;
             if (v.status === 'error') return (
               <div className="rounded border border-red-500 bg-red-500/10 text-red-400 px-2 py-1 text-xs">{v.errorMsg}</div>
