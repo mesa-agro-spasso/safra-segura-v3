@@ -213,25 +213,13 @@ export default function Approvals() {
       const reason = rejectReason.trim();
       const nowIso = new Date().toISOString();
 
-      const { error: orderError } = await (supabase as any)
-        .from('hedge_orders')
+      const { error: opError } = await (supabase as any)
+        .from('operations')
         .update({
           status: 'CANCELLED',
           cancellation_reason: reason,
           cancelled_at: nowIso,
           cancelled_by: user.id,
-        })
-        .eq('operation_id', rejecting.operationId)
-        .neq('status', 'CANCELLED');
-      if (orderError) throw orderError;
-
-      const { error: opError } = await (supabase as any)
-        .from('operations')
-        .update({
-          status: 'CANCELADA',
-          rejection_reason: reason,
-          rejected_by: user.id,
-          rejected_at: nowIso,
         } as never)
         .eq('id', rejecting.operationId);
       if (opError) throw opError;
@@ -240,17 +228,18 @@ export default function Approvals() {
         operation_id: rejecting.operationId,
         user_id: user.id,
         role_used: rejecting.available[0],
-        signature_type: 'REPROVACAO',
+        flow_type: 'OPENING',
+        decision: 'REJECT',
         notes: reason,
         signed_at: nowIso,
       } as never);
       if (sigError) throw sigError;
 
       toast.success('Operação recusada');
-      queryClient.invalidateQueries({ queryKey: ['pending-operations'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-operations-d24'] });
       queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
       queryClient.invalidateQueries({ queryKey: ['operations'] });
-      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
       queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
       setRejecting(null);
     } catch (e: any) {
@@ -268,7 +257,8 @@ export default function Approvals() {
         operation_id: signing.operationId,
         user_id: user.id,
         role_used: selectedRole,
-        signature_type: 'APROVACAO',
+        flow_type: 'OPENING',
+        decision: 'APPROVE',
         notes: notes || null,
         signed_at: new Date().toISOString(),
       } as never);
@@ -276,26 +266,7 @@ export default function Approvals() {
 
       const newCollected = [...signing.collected, selectedRole];
       if (allSigned(signing.required, newCollected)) {
-        const { data: opData } = await supabase
-          .from('operations')
-          .select('status')
-          .eq('id', signing.operationId)
-          .single();
-
-        const nextStatus = opData?.status === 'ENCERRAMENTO_SOLICITADO'
-          ? 'ENCERRAMENTO_APROVADO'
-          : 'APROVADA';
-
-        const { error: updateError } = await supabase
-          .from('operations')
-          .update({ status: nextStatus })
-          .eq('id', signing.operationId);
-        if (updateError) throw updateError;
-        toast.success(
-          nextStatus === 'ENCERRAMENTO_APROVADO'
-            ? 'Encerramento aprovado'
-            : 'Operação totalmente aprovada'
-        );
+        toast.success('Todas as assinaturas coletadas — operação pode ser executada');
       } else {
         toast.success('Assinatura registrada');
       }
