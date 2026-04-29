@@ -996,7 +996,13 @@ const OperacoesD24: React.FC = () => {
             option_premium_current: optionPremiumCurrent,
           },
         };
-      }));
+      }))).filter(Boolean);
+
+      if (!positions.length) {
+        toast.error('Nenhuma operação com dados suficientes para MTM');
+        setCalculating(false);
+        return;
+      }
 
       const result = await callApi<{ results: Record<string, unknown>[] }>('/mtm/run-d24', { positions });
 
@@ -1022,7 +1028,9 @@ const OperacoesD24: React.FC = () => {
         toast.success('MTM calculado e salvo');
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao calcular MTM');
+      const msg = err instanceof Error ? err.message : JSON.stringify(err);
+      toast.error(`Erro ao calcular MTM: ${msg}`);
+      console.error('MTM error:', err);
     } finally {
       setCalculating(false);
     }
