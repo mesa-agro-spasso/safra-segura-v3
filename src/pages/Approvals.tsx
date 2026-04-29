@@ -156,42 +156,82 @@ export default function Approvals() {
 
   const effectivePolicy = policy ?? { threshold_x_tons: Infinity, threshold_y_tons: 0 };
 
-  const rows = useMemo(() => {
-    return operations
-      .map((op: any) => {
-        const opSignatures = signatures.filter((s: any) => s.operation_id === op.id);
-        const collected = opSignatures.map((s: any) => s.role_used);
-        const userAlreadySigned = opSignatures.some(
-          (s: any) => s.user_id === user?.id && s.decision === 'APPROVE'
-        );
+  const allRows = useMemo(() => {
+    return operations.map((op: any) => {
+      const opSignatures = signatures.filter((s: any) => s.operation_id === op.id);
+      const collected = opSignatures.map((s: any) => s.role_used);
+      const userAlreadySigned = opSignatures.some(
+        (s: any) => s.user_id === user?.id && s.decision === 'APPROVE'
+      );
 
-        const volumeSacks = Number(op.volume_sacks ?? 0);
-        const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
-        const required = getRequiredRoles(volumeTons, effectivePolicy as any);
-        const missing = getMissingRoles(required, collected);
-        const availableForUser = userRoles.filter((r) => missing.includes(r));
+      const volumeSacks = Number(op.volume_sacks ?? 0);
+      const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
+      const required = getRequiredRoles(volumeTons, effectivePolicy as any);
+      const missing = getMissingRoles(required, collected);
+      const availableForUser = userRoles.filter((r) => missing.includes(r));
 
-        const originationPrice = Number(op.origination_price_brl ?? 0);
-        const valueBRL = volumeSacks * originationPrice;
+      const originationPrice = Number(op.origination_price_brl ?? 0);
+      const valueBRL = volumeSacks * originationPrice;
 
-        return {
-          operationId: op.id,
-          displayCode: op.display_code ?? op.id.slice(0, 8),
-          isClosing: false,
-          warehouse: op.warehouses?.display_name ?? '—',
-          commodity: op.commodity,
-          volumeSacks,
-          valueBRL,
-          paymentDate: op.pricing_snapshots?.payment_date ?? null,
-          collected,
-          required,
-          missing,
-          availableForUser,
-          userAlreadySigned,
-        };
-      })
-      .filter((r) => !r.userAlreadySigned && r.availableForUser.length > 0);
+      return {
+        operationId: op.id,
+        displayCode: op.display_code ?? op.id.slice(0, 8),
+        isClosing: false,
+        status: op.status as string,
+        warehouse: op.warehouses?.display_name ?? '—',
+        commodity: op.commodity as string,
+        volumeSacks,
+        valueBRL,
+        paymentDate: (op.pricing_snapshots?.payment_date ?? null) as string | null,
+        collected,
+        required,
+        missing,
+        availableForUser,
+        userAlreadySigned,
+      };
+    });
   }, [operations, signatures, userRoles, effectivePolicy, user?.id]);
+
+  const pendingRows = useMemo(
+    () => allRows.filter((r) => r.status === 'DRAFT' && !r.userAlreadySigned && r.availableForUser.length > 0),
+    [allRows]
+  );
+
+  const signedRows = useMemo(
+    () => allRows.filter((r) => r.userAlreadySigned),
+    [allRows]
+  );
+
+  const warehouseOptions = useMemo(() => {
+    const set = new Set<string>();
+    allRows.forEach((r) => r.warehouse && set.add(r.warehouse));
+    return Array.from(set).sort();
+  }, [allRows]);
+
+  const commodityOptions = useMemo(() => {
+    const set = new Set<string>();
+    allRows.forEach((r) => r.commodity && set.add(r.commodity));
+    return Array.from(set).sort();
+  }, [allRows]);
+
+  const applyFilters = (list: typeof allRows) =>
+    list.filter((r) => {
+      if (filterWarehouse !== 'all' && r.warehouse !== filterWarehouse) return false;
+      if (filterCommodity !== 'all' && r.commodity !== filterCommodity) return false;
+      if (filterPaymentFrom && (!r.paymentDate || r.paymentDate < filterPaymentFrom)) return false;
+      if (filterPaymentTo && (!r.paymentDate || r.paymentDate > filterPaymentTo)) return false;
+      return true;
+    });
+
+  const filteredPending = useMemo(() => applyFilters(pendingRows), [pendingRows, filterWarehouse, filterCommodity, filterPaymentFrom, filterPaymentTo]);
+  const filteredSigned = useMemo(() => applyFilters(signedRows), [signedRows, filterWarehouse, filterCommodity, filterPaymentFrom, filterPaymentTo]);
+
+  const clearFilters = () => {
+    setFilterWarehouse('all');
+    setFilterCommodity('all');
+    setFilterPaymentFrom('');
+    setFilterPaymentTo('');
+  };
 
   const openSign = (row: (typeof rows)[number]) => {
     setSigning({
