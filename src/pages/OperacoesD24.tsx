@@ -142,67 +142,25 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
     notes: l.notes || undefined,
   });
 
-  const handleValidatePlan = async () => {
-    const initial = editLegs.map(() => ({ status: 'loading' as const }));
-    setPlanValidation({ legResults: initial, newOrderMsg: null, newConfirmMsg: null });
-
-    const opIn: OperationIn = {
-      id: operation.id,
-      warehouse_id: operation.warehouse_id,
-      commodity: opD24.commodity,
-      exchange: opD24.exchange ?? '',
-      volume_sacks: operation.volume_sacks,
-      origination_price_brl: opD24.origination_price_brl ?? 0,
-      trade_date: opD24.trade_date ?? '',
-      payment_date: opD24.payment_date ?? '',
-      grain_reception_date: opD24.grain_reception_date ?? '',
-      sale_date: opD24.sale_date ?? '',
-      status: opD24.status,
-      hedge_plan: [],
-    } as any;
-
-    const exchange = (opD24.exchange ?? 'cbot') as string;
-    const CONTRACT_SIZE = exchange.toLowerCase() === 'b3' ? 450 : 5000;
-
-    const updatedResults: Array<{ status: 'idle' | 'loading' | 'done' | 'error'; result?: ValidateExecutionResponse; errorMsg?: string }> =
-      editLegs.map(() => ({ status: 'loading' as const }));
-
-    for (let i = 0; i < editLegs.length; i++) {
-      const leg = editLegs[i];
-      const isNdf = leg.instrument_type === 'ndf';
-      const qty = parseFloat(leg.contracts) || 0;
-      const newOrder: OrderIn = {
-        operation_id: operation.id,
-        instrument_type: leg.instrument_type,
-        direction: leg.direction,
-        currency: isNdf ? 'BRL' : leg.currency,
-        contracts: qty,
-        volume_units: isNdf ? qty : qty * CONTRACT_SIZE,
-        executed_at: new Date().toISOString(),
-        executed_by: userId || '00000000-0000-0000-0000-000000000000',
-        is_closing: false,
-        ticker: leg.ticker || undefined,
-        price: !isNdf && leg.price_estimated ? parseFloat(leg.price_estimated) : undefined,
-        ndf_rate: isNdf && leg.ndf_rate ? parseFloat(leg.ndf_rate) : undefined,
-        ndf_maturity: leg.ndf_maturity || undefined,
-        option_type: leg.instrument_type === 'option' ? leg.option_type : undefined,
-        strike: leg.strike ? parseFloat(leg.strike) : undefined,
-        premium: leg.premium ? parseFloat(leg.premium) : undefined,
-        expiration_date: leg.expiration_date || undefined,
-        is_counterparty_insurance: leg.is_counterparty_insurance,
-        notes: leg.notes || undefined,
-      } as any;
-      try {
-        const res = await validateExecution(opIn, [], newOrder);
-        updatedResults[i] = { status: 'done', result: res };
-      } catch (e: unknown) {
-        updatedResults[i] = { status: 'error', errorMsg: e instanceof Error ? e.message : String(e) };
-      }
-    }
-
-    let newOrderMsg: string | null = null;
-    let newConfirmMsg: string | null = null;
+  const handleGenerateMessages = async () => {
+    if (generatingMessages) return;
+    setGeneratingMessages(true);
     try {
+      const opIn: OperationIn = {
+        id: operation.id,
+        warehouse_id: operation.warehouse_id,
+        commodity: opD24.commodity,
+        exchange: opD24.exchange ?? '',
+        volume_sacks: operation.volume_sacks,
+        origination_price_brl: opD24.origination_price_brl ?? 0,
+        trade_date: opD24.trade_date ?? '',
+        payment_date: opD24.payment_date ?? '',
+        grain_reception_date: opD24.grain_reception_date ?? '',
+        sale_date: opD24.sale_date ?? '',
+        status: opD24.status,
+        hedge_plan: editLegs.map(buildLegPayload) as any,
+      } as any;
+
       const snap = operation.pricing_snapshots as any;
       const outputs = (snap?.outputs_json ?? {}) as Record<string, unknown>;
       const psIn: PricingSnapshotIn = {
@@ -212,25 +170,27 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
         futures_price_brl: snap?.futures_price_brl ?? undefined,
         exchange_rate: snap?.exchange_rate ?? undefined,
       } as any;
-      const planIn: OperationIn = { ...opIn, hedge_plan: editLegs.map(buildLegPayload) as any };
-      const resp = await buildHedgePlan(planIn, psIn);
-      newOrderMsg = resp.order_message;
-      newConfirmMsg = resp.confirmation_message;
-    } catch (e) {
-      toast.error('Erro ao regenerar mensagens: ' + (e instanceof Error ? e.message : String(e)));
-    }
 
-    setPlanValidation({ legResults: updatedResults, newOrderMsg, newConfirmMsg });
+      const resp = await buildHedgePlan(opIn, psIn);
+      setMessages({
+        order_message: resp.order_message,
+        confirmation_message: resp.confirmation_message,
+      });
+    } catch (e) {
+      toast.error('Erro ao gerar mensagens: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setGeneratingMessages(false);
+    }
   };
 
   const handleSavePlan = async () => {
-    if (!planValidation || savingPlan) return;
+    if (!messages || savingPlan) return;
     setSavingPlan(true);
     try {
       const newHedgePlan = {
         plan: editLegs.map(buildLegPayload),
-        order_message: planValidation.newOrderMsg,
-        confirmation_message: planValidation.newConfirmMsg,
+        order_message: messages.order_message,
+        confirmation_message: messages.confirmation_message,
       };
       const { error } = await supabase
         .from('operations' as any)
@@ -240,7 +200,7 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
       toast.success('Plano salvo');
       onSaved();
       setSavingPlan(false);
-      setPlanValidation(null);
+      setMessages(null);
     } catch (e) {
       toast.error('Erro ao salvar: ' + (e instanceof Error ? e.message : String(e)));
       setSavingPlan(false);
