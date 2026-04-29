@@ -563,6 +563,19 @@ const OperacoesD24: React.FC = () => {
   const { data: pricingParameters } = usePricingParameters();
   const { data: pricingSnapshots = [] } = usePricingSnapshots();
 
+  // D24 orders (open positions) for MTM tab
+  const { data: d24Orders } = useQuery({
+    queryKey: ['d24-orders-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders' as any)
+        .select('*')
+        .eq('is_closing', false);
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
   // Tab + column states
   const opCols = usePersistedColumns('cols_operacoes', OP_COLUMNS);
   const mtmCols = usePersistedColumns('cols_mtm', MTM_COLUMNS, MTM_DEFAULT_VISIBLE);
