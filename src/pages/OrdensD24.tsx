@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { useHedgeOrders, useUpdateHedgeOrder } from '@/hooks/useHedgeOrders';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useOperations } from '@/hooks/useOperations';
 import { useAuth } from '@/contexts/AuthContext';
