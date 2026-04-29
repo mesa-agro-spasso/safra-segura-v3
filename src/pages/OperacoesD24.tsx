@@ -1084,11 +1084,7 @@ const OperacoesD24: React.FC = () => {
                             </TableCell>
                           )}
                           <TableCell onClick={(e) => e.stopPropagation()}>
-                            {op.status === 'HEDGE_CONFIRMADO' && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setClosingOp(op)}>
-                                Encerrar
-                              </Button>
-                            )}
+                            {renderOpActions(op)}
                           </TableCell>
                         </TableRow>
                       );
