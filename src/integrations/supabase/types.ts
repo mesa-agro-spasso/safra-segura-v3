@@ -225,6 +225,71 @@ export type Database = {
           },
         ]
       }
+      mtm_snapshots: {
+        Row: {
+          calculated_at: string
+          calculated_by: string | null
+          futures_price_current: number
+          id: string
+          mtm_futures_brl: number
+          mtm_ndf_brl: number
+          mtm_option_brl: number
+          mtm_per_sack_brl: number
+          mtm_physical_brl: number
+          mtm_total_brl: number
+          operation_id: string
+          option_premium_current: number | null
+          physical_price_current: number
+          spot_rate_current: number | null
+          total_exposure_brl: number
+          volume_sacks: number
+        }
+        Insert: {
+          calculated_at?: string
+          calculated_by?: string | null
+          futures_price_current: number
+          id?: string
+          mtm_futures_brl: number
+          mtm_ndf_brl?: number
+          mtm_option_brl?: number
+          mtm_per_sack_brl: number
+          mtm_physical_brl: number
+          mtm_total_brl: number
+          operation_id: string
+          option_premium_current?: number | null
+          physical_price_current: number
+          spot_rate_current?: number | null
+          total_exposure_brl: number
+          volume_sacks: number
+        }
+        Update: {
+          calculated_at?: string
+          calculated_by?: string | null
+          futures_price_current?: number
+          id?: string
+          mtm_futures_brl?: number
+          mtm_ndf_brl?: number
+          mtm_option_brl?: number
+          mtm_per_sack_brl?: number
+          mtm_physical_brl?: number
+          mtm_total_brl?: number
+          operation_id?: string
+          option_premium_current?: number | null
+          physical_price_current?: number
+          spot_rate_current?: number | null
+          total_exposure_brl?: number
+          volume_sacks?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mtm_snapshots_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operations: {
         Row: {
           balance_snapshot: Json | null
