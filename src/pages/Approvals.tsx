@@ -107,16 +107,22 @@ export default function Approvals() {
     },
   });
 
-  // 3. Operações em EM_APROVACAO
+  // 3. Operações DRAFT com assinatura OPENING já enviada (D24)
   const { data: operations = [] } = useQuery({
-    queryKey: ['pending-operations'],
+    queryKey: ['pending-operations-d24'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: sigs, error: sigErr } = await (supabase as any)
+        .from('signatures')
+        .select('operation_id')
+        .eq('flow_type', 'OPENING');
+      if (sigErr) throw sigErr;
+      const ids = [...new Set((sigs ?? []).map((s: any) => s.operation_id))];
+      if (!ids.length) return [];
+      const { data, error } = await (supabase as any)
         .from('operations')
-        .select(
-          '*, pricing_snapshot:pricing_snapshots(payment_date), warehouse:warehouses(display_name)',
-        )
-        .in('status', ['EM_APROVACAO', 'ENCERRAMENTO_SOLICITADO']);
+        .select('*, warehouses(display_name), pricing_snapshots(payment_date)')
+        .in('id', ids)
+        .eq('status', 'DRAFT');
       if (error) throw error;
       return data ?? [];
     },
@@ -124,29 +130,14 @@ export default function Approvals() {
 
   const operationIds = useMemo(() => operations.map((o: any) => o.id), [operations]);
 
-  // 4. Hedge orders
-  const { data: hedgeOrders = [] } = useQuery({
-    queryKey: ['pending-hedge-orders', operationIds],
-    enabled: operationIds.length > 0,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('hedge_orders')
-        .select('operation_id, display_code, origination_price_brl, volume_sacks, status')
-        .in('operation_id', operationIds)
-        .neq('status', 'CANCELLED');
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  // 5. Signatures
+  // 4. Signatures
   const { data: signatures = [] } = useQuery({
     queryKey: ['pending-signatures', operationIds],
     enabled: operationIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('signatures')
-        .select('*, signer:users(full_name)')
+        .select('*')
         .in('operation_id', operationIds);
       if (error) throw error;
       return data ?? [];
@@ -158,30 +149,30 @@ export default function Approvals() {
   const rows = useMemo(() => {
     return operations
       .map((op: any) => {
-        const ho = hedgeOrders.find((h: any) => h.operation_id === op.id);
-        if (!ho) return null;
         const opSignatures = signatures.filter((s: any) => s.operation_id === op.id);
         const collected = opSignatures.map((s: any) => s.role_used);
-        const userAlreadySigned = opSignatures.some((s: any) => s.user_id === user?.id);
+        const userAlreadySigned = opSignatures.some(
+          (s: any) => s.user_id === user?.id && s.decision === 'APPROVE'
+        );
 
-        const volumeSacks = Number(ho?.volume_sacks ?? op.volume_sacks ?? 0);
+        const volumeSacks = Number(op.volume_sacks ?? 0);
         const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
         const required = getRequiredRoles(volumeTons, effectivePolicy as any);
         const missing = getMissingRoles(required, collected);
         const availableForUser = userRoles.filter((r) => missing.includes(r));
 
-        const originationPrice = Number(ho?.origination_price_brl ?? 0);
+        const originationPrice = Number(op.origination_price_brl ?? 0);
         const valueBRL = volumeSacks * originationPrice;
 
         return {
           operationId: op.id,
-          displayCode: ho?.display_code ?? '—',
-          isClosing: op.status === 'ENCERRAMENTO_SOLICITADO',
-          warehouse: op.warehouse?.display_name ?? '—',
+          displayCode: op.display_code ?? op.id.slice(0, 8),
+          isClosing: false,
+          warehouse: op.warehouses?.display_name ?? '—',
           commodity: op.commodity,
           volumeSacks,
           valueBRL,
-          paymentDate: op.pricing_snapshot?.payment_date ?? null,
+          paymentDate: op.pricing_snapshots?.payment_date ?? null,
           collected,
           required,
           missing,
@@ -189,8 +180,8 @@ export default function Approvals() {
           userAlreadySigned,
         };
       })
-      .filter((r): r is NonNullable<typeof r> => r !== null && !r.userAlreadySigned && r.availableForUser.length > 0);
-  }, [operations, hedgeOrders, signatures, userRoles, effectivePolicy, user?.id]);
+      .filter((r) => !r.userAlreadySigned && r.availableForUser.length > 0);
+  }, [operations, signatures, userRoles, effectivePolicy, user?.id]);
 
   const openSign = (row: (typeof rows)[number]) => {
     setSigning({
@@ -222,25 +213,13 @@ export default function Approvals() {
       const reason = rejectReason.trim();
       const nowIso = new Date().toISOString();
 
-      const { error: orderError } = await (supabase as any)
-        .from('hedge_orders')
+      const { error: opError } = await (supabase as any)
+        .from('operations')
         .update({
           status: 'CANCELLED',
           cancellation_reason: reason,
           cancelled_at: nowIso,
           cancelled_by: user.id,
-        })
-        .eq('operation_id', rejecting.operationId)
-        .neq('status', 'CANCELLED');
-      if (orderError) throw orderError;
-
-      const { error: opError } = await (supabase as any)
-        .from('operations')
-        .update({
-          status: 'CANCELADA',
-          rejection_reason: reason,
-          rejected_by: user.id,
-          rejected_at: nowIso,
         } as never)
         .eq('id', rejecting.operationId);
       if (opError) throw opError;
@@ -249,17 +228,18 @@ export default function Approvals() {
         operation_id: rejecting.operationId,
         user_id: user.id,
         role_used: rejecting.available[0],
-        signature_type: 'REPROVACAO',
+        flow_type: 'OPENING',
+        decision: 'REJECT',
         notes: reason,
         signed_at: nowIso,
       } as never);
       if (sigError) throw sigError;
 
       toast.success('Operação recusada');
-      queryClient.invalidateQueries({ queryKey: ['pending-operations'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-operations-d24'] });
       queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
       queryClient.invalidateQueries({ queryKey: ['operations'] });
-      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
       queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
       setRejecting(null);
     } catch (e: any) {
@@ -277,7 +257,8 @@ export default function Approvals() {
         operation_id: signing.operationId,
         user_id: user.id,
         role_used: selectedRole,
-        signature_type: 'APROVACAO',
+        flow_type: 'OPENING',
+        decision: 'APPROVE',
         notes: notes || null,
         signed_at: new Date().toISOString(),
       } as never);
@@ -285,34 +266,15 @@ export default function Approvals() {
 
       const newCollected = [...signing.collected, selectedRole];
       if (allSigned(signing.required, newCollected)) {
-        const { data: opData } = await supabase
-          .from('operations')
-          .select('status')
-          .eq('id', signing.operationId)
-          .single();
-
-        const nextStatus = opData?.status === 'ENCERRAMENTO_SOLICITADO'
-          ? 'ENCERRAMENTO_APROVADO'
-          : 'APROVADA';
-
-        const { error: updateError } = await supabase
-          .from('operations')
-          .update({ status: nextStatus })
-          .eq('id', signing.operationId);
-        if (updateError) throw updateError;
-        toast.success(
-          nextStatus === 'ENCERRAMENTO_APROVADO'
-            ? 'Encerramento aprovado'
-            : 'Operação totalmente aprovada'
-        );
+        toast.success('Todas as assinaturas coletadas — operação pode ser executada');
       } else {
         toast.success('Assinatura registrada');
       }
 
       queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
-      queryClient.invalidateQueries({ queryKey: ['pending-operations'] });
-      queryClient.invalidateQueries({ queryKey: ['operations'] });
-      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-operations-d24'] });
+      queryClient.invalidateQueries({ queryKey: ['signatures-for-ops'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
       setSigning(null);
     } catch (e: any) {
       toast.error('Erro ao assinar', { description: e.message });
