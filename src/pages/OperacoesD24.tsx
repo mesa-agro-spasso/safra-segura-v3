@@ -1090,11 +1090,19 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
   const [commodity, exchange] = commodityKey ? commodityKey.split('|') : ['', ''];
 
   const filteredSnapshots = useMemo(() => {
-    if (!commodity) return [];
-    return pricingSnapshots.filter(s =>
-      s.commodity === commodity && s.benchmark.toLowerCase() === exchange.toLowerCase(),
+    if (!commodity || !warehouseId) return [];
+    const matching = pricingSnapshots.filter(s =>
+      s.commodity === commodity &&
+      s.benchmark.toLowerCase() === exchange.toLowerCase() &&
+      s.warehouse_id === warehouseId,
     );
-  }, [pricingSnapshots, commodity, exchange]);
+    if (!matching.length) return [];
+    const latestDate = matching.reduce((latest, s) =>
+      s.created_at > latest ? s.created_at : latest,
+      matching[0].created_at,
+    );
+    return matching.filter(s => s.created_at === latestDate);
+  }, [pricingSnapshots, commodity, exchange, warehouseId]);
 
   const selectedSnapshot = useMemo(() => filteredSnapshots.find(s => s.id === snapshotId), [filteredSnapshots, snapshotId]);
 
@@ -1165,12 +1173,14 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
         hedge_plan: planResp.plan,
         created_by: userId,
       };
-      const { data, error } = await (supabase as any)
-        .from('operations')
-        .insert(payload as never)
+      const { data, error } = await supabase
+        .from('operations' as any)
+        .insert(payload)
         .select('id, display_code')
         .single();
-      if (error) throw error;
+      if (error) throw new Error(
+        error.message ?? error.details ?? JSON.stringify(error)
+      );
       const code = (data as any)?.display_code ?? ((data as any)?.id as string)?.slice(0, 8) ?? 'nova';
       toast.success(`Operação criada: ${code}`);
       onCreated();
