@@ -608,12 +608,16 @@ const OperacoesD24: React.FC = () => {
   };
 
   // ── Filtered operations
+  const INACTIVE_STATUSES = new Set([
+    'ENCERRADA', 'CANCELADA', 'REPROVADA', // legado
+    'CANCELLED', 'CLOSED',                  // D24
+  ]);
   const filteredOperations = useMemo(() => {
     if (!operations) return [];
     const filtered = filterStatus === 'active'
-      ? operations.filter(op => !['ENCERRADA', 'CANCELADA', 'REPROVADA'].includes(op.status))
+      ? operations.filter(op => !INACTIVE_STATUSES.has(op.status))
       : filterStatus === 'closed'
-      ? operations.filter(op => op.status === 'ENCERRADA')
+      ? operations.filter(op => op.status === 'ENCERRADA' || op.status === 'CLOSED')
       : operations;
     return [...filtered].sort((a, b) => {
       const oa = STATUS_ORDER[a.status] ?? 50;
@@ -657,7 +661,7 @@ const OperacoesD24: React.FC = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('signatures' as any)
-        .select('*, signer:users(full_name)')
+        .select('*')
         .eq('operation_id', selectedOperation!.id)
         .order('signed_at', { ascending: true });
       if (error) throw error;
@@ -1596,7 +1600,7 @@ const OperacoesD24: React.FC = () => {
                       {operationSignatures.map((s: any) => (
                         <div key={s.id} className="rounded-md border p-3 text-sm space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="font-medium">{s.signer?.full_name ?? (typeof s.user_id === 'string' ? s.user_id.slice(0, 8) : '—')}</span>
+                            <span className="font-medium">{typeof s.user_id === 'string' ? s.user_id.slice(0, 8) : '—'}</span>
                             <Badge variant="outline">{s.decision}</Badge>
                           </div>
                           <div className="text-xs text-muted-foreground">
