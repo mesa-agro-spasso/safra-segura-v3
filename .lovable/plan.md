@@ -1,179 +1,132 @@
-# Plano v2 — OrdensD24.tsx (Fase 4 D24)
+# Plano — Nova tela `OperacoesD24.tsx` (revisado)
 
-Correções aplicadas vs v1:
-- 🔴 Validação por leg: cada leg é uma `Order` independente. N legs = N chamadas a `validateExecution`, sem agregação. Cada leg expõe seu próprio resultado.
-- 🟡 Datas da `OperationIn` vêm de `operations` (via `useOperations`), não de `pricing_snapshots`.
+## Escopo
+Criar `src/pages/OperacoesD24.tsx` (arquivo novo) e adicionar import + rota `/operacoes-d24` em `src/App.tsx` (única alteração fora do arquivo novo). Nenhum hook ou serviço novo — tudo reutilizado.
 
-## Arquivos
-
-1. **Criar** `src/pages/OrdensD24.tsx`.
-2. **Editar** `src/App.tsx` — adicionar `import OrdensD24 from "./pages/OrdensD24"` e `<Route path="/ordens-d24" element={<OrdensD24 />} />` dentro do bloco protegido (ao lado de `/ordens`).
-
-Nada mais é tocado. Hooks reusados: `useHedgeOrders`, `useUpdateHedgeOrder`, `useActiveArmazens`, `useOperations`, `useAuth`.
-
-## Filtros (4 multi-select independentes)
-
-Componente local `MultiSelect` em `Popover` + `Checkbox` (sem nova dependência). Trigger: "Todas" se vazio, label único se 1 selecionado, "N selecionadas" caso contrário.
-
-| Filtro | Fonte |
-|---|---|
-| Praça | `useActiveArmazens` → `display_name`, valor `id` |
-| Commodity | fixo: `soybean\|cbot` (Soja CBOT), `corn\|b3` (Milho B3) |
-| Operação | `useOperations` → `display_code` |
-| Status | fixo: GENERATED, SENT, APPROVED, EXECUTED, CANCELLED |
-
-Botões globais: **Selecionar Todos** preenche todos os 4 sets com todas as opções; **Limpar Filtros** zera todos.
-
-Filtragem client-side. Set vazio = sem restrição. Praça resolvida via `order.operation_id → operations.warehouse_id`.
-
-## Tabela
-
-Fonte: `useHedgeOrders()` (sem filtros server-side).
-
-Sort: `SENT(1) → APPROVED(2) → GENERATED(3) → EXECUTED(4) → CANCELLED(5)`, depois `created_at DESC`.
-
-Colunas: Praça | ID Operação (`display_code` ou UUID truncado) | Commodity (badge) | Volume sc (`pt-BR`) | Preço orig. (R$/sc) | Pernas (resumo `instrument(direction)` join ` + `) | Status (badge) | Data (`dd/MM/yyyy`) | Ações.
-
-Badges: GENERATED cinza, SENT azul (outline), APPROVED amarelo (outline), EXECUTED verde, CANCELLED vermelho.
-
-Ações por status (com `e.stopPropagation()`):
-- GENERATED → **Enviar** (status=SENT), **Cancelar** (modal motivo)
-- SENT → **Aprovar** (status=APPROVED), **Rejeitar** (modal motivo)
-- APPROVED → **Executar** (modal execução), **Cancelar** (modal motivo)
-- EXECUTED / CANCELLED → vazio
-
-Click na linha (fora de Ações) abre Sheet de detalhe.
-
-## Sheet de detalhe (somente leitura, lado direito)
-
-- Identificação: commodity, exchange, status, `created_at`, `notes`.
-- Volume e Preço: `volume_sacks`, `origination_price_brl`.
-- Pernas: para cada item de `order.legs`, render de todos os campos não-nulos em grid 2 colunas.
-
-Sem ações.
-
-## Dialog de motivo (Cancelar / Rejeitar)
-
-`Dialog` com `Textarea` + botão "Confirmar" desabilitado se `reason.trim() === ''`.
-
-Cancelar → update `{ status: 'CANCELLED', cancellation_reason, cancelled_at, cancelled_by }`.
-Rejeitar (de SENT) → mesma payload, `cancellation_reason` prefixado `[Rejeição] ` (não há status REJECTED definido na lista).
-
-## Dialog de execução — uma validação por leg
-
-### Estado
-
-```ts
-type ExecutionLeg = {
-  leg_type: string; direction: string; ticker?: string;
-  contracts?: number; volume_units?: number; currency: string;
-  _price: string; _qty: string; _notes: string;
-};
-
-type LegValidation = {
-  status: 'idle' | 'loading' | 'done' | 'error';
-  result?: ValidateExecutionResponse;
-  errorMsg?: string;
-};
-
-const [execLegs, setExecLegs] = useState<ExecutionLeg[]>([]);
-const [validations, setValidations] = useState<LegValidation[]>([]);
+## Estrutura de alto nível
+```text
+OperacoesD24
+├── Header (título + StatusDot último MTM/mercado)
+└── Tabs
+    ├── Operações  → ColumnSelector + filtro Ativas/Encerradas/Todas + "Nova Operação"
+    ├── MTM        → disclaimer + tabela resultados (ColumnSelector) + "Calcular MTM" + inputs físico
+    └── Resumo     → 3 cards + tabela por perna (ColumnSelector) + gráfico recharts toggle
 ```
 
-Editar qualquer campo de uma leg → essa leg volta para `status: 'idle'` e limpa `result`. Outras legs permanecem inalteradas.
+## Componente local `ColumnSelector`
+Popover com ícone `Columns` (lucide), checkboxes por coluna, botões "Todas"/"Nenhuma".
+Estado em `Set<string>`, persistido em `localStorage` por chave (`cols_operacoes`, `cols_mtm`, `cols_resumo`). Coluna "Ações" fica fora do seletor (sempre visível).
 
-### Layout por leg (card individual)
-- Header somente leitura: `leg_type · ticker · direction`.
-- Input "Contratos" (futures/option) ou "Volume USD" (ndf) → `_qty`.
-- Input "Preço" + label de unidade:
-  - `ndf` → `BRL/USD`
-  - exchange `cbot` (não-ndf) → `USD/bushel`
-  - exchange `b3` (não-ndf) → `BRL/sc`
-- Input "Obs." → `_notes`.
-- Botão **"Validar leg"** (por leg).
-- Painel de resultado da leg (abaixo dos inputs):
-  - `structural_errors[]` em blocos vermelhos com `AlertCircle`.
-  - `business_alerts[]` coloridos por `level` (ERROR=vermelho, WARNING=amarelo, INFO=azul).
-  - Se `is_valid && !hasError` → "✓ Leg válida" verde.
+## Aba Operações
+- Fonte: `useOperationsWithDetails`.
+- Sort/badges: `STATUS_ORDER` e `STATUS_BADGE` copiados de `OperationsMTM.tsx`.
+- Colunas (default ON): `praca, commodity, ticker, volume, preco_orig, trade_date, payment_date, reception_date, sale_date, status`.
+- Linha → `Sheet right sm:max-w-2xl` com `Tabs Detalhes | MTM`:
+  - **Detalhes**: identificação, precificação (do `pricing_snapshots`), datas, ordens vinculadas (`useHedgeOrders` filtrado por `operation_id`).
+  - **MTM**: snapshot mais recente do `useMtmSnapshots` para a operação, ou mensagem vazia.
+- Coluna **Ações** fixa: botão "Encerrar" se `status === 'HEDGE_CONFIRMADO'`.
 
-### Chamada `validateExecution` (por leg)
+## Modal Nova Operação
+Disclaimer fixo no topo. Campos: Praça (`useActiveArmazens`), Commodity (`soybean|cbot` / `corn|b3`), Volume sacas, Preço originação R$/sc, Snapshot referência (`usePricingSnapshots` filtrado por commodity+benchmark), Trade date (default hoje), Notas. Snapshot auto-preenche `payment_date / grain_reception_date / sale_date` (editáveis depois).
 
-`OperationIn` montada **uma vez** a partir de `useOperations`:
-```ts
-const op = operations?.find(o => o.id === order.operation_id);
-const operationIn: OperationIn = {
-  id: op.id,
-  warehouse_id: op.warehouse_id,
-  commodity: op.commodity,
-  exchange: op.exchange,
-  volume_sacks: op.volume_sacks,
-  origination_price_brl: op.origination_price_brl,
-  trade_date: op.trade_date,
-  payment_date: op.payment_date,
-  grain_reception_date: op.grain_reception_date,
-  sale_date: op.sale_date,
-  status: op.status,
-  hedge_plan: (op.hedge_plan as HedgePlanItemIn[]) ?? [],
-};
-```
+**Botão "Gerar Plano"**:
+1. Monta `OperationIn` com `status='DRAFT', hedge_plan=[]`, `origination_price_brl` do form.
+2. Monta `PricingSnapshotIn`: `ticker`, `payment_date`, `futures_price_usd` (`outputs_json.futures_price_usd`), `futures_price_brl` (coluna direta), `exchange_rate` (`exchange_rate ?? outputs_json.exchange_rate`).
+3. `buildHedgePlan(op, ps)` → exibe `plan[]`, `order_message`, `confirmation_message`.
 
-> Nota: a interface TS `Operation` em `src/types/index.ts` não declara hoje as colunas `exchange`, `trade_date`, `payment_date`, `grain_reception_date`, `sale_date`, `origination_price_brl`, `hedge_plan`, embora elas existam na tabela `operations` do banco. Para não editar `src/types/index.ts` (escopo proíbe), o componente fará um cast pontual `op as unknown as { ... }` com os campos necessários. Se algum desses campos vier `null/undefined` em runtime, exibe erro inline e bloqueia validação.
-
-`existingOrders: []` (etapa 3 expande).
-
-Para cada leg (`i`):
-```ts
-const CONTRACT_SIZE = order.exchange.toLowerCase() === 'b3' ? 450 : 5000;
-const isNdf = leg.leg_type === 'ndf';
-const newOrder: OrderIn = {
-  operation_id: order.operation_id,
-  instrument_type: leg.leg_type,
-  direction: leg.direction,
-  currency: leg.currency,
-  contracts: parseFloat(leg._qty),
-  volume_units: isNdf ? parseFloat(leg._qty) : parseFloat(leg._qty) * CONTRACT_SIZE,
-  executed_at: new Date().toISOString(),
-  executed_by: user.id,
-  is_closing: false,
-  ticker: leg.ticker,
-  price: !isNdf ? parseFloat(leg._price) : undefined,
-  ndf_rate: isNdf ? parseFloat(leg._price) : undefined,
-  notes: leg._notes || undefined,
-};
-const res = await validateExecution(operationIn, [], newOrder);
-setValidations(v => v.map((x, j) => j === i ? { status: 'done', result: res } : x));
-```
-
-Sem agregação cross-leg. Cada `LegValidation` é totalmente independente.
-
-### Botão "Confirmar Execução" (rodapé do modal)
-
-Habilitado **somente quando**:
-1. Todas as legs têm `validations[i].status === 'done'`
-2. Para todas: `result.is_valid === true`
-3. Para todas: `result.business_alerts` não contém item com `level === 'ERROR'`
-
-Indicador textual no rodapé: "X / N legs validadas".
-
-Ao confirmar: `useUpdateHedgeOrder` com:
+**Botão "Confirmar e Salvar"** — INSERT direto via `(supabase as any).from('operations').insert({...})` com **todos** os campos obrigatórios:
 ```ts
 {
-  id: order.id,
-  status: 'EXECUTED',
-  executed_legs: execLegs.map(...campos reais...),
-  executed_at: new Date().toISOString(),
-  executed_by: user.id,
+  warehouse_id,
+  commodity,
+  exchange,
+  volume_sacks,
+  origination_price_brl,            // ← obrigatório, vem do form
+  trade_date,
+  payment_date,
+  grain_reception_date,
+  sale_date,
+  status: 'DRAFT',
+  pricing_snapshot_id,
+  notes,
+  hedge_plan: plan,                 // JSONB do buildHedgePlan
+  created_by: user.id,
 }
 ```
-Toast `Ordem ${display_code} executada`. Fecha modal.
+Toast com `display_code ?? id.slice(0,8)`, fecha modal, invalida `['operations_with_details']` e `['operations']`.
 
-## Restrições (recap)
+## Modal Encerramento (Block Closing)
+Disclaimer fixo no topo. Campos: Volume a encerrar (default `volume_sacks`), Estratégia (`PROPORTIONAL` default / `MAX_PROFIT` / `MAX_LOSS`).
 
-- Sem sessionStorage.
-- Sem cálculo local (saldo/plano/validação).
-- Sem nova Edge Function.
-- Sem aba "Criar Ordem" / "Registro Manual".
-- Não importa de `Orders.tsx`.
-- Não edita `src/types/index.ts` (cast local pontual em vez disso).
+**Botão "Calcular Proposta"**:
+1. Filtra `operations` por mesmo `warehouse_id` + `commodity`, status `HEDGE_CONFIRMADO`.
+2. Para cada operação, junta as `hedge_orders` correspondentes com `status='EXECUTED'` (do `useHedgeOrders()` carregado).
+3. **Conversão `HedgeOrder → OrderIn[]` via flatMap das legs** (instrument_type vem da leg, não da ordem):
+   ```ts
+   const existingOrders: OrderIn[] = hedgeOrdersDaOperacao.flatMap(ho =>
+     ((ho.executed_legs ?? ho.legs) as any[]).map(leg => ({
+       operation_id: ho.operation_id,
+       instrument_type: leg.leg_type,
+       direction: leg.direction,
+       currency: leg.currency ?? 'USD',
+       contracts: leg.contracts ?? 0,
+       volume_units: leg.volume_units ?? 0,
+       executed_at: ho.executed_at ?? new Date().toISOString(),
+       executed_by: ho.executed_by ?? '',
+       is_closing: false,
+       ticker: leg.ticker,
+       price: leg.price,
+       ndf_rate: leg.ndf_rate,
+     }))
+   );
+   ```
+4. Monta `OperationSummaryIn[]` com `operation_id, display_code, volume_sacks, existing_orders, mtm_total_brl` (do snapshot mais recente em `useMtmSnapshots`).
+5. `allocateClosingBatch({ warehouse_id, commodity, exchange, target_volume_sacks, strategy, operations })`.
+6. Renderiza tabela `proposals` (display_code, volume_to_close, allocation_reason, mtm_at_allocation) e blocos amarelos para `warnings`.
 
-Aprove para eu executar.
+**Botão "Confirmar Encerramento"** (Fase 4): toast "Funcionalidade de persistência será implementada na Fase 5" + fecha modal. Sem persistência.
+
+## Aba MTM
+Resultados: `results` state (após cálculo) ou `snapshotResults` derivados de `useMtmSnapshots` (latest por `operation_id`).
+
+Disclaimer amarelo fixo no topo.
+
+Colunas (default ON): `operacao, commodity, praca, trade_date, sale_date, mtm_total, mtm_per_sack, breakeven, fisico_alvo`.
+
+Tabela inputs abaixo: linha por `useHedgeOrders({ status: 'EXECUTED' })`, preço físico R$/sc com `sessionStorage['mtm_physical_prices']` (mesma chave do OperationsMTM).
+
+**"Calcular MTM"**: copiar `handleCalculate` de `OperationsMTM.tsx` literal — `BUSHELS_PER_SACK`, `sigmaMap`, prêmio de opção via `callApi('/pricing/option-premium', ...)`, `callApi('/mtm/run', { positions })`, persistência via `useSaveMtmSnapshot`.
+
+**Fórmulas D20 (autorizadas)**:
+```ts
+calcBreakeven       = (physical - mtm_per_sack) * (1 + executionSpread)
+calcTargetPhysical  = (physical - mtm_per_sack + targetProfit) * (1 + executionSpread)
+```
+Fallback: `physicalPrices` vazio → usa `r.market_snapshot.physical_price_current`.
+`executionSpread` e `targetProfit` (por commodity) de `usePricingParameters`.
+
+**Dialog detalhe MTM**: copiar 7 seções colapsáveis (`identificacao, datas, mercado, entrada, custos, basis, resultado`), incluindo conversão USD/bu→BRL/sc via `/utils/convert-price` (state `convertedLegPrices`).
+
+## Aba Resumo
+3 cards (Operações Ativas, Resultado Total, Resultado por Saca, com cor por sinal). Tabela por perna (Físico/Futuros/NDF/Opção/Total) com colunas (default ON): `perna, valor, pct`. Gráfico recharts `BarChart` com `Switch` Por perna ↔ Por operação.
+
+## `src/App.tsx`
+```tsx
+import OperacoesD24 from "./pages/OperacoesD24";
+// dentro do bloco protegido, ao lado de /operacoes-mtm:
+<Route path="/operacoes-d24" element={<OperacoesD24 />} />
+```
+
+## Restrições
+- Sem importar `OperationsMTM.tsx` ou `Orders.tsx` (replicar código).
+- Sem nova Edge Function. `callApi` para `/mtm/run`, `/pricing/option-premium`, `/utils/convert-price`.
+- Sem cálculo local exceto break-even e físico alvo (D20).
+- `sessionStorage` apenas para `mtm_physical_prices`. ColumnSelector → `localStorage`.
+- Casts `as any` / `as never` permitidos onde tipos do Supabase não cobrem colunas D24.
+
+## Riscos
+1. `useHedgeOrders` consulta `hedge_orders` (paridade com OrdensD24/OperationsMTM); fora do escopo trocar para `orders`.
+2. Modal de encerramento Fase 4 não persiste — esperado pelo escopo.
+3. Triggers existentes preenchem `display_code` e `updated_at` da operação automaticamente.
+
+Após aprovação, gero o arquivo completo `OperacoesD24.tsx` e o diff de `App.tsx`.
