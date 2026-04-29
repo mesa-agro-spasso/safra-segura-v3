@@ -272,9 +272,9 @@ export default function Approvals() {
       }
 
       queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
-      queryClient.invalidateQueries({ queryKey: ['pending-operations'] });
-      queryClient.invalidateQueries({ queryKey: ['operations'] });
-      queryClient.invalidateQueries({ queryKey: ['hedge-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-operations-d24'] });
+      queryClient.invalidateQueries({ queryKey: ['signatures-for-ops'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
       setSigning(null);
     } catch (e: any) {
       toast.error('Erro ao assinar', { description: e.message });
