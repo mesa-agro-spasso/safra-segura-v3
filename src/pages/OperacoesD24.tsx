@@ -1823,7 +1823,7 @@ const OperacoesD24: React.FC = () => {
                   queryClient.invalidateQueries({ queryKey: ['operations'] });
                   setEditPlanOp(null);
                 }}
-                copyToClipboard={copyToClipboard}
+                copyToClipboard={(text: string) => { navigator.clipboard.writeText(text); toast.success('Copiado'); }}
               />
             );
           })()}
