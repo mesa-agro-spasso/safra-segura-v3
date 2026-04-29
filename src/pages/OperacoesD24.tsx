@@ -1171,7 +1171,11 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
         status: 'DRAFT',
         pricing_snapshot_id: selectedSnapshot.id,
         notes: notes || null,
-        hedge_plan: planResp.plan,
+        hedge_plan: {
+          plan: planResp.plan,
+          order_message: planResp.order_message,
+          confirmation_message: planResp.confirmation_message,
+        },
         created_by: userId,
       };
       const { data, error } = await supabase
