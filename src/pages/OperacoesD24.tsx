@@ -1750,9 +1750,11 @@ const OperacoesD24: React.FC = () => {
 
       {/* ── MTM Detail Dialog ── */}
       {detailResult && (() => {
-        const matched = orders?.find(o => o.operation_id === detailResult.operation_id);
-        const ps = matched?.operation?.pricing_snapshots;
-        const wName = matched?.operation?.warehouses?.display_name ?? '—';
+        const matched = (operations ?? []).find(
+          op => op.id === (detailResult.operation_id as string)
+        );
+        const ps = matched?.pricing_snapshots as any;
+        const wName = matched?.warehouses?.display_name ?? '—';
         const snap = detailResult.market_snapshot as Record<string, number | null> | null;
         const total = (detailResult.mtm_total_brl as number) ?? 0;
         const outputsJson = (ps?.outputs_json as Record<string, unknown>) ?? {};
