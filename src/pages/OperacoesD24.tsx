@@ -912,10 +912,8 @@ const OperacoesD24: React.FC = () => {
   // ── handleCalculate (D24: reads from operations + orders D24)
   const handleCalculate = async () => {
     if (!marketData?.length) { toast.error('Dados de mercado ausentes'); return; }
-    if (!d24Orders?.length) {
-      toast.error('Aguarde o carregamento das ordens');
-      return;
-    }
+    // Se d24Orders ainda não carregou, continuar mesmo assim
+    // (operações sem orders retornarão legs vazias e serão ignoradas)
     if (!activeOpsForMtm.length) { toast.error('Nenhuma operação ativa'); return; }
 
     setCalculating(true);
@@ -1189,7 +1187,7 @@ const OperacoesD24: React.FC = () => {
                   <CardTitle className="text-sm">Resultado MTM</CardTitle>
                   <div className="flex gap-2">
                     <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
-                    <Button onClick={handleCalculate} disabled={calculating || !activeOpsForMtm.length} size="sm">
+                    <Button onClick={handleCalculate} disabled={calculating || activeOpsForMtm.length === 0} size="sm">
                       <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
                       {calculating ? 'Calculando...' : 'Calcular MTM'}
                     </Button>
@@ -1264,7 +1262,7 @@ const OperacoesD24: React.FC = () => {
                   <CardTitle className="text-sm">Resultado MTM</CardTitle>
                   <div className="flex gap-2">
                     <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
-                    <Button onClick={handleCalculate} disabled={calculating || !activeOpsForMtm.length} size="sm">
+                    <Button onClick={handleCalculate} disabled={calculating || activeOpsForMtm.length === 0} size="sm">
                       <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
                       {calculating ? 'Calculando...' : 'Calcular MTM'}
                     </Button>
