@@ -486,32 +486,31 @@ const OperacoesD24: React.FC = () => {
 
         {/* TAB 1 — Operações */}
         <TabsContent value="operacoes">
+          {/* Header sempre visível */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <ColumnSelector columns={OP_COLUMNS} visible={opCols.visible} onChange={opCols.setVisible} />
+              <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as 'active' | 'closed' | 'all')}>
+                <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Ativas</SelectItem>
+                  <SelectItem value="closed">Encerradas</SelectItem>
+                  <SelectItem value="all">Todas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" onClick={() => setNewOpModal(true)}>Nova Operação</Button>
+          </div>
+
           {loadingOperations ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
-          ) : !operations?.length ? (
+          ) : !filteredOperations.length ? (
             <p className="text-muted-foreground text-center py-12">Nenhuma operação encontrada.</p>
           ) : (
             <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Todas as Operações</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <ColumnSelector columns={OP_COLUMNS} visible={opCols.visible} onChange={opCols.setVisible} />
-                    <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as 'active' | 'closed' | 'all')}>
-                      <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Ativas</SelectItem>
-                        <SelectItem value="closed">Encerradas</SelectItem>
-                        <SelectItem value="all">Todas</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button size="sm" onClick={() => setNewOpModal(true)}>Nova Operação</Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <Table>
                   <TableHeader>
                     <TableRow>
