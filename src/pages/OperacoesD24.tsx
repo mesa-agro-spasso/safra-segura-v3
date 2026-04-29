@@ -732,7 +732,7 @@ const OperacoesD24: React.FC = () => {
         .from('signatures' as any)
         .insert({
           operation_id: op.id,
-          flow_type: 'APROVACAO',
+          flow_type: 'OPENING',
           user_id: user.id,
           role_used: 'mesa',
           decision: 'APPROVE',
