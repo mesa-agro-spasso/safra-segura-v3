@@ -245,7 +245,7 @@ export default function Approvals() {
     setNotes('');
   };
 
-  const openReject = (row: (typeof rows)[number]) => {
+  const openReject = (row: (typeof pendingRows)[number]) => {
     setRejecting({
       operationId: row.operationId,
       displayCode: row.displayCode,
