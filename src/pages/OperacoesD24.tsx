@@ -1194,35 +1194,342 @@ const OperacoesD24: React.FC = () => {
 
                 {/* 4. Plano de Hedge */}
                 <Section title="Plano de Hedge" defaultOpen>
-                  {planLegs.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nenhum plano definido.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {planLegs.map((leg: any, i: number) => (
-                        <div key={i} className="rounded-md border p-3 space-y-1 text-sm">
+                  {!isDraft && (
+                    planLegs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhum plano definido.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {planLegs.map((leg: any, i: number) => (
+                          <div key={i} className="rounded-md border p-3 space-y-1 text-sm">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="outline">{leg.instrument_type}</Badge>
+                              <Badge variant="secondary">{leg.direction}</Badge>
+                              <Badge variant="outline">{leg.currency}</Badge>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                              {leg.ticker && <Row label="Ticker">{leg.ticker}</Row>}
+                              {leg.contracts != null && <Row label="Contratos">{leg.contracts}</Row>}
+                              {leg.volume_units != null && <Row label="Volume">{Number(leg.volume_units).toLocaleString('pt-BR')}</Row>}
+                              {leg.price_estimated != null && <Row label="Preço estimado">{Number(leg.price_estimated).toFixed(4)}</Row>}
+                              {leg.ndf_rate != null && <Row label="NDF rate">{Number(leg.ndf_rate).toFixed(4)}</Row>}
+                              {leg.ndf_maturity && <Row label="NDF maturity">{fmtDate(leg.ndf_maturity)}</Row>}
+                              {leg.option_type && <Row label="Tipo opção">{leg.option_type}</Row>}
+                              {leg.strike != null && <Row label="Strike">{Number(leg.strike).toFixed(4)}</Row>}
+                              {leg.premium != null && <Row label="Prêmio">{Number(leg.premium).toFixed(4)}</Row>}
+                              {leg.expiration_date && <Row label="Vencimento">{fmtDate(leg.expiration_date)}</Row>}
+                              {leg.notes && <Row label="Notas">{leg.notes}</Row>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+
+                  {isDraft && (
+                    <div className="space-y-3">
+                      {editLegs.length === 0 && (
+                        <p className="text-sm text-muted-foreground">Nenhuma perna. Adicione a primeira abaixo.</p>
+                      )}
+                      {editLegs.map((leg, i) => (
+                        <div key={i} className="rounded-md border p-3 space-y-3">
+                          {/* Header: instrument + direction + remove */}
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline">{leg.instrument_type}</Badge>
-                            <Badge variant="secondary">{leg.direction}</Badge>
+                            <Select
+                              value={leg.instrument_type}
+                              onValueChange={(v) => setEditLegs(prev => prev.map((l, j) =>
+                                j === i
+                                  ? { ...emptyLeg(), instrument_type: v as EditableLeg['instrument_type'], direction: l.direction, currency: v === 'ndf' ? 'BRL' : 'USD' }
+                                  : l
+                              ))}
+                            >
+                              <SelectTrigger className="h-8 w-[110px]"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="futures">Futuro</SelectItem>
+                                <SelectItem value="ndf">NDF</SelectItem>
+                                <SelectItem value="option">Opção</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={leg.direction}
+                              onValueChange={(v) => setEditLegs(prev => prev.map((l, j) =>
+                                j === i ? { ...l, direction: v as 'buy' | 'sell' } : l
+                              ))}
+                            >
+                              <SelectTrigger className="h-8 w-[90px]"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="buy">Buy</SelectItem>
+                                <SelectItem value="sell">Sell</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <Badge variant="outline">{leg.currency}</Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="ml-auto h-8 w-8 p-0 text-destructive"
+                              onClick={() => setEditLegs(prev => prev.filter((_, j) => j !== i))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                          <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
-                            {leg.ticker && <Row label="Ticker">{leg.ticker}</Row>}
-                            {leg.contracts != null && <Row label="Contratos">{leg.contracts}</Row>}
-                            {leg.volume_units != null && <Row label="Volume">{Number(leg.volume_units).toLocaleString('pt-BR')}</Row>}
-                            {leg.price_estimated != null && <Row label="Preço estimado">{Number(leg.price_estimated).toFixed(4)}</Row>}
-                            {leg.ndf_rate != null && <Row label="NDF rate">{Number(leg.ndf_rate).toFixed(4)}</Row>}
-                            {leg.ndf_maturity && <Row label="NDF maturity">{fmtDate(leg.ndf_maturity)}</Row>}
-                            {leg.option_type && <Row label="Tipo opção">{leg.option_type}</Row>}
-                            {leg.strike != null && <Row label="Strike">{Number(leg.strike).toFixed(4)}</Row>}
-                            {leg.premium != null && <Row label="Prêmio">{Number(leg.premium).toFixed(4)}</Row>}
-                            {leg.expiration_date && <Row label="Vencimento">{fmtDate(leg.expiration_date)}</Row>}
-                            {leg.notes && <Row label="Notas">{leg.notes}</Row>}
+
+                          {/* Common: ticker */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs">Ticker</Label>
+                              <Input
+                                className="h-8"
+                                value={leg.ticker}
+                                onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                  j === i ? { ...l, ticker: e.target.value } : l
+                                ))}
+                              />
+                            </div>
+
+                            {leg.instrument_type === 'futures' && (<>
+                              <div>
+                                <Label className="text-xs">Contratos</Label>
+                                <Input
+                                  className="h-8"
+                                  inputMode="decimal"
+                                  value={leg.contracts}
+                                  onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, contracts: e.target.value } : l
+                                  ))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Preço estimado</Label>
+                                <Input
+                                  className="h-8"
+                                  inputMode="decimal"
+                                  value={leg.price_estimated}
+                                  onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, price_estimated: e.target.value } : l
+                                  ))}
+                                />
+                              </div>
+                            </>)}
+
+                            {leg.instrument_type === 'ndf' && (<>
+                              <div>
+                                <Label className="text-xs">Volume USD</Label>
+                                <Input
+                                  className="h-8"
+                                  inputMode="decimal"
+                                  value={leg.contracts}
+                                  onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, contracts: e.target.value } : l
+                                  ))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Taxa NDF (BRL/USD)</Label>
+                                <Input
+                                  className="h-8"
+                                  inputMode="decimal"
+                                  value={leg.ndf_rate}
+                                  onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, ndf_rate: e.target.value } : l
+                                  ))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Maturidade</Label>
+                                <Input
+                                  className="h-8"
+                                  type="date"
+                                  value={leg.ndf_maturity}
+                                  onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, ndf_maturity: e.target.value } : l
+                                  ))}
+                                />
+                              </div>
+                            </>)}
+
+                            {leg.instrument_type === 'option' && (<>
+                              <div>
+                                <Label className="text-xs">Tipo</Label>
+                                <Select
+                                  value={leg.option_type}
+                                  onValueChange={(v) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, option_type: v as 'call' | 'put' } : l
+                                  ))}
+                                >
+                                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="call">Call</SelectItem>
+                                    <SelectItem value="put">Put</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label className="text-xs">Contratos</Label>
+                                <Input
+                                  className="h-8"
+                                  inputMode="decimal"
+                                  value={leg.contracts}
+                                  onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, contracts: e.target.value } : l
+                                  ))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Strike</Label>
+                                <Input
+                                  className="h-8"
+                                  inputMode="decimal"
+                                  value={leg.strike}
+                                  onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, strike: e.target.value } : l
+                                  ))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Prêmio</Label>
+                                <Input
+                                  className="h-8"
+                                  inputMode="decimal"
+                                  value={leg.premium}
+                                  onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, premium: e.target.value } : l
+                                  ))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Vencimento</Label>
+                                <Input
+                                  className="h-8"
+                                  type="date"
+                                  value={leg.expiration_date}
+                                  onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                    j === i ? { ...l, expiration_date: e.target.value } : l
+                                  ))}
+                                />
+                              </div>
+                            </>)}
+
+                            <div className="col-span-2">
+                              <Label className="text-xs">Obs.</Label>
+                              <Input
+                                className="h-8"
+                                value={leg.notes}
+                                onChange={(e) => setEditLegs(prev => prev.map((l, j) =>
+                                  j === i ? { ...l, notes: e.target.value } : l
+                                ))}
+                              />
+                            </div>
                           </div>
+
+                          {/* Validation result */}
+                          {planValidation?.legResults[i] && (() => {
+                            const v = planValidation.legResults[i];
+                            if (v.status === 'loading') {
+                              return <p className="text-xs text-muted-foreground">Validando...</p>;
+                            }
+                            if (v.status === 'error') {
+                              return (
+                                <div className="rounded border border-red-500 bg-red-500/10 text-red-400 px-2 py-1 text-xs">
+                                  {v.errorMsg}
+                                </div>
+                              );
+                            }
+                            if (v.status === 'done' && v.result) {
+                              const hasError = (v.result.structural_errors?.length ?? 0) > 0
+                                || v.result.business_alerts?.some(a => a.level === 'ERROR');
+                              return (
+                                <div className="space-y-1">
+                                  {v.result.structural_errors?.map((e, k) => (
+                                    <div key={`s${k}`} className="rounded border border-red-500 bg-red-500/10 text-red-400 px-2 py-1 text-xs flex items-start gap-1">
+                                      <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                                      <span>{e}</span>
+                                    </div>
+                                  ))}
+                                  {v.result.business_alerts?.map((a, k) => {
+                                    const cls = a.level === 'ERROR'
+                                      ? 'border-red-500 bg-red-500/10 text-red-400'
+                                      : a.level === 'WARNING'
+                                      ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
+                                      : 'border-blue-500 bg-blue-500/10 text-blue-400';
+                                    return (
+                                      <div key={`b${k}`} className={`rounded border ${cls} px-2 py-1 text-xs flex items-start gap-1`}>
+                                        <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                                        <span>{a.message}</span>
+                                      </div>
+                                    );
+                                  })}
+                                  {v.result.is_valid && !hasError && (
+                                    <div className="rounded border border-green-500 bg-green-500/10 text-green-400 px-2 py-1 text-xs flex items-center gap-1">
+                                      <CheckCircle2 className="h-3 w-3" /> Leg válida
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       ))}
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditLegs(prev => [...prev, emptyLeg()])}
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Adicionar Perna
+                      </Button>
+
+                      {planValidation?.newOrderMsg && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Mensagem da Ordem (regenerada)</span>
+                            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(planValidation.newOrderMsg!)}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{planValidation.newOrderMsg}</pre>
+                        </div>
+                      )}
+                      {planValidation?.newConfirmMsg && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Confirmação (regenerada)</span>
+                            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(planValidation.newConfirmMsg!)}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{planValidation.newConfirmMsg}</pre>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleValidatePlan}
+                          disabled={editLegs.length === 0 || (planValidation?.legResults.some(v => v.status === 'loading') ?? false)}
+                        >
+                          Validar Plano
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSavePlan}
+                          disabled={
+                            savingPlan
+                            || !planValidation
+                            || planValidation.legResults.some(v => v.status !== 'done')
+                            || planValidation.legResults.some(v =>
+                              (v.result?.structural_errors?.length ?? 0) > 0
+                              || (v.result?.business_alerts?.some(a => a.level === 'ERROR') ?? false)
+                            )
+                          }
+                        >
+                          {savingPlan ? 'Salvando...' : 'Salvar Plano'}
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </Section>
+
 
                 {/* 5. Mensagens */}
                 {(orderMsg || confirmMsg) && (
