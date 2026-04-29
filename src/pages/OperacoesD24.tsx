@@ -38,9 +38,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Columns, Calculator, AlertTriangle } from 'lucide-react';
+import { Columns, Calculator, AlertTriangle, ChevronDown, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ───────────────────────── helpers (replicated, no cross-page imports) ─────────────────────────
@@ -853,82 +854,195 @@ const OperacoesD24: React.FC = () => {
             </SheetTitle>
           </SheetHeader>
           {selectedOperation && (() => {
-            const ps = selectedOperation.pricing_snapshots;
+            const opD24 = selectedOperation as any;
+            const ps = selectedOperation.pricing_snapshots as any;
             const opMtmSnapshot = mtmSnapshots?.find(s => s.operation_id === selectedOperation.id);
+            const rawPlan = opD24.hedge_plan;
+            const planLegs: any[] = Array.isArray(rawPlan) ? rawPlan : (rawPlan?.plan ?? []);
+            const orderMsg: string | null = Array.isArray(rawPlan) ? null : (rawPlan?.order_message ?? null);
+            const confirmMsg: string | null = Array.isArray(rawPlan) ? null : (rawPlan?.confirmation_message ?? null);
+            const copyToClipboard = (text: string) => {
+              navigator.clipboard.writeText(text);
+              toast.success('Copiado');
+            };
+            const statusBadge = STATUS_BADGE[selectedOperation.status] ?? { label: selectedOperation.status, variant: 'secondary' as const };
+            const commodityLabel = selectedOperation.commodity === 'soybean' ? 'Soja CBOT' : selectedOperation.commodity === 'corn' ? 'Milho B3' : selectedOperation.commodity;
+
+            const Section: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = true, children }) => (
+              <Collapsible defaultOpen={defaultOpen} className="border rounded-md">
+                <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180">
+                  <span>{title}</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-3 pb-3 pt-1">
+                  {children}
+                </CollapsibleContent>
+              </Collapsible>
+            );
+
+            const Row: React.FC<{ label: React.ReactNode; children: React.ReactNode }> = ({ label, children }) => (
+              <>
+                <div className="text-muted-foreground">{label}</div>
+                <div className="break-words">{children}</div>
+              </>
+            );
+
             return (
-              <Tabs defaultValue="detalhes" className="mt-4">
-                <TabsList>
-                  <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
-                  <TabsTrigger value="mtm_op">MTM</TabsTrigger>
-                </TabsList>
-                <TabsContent value="detalhes" className="space-y-2 mt-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Identificação</p>
-                  <DetailRow label="Commodity" value={selectedOperation.commodity === 'soybean' ? 'Soja' : 'Milho'} />
-                  <DetailRow label="Volume" value={`${selectedOperation.volume_sacks.toLocaleString('pt-BR')} sc`} />
-                  <DetailRow label="Status" value={STATUS_BADGE[selectedOperation.status]?.label ?? selectedOperation.status} />
-                  <DetailRow label="Criada em" value={fmtDate(selectedOperation.created_at?.slice(0, 10))} />
-                  {selectedOperation.notes && <DetailRow label="Notas" value={selectedOperation.notes} />}
-                  <Separator />
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Precificação</p>
-                  <DetailRow label="Ticker" value={ps?.ticker ?? '—'} />
-                  <DetailRow label="Preço Originação" value={ps ? `R$ ${ps.origination_price_brl.toFixed(2)}` : '—'} />
-                  <DetailRow label="Preço Futuros (BRL)" value={ps ? `R$ ${ps.futures_price_brl.toFixed(2)}` : '—'} />
-                  <DetailRow label="Câmbio" value={ps?.exchange_rate != null ? ps.exchange_rate.toFixed(4) : '—'} />
-                  <Separator />
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Datas</p>
-                  <DetailRow label="Entrada" value={fmtDate(ps?.trade_date)} />
-                  <DetailRow label="Pagamento" value={fmtDate(ps?.payment_date)} />
-                  <DetailRow label="Recepção" value={fmtDate(ps?.grain_reception_date)} />
-                  <DetailRow label="Saída" value={fmtDate(ps?.sale_date)} />
-                  {ordersForSelectedOperation.length > 0 && (
-                    <>
-                      <Separator />
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Ordens Vinculadas ({ordersForSelectedOperation.length})
-                      </p>
-                      {ordersForSelectedOperation.map(o => (
-                        <div key={o.id} className="rounded-md border p-3 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">{o.display_code ?? o.id.slice(0, 8)}</span>
-                            <Badge variant="outline">{o.status}</Badge>
+              <div className="mt-4 space-y-3">
+                {/* 1. Identificação */}
+                <Section title="Identificação" defaultOpen>
+                  <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                    <Row label="ID"><span className="font-mono text-xs">{selectedOperation.id}</span></Row>
+                    <Row label="Código">{opD24.display_code ?? '—'}</Row>
+                    <Row label="Status"><Badge variant={statusBadge.variant} className={statusBadge.className}>{statusBadge.label}</Badge></Row>
+                    <Row label="Commodity">{commodityLabel}</Row>
+                    <Row label="Exchange">{opD24.exchange ?? '—'}</Row>
+                    <Row label="Volume">{`${selectedOperation.volume_sacks.toLocaleString('pt-BR')} sc`}</Row>
+                    <Row label="Criada em">{fmtDate(selectedOperation.created_at?.slice(0, 10))}</Row>
+                    {selectedOperation.notes && <Row label="Notas">{selectedOperation.notes}</Row>}
+                  </div>
+                </Section>
+
+                {/* 2. Precificação */}
+                <Section title="Precificação" defaultOpen>
+                  <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                    <Row label="Preço originação">{opD24.origination_price_brl != null ? `R$ ${Number(opD24.origination_price_brl).toFixed(2)}/sc` : '—'}</Row>
+                    <Row label="Trade date">{fmtDate(opD24.trade_date)}</Row>
+                    <Row label="Pagamento">{fmtDate(opD24.payment_date)}</Row>
+                    <Row label="Recepção">{fmtDate(opD24.grain_reception_date)}</Row>
+                    <Row label="Saída">{fmtDate(opD24.sale_date)}</Row>
+                  </div>
+                </Section>
+
+                {/* 3. Snapshot de Referência */}
+                <Section title="Snapshot de Referência" defaultOpen={false}>
+                  {!ps ? (
+                    <p className="text-sm text-muted-foreground">Sem snapshot vinculado.</p>
+                  ) : (
+                    <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                      <Row label="Ticker">{ps.ticker ?? '—'}</Row>
+                      <Row label="Futuros (BRL)">{ps.futures_price_brl != null ? `R$ ${Number(ps.futures_price_brl).toFixed(2)}` : '—'}</Row>
+                      <Row label="Câmbio">{ps.exchange_rate != null ? Number(ps.exchange_rate).toFixed(4) : '—'}</Row>
+                      <Row label="Target basis">{ps.target_basis_brl != null ? `R$ ${Number(ps.target_basis_brl).toFixed(2)}/sc` : '—'}</Row>
+                      <Row label="Desconto adicional">{ps.additional_discount_brl != null ? `R$ ${Number(ps.additional_discount_brl).toFixed(2)}/sc` : '—'}</Row>
+                      {ps.outputs_json && Object.entries(ps.outputs_json).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => (
+                        <Row key={k} label={<span className="font-mono text-xs">{k}</span>}>
+                          <span className="font-mono text-xs">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
+                        </Row>
+                      ))}
+                    </div>
+                  )}
+                </Section>
+
+                {/* 4. Plano de Hedge */}
+                <Section title="Plano de Hedge" defaultOpen>
+                  {planLegs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum plano definido.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {planLegs.map((leg: any, i: number) => (
+                        <div key={i} className="rounded-md border p-3 space-y-1 text-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">{leg.instrument_type}</Badge>
+                            <Badge variant="secondary">{leg.direction}</Badge>
+                            <Badge variant="outline">{leg.currency}</Badge>
                           </div>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span>{(o.legs as unknown[])?.length ?? 0} pernas</span>
-                            <span>{o.volume_sacks.toLocaleString('pt-BR')} sc</span>
+                          <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                            {leg.ticker && <Row label="Ticker">{leg.ticker}</Row>}
+                            {leg.contracts != null && <Row label="Contratos">{leg.contracts}</Row>}
+                            {leg.volume_units != null && <Row label="Volume">{Number(leg.volume_units).toLocaleString('pt-BR')}</Row>}
+                            {leg.price_estimated != null && <Row label="Preço estimado">{Number(leg.price_estimated).toFixed(4)}</Row>}
+                            {leg.ndf_rate != null && <Row label="NDF rate">{Number(leg.ndf_rate).toFixed(4)}</Row>}
+                            {leg.ndf_maturity && <Row label="NDF maturity">{fmtDate(leg.ndf_maturity)}</Row>}
+                            {leg.option_type && <Row label="Tipo opção">{leg.option_type}</Row>}
+                            {leg.strike != null && <Row label="Strike">{Number(leg.strike).toFixed(4)}</Row>}
+                            {leg.premium != null && <Row label="Prêmio">{Number(leg.premium).toFixed(4)}</Row>}
+                            {leg.expiration_date && <Row label="Vencimento">{fmtDate(leg.expiration_date)}</Row>}
+                            {leg.notes && <Row label="Notas">{leg.notes}</Row>}
                           </div>
                         </div>
                       ))}
-                    </>
+                    </div>
                   )}
-                </TabsContent>
-                <TabsContent value="mtm_op" className="space-y-2 mt-2">
-                  {!opMtmSnapshot ? (
-                    <p className="text-center text-muted-foreground py-8 text-sm">Nenhum MTM calculado para esta operação.</p>
+                </Section>
+
+                {/* 5. Mensagens */}
+                {(orderMsg || confirmMsg) && (
+                  <Section title="Mensagens" defaultOpen>
+                    <div className="space-y-3">
+                      {orderMsg && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Mensagem da Ordem</span>
+                            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(orderMsg)}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{orderMsg}</pre>
+                        </div>
+                      )}
+                      {confirmMsg && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Confirmação</span>
+                            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(confirmMsg)}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{confirmMsg}</pre>
+                        </div>
+                      )}
+                    </div>
+                  </Section>
+                )}
+
+                {/* 6. Ordens Vinculadas */}
+                <Section title={`Ordens Vinculadas (${ordersForSelectedOperation.length})`} defaultOpen>
+                  {ordersForSelectedOperation.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhuma ordem vinculada.</p>
                   ) : (
-                    <>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Snapshot de Mercado</p>
-                      <DetailRow label="Futuros (atual)" value={`USD ${opMtmSnapshot.futures_price_current?.toFixed(4) ?? '—'}/bu`} />
-                      <DetailRow label="Físico (atual)" value={fmtBrl(opMtmSnapshot.physical_price_current)} />
-                      <DetailRow label="Câmbio spot" value={opMtmSnapshot.spot_rate_current != null ? `R$ ${opMtmSnapshot.spot_rate_current.toFixed(4)}` : '—'} />
-                      <DetailRow label="Data cálculo" value={fmtDate(opMtmSnapshot.calculated_at?.slice(0, 10))} />
-                      <Separator />
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Resultado MTM</p>
-                      <DetailRow label="Físico" value={fmtBrl(opMtmSnapshot.mtm_physical_brl)} />
-                      <DetailRow label="Futuros" value={fmtBrl(opMtmSnapshot.mtm_futures_brl)} />
-                      <DetailRow label="NDF" value={fmtBrl(opMtmSnapshot.mtm_ndf_brl)} />
-                      <DetailRow label="Opção" value={fmtBrl(opMtmSnapshot.mtm_option_brl)} />
-                      <div className="flex justify-between py-1">
-                        <span className="text-sm font-bold">Total</span>
-                        <span className={`text-sm font-bold ${(opMtmSnapshot.mtm_total_brl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className="space-y-2">
+                      {ordersForSelectedOperation.map(o => {
+                        const legsArr = (o.legs as any[]) ?? [];
+                        const legsSummary = legsArr.map(l => `${l.leg_type ?? l.instrument_type}(${l.direction})`).join(' + ');
+                        return (
+                          <div key={o.id} className="rounded-md border p-3 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">{o.display_code ?? o.id.slice(0, 8)}</span>
+                              <Badge variant="outline">{o.status}</Badge>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              <span>{o.volume_sacks.toLocaleString('pt-BR')} sc</span>
+                              {legsSummary && <span>{legsSummary}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Section>
+
+                {/* 7. MTM */}
+                <Section title="MTM" defaultOpen={false}>
+                  {!opMtmSnapshot ? (
+                    <p className="text-sm text-muted-foreground">Nenhum MTM calculado.</p>
+                  ) : (
+                    <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                      <Row label="Físico (atual)">{fmtBrl(opMtmSnapshot.physical_price_current)}</Row>
+                      <Row label="Futuros (atual)">{opMtmSnapshot.futures_price_current != null ? `USD ${opMtmSnapshot.futures_price_current.toFixed(4)}/bu` : '—'}</Row>
+                      <Row label="Câmbio spot">{opMtmSnapshot.spot_rate_current != null ? `R$ ${opMtmSnapshot.spot_rate_current.toFixed(4)}` : '—'}</Row>
+                      <Row label="MTM total">
+                        <span className={`font-bold ${(opMtmSnapshot.mtm_total_brl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {fmtBrl(opMtmSnapshot.mtm_total_brl)}
                         </span>
-                      </div>
-                      <DetailRow label="Por Saca" value={`${fmtBrl(opMtmSnapshot.mtm_per_sack_brl)}/sc`} />
-                      <DetailRow label="Exposição Total" value={fmtBrl(opMtmSnapshot.total_exposure_brl)} />
-                    </>
+                      </Row>
+                      <Row label="Por saca">{`${fmtBrl(opMtmSnapshot.mtm_per_sack_brl)}/sc`}</Row>
+                      <Row label="Exposição total">{fmtBrl(opMtmSnapshot.total_exposure_brl)}</Row>
+                      <Row label="Calculado em">{fmtDateTime(opMtmSnapshot.calculated_at)}</Row>
+                    </div>
                   )}
-                </TabsContent>
-              </Tabs>
+                </Section>
+              </div>
             );
           })()}
         </SheetContent>
@@ -1170,7 +1284,11 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
         status: 'DRAFT',
         pricing_snapshot_id: selectedSnapshot.id,
         notes: notes || null,
-        hedge_plan: planResp.plan,
+        hedge_plan: {
+          plan: planResp.plan,
+          order_message: planResp.order_message,
+          confirmation_message: planResp.confirmation_message,
+        },
         created_by: userId,
       };
       const { data, error } = await supabase
