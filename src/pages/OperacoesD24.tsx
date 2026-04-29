@@ -608,12 +608,16 @@ const OperacoesD24: React.FC = () => {
   };
 
   // ── Filtered operations
+  const INACTIVE_STATUSES = new Set([
+    'ENCERRADA', 'CANCELADA', 'REPROVADA', // legado
+    'CANCELLED', 'CLOSED',                  // D24
+  ]);
   const filteredOperations = useMemo(() => {
     if (!operations) return [];
     const filtered = filterStatus === 'active'
-      ? operations.filter(op => !['ENCERRADA', 'CANCELADA', 'REPROVADA'].includes(op.status))
+      ? operations.filter(op => !INACTIVE_STATUSES.has(op.status))
       : filterStatus === 'closed'
-      ? operations.filter(op => op.status === 'ENCERRADA')
+      ? operations.filter(op => op.status === 'ENCERRADA' || op.status === 'CLOSED')
       : operations;
     return [...filtered].sort((a, b) => {
       const oa = STATUS_ORDER[a.status] ?? 50;
