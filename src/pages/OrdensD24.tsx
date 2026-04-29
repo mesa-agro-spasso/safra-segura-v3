@@ -328,19 +328,22 @@ const OrdensD24: React.FC = () => {
                   <TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma ordem</TableCell>
                 </TableRow>
               )}
-              {filtered.map(order => {
+              {filtered.map((order: any) => {
                 const op = opById.get(order.operation_id);
                 const pracaName = op ? warehouseNameById.get(op.warehouse_id) ?? op.warehouse_id : '--';
-                const opCode = order.display_code ?? `${order.id.slice(0, 8)}…`;
+                const opCode = op?.display_code ?? `${order.id.slice(0, 8)}…`;
+                const orderCommodity = op?.commodity ?? '--';
+                const volumeSacks = op?.volume_sacks ?? null;
+                const originationPrice = (op as any)?.origination_price_brl ?? null;
                 return (
-                  <TableRow key={order.id} className="cursor-pointer" onClick={() => setDetailOrder(order)}>
+                  <TableRow key={order.id}>
                     <TableCell>{pracaName}</TableCell>
                     <TableCell className="font-mono text-xs">{opCode}</TableCell>
-                    <TableCell><CommodityBadge commodity={order.commodity} /></TableCell>
-                    <TableCell className="text-right">{formatNumberBR(order.volume_sacks)}</TableCell>
-                    <TableCell className="text-right">R$ {formatNumberBR(order.origination_price_brl, 2)}</TableCell>
+                    <TableCell><CommodityBadge commodity={orderCommodity} /></TableCell>
+                    <TableCell className="text-right">{formatNumberBR(volumeSacks)}</TableCell>
+                    <TableCell className="text-right">R$ {formatNumberBR(originationPrice, 2)}</TableCell>
                     <TableCell className="text-xs">{legsSummary(order)}</TableCell>
-                    <TableCell><StatusBadge status={order.status} /></TableCell>
+                    <TableCell><StatusBadge status="EXECUTED" /></TableCell>
                     <TableCell className="text-xs">{formatDateBR(order.created_at)}</TableCell>
                     <TableCell className="text-right">{renderActions(order)}</TableCell>
                   </TableRow>
@@ -350,45 +353,6 @@ const OrdensD24: React.FC = () => {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Detail Sheet */}
-      <DetailSheet order={detailOrder} onClose={() => setDetailOrder(null)} />
-
-      {/* Reason Modal */}
-      <Dialog open={!!reasonModal} onOpenChange={open => { if (!open) { setReasonModal(null); setReasonText(''); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{reasonModal?.mode === 'reject' ? 'Rejeitar ordem' : 'Cancelar ordem'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label>Motivo</Label>
-            <Textarea value={reasonText} onChange={e => setReasonText(e.target.value)} placeholder="Descreva o motivo..." rows={4} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setReasonModal(null); setReasonText(''); }}>Voltar</Button>
-            <Button onClick={submitReason} disabled={!reasonText.trim() || updateOrder.isPending}>Confirmar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Execution Modal */}
-      <ExecutionModal
-        order={executeOrder}
-        operation={executeOrder ? opById.get(executeOrder.operation_id) ?? null : null}
-        userId={user?.id ?? null}
-        onClose={() => setExecuteOrder(null)}
-        onExecuted={async (updates) => {
-          if (!executeOrder) return;
-          try {
-            await updateOrder.mutateAsync({ id: executeOrder.id, ...updates } as never);
-            toast.success(`Ordem ${executeOrder.display_code ?? executeOrder.id.slice(0, 8)} executada`);
-            setExecuteOrder(null);
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            toast.error(`Falha ao executar: ${msg}`);
-          }
-        }}
-      />
     </div>
   );
 };
