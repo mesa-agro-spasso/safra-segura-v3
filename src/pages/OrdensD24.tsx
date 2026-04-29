@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useOperations } from '@/hooks/useOperations';
+import { useMarketData } from '@/hooks/useMarketData';
 import { useAuth } from '@/contexts/AuthContext';
 import { validateExecution, type ValidateExecutionResponse } from '@/services/d24Api';
 import type { HedgePlanItemIn, OperationIn, OrderIn } from '@/types/d24';
