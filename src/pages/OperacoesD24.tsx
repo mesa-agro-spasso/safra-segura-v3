@@ -1174,8 +1174,13 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
       const code = (data as any)?.display_code ?? ((data as any)?.id as string)?.slice(0, 8) ?? 'nova';
       toast.success(`Operação criada: ${code}`);
       onCreated();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Erro ao salvar operação');
+    } catch (e: unknown) {
+      const msg =
+        (e as any)?.message ??
+        (e as any)?.error_description ??
+        (e as any)?.details ??
+        JSON.stringify(e);
+      toast.error(`Erro ao salvar: ${msg}`);
     } finally {
       setSaving(false);
     }
