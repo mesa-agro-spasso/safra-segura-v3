@@ -149,30 +149,30 @@ export default function Approvals() {
   const rows = useMemo(() => {
     return operations
       .map((op: any) => {
-        const ho = hedgeOrders.find((h: any) => h.operation_id === op.id);
-        if (!ho) return null;
         const opSignatures = signatures.filter((s: any) => s.operation_id === op.id);
         const collected = opSignatures.map((s: any) => s.role_used);
-        const userAlreadySigned = opSignatures.some((s: any) => s.user_id === user?.id);
+        const userAlreadySigned = opSignatures.some(
+          (s: any) => s.user_id === user?.id && s.decision === 'APPROVE'
+        );
 
-        const volumeSacks = Number(ho?.volume_sacks ?? op.volume_sacks ?? 0);
+        const volumeSacks = Number(op.volume_sacks ?? 0);
         const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
         const required = getRequiredRoles(volumeTons, effectivePolicy as any);
         const missing = getMissingRoles(required, collected);
         const availableForUser = userRoles.filter((r) => missing.includes(r));
 
-        const originationPrice = Number(ho?.origination_price_brl ?? 0);
+        const originationPrice = Number(op.origination_price_brl ?? 0);
         const valueBRL = volumeSacks * originationPrice;
 
         return {
           operationId: op.id,
-          displayCode: ho?.display_code ?? '—',
-          isClosing: op.status === 'ENCERRAMENTO_SOLICITADO',
-          warehouse: op.warehouse?.display_name ?? '—',
+          displayCode: op.display_code ?? op.id.slice(0, 8),
+          isClosing: false,
+          warehouse: op.warehouses?.display_name ?? '—',
           commodity: op.commodity,
           volumeSacks,
           valueBRL,
-          paymentDate: op.pricing_snapshot?.payment_date ?? null,
+          paymentDate: op.pricing_snapshots?.payment_date ?? null,
           collected,
           required,
           missing,
@@ -180,8 +180,8 @@ export default function Approvals() {
           userAlreadySigned,
         };
       })
-      .filter((r): r is NonNullable<typeof r> => r !== null && !r.userAlreadySigned && r.availableForUser.length > 0);
-  }, [operations, hedgeOrders, signatures, userRoles, effectivePolicy, user?.id]);
+      .filter((r) => !r.userAlreadySigned && r.availableForUser.length > 0);
+  }, [operations, signatures, userRoles, effectivePolicy, user?.id]);
 
   const openSign = (row: (typeof rows)[number]) => {
     setSigning({
