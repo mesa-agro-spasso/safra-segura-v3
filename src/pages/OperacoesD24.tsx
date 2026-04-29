@@ -973,7 +973,7 @@ const OperacoesD24: React.FC = () => {
               const exchange = (opD24.exchange ?? 'cbot') as string;
               const CONTRACT_SIZE = exchange.toLowerCase() === 'b3' ? 450 : 5000;
 
-              const updatedResults: typeof initial extends Array<infer _T> ? Array<{ status: 'idle' | 'loading' | 'done' | 'error'; result?: ValidateExecutionResponse; errorMsg?: string }> : never =
+              const updatedResults: Array<{ status: 'idle' | 'loading' | 'done' | 'error'; result?: ValidateExecutionResponse; errorMsg?: string }> =
                 editLegs.map(() => ({ status: 'loading' as const }));
 
               for (let i = 0; i < editLegs.length; i++) {
