@@ -173,7 +173,7 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
         contracts: qty,
         volume_units: isNdf ? qty : qty * CONTRACT_SIZE,
         executed_at: new Date().toISOString(),
-        executed_by: userId,
+        executed_by: userId || '00000000-0000-0000-0000-000000000000',
         is_closing: false,
         ticker: leg.ticker || undefined,
         price: !isNdf && leg.price_estimated ? parseFloat(leg.price_estimated) : undefined,
