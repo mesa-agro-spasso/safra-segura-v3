@@ -233,7 +233,7 @@ export default function Approvals() {
     setFilterPaymentTo('');
   };
 
-  const openSign = (row: (typeof rows)[number]) => {
+  const openSign = (row: (typeof pendingRows)[number]) => {
     setSigning({
       operationId: row.operationId,
       displayCode: row.displayCode,
