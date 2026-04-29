@@ -567,6 +567,8 @@ const OperacoesD24: React.FC = () => {
 
   // Operations tab state
   const [filterStatus, setFilterStatus] = useState<'active' | 'closed' | 'all'>('active');
+  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
+  const [filterCommodity, setFilterCommodity] = useState<string>('all');
   const [selectedOperation, setSelectedOperation] = useState<OperationWithDetails | null>(null);
   const [newOpModal, setNewOpModal] = useState(false);
   const [closingOp, setClosingOp] = useState<OperationWithDetails | null>(null);
