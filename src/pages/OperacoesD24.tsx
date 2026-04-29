@@ -1017,8 +1017,30 @@ const OperacoesD24: React.FC = () => {
                   <SelectItem value="all">Todas</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+                <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Praça" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as praças</SelectItem>
+                  {warehouses.map(w => (
+                    <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+                <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Commodity" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="soybean">Soja</SelectItem>
+                  <SelectItem value="corn">Milho</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Button size="sm" onClick={() => setNewOpModal(true)}>Nova Operação</Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={handleExport}>
+                <Download className="h-4 w-4 mr-1" /> Exportar
+              </Button>
+              <Button size="sm" onClick={() => setNewOpModal(true)}>Nova Operação</Button>
+            </div>
           </div>
 
           {loadingOperations ? (
