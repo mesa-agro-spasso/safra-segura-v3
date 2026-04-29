@@ -1800,6 +1800,50 @@ const OperacoesD24: React.FC = () => {
         mtmSnapshots={mtmSnapshots ?? []}
         onClose={() => setClosingOp(null)}
       />
+
+      {/* ── Edit Hedge Plan Dialog ── */}
+      <Dialog open={!!editPlanOp} onOpenChange={(o) => { if (!o) setEditPlanOp(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Editar Plano de Hedge — {editPlanOp?.warehouses?.display_name ?? '—'} / {(editPlanOp as any)?.display_code ?? editPlanOp?.id.slice(0, 8)}
+            </DialogTitle>
+          </DialogHeader>
+          {editPlanOp && (() => {
+            const rawPlan = (editPlanOp as any).hedge_plan;
+            const planLegs = Array.isArray(rawPlan) ? rawPlan : (rawPlan?.plan ?? []);
+            return (
+              <HedgePlanEditor
+                operation={editPlanOp}
+                opD24={editPlanOp as any}
+                planLegs={planLegs}
+                userId={user?.id ?? ''}
+                onSaved={() => {
+                  queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+                  queryClient.invalidateQueries({ queryKey: ['operations'] });
+                  setEditPlanOp(null);
+                }}
+                copyToClipboard={copyToClipboard}
+              />
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Register Execution Dialog (placeholder) ── */}
+      <Dialog open={!!registerExecutionOp} onOpenChange={(o) => { if (!o) setRegisterExecutionOp(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar Execução — {registerExecutionOp?.warehouses?.display_name ?? '—'}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Funcionalidade de registro de execução será implementada na próxima etapa.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegisterExecutionOp(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
