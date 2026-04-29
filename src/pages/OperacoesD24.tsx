@@ -43,7 +43,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Columns, Calculator, AlertTriangle, ChevronDown, Copy, Trash2, Plus, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Columns, Calculator, AlertTriangle, ChevronDown, Copy, Trash2, Plus, CheckCircle2, AlertCircle, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ───────────────────────── helpers (replicated, no cross-page imports) ─────────────────────────
@@ -567,6 +567,8 @@ const OperacoesD24: React.FC = () => {
 
   // Operations tab state
   const [filterStatus, setFilterStatus] = useState<'active' | 'closed' | 'all'>('active');
+  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
+  const [filterCommodity, setFilterCommodity] = useState<string>('all');
   const [selectedOperation, setSelectedOperation] = useState<OperationWithDetails | null>(null);
   const [newOpModal, setNewOpModal] = useState(false);
   const [closingOp, setClosingOp] = useState<OperationWithDetails | null>(null);
@@ -614,18 +616,49 @@ const OperacoesD24: React.FC = () => {
   ]);
   const filteredOperations = useMemo(() => {
     if (!operations) return [];
-    const filtered = filterStatus === 'active'
+    const filtered = (filterStatus === 'active'
       ? operations.filter(op => !INACTIVE_STATUSES.has(op.status))
       : filterStatus === 'closed'
       ? operations.filter(op => op.status === 'ENCERRADA' || op.status === 'CLOSED')
-      : operations;
+      : operations)
+      .filter(op => filterWarehouse === 'all' || op.warehouse_id === filterWarehouse)
+      .filter(op => filterCommodity === 'all' || op.commodity === filterCommodity);
     return [...filtered].sort((a, b) => {
       const oa = STATUS_ORDER[a.status] ?? 50;
       const ob = STATUS_ORDER[b.status] ?? 50;
       if (oa !== ob) return oa - ob;
       return new Date(b.created_at ?? '').getTime() - new Date(a.created_at ?? '').getTime();
     });
-  }, [operations, filterStatus]);
+  }, [operations, filterStatus, filterWarehouse, filterCommodity]);
+
+  const handleExport = () => {
+    if (!filteredOperations.length) return;
+    const headers = ['Praça', 'Commodity', 'Ticker', 'Volume (sc)', 'Preço Orig.',
+      'Entrada', 'Pagamento', 'Recepção', 'Saída', 'Status'];
+    const rows = filteredOperations.map(op => {
+      const ps = op.pricing_snapshots;
+      return [
+        op.warehouses?.display_name ?? '—',
+        op.commodity === 'soybean' ? 'Soja' : 'Milho',
+        ps?.ticker ?? '—',
+        op.volume_sacks.toLocaleString('pt-BR'),
+        ps ? `R$ ${ps.origination_price_brl.toFixed(2)}` : '—',
+        ps?.trade_date ? new Date(ps.trade_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+        ps?.payment_date ? new Date(ps.payment_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+        ps?.grain_reception_date ? new Date(ps.grain_reception_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+        ps?.sale_date ? new Date(ps.sale_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+        op.status,
+      ].join(';');
+    });
+    const csv = [headers.join(';'), ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `operacoes_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const ordersForSelectedOperation = useMemo(() => {
     if (!selectedOperation || !allOrders) return [];
@@ -984,8 +1017,30 @@ const OperacoesD24: React.FC = () => {
                   <SelectItem value="all">Todas</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+                <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Praça" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as praças</SelectItem>
+                  {warehouses.map(w => (
+                    <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+                <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Commodity" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="soybean">Soja</SelectItem>
+                  <SelectItem value="corn">Milho</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Button size="sm" onClick={() => setNewOpModal(true)}>Nova Operação</Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={handleExport}>
+                <Download className="h-4 w-4 mr-1" /> Exportar
+              </Button>
+              <Button size="sm" onClick={() => setNewOpModal(true)}>Nova Operação</Button>
+            </div>
           </div>
 
           {loadingOperations ? (
