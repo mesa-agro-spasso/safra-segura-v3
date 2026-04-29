@@ -912,6 +912,10 @@ const OperacoesD24: React.FC = () => {
   // ── handleCalculate (D24: reads from operations + orders D24)
   const handleCalculate = async () => {
     if (!marketData?.length) { toast.error('Dados de mercado ausentes'); return; }
+    if (!d24Orders?.length) {
+      toast.error('Aguarde o carregamento das ordens');
+      return;
+    }
     if (!activeOpsForMtm.length) { toast.error('Nenhuma operação ativa'); return; }
 
     setCalculating(true);
