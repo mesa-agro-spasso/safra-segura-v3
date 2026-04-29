@@ -1,35 +1,35 @@
-## Migrar `handleCalculate` para `/mtm/run-d24`
+# Renderizar ordens executadas na seção "Preço de Entrada" do modal MTM
 
-Único arquivo tocado: `src/pages/OperacoesD24.tsx`.
+## Contexto
 
-### Mudança
+No modal de detalhe MTM em `src/pages/OperacoesD24.tsx` (em torno da linha 1803), a seção `Section k="entrada"` mostra apenas o placeholder estático:
 
-Substituir o corpo da função `handleCalculate` (linhas 913–1047) — que monta um `HedgeOrder` legado e chama `/mtm/run` — por uma versão que:
+> "Ver pernas executadas em 'Ordens Vinculadas' no detalhe da operação."
 
-1. Mantém os guards iniciais (`marketData`, `activeOpsForMtm`).
-2. Para cada operação ativa, monta um payload **D24 nativo** com três blocos:
-   - `operation`: id, commodity, exchange, volume_sacks, origination_price_brl, datas.
-   - `orders`: lista mapeada de `d24Orders` (campos: instrument_type, direction, currency, contracts, volume_units, is_closing, ticker, price, ndf_rate, ndf_maturity, option_type, strike, premium, expiration_date, is_counterparty_insurance).
-   - `snapshot`: `futures_price_current`, `physical_price_current`, `spot_rate_current`, `option_premium_current`.
-3. Mantém o cálculo de `optionPremiumCurrent` via `/pricing/option-premium` (preserva conversão `F_brl` por commodity, `BUSHELS_PER_SACK`, sigma de `pricingParameters`).
-4. Chama `callApi('/mtm/run-d24', { positions })` em vez de `/mtm/run`.
-5. Persiste resultados via `saveMtm.mutateAsync` exatamente como hoje (mesma forma de `r.market_snapshot`, mesmos campos do snapshot do banco).
+Os dados reais já estão disponíveis em `d24Orders` (carregado via `useQuery` na linha 567) e podem ser filtrados por `operation_id` igual a `detailResult.operation_id`, excluindo ordens de fechamento (`is_closing`).
 
-### Removido
+`Badge` já está importado (linha 34).
 
-- Construção do objeto `hedgeOrder` legado (broker, broker_account, futures_price_currency, pricing_snapshot, status, order_message, etc.).
-- Construção das `legs` no formato legado (`leg_type`, `unit_label`).
-- O guard de debug temporário `totalLegs === 0` (não se aplica mais — o backend D24 lida com orders vazias).
+## Mudança
 
-### Preservado
+**Arquivo:** `src/pages/OperacoesD24.tsx` (apenas este arquivo)
+**Localização:** linhas 1803–1805, seção `<Section k="entrada" label="Preço de Entrada (Executado)">`
 
-- Guards `marketData` / `activeOpsForMtm`.
-- `setCalculating` start/finally.
-- Lookup de `futuresPrice` via `marketData.find(m => m.ticker === ...)`.
-- Chamada e fallback silencioso de `/pricing/option-premium`.
-- Loop de persistência `saveMtm.mutateAsync` e toasts de sucesso/erro.
+Substituir o `<p>` placeholder por um bloco que:
 
-### Fora de escopo
+1. Filtra `d24Orders` por `operation_id === detailResult.operation_id` e `!o.is_closing`.
+2. Se vazio: mostra "Nenhuma ordem vinculada.".
+3. Caso contrário: renderiza um card por ordem com:
+   - Badges: `instrument_type`, `direction`, `currency`.
+   - Grid 2-col com campos condicionais: `ticker`, `contracts`, e por tipo:
+     - **futures**: `price` formatado (USD/bu ou BRL/sc).
+     - **ndf**: `ndf_rate` em BRL/USD.
+     - **option**: `option_type`, `strike`, `premium`.
 
-- Nenhum outro arquivo. UI, queries, badges e tabela de resultados permanecem como estão.
-- Endpoint `/mtm/run-d24` na API Python: assumido como já existente (contrato definido pelo payload acima).
+## Detalhes técnicos
+
+- Usar `(d24Orders ?? []).filter(...)` para segurança contra undefined.
+- Tipagem `any` nas ordens (mesmo padrão usado no restante do arquivo).
+- Formatação numérica: `toFixed(4)` para preços/taxas; `toLocaleString('pt-BR', { maximumFractionDigits: 4 })` para contratos.
+- Classes seguem o design system (`text-xs`, `text-muted-foreground`, `border rounded p-2`, `font-mono` para ticker).
+- Nenhuma alteração em hooks, tipos, ou outros arquivos.

@@ -1801,7 +1801,76 @@ const OperacoesD24: React.FC = () => {
               </Section>
 
               <Section k="entrada" label="Preço de Entrada (Executado)">
-                <p className="text-xs text-muted-foreground py-1">Ver pernas executadas em "Ordens Vinculadas" no detalhe da operação.</p>
+                {(() => {
+                  const opOrders = (d24Orders ?? []).filter(
+                    (o: any) => o.operation_id === (detailResult.operation_id as string)
+                      && !o.is_closing
+                  );
+                  if (!opOrders.length) {
+                    return <p className="text-xs text-muted-foreground py-1">Nenhuma ordem vinculada.</p>;
+                  }
+                  return (
+                    <div className="space-y-2 pt-1">
+                      {opOrders.map((o: any, i: number) => (
+                        <div key={i} className="border rounded p-2 space-y-1">
+                          <div className="flex gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-xs">{o.instrument_type}</Badge>
+                            <Badge variant="secondary" className="text-xs">{o.direction}</Badge>
+                            <Badge variant="outline" className="text-xs">{o.currency}</Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                            {o.ticker && (
+                              <>
+                                <span className="text-muted-foreground">Ticker</span>
+                                <span className="font-mono">{o.ticker}</span>
+                              </>
+                            )}
+                            {o.contracts != null && (
+                              <>
+                                <span className="text-muted-foreground">Contratos</span>
+                                <span>{Number(o.contracts).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</span>
+                              </>
+                            )}
+                            {o.instrument_type === 'futures' && o.price != null && (
+                              <>
+                                <span className="text-muted-foreground">Preço executado</span>
+                                <span>{Number(o.price).toFixed(4)} {o.currency === 'USD' ? 'USD/bu' : 'BRL/sc'}</span>
+                              </>
+                            )}
+                            {o.instrument_type === 'ndf' && o.ndf_rate != null && (
+                              <>
+                                <span className="text-muted-foreground">Taxa NDF</span>
+                                <span>{Number(o.ndf_rate).toFixed(4)} BRL/USD</span>
+                              </>
+                            )}
+                            {o.instrument_type === 'option' && (
+                              <>
+                                {o.option_type && (
+                                  <>
+                                    <span className="text-muted-foreground">Tipo</span>
+                                    <span>{o.option_type}</span>
+                                  </>
+                                )}
+                                {o.strike != null && (
+                                  <>
+                                    <span className="text-muted-foreground">Strike</span>
+                                    <span>{Number(o.strike).toFixed(4)}</span>
+                                  </>
+                                )}
+                                {o.premium != null && (
+                                  <>
+                                    <span className="text-muted-foreground">Prêmio executado</span>
+                                    <span>{Number(o.premium).toFixed(4)}</span>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </Section>
 
               <Section k="custos" label="Custos de Originação">
