@@ -833,6 +833,12 @@ const OperacoesD24: React.FC = () => {
 
   const displayResults = results ?? (snapshotResults as Record<string, unknown>[] | null);
 
+  // ── D24 active operations available for MTM
+  const activeOpsForMtm = useMemo(
+    () => (operations ?? []).filter(op => op.status === 'ACTIVE' || op.status === 'PARTIALLY_CLOSED'),
+    [operations]
+  );
+
   // ── D20 formulas (authorized exception)
   const targetProfitSoybean = pricingParameters?.find(p => p.id === 'soybean_cbot')?.target_profit_brl_per_sack ?? 2.0;
   const targetProfitCorn = pricingParameters?.find(p => p.id === 'corn_b3')?.target_profit_brl_per_sack ?? 2.0;
