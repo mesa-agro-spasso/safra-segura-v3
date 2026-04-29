@@ -2311,3 +2311,281 @@ const ClosingModal: React.FC<ClosingModalProps> = ({ operation, operations, allO
     </Dialog>
   );
 };
+
+// ───────────────────────── Register Execution Modal ─────────────────────────
+
+type ExecLeg = {
+  instrument_type: string;
+  direction: string;
+  currency: string;
+  ticker: string;
+  contracts: string;
+  price: string;
+  ndf_rate: string;
+  ndf_maturity: string;
+  option_type: string;
+  strike: string;
+  premium: string;
+  expiration_date: string;
+  notes: string;
+  is_counterparty_insurance: boolean;
+};
+
+interface RegisterExecutionModalProps {
+  operation: OperationWithDetails | null;
+  userId: string | null;
+  onClose: () => void;
+  onExecuted: () => void;
+}
+
+const RegisterExecutionModal: React.FC<RegisterExecutionModalProps> = ({ operation, userId, onClose, onExecuted }) => {
+  const [execLegs, setExecLegs] = useState<ExecLeg[]>([]);
+  const [stonexText, setStonexText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!operation) {
+      setExecLegs([]);
+      setStonexText('');
+      return;
+    }
+    const rawPlan = (operation as any).hedge_plan;
+    const planLegs = Array.isArray(rawPlan) ? rawPlan : (rawPlan?.plan ?? []);
+    const initial: ExecLeg[] = (planLegs as any[]).map((l: any) => ({
+      instrument_type: l.instrument_type ?? 'futures',
+      direction: l.direction ?? 'sell',
+      currency: l.currency ?? 'USD',
+      ticker: l.ticker ?? '',
+      contracts: l.contracts != null ? String(l.contracts) : '',
+      price: l.price_estimated != null ? String(l.price_estimated) : '',
+      ndf_rate: l.ndf_rate != null ? String(l.ndf_rate) : '',
+      ndf_maturity: l.ndf_maturity ?? '',
+      option_type: l.option_type ?? 'call',
+      strike: l.strike != null ? String(l.strike) : '',
+      premium: l.premium != null ? String(l.premium) : '',
+      expiration_date: l.expiration_date ?? '',
+      notes: '',
+      is_counterparty_insurance: l.is_counterparty_insurance ?? false,
+    }));
+    setExecLegs(initial);
+    setStonexText('');
+  }, [operation]);
+
+  const exchange = ((operation as any)?.exchange ?? '').toLowerCase();
+  const priceLabel = exchange === 'b3' ? 'BRL/sc' : 'USD/bushel';
+
+  const updateLeg = (idx: number, patch: Partial<ExecLeg>) => {
+    setExecLegs(prev => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  };
+
+  const handleConfirm = async () => {
+    if (!operation || !userId) {
+      toast.error('Sessão inválida');
+      return;
+    }
+    // Validation
+    for (const leg of execLegs) {
+      const qty = parseFloat(leg.contracts);
+      if (!(qty > 0)) {
+        toast.error('Preencha todos os campos obrigatórios');
+        return;
+      }
+      if (leg.instrument_type === 'ndf') {
+        if (!(parseFloat(leg.ndf_rate) > 0)) {
+          toast.error('Preencha todos os campos obrigatórios');
+          return;
+        }
+      } else {
+        if (!(parseFloat(leg.price) > 0)) {
+          toast.error('Preencha todos os campos obrigatórios');
+          return;
+        }
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      const CONTRACT_SIZE = exchange === 'b3' ? 450 : 5000;
+      for (const leg of execLegs) {
+        const isNdf = leg.instrument_type === 'ndf';
+        const qty = parseFloat(leg.contracts);
+        const payload: any = {
+          operation_id: operation.id,
+          instrument_type: leg.instrument_type,
+          direction: leg.direction,
+          currency: leg.currency,
+          contracts: qty,
+          volume_units: isNdf ? qty : qty * CONTRACT_SIZE,
+          price: !isNdf && leg.price ? parseFloat(leg.price) : null,
+          ndf_rate: isNdf && leg.ndf_rate ? parseFloat(leg.ndf_rate) : null,
+          ndf_maturity: leg.ndf_maturity || null,
+          option_type: leg.instrument_type === 'option' ? leg.option_type : null,
+          strike: leg.strike ? parseFloat(leg.strike) : null,
+          premium: leg.premium ? parseFloat(leg.premium) : null,
+          expiration_date: leg.expiration_date || null,
+          ticker: leg.ticker || null,
+          is_counterparty_insurance: leg.is_counterparty_insurance,
+          executed_at: new Date().toISOString(),
+          executed_by: userId,
+          stonex_confirmation_text: stonexText || null,
+          notes: leg.notes || null,
+          is_closing: false,
+        };
+        const { error } = await supabase
+          .from('orders' as any)
+          .insert(payload as never);
+        if (error) throw new Error(error.message ?? JSON.stringify(error));
+      }
+      onExecuted();
+    } catch (e) {
+      toast.error('Erro ao registrar execução: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!operation} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Registrar Execução — {operation?.warehouses?.display_name ?? '—'}</DialogTitle>
+        </DialogHeader>
+
+        {execLegs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma leg no hedge_plan.</p>
+        ) : (
+          <div className="space-y-4">
+            {execLegs.map((leg, i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline">{leg.instrument_type}</Badge>
+                    <Badge variant="secondary">{leg.direction}</Badge>
+                    <Badge>{leg.currency}</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {leg.instrument_type === 'futures' && (
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Ticker</Label>
+                        <Input value={leg.ticker} readOnly className="bg-muted" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Contratos</Label>
+                        <Input
+                          type="number"
+                          value={leg.contracts}
+                          onChange={(e) => updateLeg(i, { contracts: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Preço real ({priceLabel})</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={leg.price}
+                          onChange={(e) => updateLeg(i, { price: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {leg.instrument_type === 'ndf' && (
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Volume USD</Label>
+                        <Input
+                          type="number"
+                          value={leg.contracts}
+                          onChange={(e) => updateLeg(i, { contracts: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Taxa NDF real (BRL/USD)</Label>
+                        <Input
+                          type="number"
+                          step="0.0001"
+                          value={leg.ndf_rate}
+                          onChange={(e) => updateLeg(i, { ndf_rate: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Maturidade</Label>
+                        <Input value={leg.ndf_maturity} readOnly className="bg-muted" />
+                      </div>
+                    </div>
+                  )}
+
+                  {leg.instrument_type === 'option' && (
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Ticker</Label>
+                        <Input value={leg.ticker} readOnly className="bg-muted" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Tipo</Label>
+                        <Input value={leg.option_type} readOnly className="bg-muted" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Contratos</Label>
+                        <Input
+                          type="number"
+                          value={leg.contracts}
+                          onChange={(e) => updateLeg(i, { contracts: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Strike</Label>
+                        <Input value={leg.strike} readOnly className="bg-muted" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Prêmio real ({priceLabel})</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={leg.premium}
+                          onChange={(e) => updateLeg(i, { premium: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Vencimento</Label>
+                        <Input value={leg.expiration_date} readOnly className="bg-muted" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <Label className="text-xs">Obs.</Label>
+                    <Input
+                      value={leg.notes}
+                      onChange={(e) => updateLeg(i, { notes: e.target.value })}
+                      placeholder="Opcional"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+
+            <div>
+              <Label className="text-xs">Texto de confirmação StoneX (colar na íntegra)</Label>
+              <Textarea
+                rows={6}
+                value={stonexText}
+                onChange={(e) => setStonexText(e.target.value)}
+                placeholder="Cole aqui o texto de confirmação enviado pela StoneX"
+              />
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancelar</Button>
+          <Button onClick={handleConfirm} disabled={submitting || execLegs.length === 0}>
+            {submitting ? 'Registrando…' : 'Confirmar Execução'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
