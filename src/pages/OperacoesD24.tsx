@@ -887,6 +887,49 @@ const OperacoesD24: React.FC = () => {
               </>
             );
 
+            const renderValue = (v: unknown, depth = 0): React.ReactNode => {
+              if (v === null || v === undefined) return <span className="text-xs">—</span>;
+              if (typeof v !== 'object' || Array.isArray(v)) {
+                return (
+                  <span className="text-xs break-all">
+                    {typeof v === 'number'
+                      ? Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 4 })
+                      : String(v)}
+                  </span>
+                );
+              }
+              return (
+                <div className={`col-span-2 ${depth > 0 ? 'pl-3' : ''}`}>
+                  {Object.entries(v as Record<string, unknown>)
+                    .filter(([, sv]) => sv !== null && sv !== undefined)
+                    .map(([sk, sv]) => {
+                      const isNested = typeof sv === 'object' && sv !== null && !Array.isArray(sv);
+                      if (isNested) {
+                        return (
+                          <Collapsible key={sk}>
+                            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground font-mono py-0.5 w-full text-left hover:text-foreground [&[data-state=open]>svg]:rotate-180">
+                              <ChevronDown className="h-3 w-3 shrink-0 transition-transform" />
+                              <span className="truncate">{sk}</span>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="pl-3">
+                                {renderValue(sv, depth + 1)}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        );
+                      }
+                      return (
+                        <div key={sk} className="grid grid-cols-[minmax(80px,140px)_1fr] gap-x-2 gap-y-0.5 items-baseline py-0.5">
+                          <span className="text-muted-foreground font-mono text-xs truncate">{sk}</span>
+                          {renderValue(sv, depth + 1)}
+                        </div>
+                      );
+                    })}
+                </div>
+              );
+            };
+
             return (
               <div className="mt-4 space-y-3">
                 {/* 1. Identificação */}
@@ -919,18 +962,17 @@ const OperacoesD24: React.FC = () => {
                   {!ps ? (
                     <p className="text-sm text-muted-foreground">Sem snapshot vinculado.</p>
                   ) : (
-                    <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
-                      <Row label="Ticker">{ps.ticker ?? '—'}</Row>
-                      <Row label="Futuros (BRL)">{ps.futures_price_brl != null ? `R$ ${Number(ps.futures_price_brl).toFixed(2)}` : '—'}</Row>
-                      <Row label="Câmbio">{ps.exchange_rate != null ? Number(ps.exchange_rate).toFixed(4) : '—'}</Row>
-                      <Row label="Target basis">{ps.target_basis_brl != null ? `R$ ${Number(ps.target_basis_brl).toFixed(2)}/sc` : '—'}</Row>
-                      <Row label={<span className="text-muted-foreground text-xs truncate">Desconto adicional</span>}>
-                        <span className="text-xs">
-                          {ps.additional_discount_brl != null
-                            ? `R$ ${Number(ps.additional_discount_brl).toFixed(2)}/sc`
-                            : '—'}
-                        </span>
-                      </Row>
+                    <div className="grid grid-cols-[minmax(80px,160px)_1fr] gap-x-3 gap-y-1 text-sm">
+                      <span className="text-muted-foreground text-xs truncate">Ticker</span>
+                      <span className="text-xs">{ps.ticker ?? '—'}</span>
+                      <span className="text-muted-foreground text-xs truncate">Futuros (BRL)</span>
+                      <span className="text-xs">{ps.futures_price_brl != null ? `R$ ${Number(ps.futures_price_brl).toFixed(2)}` : '—'}</span>
+                      <span className="text-muted-foreground text-xs truncate">Câmbio</span>
+                      <span className="text-xs">{ps.exchange_rate != null ? Number(ps.exchange_rate).toFixed(4) : '—'}</span>
+                      <span className="text-muted-foreground text-xs truncate">Target basis</span>
+                      <span className="text-xs">{ps.target_basis_brl != null ? `R$ ${Number(ps.target_basis_brl).toFixed(2)}/sc` : '—'}</span>
+                      <span className="text-muted-foreground text-xs truncate">Desconto adicional</span>
+                      <span className="text-xs">{ps.additional_discount_brl != null ? `R$ ${Number(ps.additional_discount_brl).toFixed(2)}/sc` : '—'}</span>
                       {Object.entries(ps.outputs_json ?? {})
                         .filter(([, v]) => v !== null && v !== undefined)
                         .map(([k, v]) => {
@@ -939,23 +981,12 @@ const OperacoesD24: React.FC = () => {
                             return (
                               <Collapsible key={k} className="col-span-2">
                                 <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground font-mono py-0.5 w-full text-left hover:text-foreground [&[data-state=open]>svg]:rotate-180">
-                                  <ChevronDown className="h-3 w-3 transition-transform" />
-                                  {k}
+                                  <ChevronDown className="h-3 w-3 shrink-0 transition-transform" />
+                                  <span className="truncate">{k}</span>
                                 </CollapsibleTrigger>
                                 <CollapsibleContent>
-                                  <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm pl-4 pt-1">
-                                    {Object.entries(v as Record<string, unknown>)
-                                      .filter(([, sv]) => sv !== null && sv !== undefined)
-                                      .map(([sk, sv]) => (
-                                        <React.Fragment key={sk}>
-                                          <span className="text-muted-foreground font-mono text-xs">{sk}</span>
-                                          <span className="text-xs break-all">
-                                            {typeof sv === 'number'
-                                              ? Number(sv).toLocaleString('pt-BR', { maximumFractionDigits: 4 })
-                                              : String(sv)}
-                                          </span>
-                                        </React.Fragment>
-                                      ))}
+                                  <div className="pl-3 pt-1">
+                                    {renderValue(v, 1)}
                                   </div>
                                 </CollapsibleContent>
                               </Collapsible>
@@ -963,12 +994,8 @@ const OperacoesD24: React.FC = () => {
                           }
                           return (
                             <React.Fragment key={k}>
-                              <span className="text-muted-foreground font-mono text-xs">{k}</span>
-                              <span className="text-xs break-all">
-                                {typeof v === 'number'
-                                  ? Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 4 })
-                                  : String(v)}
-                              </span>
+                              <span className="text-muted-foreground font-mono text-xs truncate">{k}</span>
+                              {renderValue(v)}
                             </React.Fragment>
                           );
                         })}
