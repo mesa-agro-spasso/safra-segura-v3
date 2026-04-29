@@ -661,7 +661,7 @@ const OperacoesD24: React.FC = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('signatures' as any)
-        .select('*, signer:users(full_name)')
+        .select('*')
         .eq('operation_id', selectedOperation!.id)
         .order('signed_at', { ascending: true });
       if (error) throw error;
