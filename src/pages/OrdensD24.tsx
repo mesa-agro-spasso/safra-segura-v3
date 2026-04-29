@@ -166,10 +166,20 @@ type OperationRow = Operation & {
 // ───────────────────────── main page ─────────────────────────
 
 const OrdensD24: React.FC = () => {
-  const { data: orders = [] } = useHedgeOrders();
+  const queryClient = useQueryClient();
+  const { data: orders = [] } = useQuery({
+    queryKey: ['d24-orders-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders' as any)
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
   const { data: warehouses = [] } = useActiveArmazens();
   const { data: operationsRaw = [] } = useOperations();
-  const updateOrder = useUpdateHedgeOrder();
   const { user } = useAuth();
 
   const operations = operationsRaw as OperationRow[];
@@ -178,14 +188,7 @@ const OrdensD24: React.FC = () => {
   const [praca, setPraca] = useState<Set<string>>(new Set());
   const [commodity, setCommodity] = useState<Set<string>>(new Set());
   const [operacao, setOperacao] = useState<Set<string>>(new Set());
-  const [status, setStatus] = useState<Set<string>>(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
-
-  // ── Modals
-  const [detailOrder, setDetailOrder] = useState<HedgeOrder | null>(null);
-  const [reasonModal, setReasonModal] = useState<{ order: HedgeOrder; mode: 'cancel' | 'reject' } | null>(null);
-  const [reasonText, setReasonText] = useState('');
-  const [executeOrder, setExecuteOrder] = useState<HedgeOrder | null>(null);
 
   // ── Maps
   const opById = useMemo(() => {
