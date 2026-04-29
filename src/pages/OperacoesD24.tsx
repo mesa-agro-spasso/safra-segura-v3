@@ -1173,12 +1173,14 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
         hedge_plan: planResp.plan,
         created_by: userId,
       };
-      const { data, error } = await (supabase as any)
-        .from('operations')
-        .insert(payload as never)
+      const { data, error } = await supabase
+        .from('operations' as any)
+        .insert(payload)
         .select('id, display_code')
         .single();
-      if (error) throw error;
+      if (error) throw new Error(
+        error.message ?? error.details ?? JSON.stringify(error)
+      );
       const code = (data as any)?.display_code ?? ((data as any)?.id as string)?.slice(0, 8) ?? 'nova';
       toast.success(`Operação criada: ${code}`);
       onCreated();
