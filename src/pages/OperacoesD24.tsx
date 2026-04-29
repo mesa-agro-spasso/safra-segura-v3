@@ -1187,7 +1187,7 @@ const OperacoesD24: React.FC = () => {
                   <CardTitle className="text-sm">Resultado MTM</CardTitle>
                   <div className="flex gap-2">
                     <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
-                    <Button onClick={handleCalculate} disabled={calculating || !activeOpsForMtm.length} size="sm">
+                    <Button onClick={handleCalculate} disabled={calculating || activeOpsForMtm.length === 0} size="sm">
                       <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
                       {calculating ? 'Calculando...' : 'Calcular MTM'}
                     </Button>
