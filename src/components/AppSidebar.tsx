@@ -69,8 +69,8 @@ export function AppSidebar() {
               <img src={iconCollapsed} alt="Grupo Spasso" className="w-8 h-8 object-contain" />
             ) : (
               <>
-                <img src={logoLight} alt="Grupo Spasso" className="w-36 object-contain block dark:hidden" />
-                <img src={logoDark} alt="Grupo Spasso" className="w-36 object-contain hidden dark:block" />
+                <img src={logoLight} alt="Grupo Spasso" className="w-44 object-contain block dark:hidden" />
+                <img src={logoDark} alt="Grupo Spasso" className="w-44 object-contain hidden dark:block" />
               </>
             )}
           </div>
