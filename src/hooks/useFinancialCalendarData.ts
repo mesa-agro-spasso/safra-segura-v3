@@ -33,12 +33,11 @@ export function useFinancialCalendarData() {
       const { data: ops, error } = await supabase
         .from('operations')
         .select(`
-          id, commodity, volume_sacks,
+          id, commodity, volume_sacks, display_code,
           warehouses(display_name),
-          pricing_snapshots(payment_date, sale_date, origination_price_brl),
-          hedge_orders(display_code)
+          pricing_snapshots(payment_date, sale_date, origination_price_brl)
         `)
-        .eq('status', 'HEDGE_CONFIRMADO');
+        .in('status', ['HEDGE_CONFIRMADO', 'ACTIVE', 'PARTIALLY_CLOSED']);
       if (error) throw error;
 
       const events: CalendarEvent[] = [];
@@ -47,9 +46,7 @@ export function useFinancialCalendarData() {
         const snap = op.pricing_snapshots;
         if (!snap) continue;
 
-        const displayCode =
-          (Array.isArray(op.hedge_orders) ? op.hedge_orders[0]?.display_code : op.hedge_orders?.display_code) ??
-          op.id.slice(0, 8);
+        const displayCode = op.display_code ?? op.id.slice(0, 8);
         const whName = op.warehouses?.display_name ?? '—';
         const commodity = commodityLabel(op.commodity);
         const amount = Number(snap.origination_price_brl) * Number(op.volume_sacks);
