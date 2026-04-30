@@ -706,7 +706,11 @@ const ConfigCard: React.FC<{
                 'Juros',
                 w.interest_rate === null
                   ? '—'
-                  : `${(Number(w.interest_rate) * 100).toFixed(2)}%${w.interest_rate_period ? ` (${w.interest_rate_period})` : ''}`,
+                  : (() => {
+                      const rate = Number(w.interest_rate);
+                      const pct = rate > 1 ? rate : rate * 100;
+                      return `${pct.toFixed(2)}%${w.interest_rate_period ? ` (${w.interest_rate_period})` : ''}`;
+                    })(),
               )}
               {costRow(
                 'Corretagem CBOT',
