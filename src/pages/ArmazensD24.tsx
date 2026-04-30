@@ -283,6 +283,12 @@ const ArmazensD24: React.FC = () => {
     });
   }, [warehouses, operations, latestByOpId, executionSpread]);
 
+  const filteredRows = useMemo(() => rows.filter(r => {
+    if (filterWarehouse !== 'all' && r.warehouse.id !== filterWarehouse) return false;
+    if (filterCommodity !== 'all' && !r.commodities.includes(filterCommodity)) return false;
+    return true;
+  }), [rows, filterWarehouse, filterCommodity]);
+
   const selected = useMemo(
     () => rows.find(r => r.warehouse.id === selectedWarehouseId) ?? null,
     [rows, selectedWarehouseId],
