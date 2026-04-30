@@ -436,12 +436,15 @@ const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const prevOrderIdRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (order) {
-      setContracts(String(order.contracts ?? ''));
-      setPrice(defaultPrice);
-      setNotes('');
-    }
+    const newId = order?.id ?? null;
+    if (newId === null) { prevOrderIdRef.current = null; return; }
+    if (newId === prevOrderIdRef.current) return;
+    prevOrderIdRef.current = newId;
+    setContracts(String(order!.contracts ?? ''));
+    setPrice(defaultPrice);
+    setNotes('');
   }, [order, defaultPrice]);
 
   if (!order) return null;

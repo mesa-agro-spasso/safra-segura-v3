@@ -2015,14 +2015,16 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Reset on open
+  // Reset only on open transition (false → true), not on every re-render
+  const prevOpenRef = React.useRef(false);
   useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
       setWarehouseId(''); setCommodityKey(''); setVolume(''); setOriginPrice('');
       setSnapshotId(''); setTradeDate(new Date().toISOString().slice(0, 10));
       setPaymentDate(''); setReceptionDate(''); setSaleDate(''); setNotes('');
       setPlanResp(null);
     }
+    prevOpenRef.current = open;
   }, [open]);
 
   const [commodity, exchange] = commodityKey ? commodityKey.split('|') : ['', ''];
@@ -2278,12 +2280,15 @@ const ClosingModal: React.FC<ClosingModalProps> = ({ operation, operations, allO
   const [calculating, setCalculating] = useState(false);
   const [proposal, setProposal] = useState<AllocateBatchResponse | null>(null);
 
+  const prevClosingIdRef = React.useRef<string | null>(null);
   useEffect(() => {
-    if (operation) {
-      setVolumeStr(String(operation.volume_sacks));
-      setStrategy('PROPORTIONAL');
-      setProposal(null);
-    }
+    const newId = operation?.id ?? null;
+    if (newId === null) { prevClosingIdRef.current = null; return; }
+    if (newId === prevClosingIdRef.current) return;
+    prevClosingIdRef.current = newId;
+    setVolumeStr(String(operation!.volume_sacks));
+    setStrategy('PROPORTIONAL');
+    setProposal(null);
   }, [operation]);
 
   if (!operation) return null;
@@ -2479,12 +2484,15 @@ const RegisterExecutionModal: React.FC<RegisterExecutionModalProps> = ({ operati
   const [stonexText, setStonexText] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const prevOpIdRef = React.useRef<string | null>(null);
   useEffect(() => {
-    if (!operation) {
-      setExecLegs([]);
-      setStonexText('');
-      return;
+    const newId = (operation as any)?.id ?? null;
+    if (newId === null) {
+      prevOpIdRef.current = null;
+      return; // não limpa ao fechar para preservar o que o usuário digitou
     }
+    if (newId === prevOpIdRef.current) return; // mesma operação, não reseta
+    prevOpIdRef.current = newId;
     const rawPlan = (operation as any).hedge_plan;
     const planLegs = Array.isArray(rawPlan) ? rawPlan : (rawPlan?.plan ?? []);
     const initial: ExecLeg[] = (planLegs as any[]).map((l: any) => ({
