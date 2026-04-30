@@ -61,6 +61,7 @@ const items = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
+  const isDark = useIsDarkTheme();
   const { signOut, user, profile } = useAuth();
   const { isAdmin } = useAuthorization();
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
@@ -82,7 +83,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <div className={`flex items-center justify-center ${collapsed ? 'py-3' : 'py-4 px-3'}`}>
             <img
-              src={collapsed ? iconCollapsed : logo}
+              src={collapsed ? iconCollapsed : (isDark ? logo : logoLight)}
               alt="Safra Segura"
               className={collapsed ? 'w-8 h-8 object-contain' : 'w-36 object-contain'}
             />
