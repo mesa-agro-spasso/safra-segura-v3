@@ -175,7 +175,7 @@ const ArmazensD24: React.FC = () => {
   const { data: snapshots = [] } = useMtmSnapshots();
   const { data: pricingParameters } = usePricingParameters();
 
-  const [tab, setTab] = useState<'posicao' | 'config'>('posicao');
+  const [tab, setTab] = useState<'posicao' | 'block_trade' | 'config'>('posicao');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
   const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
   const [filterCommodity, setFilterCommodity] = useState<string>('all');
@@ -318,6 +318,7 @@ const ArmazensD24: React.FC = () => {
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'posicao' | 'config')}>
         <TabsList>
           <TabsTrigger value="posicao">Posição</TabsTrigger>
+          <TabsTrigger value="block_trade">Block Trade</TabsTrigger>
           <TabsTrigger value="config">Configuração</TabsTrigger>
         </TabsList>
 
@@ -493,6 +494,23 @@ const ArmazensD24: React.FC = () => {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ───────────── Aba Block Trade ───────────── */}
+        <TabsContent value="block_trade">
+          <div className="flex flex-col items-center justify-center py-24 space-y-4 text-center">
+            <div className="rounded-full bg-muted p-6">
+              <Calculator className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <h2 className="text-xl font-semibold">Block Trade</h2>
+            <p className="text-muted-foreground max-w-sm">
+              Encerramento em bloco por armazém. Esta funcionalidade está em desenvolvimento
+              e será disponibilizada em breve.
+            </p>
+            <Badge variant="outline" className="border-yellow-500 text-yellow-500">
+              Em desenvolvimento
+            </Badge>
+          </div>
         </TabsContent>
 
         {/* ───────────── Aba Configuração ───────────── */}
