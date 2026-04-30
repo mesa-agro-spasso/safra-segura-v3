@@ -587,9 +587,10 @@ const OperacoesD24: React.FC = () => {
   const [filterCommodity, setFilterCommodity] = useState<string>('all');
   const [selectedOperation, setSelectedOperation] = useState<OperationWithDetails | null>(null);
   const [newOpModal, setNewOpModal] = useState(false);
-  const [closingOp, setClosingOp] = useState<OperationWithDetails | null>(null);
   const [editPlanOp, setEditPlanOp] = useState<OperationWithDetails | null>(null);
   const [registerExecutionOp, setRegisterExecutionOp] = useState<OperationWithDetails | null>(null);
+  const [closingPlanOp, setClosingPlanOp] = useState<OperationWithDetails | null>(null);
+  const [registerClosingOp, setRegisterClosingOp] = useState<OperationWithDetails | null>(null);
 
   // MTM tab state (mirrors OperationsMTM)
   const [physicalPrices, setPhysicalPrices] = useState<Record<string, string>>(() => {
