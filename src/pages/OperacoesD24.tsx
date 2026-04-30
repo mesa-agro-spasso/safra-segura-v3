@@ -2500,7 +2500,9 @@ const RegisterExecutionModal: React.FC<RegisterExecutionModalProps> = ({ operati
       direction: l.direction ?? 'sell',
       currency: l.currency ?? 'USD',
       ticker: l.ticker ?? '',
-      contracts: l.contracts != null ? String(l.contracts) : '',
+      contracts: l.instrument_type === 'ndf'
+        ? (l.volume_units != null ? String(l.volume_units) : (l.contracts != null ? String(l.contracts) : ''))
+        : (l.contracts != null ? String(l.contracts) : ''),
       price: l.price_estimated != null ? String(l.price_estimated) : '',
       ndf_rate: l.ndf_rate != null ? String(l.ndf_rate) : '',
       ndf_maturity: l.ndf_maturity ?? '',
