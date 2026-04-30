@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck, Warehouse, ClipboardList, Building2 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Link } from 'react-router-dom';
@@ -7,7 +8,23 @@ import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '/logo-safra-segura.png';
+import logoLight from '/logo-safra-segura-light.png';
 import iconCollapsed from '/icon-48x48.png';
+
+function useIsDarkTheme() {
+  const [isDark, setIsDark] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => setIsDark(root.classList.contains('dark'));
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+  return isDark;
+}
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +61,7 @@ const items = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
+  const isDark = useIsDarkTheme();
   const { signOut, user, profile } = useAuth();
   const { isAdmin } = useAuthorization();
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
@@ -65,7 +83,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <div className={`flex items-center justify-center ${collapsed ? 'py-3' : 'py-4 px-3'}`}>
             <img
-              src={collapsed ? iconCollapsed : logo}
+              src={collapsed ? iconCollapsed : (isDark ? logo : logoLight)}
               alt="Safra Segura"
               className={collapsed ? 'w-8 h-8 object-contain' : 'w-36 object-contain'}
             />
