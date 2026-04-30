@@ -806,7 +806,7 @@ const OperacoesD24: React.FC = () => {
 
   // ── Snapshot results derivation (cache-first like OperationsMTM)
   const snapshotResults = useMemo(() => {
-    if (!mtmSnapshots?.length || !orders?.length) return null;
+    if (!mtmSnapshots?.length) return null;
     const latestByOperation: Record<string, typeof mtmSnapshots[0]> = {};
     for (const snap of mtmSnapshots) {
       if (!latestByOperation[snap.operation_id]) latestByOperation[snap.operation_id] = snap;
@@ -829,7 +829,7 @@ const OperacoesD24: React.FC = () => {
         option_premium_current: null,
       },
     }));
-  }, [mtmSnapshots, orders]);
+  }, [mtmSnapshots]);
 
   const displayResults = results ?? (snapshotResults as Record<string, unknown>[] | null);
 
@@ -896,8 +896,8 @@ const OperacoesD24: React.FC = () => {
   const chartDataByOperation = useMemo(() => {
     if (!displayResults?.length) return [];
     return displayResults.map(r => {
-      const matched = orders?.find(o => o.operation_id === r.operation_id);
-      const label = matched?.operation?.warehouses?.display_name ?? (r.operation_id as string)?.slice(0, 8);
+      const matched = (operations ?? []).find(op => op.id === (r.operation_id as string));
+      const label = matched?.warehouses?.display_name ?? (r.operation_id as string)?.slice(0, 8);
       return {
         name: label,
         Físico: (r.mtm_physical_brl as number) ?? 0,
@@ -907,7 +907,7 @@ const OperacoesD24: React.FC = () => {
         Total: (r.mtm_total_brl as number) ?? 0,
       };
     });
-  }, [displayResults, orders]);
+  }, [displayResults, operations]);
 
   // ── handleCalculate (D24: reads from operations + orders D24)
   const handleCalculate = async () => {
