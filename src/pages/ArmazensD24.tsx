@@ -16,7 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronDown, ExternalLink, MapPin, Columns } from 'lucide-react';
+import { ChevronDown, ExternalLink, MapPin, Columns, Calculator } from 'lucide-react';
 
 // ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
 
