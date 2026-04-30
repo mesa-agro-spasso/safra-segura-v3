@@ -2642,3 +2642,396 @@ const RegisterExecutionModal: React.FC<RegisterExecutionModalProps> = ({ operati
     </Dialog>
   );
 };
+
+// ───────────────────────── Closing Plan Modal ─────────────────────────
+
+interface ClosingPlanModalProps {
+  operation: OperationWithDetails | null;
+  mtmSnapshots: any[];
+  marketData: any[];
+  userId: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+const ClosingPlanModal: React.FC<ClosingPlanModalProps> = ({
+  operation, mtmSnapshots, marketData, userId, onClose, onSaved
+}) => {
+  const opD24 = operation as any;
+  const snap = mtmSnapshots?.find(s => s.operation_id === operation?.id);
+
+  const marketAge = useMemo(() => {
+    if (!marketData?.length) return null;
+    const latest = marketData.reduce((l, m) =>
+      !l || m.updated_at > l ? m.updated_at : l, null as string | null);
+    if (!latest) return null;
+    return Math.floor((Date.now() - new Date(latest).getTime()) / 3_600_000);
+  }, [marketData]);
+
+  const maxVolume = operation?.volume_sacks ?? 0;
+  const [volumeStr, setVolumeStr] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const prevIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const newId = operation?.id ?? null;
+    if (newId === null) { prevIdRef.current = null; return; }
+    if (newId === prevIdRef.current) return;
+    prevIdRef.current = newId;
+    setVolumeStr(String(maxVolume));
+    setNotes('');
+  }, [operation, maxVolume]);
+
+  const handleSave = async () => {
+    if (!operation || !userId) return;
+    const vol = parseFloat(volumeStr);
+    if (!(vol > 0) || vol > maxVolume) {
+      toast.error('Volume inválido');
+      return;
+    }
+    setSaving(true);
+    try {
+      const closingPlan = {
+        volume_sacks: vol,
+        is_partial: vol < maxVolume,
+        mtm_snapshot: snap ? {
+          mtm_total_brl: snap.mtm_total_brl,
+          mtm_per_sack_brl: snap.mtm_per_sack_brl,
+          physical_price_current: snap.physical_price_current,
+          futures_price_current: snap.futures_price_current,
+          spot_rate_current: snap.spot_rate_current,
+          calculated_at: snap.calculated_at,
+        } : null,
+        market_data_age_hours: marketAge,
+        requested_by: userId,
+        requested_at: new Date().toISOString(),
+        notes: notes || null,
+      };
+      const { error } = await supabase
+        .from('operations' as any)
+        .update({ closing_plan: closingPlan } as never)
+        .eq('id', operation.id);
+      if (error) throw new Error(error.message);
+      toast.success('Plano de encerramento salvo');
+      onSaved();
+    } catch (e) {
+      toast.error('Erro: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!operation) return null;
+
+  return (
+    <Dialog open={!!operation} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            Encerrar Operação — {opD24?.display_code ?? operation.id.slice(0, 8)}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {marketAge !== null && marketAge >= 2 && (
+            <div className={`border rounded p-3 flex gap-2 text-xs items-start
+              ${marketAge >= 24
+                ? 'border-red-500 bg-red-500/10 text-red-400'
+                : 'border-yellow-500 bg-yellow-500/10 text-yellow-400'}`}>
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              Dados de mercado com {marketAge}h de atraso.
+              {marketAge >= 24 && ' Atenção: dados muito desatualizados.'}
+            </div>
+          )}
+          {snap ? (
+            <Card>
+              <CardContent className="pt-4 pb-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">MTM Total</p>
+                  <p className={`font-bold ${snap.mtm_total_brl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {fmtBrl(snap.mtm_total_brl)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">MTM por Saca</p>
+                  <p className={`font-bold ${snap.mtm_per_sack_brl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {fmtBrl(snap.mtm_per_sack_brl)}/sc
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Físico atual</p>
+                  <p>{fmtBrl(snap.physical_price_current)}/sc</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Calculado em</p>
+                  <p className="text-xs">{fmtDateTime(snap.calculated_at)}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="border border-yellow-500/50 bg-yellow-500/5 rounded p-3 text-xs text-yellow-200 flex gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Nenhum MTM calculado para esta operação. Calcule o MTM antes de encerrar.
+            </div>
+          )}
+          <div className="space-y-1">
+            <Label className="text-xs">
+              Volume a encerrar (sacas) — máx: {maxVolume.toLocaleString('pt-BR')}
+            </Label>
+            <Input
+              type="number"
+              value={volumeStr}
+              onChange={e => setVolumeStr(e.target.value)}
+              max={maxVolume}
+            />
+            {(() => {
+              const vol = parseFloat(volumeStr);
+              if (!vol || vol <= 0) return null;
+              const isPartial = vol < maxVolume;
+              return (
+                <p className={`text-xs ${isPartial ? 'text-yellow-400' : 'text-green-400'}`}>
+                  {isPartial
+                    ? `Encerramento parcial — ${(vol / maxVolume * 100).toFixed(1)}% do volume`
+                    : 'Encerramento total'}
+                </p>
+              );
+            })()}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Observações (opcional)</Label>
+            <Textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Salvando...' : 'Salvar Plano de Encerramento'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ───────────────────────── Register Closing Modal ─────────────────────────
+
+interface RegisterClosingModalProps {
+  operation: OperationWithDetails | null;
+  d24Orders: any[];
+  userId: string | null;
+  onClose: () => void;
+  onClosed: () => void;
+}
+
+const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
+  operation, d24Orders, userId, onClose, onClosed
+}) => {
+  const opD24 = operation as any;
+  const closingPlan = opD24?.closing_plan;
+  const exchange = (opD24?.exchange ?? 'cbot').toLowerCase();
+  const CONTRACT_SIZE = exchange === 'b3' ? 450 : 5000;
+
+  const openOrders = useMemo(() =>
+    (d24Orders ?? []).filter((o: any) =>
+      o.operation_id === operation?.id && !o.is_closing
+    ), [d24Orders, operation]);
+
+  type ClosingLeg = {
+    order_id: string;
+    instrument_type: string;
+    direction: string;
+    currency: string;
+    ticker: string;
+    contracts: string;
+    price: string;
+    ndf_rate: string;
+    ndf_maturity: string;
+    option_type: string;
+    strike: string;
+    expiration_date: string;
+    notes: string;
+  };
+
+  const [legs, setLegs] = useState<ClosingLeg[]>([]);
+  const [stonexText, setStonexText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const prevIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const newId = operation?.id ?? null;
+    if (newId === null) { prevIdRef.current = null; return; }
+    if (newId === prevIdRef.current) return;
+    prevIdRef.current = newId;
+
+    const initial: ClosingLeg[] = openOrders.map((o: any) => ({
+      order_id: o.id,
+      instrument_type: o.instrument_type,
+      direction: o.direction === 'sell' ? 'buy' : 'sell',
+      currency: o.currency,
+      ticker: o.ticker ?? '',
+      contracts: String(o.contracts ?? ''),
+      price: '',
+      ndf_rate: '',
+      ndf_maturity: o.ndf_maturity ?? '',
+      option_type: o.option_type ?? 'call',
+      strike: o.strike != null ? String(o.strike) : '',
+      expiration_date: o.expiration_date ?? '',
+      notes: '',
+    }));
+    setLegs(initial);
+    setStonexText('');
+  }, [operation, openOrders]);
+
+  const updateLeg = (i: number, patch: Partial<ClosingLeg>) => {
+    setLegs(prev => prev.map((l, j) => j === i ? { ...l, ...patch } : l));
+  };
+
+  const priceLabel = exchange === 'b3' ? 'BRL/sc' : 'USD/bushel';
+
+  const handleConfirm = async () => {
+    if (!operation || !userId) return;
+    setSubmitting(true);
+    try {
+      for (const leg of legs) {
+        const isNdf = leg.instrument_type === 'ndf';
+        const qty = parseFloat(leg.contracts);
+        if (!(qty > 0)) continue;
+        const payload: any = {
+          operation_id: operation.id,
+          instrument_type: leg.instrument_type,
+          direction: leg.direction,
+          currency: leg.currency,
+          contracts: qty,
+          volume_units: isNdf ? qty : qty * CONTRACT_SIZE,
+          price: !isNdf && leg.price ? parseFloat(leg.price) : null,
+          ndf_rate: isNdf && leg.ndf_rate ? parseFloat(leg.ndf_rate) : null,
+          ndf_maturity: leg.ndf_maturity || null,
+          option_type: leg.instrument_type === 'option' ? leg.option_type : null,
+          strike: leg.strike ? parseFloat(leg.strike) : null,
+          expiration_date: leg.expiration_date || null,
+          ticker: leg.ticker || null,
+          is_counterparty_insurance: false,
+          executed_at: new Date().toISOString(),
+          executed_by: userId,
+          stonex_confirmation_text: stonexText || null,
+          notes: leg.notes || null,
+          is_closing: true,
+          closes_order_id: leg.order_id,
+        };
+        const { error } = await supabase
+          .from('orders' as any)
+          .insert(payload as never);
+        if (error) throw new Error(error.message);
+      }
+      await supabase
+        .from('operations' as any)
+        .update({ closing_plan: null } as never)
+        .eq('id', operation.id);
+      toast.success('Encerramento registrado');
+      onClosed();
+    } catch (e) {
+      toast.error('Erro: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!operation) return null;
+
+  return (
+    <Dialog open={!!operation} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            Registrar Encerramento — {opD24?.display_code ?? operation.id.slice(0, 8)}
+          </DialogTitle>
+        </DialogHeader>
+        {closingPlan && (
+          <div className="border rounded p-3 text-xs space-y-1 bg-muted/30">
+            <p className="font-semibold text-muted-foreground uppercase tracking-wide">Plano de Encerramento</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <span className="text-muted-foreground">Volume</span>
+                <p>{Number(closingPlan.volume_sacks).toLocaleString('pt-BR')} sc
+                  {closingPlan.is_partial && <Badge variant="outline" className="ml-1 text-[10px] border-yellow-500 text-yellow-500">Parcial</Badge>}
+                </p>
+              </div>
+              {closingPlan.mtm_snapshot && (
+                <>
+                  <div>
+                    <span className="text-muted-foreground">MTM Total</span>
+                    <p className={closingPlan.mtm_snapshot.mtm_total_brl >= 0 ? 'text-green-500' : 'text-red-500'}>
+                      {fmtBrl(closingPlan.mtm_snapshot.mtm_total_brl)}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">MTM/sc</span>
+                    <p className={closingPlan.mtm_snapshot.mtm_per_sack_brl >= 0 ? 'text-green-500' : 'text-red-500'}>
+                      {fmtBrl(closingPlan.mtm_snapshot.mtm_per_sack_brl)}/sc
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="space-y-4">
+          {legs.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhuma ordem aberta para encerrar.</p>
+          )}
+          {legs.map((leg, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline">{leg.instrument_type}</Badge>
+                  <Badge variant="secondary">{leg.direction} (fechamento)</Badge>
+                  <Badge>{leg.currency}</Badge>
+                  {leg.ticker && <span className="font-mono text-xs text-muted-foreground">{leg.ticker}</span>}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label className="text-xs">Contratos</Label>
+                    <Input type="number" value={leg.contracts}
+                      onChange={e => updateLeg(i, { contracts: e.target.value })} />
+                  </div>
+                  {leg.instrument_type === 'ndf' ? (
+                    <div>
+                      <Label className="text-xs">Taxa NDF real (BRL/USD)</Label>
+                      <Input type="number" step="0.0001" value={leg.ndf_rate}
+                        onChange={e => updateLeg(i, { ndf_rate: e.target.value })} />
+                    </div>
+                  ) : (
+                    <div>
+                      <Label className="text-xs">Preço real ({priceLabel})</Label>
+                      <Input type="number" step="0.01" value={leg.price}
+                        onChange={e => updateLeg(i, { price: e.target.value })} />
+                    </div>
+                  )}
+                  <div>
+                    <Label className="text-xs">Obs.</Label>
+                    <Input value={leg.notes}
+                      onChange={e => updateLeg(i, { notes: e.target.value })} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          <div>
+            <Label className="text-xs">Texto de confirmação StoneX (colar na íntegra)</Label>
+            <Textarea rows={4} value={stonexText}
+              onChange={e => setStonexText(e.target.value)}
+              placeholder="Cole aqui o texto de confirmação enviado pela StoneX" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancelar</Button>
+          <Button onClick={handleConfirm} disabled={submitting || legs.length === 0}>
+            {submitting ? 'Registrando...' : 'Confirmar Encerramento'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
