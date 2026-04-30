@@ -297,6 +297,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           closed_at: string | null
+          closing_plan: Json | null
           commodity: string
           created_at: string
           created_by: string
@@ -325,6 +326,7 @@ export type Database = {
           cancelled_at?: string | null
           cancelled_by?: string | null
           closed_at?: string | null
+          closing_plan?: Json | null
           commodity: string
           created_at?: string
           created_by: string
@@ -353,6 +355,7 @@ export type Database = {
           cancelled_at?: string | null
           cancelled_by?: string | null
           closed_at?: string | null
+          closing_plan?: Json | null
           commodity?: string
           created_at?: string
           created_by?: string
