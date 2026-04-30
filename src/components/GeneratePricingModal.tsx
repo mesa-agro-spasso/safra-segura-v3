@@ -106,6 +106,22 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       // Resolve exp_date
       const expDate = combo.exp_date ?? market.exp_date ?? null;
 
+      // PROTEÇÃO: Evitar erro "T must be positive" no Black-76
+      if (expDate) {
+        const exp = new Date(expDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        exp.setHours(0, 0, 0, 0);
+        
+        if (exp <= today) {
+          toast.warning(`Combinação ${combo.ticker} ignorada: contrato já venceu.`);
+          continue;
+        }
+      } else {
+        toast.warning(`Combinação ${combo.ticker} ignorada: sem data de vencimento.`);
+        continue;
+      }
+
       // Resolve payment_date
       let paymentDate: string;
       if (combo.is_spot) {
