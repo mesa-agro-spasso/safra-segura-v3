@@ -80,8 +80,7 @@ const Login = () => {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border-border">
         <CardHeader className="text-center">
-          <img src="/logo-safra-segura-light.png" alt="Safra Segura" className="w-48 mx-auto mb-2 block dark:hidden" />
-          <img src="/logo-safra-segura.png" alt="Safra Segura" className="w-48 mx-auto mb-2 hidden dark:block" />
+          <img src="/logo-spasso.png" alt="Grupo Spasso" className="w-48 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Mesa Integrada de Hedge</p>
         </CardHeader>
         <CardContent>
