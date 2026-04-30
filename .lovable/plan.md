@@ -1,71 +1,22 @@
-## Objetivo
+## Logo colorida no tema claro
 
-Fazer a tela Financeiro e o calendário financeiro listarem operações em mais estados (`HEDGE_CONFIRMADO`, `ACTIVE`, `PARTIALLY_CLOSED`) e usar o `display_code` direto da tabela `operations`, removendo o join legado com `hedge_orders`.
+Hoje o app usa `/logo-safra-segura.png` (versão para fundo escuro) tanto no tema escuro quanto no claro. No tema claro, vamos passar a exibir a logo colorida que você anexou, mantendo as mesmas proporções da atual.
 
-## Arquivos afetados
+### Passos
 
-- `src/pages/Financial.tsx`
-- `src/hooks/useFinancialCalendarData.ts`
+1. **Adicionar o asset**
+   - Copiar `user-uploads://Safra-Segura-Graos.pdf-2.png` para `public/logo-safra-segura-light.png`.
 
-Nenhum outro arquivo será tocado. Sem novos hooks, Edge Functions ou migrações.
+2. **Detecção de tema**
+   - O tema claro corresponde à ausência da classe `dark` em `<html>` (definida em `src/contexts/AuthContext.tsx`).
+   - Em `AppSidebar.tsx` e `Login.tsx`, observar essa classe via um pequeno hook local com `MutationObserver` em `document.documentElement` (sem novos arquivos: definido inline no próprio componente). Estado inicial baseado em `document.documentElement.classList.contains('dark')`.
 
-## Mudanças (idênticas nos dois arquivos)
+3. **Trocar o `src` da logo conforme o tema**
+   - Em `src/components/AppSidebar.tsx` (linhas 9 e 67-71): quando expandido, usar `logoLight` (nova) se tema claro, senão `logo` atual. Quando colapsado, manter o ícone atual (`iconCollapsed`) — ele já funciona em ambos os temas.
+     - Mesmas classes (`w-36 object-contain`) — proporções preservadas.
+   - Em `src/pages/Login.tsx` (linha 83): mesma lógica para o `<img>` da tela de login. Mesmas classes (`w-48 mx-auto mb-2`).
 
-### 1. `src/hooks/useFinancialCalendarData.ts`
-
-Na query `financial_calendar_data`:
-
-```ts
-const { data: ops, error } = await supabase
-  .from('operations')
-  .select(`
-    id, commodity, volume_sacks, display_code,
-    warehouses(display_name),
-    pricing_snapshots(payment_date, sale_date, origination_price_brl)
-  `)
-  .in('status', ['HEDGE_CONFIRMADO', 'ACTIVE', 'PARTIALLY_CLOSED']);
-```
-
-E na derivação do `displayCode`:
-
-```ts
-const displayCode = op.display_code ?? op.id.slice(0, 8);
-```
-
-(remove o bloco que lia `op.hedge_orders[0]?.display_code`).
-
-### 2. `src/pages/Financial.tsx`
-
-Na query `financial-operations`:
-
-```ts
-const { data, error } = await supabase
-  .from('operations')
-  .select(`
-    id, commodity, volume_sacks, display_code,
-    warehouses(display_name),
-    pricing_snapshots(payment_date, sale_date, origination_price_brl)
-  `)
-  .in('status', ['HEDGE_CONFIRMADO', 'ACTIVE', 'PARTIALLY_CLOSED']);
-```
-
-No mapeamento de `rows`:
-
-```ts
-const displayCode = op.display_code ?? op.id.slice(0, 8);
-```
-
-(remove o bloco que lia `op.hedge_orders`).
-
-## Notas técnicas
-
-- A coluna `operations.display_code` já existe (preenchida pelo trigger `set_operation_display_code`), portanto o fallback `op.id.slice(0, 8)` praticamente nunca será usado.
-- O título do `CardTitle` ("Operações Confirmadas") permanece — não foi solicitada mudança de copy.
-- Os tipos retornados continuam usando `as any[]` / `OperationRow`, sem alteração de contrato.
-- Nenhuma invalidação de cache adicional é necessária; as `queryKey`s permanecem as mesmas.
-
-## Validação após implementação
-
-1. Abrir `/financeiro` → aba Tabela: operações em `ACTIVE` e `PARTIALLY_CLOSED` agora aparecem.
-2. Aba Calendário: eventos de inflow/outflow para essas operações também são gerados.
-3. Coluna "Código" mostra o `display_code` da operação (não mais o da hedge_order).
+4. **Restrições**
+   - Apenas 3 arquivos tocados: `public/logo-safra-segura-light.png` (novo), `src/components/AppSidebar.tsx`, `src/pages/Login.tsx`.
+   - Sem novas dependências, sem ThemeProvider global, sem alterar `index.css`.
+   - Proporções e tamanhos da logo permanecem idênticos.
