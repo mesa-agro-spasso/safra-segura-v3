@@ -1774,18 +1774,89 @@ const OperacoesD24: React.FC = () => {
                     <p className="text-sm text-muted-foreground">Nenhuma ordem vinculada.</p>
                   ) : (
                     <div className="space-y-2">
-                      {ordersForSelectedOperation.map(o => {
-                        const legsArr = (o.legs as any[]) ?? [];
-                        const legsSummary = legsArr.map(l => `${l.leg_type ?? l.instrument_type}(${l.direction})`).join(' + ');
+                      {ordersForSelectedOperation.map((o: any, idx: number) => {
+                        const isClosing = o.is_closing;
                         return (
-                          <div key={o.id} className="rounded-md border p-3 space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium">{o.display_code ?? o.id.slice(0, 8)}</span>
-                              <Badge variant="outline">{o.status}</Badge>
+                          <div key={o.id ?? idx} className="rounded-md border p-3 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={isClosing ? 'secondary' : 'outline'}>
+                                {isClosing ? 'Fechamento' : 'Abertura'}
+                              </Badge>
+                              <Badge variant="outline">{o.instrument_type}</Badge>
+                              <Badge variant="outline">{o.direction}</Badge>
+                              {o.ticker && <Badge variant="outline">{o.ticker}</Badge>}
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                {fmtDateTime(o.executed_at ?? o.created_at)}
+                              </span>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                              <span>{o.volume_sacks.toLocaleString('pt-BR')} sc</span>
-                              {legsSummary && <span>{legsSummary}</span>}
+                            <div className="grid grid-cols-[120px_1fr] gap-y-1 text-xs">
+                              {o.contracts != null && (
+                                <>
+                                  <span className="text-muted-foreground">Contratos</span>
+                                  <span>{Number(o.contracts).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</span>
+                                </>
+                              )}
+                              {o.volume_units != null && (
+                                <>
+                                  <span className="text-muted-foreground">Volume</span>
+                                  <span>
+                                    {Number(o.volume_units).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                                    {o.instrument_type === 'ndf' ? ' USD' : o.currency === 'USD' ? ' bu' : ' sc'}
+                                  </span>
+                                </>
+                              )}
+                              {o.instrument_type === 'futures' && o.price != null && (
+                                <>
+                                  <span className="text-muted-foreground">Preço</span>
+                                  <span>{Number(o.price).toFixed(4)} {o.currency === 'USD' ? 'USD/bu' : 'BRL/sc'}</span>
+                                </>
+                              )}
+                              {o.instrument_type === 'ndf' && o.ndf_rate != null && (
+                                <>
+                                  <span className="text-muted-foreground">Taxa NDF</span>
+                                  <span>{Number(o.ndf_rate).toFixed(4)} BRL/USD</span>
+                                </>
+                              )}
+                              {o.instrument_type === 'option' && (
+                                <>
+                                  {o.option_type && (
+                                    <>
+                                      <span className="text-muted-foreground">Tipo</span>
+                                      <span>{o.option_type}</span>
+                                    </>
+                                  )}
+                                  {o.strike != null && (
+                                    <>
+                                      <span className="text-muted-foreground">Strike</span>
+                                      <span>{Number(o.strike).toFixed(4)}</span>
+                                    </>
+                                  )}
+                                  {o.premium != null && (
+                                    <>
+                                      <span className="text-muted-foreground">Prêmio</span>
+                                      <span>{Number(o.premium).toFixed(4)}</span>
+                                    </>
+                                  )}
+                                </>
+                              )}
+                              {o.ndf_maturity && (
+                                <>
+                                  <span className="text-muted-foreground">Maturidade</span>
+                                  <span>{fmtDate(o.ndf_maturity)}</span>
+                                </>
+                              )}
+                              {isClosing && o.closes_order_id && (
+                                <>
+                                  <span className="text-muted-foreground">Fecha ordem</span>
+                                  <span className="font-mono">{String(o.closes_order_id).slice(0, 8)}</span>
+                                </>
+                              )}
+                              {o.notes && (
+                                <>
+                                  <span className="text-muted-foreground">Obs.</span>
+                                  <span>{o.notes}</span>
+                                </>
+                              )}
                             </div>
                           </div>
                         );
@@ -1796,24 +1867,95 @@ const OperacoesD24: React.FC = () => {
 
                 {/* 6.5. Assinaturas */}
                 <Section title={`Assinaturas (${operationSignatures?.length ?? 0})`} defaultOpen={false}>
-                  {(!operationSignatures || operationSignatures.length === 0) ? (
-                    <p className="text-sm text-muted-foreground">Nenhuma assinatura registrada.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {operationSignatures.map((s: any) => (
-                        <div key={s.id} className="rounded-md border p-3 text-sm space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{typeof s.user_id === 'string' ? s.user_id.slice(0, 8) : '—'}</span>
-                            <Badge variant="outline">{s.decision}</Badge>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {s.role_used} · {s.flow_type} · {fmtDateTime(s.signed_at)}
-                          </div>
-                          {s.notes && <p className="text-xs">{s.notes}</p>}
+                  {(() => {
+                    const KG_PER_SACK = 60;
+                    const ROLES_TIERS = {
+                      low: ['mesa', 'comercial_n1', 'comercial_n2', 'financeiro_n1'],
+                      mid: ['mesa', 'comercial_n1', 'comercial_n2', 'comercial_n2', 'financeiro_n1', 'financeiro_n2'],
+                      high: ['mesa', 'comercial_n1', 'presidencia', 'financeiro_n1', 'financeiro_n2'],
+                    };
+                    const countBy = (arr: string[]) =>
+                      arr.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r]: (acc[r] ?? 0) + 1 }), {});
+                    const getMissing = (required: string[], collected: string[]) => {
+                      const req = countBy(required);
+                      const col = countBy(collected);
+                      const missing: string[] = [];
+                      for (const [role, n] of Object.entries(req)) {
+                        const rem = n - (col[role] ?? 0);
+                        for (let i = 0; i < rem; i++) missing.push(role);
+                      }
+                      return missing;
+                    };
+
+                    const volumeTons = ((selectedOperation.volume_sacks ?? 0) * KG_PER_SACK) / 1000;
+                    const required = volumeTons <= 500
+                      ? ROLES_TIERS.low
+                      : volumeTons <= 1000
+                      ? ROLES_TIERS.mid
+                      : ROLES_TIERS.high;
+
+                    const openingSigs = (operationSignatures ?? []).filter((s: any) => s.flow_type === 'OPENING');
+                    const closingSigs = (operationSignatures ?? []).filter((s: any) => s.flow_type === 'CLOSING');
+
+                    const collectedOpening = openingSigs.filter((s: any) => s.decision === 'APPROVE').map((s: any) => s.role_used);
+                    const collectedClosing = closingSigs.filter((s: any) => s.decision === 'APPROVE').map((s: any) => s.role_used);
+                    const missingOpening = getMissing(required, collectedOpening);
+                    const missingClosing = getMissing(required, collectedClosing);
+
+                    const renderSigSection = (title: string, sigs: any[], collected: string[], missing: string[]) => (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold">{title}</h4>
+                        <div className="flex flex-wrap gap-1">
+                          {collected.map((r, i) => (
+                            <Badge key={`c-${i}`} variant="outline" className="border-green-500 text-green-500">
+                              {r} ✓
+                            </Badge>
+                          ))}
+                          {missing.map((r, i) => (
+                            <Badge key={`m-${i}`} variant="secondary" className="opacity-60">
+                              {r}
+                            </Badge>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        {sigs.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Nenhuma assinatura registrada.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {sigs.map((s: any) => (
+                              <div key={s.id} className="rounded-md border p-3 text-sm space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium font-mono">
+                                    {typeof s.user_id === 'string' ? s.user_id.slice(0, 8) : '—'}
+                                  </span>
+                                  <Badge variant={s.decision === 'APPROVE' ? 'outline' : 'destructive'}>
+                                    {s.decision === 'APPROVE' ? 'Aprovado' : 'Rejeitado'}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {s.role_used} · {fmtDateTime(s.signed_at)}
+                                </div>
+                                {s.notes && <p className="text-xs">{s.notes}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+
+                    const hasClosing = closingSigs.length > 0 || (opD24.closing_plan != null);
+
+                    return (
+                      <div className="space-y-4">
+                        {renderSigSection('Abertura', openingSigs, collectedOpening, missingOpening)}
+                        {hasClosing && (
+                          <>
+                            <Separator />
+                            {renderSigSection('Encerramento', closingSigs, collectedClosing, missingClosing)}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </Section>
 
                 {/* 7. MTM */}
