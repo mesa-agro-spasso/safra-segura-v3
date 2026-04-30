@@ -80,7 +80,8 @@ const Login = () => {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border-border">
         <CardHeader className="text-center">
-          <img src={isDark ? '/logo-safra-segura.png' : '/logo-safra-segura-light.png'} alt="Safra Segura" className="w-48 mx-auto mb-2" />
+          <img src="/logo-safra-segura-light.png" alt="Safra Segura" className="w-48 mx-auto mb-2 block dark:hidden" />
+          <img src="/logo-safra-segura.png" alt="Safra Segura" className="w-48 mx-auto mb-2 hidden dark:block" />
           <p className="text-sm text-muted-foreground">Mesa Integrada de Hedge</p>
         </CardHeader>
         <CardContent>
