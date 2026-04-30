@@ -13,7 +13,82 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Separator } from '@/components/ui/separator';
-import { ChevronDown, ExternalLink, MapPin } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ChevronDown, ExternalLink, MapPin, Columns } from 'lucide-react';
+
+// ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
+
+interface Col { key: string; label: string; }
+
+function usePersistedColumns(storageKey: string, columns: Col[], defaultKeys?: string[]) {
+  const allKeys = useMemo(() => columns.map(c => c.key), [columns]);
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* noop */ }
+    return new Set(defaultKeys ?? allKeys);
+  });
+  const update = (next: Set<string>) => {
+    setVisible(next);
+    try { localStorage.setItem(storageKey, JSON.stringify([...next])); } catch { /* noop */ }
+  };
+  return { visible, setVisible: update };
+}
+
+const ColumnSelector: React.FC<{
+  columns: Col[];
+  visible: Set<string>;
+  onChange: (next: Set<string>) => void;
+}> = ({ columns, visible, onChange }) => {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8">
+          <Columns className="h-4 w-4 mr-1" />
+          Colunas
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-2 w-56" align="end">
+        <div className="flex gap-2 mb-2">
+          <Button size="sm" variant="ghost" className="h-7 text-xs flex-1"
+            onClick={() => onChange(new Set(columns.map(c => c.key)))}>Todas</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs flex-1"
+            onClick={() => onChange(new Set())}>Nenhuma</Button>
+        </div>
+        <div className="space-y-1 max-h-[260px] overflow-auto">
+          {columns.map(c => (
+            <label key={c.key} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-accent cursor-pointer">
+              <Checkbox
+                checked={visible.has(c.key)}
+                onCheckedChange={(v) => {
+                  const next = new Set(visible);
+                  if (v) next.add(c.key); else next.delete(c.key);
+                  onChange(next);
+                }}
+              />
+              <span className="text-xs">{c.label}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const ARMAZEM_COLUMNS: Col[] = [
+  { key: 'commodity', label: 'Commodity' },
+  { key: 'op_ativas', label: 'Op. ativas' },
+  { key: 'volume', label: 'Volume (sc)' },
+  { key: 'mtm_total', label: 'MTM Total' },
+  { key: 'breakeven', label: 'Break-even' },
+  { key: 'mtm_sc', label: 'MTM/sc' },
+  { key: 'fisico_alvo', label: 'Físico Alvo' },
+  { key: 'prox_venc', label: 'Próx. venc.' },
+  { key: 'status_mix', label: 'Status mix' },
+];
 
 // ───────────────────────── helpers (replicated locally) ─────────────────────────
 
@@ -102,6 +177,9 @@ const ArmazensD24: React.FC = () => {
 
   const [tab, setTab] = useState<'posicao' | 'config'>('posicao');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
+  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
+  const [filterCommodity, setFilterCommodity] = useState<string>('all');
+  const armazemCols = usePersistedColumns('cols_armazens', ARMAZEM_COLUMNS);
 
   const executionSpread = pricingParameters?.[0]?.execution_spread_pct ?? 0.05;
 
@@ -205,6 +283,12 @@ const ArmazensD24: React.FC = () => {
     });
   }, [warehouses, operations, latestByOpId, executionSpread]);
 
+  const filteredRows = useMemo(() => rows.filter(r => {
+    if (filterWarehouse !== 'all' && r.warehouse.id !== filterWarehouse) return false;
+    if (filterCommodity !== 'all' && !r.commodities.includes(filterCommodity)) return false;
+    return true;
+  }), [rows, filterWarehouse, filterCommodity]);
+
   const selected = useMemo(
     () => rows.find(r => r.warehouse.id === selectedWarehouseId) ?? null,
     [rows, selectedWarehouseId],
@@ -239,17 +323,38 @@ const ArmazensD24: React.FC = () => {
 
         {/* ───────────── Aba Posição ───────────── */}
         <TabsContent value="posicao" className="space-y-4">
+          {/* Filtros */}
+          <div className="flex gap-3 flex-wrap">
+            <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Praça" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as praças</SelectItem>
+                {warehouses.map(w => (
+                  <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterCommodity} onValueChange={setFilterCommodity}>
+              <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Commodity" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="soybean">Soja</SelectItem>
+                <SelectItem value="corn">Milho</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Resumo consolidado */}
           {(() => {
-            const totalVolume = rows.reduce((s, r) => s + r.volumeTotal, 0);
-            const totalMtm = rows.reduce((s, r) => s + r.mtmTotal, 0);
+            const totalVolume = filteredRows.reduce((s, r) => s + r.volumeTotal, 0);
+            const totalMtm = filteredRows.reduce((s, r) => s + r.mtmTotal, 0);
             const mtmPerSackGeral = totalVolume > 0 ? totalMtm / totalVolume : 0;
             return (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Card>
                   <CardContent className="pt-4 pb-4">
                     <p className="text-xs text-muted-foreground">Armazéns Ativos</p>
-                    <p className="text-2xl font-bold">{rows.filter(r => r.ops.length > 0).length}</p>
+                    <p className="text-2xl font-bold">{filteredRows.filter(r => r.ops.length > 0).length}</p>
                   </CardContent>
                 </Card>
                 <Card>
@@ -280,26 +385,33 @@ const ArmazensD24: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Posição por armazém</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Posição por armazém</CardTitle>
+                <ColumnSelector
+                  columns={ARMAZEM_COLUMNS}
+                  visible={armazemCols.visible}
+                  onChange={armazemCols.setVisible}
+                />
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Armazém</TableHead>
-                    <TableHead>Commodity</TableHead>
-                    <TableHead className="text-right">Op. ativas</TableHead>
-                    <TableHead className="text-right">Volume (sc)</TableHead>
-                    <TableHead className="text-right">MTM Total (R$)</TableHead>
-                    <TableHead className="text-right">Break-even médio</TableHead>
-                    <TableHead className="text-right">MTM/sc</TableHead>
-                    <TableHead className="text-right">Físico Alvo</TableHead>
-                    <TableHead>Próx. venc.</TableHead>
-                    <TableHead>Status mix</TableHead>
+                    {armazemCols.visible.has('commodity') && <TableHead>Commodity</TableHead>}
+                    {armazemCols.visible.has('op_ativas') && <TableHead className="text-right">Op. ativas</TableHead>}
+                    {armazemCols.visible.has('volume') && <TableHead className="text-right">Volume (sc)</TableHead>}
+                    {armazemCols.visible.has('mtm_total') && <TableHead className="text-right">MTM Total (R$)</TableHead>}
+                    {armazemCols.visible.has('breakeven') && <TableHead className="text-right">Break-even médio</TableHead>}
+                    {armazemCols.visible.has('mtm_sc') && <TableHead className="text-right">MTM/sc</TableHead>}
+                    {armazemCols.visible.has('fisico_alvo') && <TableHead className="text-right">Físico Alvo</TableHead>}
+                    {armazemCols.visible.has('prox_venc') && <TableHead>Próx. venc.</TableHead>}
+                    {armazemCols.visible.has('status_mix') && <TableHead>Status mix</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map(r => (
+                  {filteredRows.map(r => (
                     <TableRow
                       key={r.warehouse.id}
                       className="cursor-pointer hover:bg-muted/50"
@@ -309,52 +421,70 @@ const ArmazensD24: React.FC = () => {
                         <div className="font-medium">{r.warehouse.display_name}</div>
                         <div className="text-xs text-muted-foreground">{r.warehouse.abbr}</div>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {r.commodities.length === 0
-                            ? <span className="text-muted-foreground">—</span>
-                            : r.commodities.map(c => (
-                                <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>
-                              ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">{r.ops.length}</TableCell>
-                      <TableCell className="text-right">{fmtSc(r.volumeTotal)}</TableCell>
-                      <TableCell className={`text-right ${r.mtmTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {fmtBrl(r.mtmTotal)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {r.breakevenMedio === null ? '—' : fmtBrl(r.breakevenMedio)}
-                      </TableCell>
-                      <TableCell className={`text-right ${(r.mtmPerSackMedio ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {r.mtmPerSackMedio === null ? '—' : `${fmtBrl(r.mtmPerSackMedio)}/sc`}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {r.fisicoAlvoMedio === null ? '—' : `${fmtBrl(r.fisicoAlvoMedio)}/sc`}
-                      </TableCell>
-                      <TableCell>{fmtDate(r.proximoVencimento)}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {r.mix.rascunho > 0 && (
-                            <Badge variant="secondary" className="text-[10px]">Rasc {r.mix.rascunho}</Badge>
-                          )}
-                          {r.mix.active > 0 && (
-                            <Badge className="text-[10px] bg-green-600 text-white">Ativa {r.mix.active}</Badge>
-                          )}
-                          {r.mix.partial > 0 && (
-                            <Badge variant="outline" className="text-[10px] border-orange-500 text-orange-500">Parcial {r.mix.partial}</Badge>
-                          )}
-                          {r.mix.outros > 0 && (
-                            <Badge variant="outline" className="text-[10px]">Outros {r.mix.outros}</Badge>
-                          )}
-                          {r.ops.length === 0 && <span className="text-muted-foreground text-xs">—</span>}
-                        </div>
-                      </TableCell>
+                      {armazemCols.visible.has('commodity') && (
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {r.commodities.length === 0
+                              ? <span className="text-muted-foreground">—</span>
+                              : r.commodities.map(c => (
+                                  <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>
+                                ))}
+                          </div>
+                        </TableCell>
+                      )}
+                      {armazemCols.visible.has('op_ativas') && (
+                        <TableCell className="text-right">{r.ops.length}</TableCell>
+                      )}
+                      {armazemCols.visible.has('volume') && (
+                        <TableCell className="text-right">{fmtSc(r.volumeTotal)}</TableCell>
+                      )}
+                      {armazemCols.visible.has('mtm_total') && (
+                        <TableCell className={`text-right ${r.mtmTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {fmtBrl(r.mtmTotal)}
+                        </TableCell>
+                      )}
+                      {armazemCols.visible.has('breakeven') && (
+                        <TableCell className="text-right">
+                          {r.breakevenMedio === null ? '—' : fmtBrl(r.breakevenMedio)}
+                        </TableCell>
+                      )}
+                      {armazemCols.visible.has('mtm_sc') && (
+                        <TableCell className={`text-right ${(r.mtmPerSackMedio ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {r.mtmPerSackMedio === null ? '—' : `${fmtBrl(r.mtmPerSackMedio)}/sc`}
+                        </TableCell>
+                      )}
+                      {armazemCols.visible.has('fisico_alvo') && (
+                        <TableCell className="text-right">
+                          {r.fisicoAlvoMedio === null ? '—' : `${fmtBrl(r.fisicoAlvoMedio)}/sc`}
+                        </TableCell>
+                      )}
+                      {armazemCols.visible.has('prox_venc') && (
+                        <TableCell>{fmtDate(r.proximoVencimento)}</TableCell>
+                      )}
+                      {armazemCols.visible.has('status_mix') && (
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {r.mix.rascunho > 0 && (
+                              <Badge variant="secondary" className="text-[10px]">Rasc {r.mix.rascunho}</Badge>
+                            )}
+                            {r.mix.active > 0 && (
+                              <Badge className="text-[10px] bg-green-600 text-white">Ativa {r.mix.active}</Badge>
+                            )}
+                            {r.mix.partial > 0 && (
+                              <Badge variant="outline" className="text-[10px] border-orange-500 text-orange-500">Parcial {r.mix.partial}</Badge>
+                            )}
+                            {r.mix.outros > 0 && (
+                              <Badge variant="outline" className="text-[10px]">Outros {r.mix.outros}</Badge>
+                            )}
+                            {r.ops.length === 0 && <span className="text-muted-foreground text-xs">—</span>}
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
-                  {rows.length === 0 && (
+                  {filteredRows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={1 + armazemCols.visible.size} className="text-center text-muted-foreground py-8">
                         Nenhum armazém ativo.
                       </TableCell>
                     </TableRow>
@@ -576,7 +706,11 @@ const ConfigCard: React.FC<{
                 'Juros',
                 w.interest_rate === null
                   ? '—'
-                  : `${(Number(w.interest_rate) * 100).toFixed(2)}%${w.interest_rate_period ? ` (${w.interest_rate_period})` : ''}`,
+                  : (() => {
+                      const rate = Number(w.interest_rate);
+                      const pct = rate > 1 ? rate : rate * 100;
+                      return `${pct.toFixed(2)}%${w.interest_rate_period ? ` (${w.interest_rate_period})` : ''}`;
+                    })(),
               )}
               {costRow(
                 'Corretagem CBOT',
