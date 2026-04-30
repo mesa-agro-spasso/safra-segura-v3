@@ -30,6 +30,10 @@ const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'second
   ENCERRADA: { label: 'Encerrada', variant: 'secondary' },
   CANCELADA: { label: 'Cancelada', variant: 'destructive' },
   REPROVADA: { label: 'Reprovada', variant: 'destructive' },
+  ACTIVE: { label: 'Ativa', variant: 'default', className: 'bg-green-600 text-white' },
+  PARTIALLY_CLOSED: { label: 'Parcial. Encerrada', variant: 'outline', className: 'border-orange-500 text-orange-500' },
+  CLOSED: { label: 'Encerrada', variant: 'secondary' },
+  CANCELLED: { label: 'Cancelada', variant: 'destructive' },
 };
 
 const STATUS_ORDER: Record<string, number> = {
@@ -45,11 +49,16 @@ const STATUS_ORDER: Record<string, number> = {
   ENCERRADA: 98,
   CANCELADA: 99,
   REPROVADA: 99,
+  ACTIVE: 3,
+  PARTIALLY_CLOSED: 4,
+  CLOSED: 98,
+  CANCELLED: 99,
 };
 
 const ACTIVE_STATUSES = new Set([
   'RASCUNHO', 'DRAFT', 'SUBMETIDA', 'EM_APROVACAO', 'APROVADA',
-  'HEDGE_CONFIRMADO', 'ENCERRAMENTO_SOLICITADO', 'ENCERRAMENTO_APROVADO', 'MONITORAMENTO',
+  'HEDGE_CONFIRMADO', 'ENCERRAMENTO_SOLICITADO', 'ENCERRAMENTO_APROVADO',
+  'MONITORAMENTO', 'ACTIVE', 'PARTIALLY_CLOSED',
 ]);
 
 const fmtDate = (d?: string | null) =>
@@ -138,6 +147,34 @@ const ArmazensD24: React.FC = () => {
       }
       const breakevenMedio = beVol > 0 ? beNum / beVol : null;
 
+      // MTM por saca médio ponderado
+      let mtmSackNum = 0;
+      let mtmSackVol = 0;
+      for (const o of ops) {
+        const snap = latestByOpId[o.id];
+        if (!snap?.mtm_per_sack_brl) continue;
+        const v = o.volume_sacks ?? 0;
+        mtmSackNum += snap.mtm_per_sack_brl * v;
+        mtmSackVol += v;
+      }
+      const mtmPerSackMedio = mtmSackVol > 0 ? mtmSackNum / mtmSackVol : null;
+
+      // Físico alvo médio ponderado
+      let fisicoAlvoNum = 0;
+      let fisicoAlvoVol = 0;
+      for (const o of ops) {
+        const snap = latestByOpId[o.id];
+        if (!snap) continue;
+        const physical = snap.physical_price_current ?? 0;
+        const mtmPerSack = snap.mtm_per_sack_brl ?? 0;
+        const targetProfit = 2.0;
+        const fisicoAlvo = (physical - mtmPerSack + targetProfit) * (1 + executionSpread);
+        const v = o.volume_sacks ?? 0;
+        fisicoAlvoNum += fisicoAlvo * v;
+        fisicoAlvoVol += v;
+      }
+      const fisicoAlvoMedio = fisicoAlvoVol > 0 ? fisicoAlvoNum / fisicoAlvoVol : null;
+
       const dates = ops
         .map(o => o.pricing_snapshots?.sale_date)
         .filter((d): d is string => !!d);
@@ -145,11 +182,11 @@ const ArmazensD24: React.FC = () => {
         ? dates.sort((a, b) => a.localeCompare(b))[0]
         : null;
 
-      const mix = { rascunho: 0, em_aprovacao: 0, hedge: 0, outros: 0 };
+      const mix = { rascunho: 0, active: 0, partial: 0, outros: 0 };
       for (const o of ops) {
         if (o.status === 'RASCUNHO' || o.status === 'DRAFT') mix.rascunho++;
-        else if (o.status === 'EM_APROVACAO') mix.em_aprovacao++;
-        else if (o.status === 'HEDGE_CONFIRMADO') mix.hedge++;
+        else if (o.status === 'ACTIVE') mix.active++;
+        else if (o.status === 'PARTIALLY_CLOSED') mix.partial++;
         else mix.outros++;
       }
 
@@ -160,6 +197,8 @@ const ArmazensD24: React.FC = () => {
         volumeTotal,
         mtmTotal,
         breakevenMedio,
+        mtmPerSackMedio,
+        fisicoAlvoMedio,
         proximoVencimento,
         mix,
       };
@@ -200,6 +239,45 @@ const ArmazensD24: React.FC = () => {
 
         {/* ───────────── Aba Posição ───────────── */}
         <TabsContent value="posicao" className="space-y-4">
+          {/* Resumo consolidado */}
+          {(() => {
+            const totalVolume = rows.reduce((s, r) => s + r.volumeTotal, 0);
+            const totalMtm = rows.reduce((s, r) => s + r.mtmTotal, 0);
+            const mtmPerSackGeral = totalVolume > 0 ? totalMtm / totalVolume : 0;
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground">Armazéns Ativos</p>
+                    <p className="text-2xl font-bold">{rows.filter(r => r.ops.length > 0).length}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground">Volume Total</p>
+                    <p className="text-2xl font-bold">{totalVolume.toLocaleString('pt-BR')} <span className="text-sm text-muted-foreground">sc</span></p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground">MTM Total</p>
+                    <p className={`text-2xl font-bold ${totalMtm >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {fmtBrl(totalMtm)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground">MTM por Saca</p>
+                    <p className={`text-2xl font-bold ${mtmPerSackGeral >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {fmtBrl(mtmPerSackGeral)}/sc
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Posição por armazém</CardTitle>
@@ -214,6 +292,8 @@ const ArmazensD24: React.FC = () => {
                     <TableHead className="text-right">Volume (sc)</TableHead>
                     <TableHead className="text-right">MTM Total (R$)</TableHead>
                     <TableHead className="text-right">Break-even médio</TableHead>
+                    <TableHead className="text-right">MTM/sc</TableHead>
+                    <TableHead className="text-right">Físico Alvo</TableHead>
                     <TableHead>Próx. venc.</TableHead>
                     <TableHead>Status mix</TableHead>
                   </TableRow>
@@ -246,17 +326,23 @@ const ArmazensD24: React.FC = () => {
                       <TableCell className="text-right">
                         {r.breakevenMedio === null ? '—' : fmtBrl(r.breakevenMedio)}
                       </TableCell>
+                      <TableCell className={`text-right ${(r.mtmPerSackMedio ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {r.mtmPerSackMedio === null ? '—' : `${fmtBrl(r.mtmPerSackMedio)}/sc`}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.fisicoAlvoMedio === null ? '—' : `${fmtBrl(r.fisicoAlvoMedio)}/sc`}
+                      </TableCell>
                       <TableCell>{fmtDate(r.proximoVencimento)}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {r.mix.rascunho > 0 && (
                             <Badge variant="secondary" className="text-[10px]">Rasc {r.mix.rascunho}</Badge>
                           )}
-                          {r.mix.em_aprovacao > 0 && (
-                            <Badge variant="outline" className="text-[10px] border-yellow-500 text-yellow-500">Aprov {r.mix.em_aprovacao}</Badge>
+                          {r.mix.active > 0 && (
+                            <Badge className="text-[10px] bg-green-600 text-white">Ativa {r.mix.active}</Badge>
                           )}
-                          {r.mix.hedge > 0 && (
-                            <Badge variant="default" className="text-[10px]">Hedge {r.mix.hedge}</Badge>
+                          {r.mix.partial > 0 && (
+                            <Badge variant="outline" className="text-[10px] border-orange-500 text-orange-500">Parcial {r.mix.partial}</Badge>
                           )}
                           {r.mix.outros > 0 && (
                             <Badge variant="outline" className="text-[10px]">Outros {r.mix.outros}</Badge>
@@ -268,7 +354,7 @@ const ArmazensD24: React.FC = () => {
                   ))}
                   {rows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                         Nenhum armazém ativo.
                       </TableCell>
                     </TableRow>
