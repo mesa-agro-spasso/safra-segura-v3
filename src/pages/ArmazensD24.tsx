@@ -147,6 +147,34 @@ const ArmazensD24: React.FC = () => {
       }
       const breakevenMedio = beVol > 0 ? beNum / beVol : null;
 
+      // MTM por saca médio ponderado
+      let mtmSackNum = 0;
+      let mtmSackVol = 0;
+      for (const o of ops) {
+        const snap = latestByOpId[o.id];
+        if (!snap?.mtm_per_sack_brl) continue;
+        const v = o.volume_sacks ?? 0;
+        mtmSackNum += snap.mtm_per_sack_brl * v;
+        mtmSackVol += v;
+      }
+      const mtmPerSackMedio = mtmSackVol > 0 ? mtmSackNum / mtmSackVol : null;
+
+      // Físico alvo médio ponderado
+      let fisicoAlvoNum = 0;
+      let fisicoAlvoVol = 0;
+      for (const o of ops) {
+        const snap = latestByOpId[o.id];
+        if (!snap) continue;
+        const physical = snap.physical_price_current ?? 0;
+        const mtmPerSack = snap.mtm_per_sack_brl ?? 0;
+        const targetProfit = 2.0;
+        const fisicoAlvo = (physical - mtmPerSack + targetProfit) * (1 + executionSpread);
+        const v = o.volume_sacks ?? 0;
+        fisicoAlvoNum += fisicoAlvo * v;
+        fisicoAlvoVol += v;
+      }
+      const fisicoAlvoMedio = fisicoAlvoVol > 0 ? fisicoAlvoNum / fisicoAlvoVol : null;
+
       const dates = ops
         .map(o => o.pricing_snapshots?.sale_date)
         .filter((d): d is string => !!d);
@@ -154,11 +182,11 @@ const ArmazensD24: React.FC = () => {
         ? dates.sort((a, b) => a.localeCompare(b))[0]
         : null;
 
-      const mix = { rascunho: 0, em_aprovacao: 0, hedge: 0, outros: 0 };
+      const mix = { rascunho: 0, active: 0, partial: 0, outros: 0 };
       for (const o of ops) {
         if (o.status === 'RASCUNHO' || o.status === 'DRAFT') mix.rascunho++;
-        else if (o.status === 'EM_APROVACAO') mix.em_aprovacao++;
-        else if (o.status === 'HEDGE_CONFIRMADO') mix.hedge++;
+        else if (o.status === 'ACTIVE') mix.active++;
+        else if (o.status === 'PARTIALLY_CLOSED') mix.partial++;
         else mix.outros++;
       }
 
@@ -169,6 +197,8 @@ const ArmazensD24: React.FC = () => {
         volumeTotal,
         mtmTotal,
         breakevenMedio,
+        mtmPerSackMedio,
+        fisicoAlvoMedio,
         proximoVencimento,
         mix,
       };
