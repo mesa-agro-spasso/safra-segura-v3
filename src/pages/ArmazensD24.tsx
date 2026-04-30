@@ -239,6 +239,45 @@ const ArmazensD24: React.FC = () => {
 
         {/* ───────────── Aba Posição ───────────── */}
         <TabsContent value="posicao" className="space-y-4">
+          {/* Resumo consolidado */}
+          {(() => {
+            const totalVolume = rows.reduce((s, r) => s + r.volumeTotal, 0);
+            const totalMtm = rows.reduce((s, r) => s + r.mtmTotal, 0);
+            const mtmPerSackGeral = totalVolume > 0 ? totalMtm / totalVolume : 0;
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground">Armazéns Ativos</p>
+                    <p className="text-2xl font-bold">{rows.filter(r => r.ops.length > 0).length}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground">Volume Total</p>
+                    <p className="text-2xl font-bold">{totalVolume.toLocaleString('pt-BR')} <span className="text-sm text-muted-foreground">sc</span></p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground">MTM Total</p>
+                    <p className={`text-2xl font-bold ${totalMtm >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {fmtBrl(totalMtm)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground">MTM por Saca</p>
+                    <p className={`text-2xl font-bold ${mtmPerSackGeral >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {fmtBrl(mtmPerSackGeral)}/sc
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Posição por armazém</CardTitle>
@@ -253,6 +292,8 @@ const ArmazensD24: React.FC = () => {
                     <TableHead className="text-right">Volume (sc)</TableHead>
                     <TableHead className="text-right">MTM Total (R$)</TableHead>
                     <TableHead className="text-right">Break-even médio</TableHead>
+                    <TableHead className="text-right">MTM/sc</TableHead>
+                    <TableHead className="text-right">Físico Alvo</TableHead>
                     <TableHead>Próx. venc.</TableHead>
                     <TableHead>Status mix</TableHead>
                   </TableRow>
@@ -285,17 +326,23 @@ const ArmazensD24: React.FC = () => {
                       <TableCell className="text-right">
                         {r.breakevenMedio === null ? '—' : fmtBrl(r.breakevenMedio)}
                       </TableCell>
+                      <TableCell className={`text-right ${(r.mtmPerSackMedio ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {r.mtmPerSackMedio === null ? '—' : `${fmtBrl(r.mtmPerSackMedio)}/sc`}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.fisicoAlvoMedio === null ? '—' : `${fmtBrl(r.fisicoAlvoMedio)}/sc`}
+                      </TableCell>
                       <TableCell>{fmtDate(r.proximoVencimento)}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {r.mix.rascunho > 0 && (
                             <Badge variant="secondary" className="text-[10px]">Rasc {r.mix.rascunho}</Badge>
                           )}
-                          {r.mix.em_aprovacao > 0 && (
-                            <Badge variant="outline" className="text-[10px] border-yellow-500 text-yellow-500">Aprov {r.mix.em_aprovacao}</Badge>
+                          {r.mix.active > 0 && (
+                            <Badge className="text-[10px] bg-green-600 text-white">Ativa {r.mix.active}</Badge>
                           )}
-                          {r.mix.hedge > 0 && (
-                            <Badge variant="default" className="text-[10px]">Hedge {r.mix.hedge}</Badge>
+                          {r.mix.partial > 0 && (
+                            <Badge variant="outline" className="text-[10px] border-orange-500 text-orange-500">Parcial {r.mix.partial}</Badge>
                           )}
                           {r.mix.outros > 0 && (
                             <Badge variant="outline" className="text-[10px]">Outros {r.mix.outros}</Badge>
@@ -307,7 +354,7 @@ const ArmazensD24: React.FC = () => {
                   ))}
                   {rows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                         Nenhum armazém ativo.
                       </TableCell>
                     </TableRow>
