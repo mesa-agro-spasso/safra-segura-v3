@@ -1,71 +1,53 @@
-## Plano — 3 fixes em `src/pages/ArmazensD24.tsx`
+# Fluxo de Encerramento em 2 Etapas — `src/pages/OperacoesD24.tsx`
 
-Apenas um arquivo afetado. Sem novos imports externos além de UI primitives já existentes no projeto (Select, Popover, Checkbox) e ícone `Columns` do lucide-react.
+Substituir o `ClosingModal` único atual por um fluxo de duas etapas: **Plano de Encerramento** (com snapshot de MTM e validação de staleness de mercado) e **Registrar Encerramento** (cria ordens com `is_closing=true` referenciando as ordens originais).
 
-### Imports adicionados (topo)
-- `Select, SelectContent, SelectItem, SelectTrigger, SelectValue` de `@/components/ui/select`
-- `Popover, PopoverContent, PopoverTrigger` de `@/components/ui/popover`
-- `Checkbox` de `@/components/ui/checkbox`
-- Adicionar `Columns` ao import de `lucide-react`
+## Mudanças (apenas `src/pages/OperacoesD24.tsx`)
 
-### Fix 1 — Formatação defensiva da taxa de juros (`ConfigCard` › `costRow`)
-Linha ~579: substituir o template literal único por uma IIFE que detecta se `interest_rate` está em decimal (`<= 1`) ou já em percentual (`> 1`) e formata com `.toFixed(2)%` mais o sufixo `(period)` quando houver.
+### 1. Estados (componente principal)
+Adicionar:
+- `closingPlanOp` — controla `ClosingPlanModal`
+- `registerClosingOp` — controla `RegisterClosingModal`
 
-### Fix 2 — Filtros na aba Posição
-No componente principal (perto dos demais `useState`):
-- `const [filterWarehouse, setFilterWarehouse] = useState<string>('all');`
-- `const [filterCommodity, setFilterCommodity] = useState<string>('all');`
+Manter `closingOp` apenas se ainda referenciado em outro local; caso contrário, remover junto com o JSX antigo.
 
-Após o `useMemo` de `rows`:
-- `const filteredRows = useMemo(() => rows.filter(...), [rows, filterWarehouse, filterCommodity]);`
-  - exclui se `filterWarehouse !== 'all'` e id diferente
-  - exclui se `filterCommodity !== 'all'` e `r.commodities` não inclui o valor
+### 2. Query `closingSignaturesForOps`
+Nova query ao lado de `signaturesForOps` (linha ~689), filtrando `flow_type='CLOSING'` e devolvendo `Set` em `closingSignedOperationIds`.
 
-Substituir todos os usos de `rows` na renderização da aba Posição (cards de resumo agregados, `rows.map`, `rows.length === 0`, `rows.filter(r => r.ops.length > 0).length`, somatórios `volumeTotal`/`mtmTotal`, etc.) por `filteredRows`. O `selectedRow` continua usando `rows` (sheet de detalhe não é filtrado).
+### 3. `renderOpActions` (linha ~794)
+Substituir o ramo `ACTIVE | PARTIALLY_CLOSED`:
+- Sem `closing_plan` → botão **Encerrar** (abre `ClosingPlanModal`).
+- Com `closing_plan`:
+  - **Enviar Enc. p/ Assinatura** (oculto se já assinado CLOSING)
+  - **Registrar Encerramento** (abre `RegisterClosingModal`)
+  - **Cancelar Plano** (limpa `closing_plan`)
 
-Adicionar bloco de filtros logo no início do `<TabsContent value="posicao">`, antes do grid de cards de resumo:
-```tsx
-<div className="flex gap-3 flex-wrap">
-  <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>...</Select>
-  <Select value={filterCommodity} onValueChange={setFilterCommodity}>...</Select>
-</div>
-```
-Opções de praça vêm de `warehouses`. Commodities fixas: Soja / Milho.
+### 4. Handlers novos
+- `handleSendClosingForSignature` — insere `signatures` com `flow_type='CLOSING'`, invalida `closing-signatures-for-ops`.
+- `handleCancelClosingPlan` — `update operations set closing_plan = null`, invalida queries de operations.
 
-### Fix 3 — ColumnSelector na tabela "Posição por armazém"
-Copiar localmente, no escopo do módulo (antes do componente principal), o mesmo padrão de `OperacoesD24.tsx` (linhas 444–502):
-- `interface Col { key: string; label: string }`
-- `function usePersistedColumns(storageKey, columns, defaultKeys?)` — persiste `Set<string>` em `localStorage`
-- `const ColumnSelector` — Popover + Checkbox por coluna + botões "Todas" / "Nenhuma"
+### 5. `ClosingPlanModal` (novo, após `RegisterExecutionModal`)
+- Mostra MTM atual da operação (de `mtmSnapshots`) ou aviso se ausente.
+- Calcula idade dos dados de mercado; banner amarelo ≥2h, vermelho ≥24h.
+- Input de volume (default = `volume_sacks`, máx = volume), indica parcial vs total.
+- Campo notas.
+- Salva em `operations.closing_plan` JSON com snapshot do MTM, idade do mercado, requested_by/at, notes.
 
-Definir constante:
-```ts
-const ARMAZEM_COLUMNS: Col[] = [
-  { key: 'commodity', label: 'Commodity' },
-  { key: 'op_ativas', label: 'Op. ativas' },
-  { key: 'volume', label: 'Volume (sc)' },
-  { key: 'mtm_total', label: 'MTM Total' },
-  { key: 'breakeven', label: 'Break-even' },
-  { key: 'mtm_sc', label: 'MTM/sc' },
-  { key: 'fisico_alvo', label: 'Físico Alvo' },
-  { key: 'prox_venc', label: 'Próx. venc.' },
-  { key: 'status_mix', label: 'Status mix' },
-];
-```
+### 6. `RegisterClosingModal` (novo, após `ClosingPlanModal`)
+- Mostra resumo do `closing_plan`.
+- Lista as ordens abertas da operação (de `d24Orders` filtrando `operation_id` e `!is_closing`).
+- Pré-popula legs com direção invertida; campos editáveis: contratos, preço (ou `ndf_rate` para NDF), notas.
+- `CONTRACT_SIZE` = 450 (B3) / 5000 (CBOT); `volume_units = qty` (NDF) ou `qty * CONTRACT_SIZE` (futures/option).
+- Insere em `orders` com `is_closing=true`, `closes_order_id=order_id`, `stonex_confirmation_text` em todas as legs.
+- Após sucesso, limpa `closing_plan` na operação.
 
-No componente principal:
-```ts
-const armazemCols = usePersistedColumns('cols_armazens', ARMAZEM_COLUMNS);
-```
+### 7. JSX — substituir `<ClosingModal ... />` (linha ~1937)
+Renderizar `<ClosingPlanModal />` e `<RegisterClosingModal />` recebendo `mtmSnapshots`, `marketData`, `d24Orders`, `user?.id`. Invalidar `operations_with_details`, `operations` e (no register) `d24-orders-active` ao salvar/fechar.
 
-No `<CardHeader>` do card "Posição por armazém" (linha ~283), envolver o `<CardTitle>` num flex e adicionar `<ColumnSelector ... />` à direita.
+Remover `ClosingModal` antigo (declaração e props `closingOp`/`setClosingOp`) — confirmado que só é usado nesse JSX (linha 1937).
 
-Coluna **Armazém** permanece sempre visível (fora do selector). Cada `<TableHead>` e `<TableCell>` correspondente às chaves acima passa a ser condicionalmente renderizada com `{armazemCols.visible.has('key') && (...)}`.
-
-Atualizar `colSpan` da linha vazia (atualmente `colSpan={10}`, linha ~357) para `colSpan={1 + armazemCols.visible.size}`.
-
-### Restrições mantidas
-- Apenas `src/pages/ArmazensD24.tsx`
-- `usePersistedColumns` e `ColumnSelector` definidos localmente (cópia do padrão de `OperacoesD24.tsx`), não importados
-- Aba Configuração não tem mudança estrutural — apenas a IIFE em `costRow` para `interest_rate`
-- Sheet de detalhe não é tocado
+## Restrições respeitadas
+- Apenas `src/pages/OperacoesD24.tsx`.
+- Sem novos hooks, sem Edge Functions.
+- Reusa queries existentes (`d24Orders`, `mtmSnapshots`, `marketData`).
+- Sem cálculo financeiro no frontend (apenas snapshot do MTM já calculado).
