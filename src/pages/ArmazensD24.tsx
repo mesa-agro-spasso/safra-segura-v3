@@ -13,7 +13,82 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Separator } from '@/components/ui/separator';
-import { ChevronDown, ExternalLink, MapPin } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ChevronDown, ExternalLink, MapPin, Columns } from 'lucide-react';
+
+// ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
+
+interface Col { key: string; label: string; }
+
+function usePersistedColumns(storageKey: string, columns: Col[], defaultKeys?: string[]) {
+  const allKeys = useMemo(() => columns.map(c => c.key), [columns]);
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* noop */ }
+    return new Set(defaultKeys ?? allKeys);
+  });
+  const update = (next: Set<string>) => {
+    setVisible(next);
+    try { localStorage.setItem(storageKey, JSON.stringify([...next])); } catch { /* noop */ }
+  };
+  return { visible, setVisible: update };
+}
+
+const ColumnSelector: React.FC<{
+  columns: Col[];
+  visible: Set<string>;
+  onChange: (next: Set<string>) => void;
+}> = ({ columns, visible, onChange }) => {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8">
+          <Columns className="h-4 w-4 mr-1" />
+          Colunas
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-2 w-56" align="end">
+        <div className="flex gap-2 mb-2">
+          <Button size="sm" variant="ghost" className="h-7 text-xs flex-1"
+            onClick={() => onChange(new Set(columns.map(c => c.key)))}>Todas</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs flex-1"
+            onClick={() => onChange(new Set())}>Nenhuma</Button>
+        </div>
+        <div className="space-y-1 max-h-[260px] overflow-auto">
+          {columns.map(c => (
+            <label key={c.key} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-accent cursor-pointer">
+              <Checkbox
+                checked={visible.has(c.key)}
+                onCheckedChange={(v) => {
+                  const next = new Set(visible);
+                  if (v) next.add(c.key); else next.delete(c.key);
+                  onChange(next);
+                }}
+              />
+              <span className="text-xs">{c.label}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const ARMAZEM_COLUMNS: Col[] = [
+  { key: 'commodity', label: 'Commodity' },
+  { key: 'op_ativas', label: 'Op. ativas' },
+  { key: 'volume', label: 'Volume (sc)' },
+  { key: 'mtm_total', label: 'MTM Total' },
+  { key: 'breakeven', label: 'Break-even' },
+  { key: 'mtm_sc', label: 'MTM/sc' },
+  { key: 'fisico_alvo', label: 'Físico Alvo' },
+  { key: 'prox_venc', label: 'Próx. venc.' },
+  { key: 'status_mix', label: 'Status mix' },
+];
 
 // ───────────────────────── helpers (replicated locally) ─────────────────────────
 
