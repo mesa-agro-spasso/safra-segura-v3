@@ -678,9 +678,14 @@ const OperacoesD24: React.FC = () => {
   };
 
   const ordersForSelectedOperation = useMemo(() => {
-    if (!selectedOperation || !allOrders) return [];
-    return allOrders.filter(o => o.operation_id === selectedOperation.id);
-  }, [selectedOperation, allOrders]);
+    if (!selectedOperation || !d24Orders) return [];
+    return [...(d24Orders as any[]).filter(
+      (o: any) => o.operation_id === selectedOperation.id
+    )].sort((a, b) =>
+      new Date(a.executed_at ?? a.created_at).getTime() -
+      new Date(b.executed_at ?? b.created_at).getTime()
+    );
+  }, [selectedOperation, d24Orders]);
 
   // ── Signatures (batch for table actions)
   const operationIds = useMemo(

@@ -1,53 +1,60 @@
-# Fluxo de Encerramento em 2 Etapas — `src/pages/OperacoesD24.tsx`
+## Two fixes in `src/pages/OperacoesD24.tsx`
 
-Substituir o `ClosingModal` único atual por um fluxo de duas etapas: **Plano de Encerramento** (com snapshot de MTM e validação de staleness de mercado) e **Registrar Encerramento** (cria ordens com `is_closing=true` referenciando as ordens originais).
+Only this file is touched.
 
-## Mudanças (apenas `src/pages/OperacoesD24.tsx`)
+---
 
-### 1. Estados (componente principal)
-Adicionar:
-- `closingPlanOp` — controla `ClosingPlanModal`
-- `registerClosingOp` — controla `RegisterClosingModal`
+### Fix 1 — "Ordens Vinculadas" reads from `d24Orders`, not legacy `allOrders`
 
-Manter `closingOp` apenas se ainda referenciado em outro local; caso contrário, remover junto com o JSX antigo.
+**Problem.** `ordersForSelectedOperation` filters `allOrders` (the legacy `hedge_orders` table, empty in D24), so the Sheet's "Ordens Vinculadas" section is always empty.
 
-### 2. Query `closingSignaturesForOps`
-Nova query ao lado de `signaturesForOps` (linha ~689), filtrando `flow_type='CLOSING'` e devolvendo `Set` em `closingSignedOperationIds`.
+**Change A — Replace the memo (lines 680-683):**
 
-### 3. `renderOpActions` (linha ~794)
-Substituir o ramo `ACTIVE | PARTIALLY_CLOSED`:
-- Sem `closing_plan` → botão **Encerrar** (abre `ClosingPlanModal`).
-- Com `closing_plan`:
-  - **Enviar Enc. p/ Assinatura** (oculto se já assinado CLOSING)
-  - **Registrar Encerramento** (abre `RegisterClosingModal`)
-  - **Cancelar Plano** (limpa `closing_plan`)
+```typescript
+const ordersForSelectedOperation = useMemo(() => {
+  if (!selectedOperation || !d24Orders) return [];
+  return [...(d24Orders as any[]).filter(
+    (o: any) => o.operation_id === selectedOperation.id
+  )].sort((a, b) =>
+    new Date(a.executed_at ?? a.created_at).getTime() -
+    new Date(b.executed_at ?? b.created_at).getTime()
+  );
+}, [selectedOperation, d24Orders]);
+```
 
-### 4. Handlers novos
-- `handleSendClosingForSignature` — insere `signatures` com `flow_type='CLOSING'`, invalida `closing-signatures-for-ops`.
-- `handleCancelClosingPlan` — `update operations set closing_plan = null`, invalida queries de operations.
+**Change B — Replace the rendering inside the "Ordens Vinculadas" Section (lines 1768-1789).** New cards show: opening/closing badge, instrument type, direction, ticker, executed_at; plus per-row fields driven by `instrument_type`:
 
-### 5. `ClosingPlanModal` (novo, após `RegisterExecutionModal`)
-- Mostra MTM atual da operação (de `mtmSnapshots`) ou aviso se ausente.
-- Calcula idade dos dados de mercado; banner amarelo ≥2h, vermelho ≥24h.
-- Input de volume (default = `volume_sacks`, máx = volume), indica parcial vs total.
-- Campo notas.
-- Salva em `operations.closing_plan` JSON com snapshot do MTM, idade do mercado, requested_by/at, notes.
+- `futures`: contracts, volume_units (with `bu`/`sc` unit), price (`USD/bu` or `BRL/sc`)
+- `ndf`: volume_units (USD), `ndf_rate` (BRL/USD), `ndf_maturity`
+- `option`: option_type, strike, premium
+- Closing rows additionally show "Fecha ordem" (first 8 chars of `closes_order_id`)
+- `notes` rendered when present
 
-### 6. `RegisterClosingModal` (novo, após `ClosingPlanModal`)
-- Mostra resumo do `closing_plan`.
-- Lista as ordens abertas da operação (de `d24Orders` filtrando `operation_id` e `!is_closing`).
-- Pré-popula legs com direção invertida; campos editáveis: contratos, preço (ou `ndf_rate` para NDF), notas.
-- `CONTRACT_SIZE` = 450 (B3) / 5000 (CBOT); `volume_units = qty` (NDF) ou `qty * CONTRACT_SIZE` (futures/option).
-- Insere em `orders` com `is_closing=true`, `closes_order_id=order_id`, `stonex_confirmation_text` em todas as legs.
-- Após sucesso, limpa `closing_plan` na operação.
+Uses existing `fmtDate` / `fmtDateTime` helpers and `Badge`.
 
-### 7. JSX — substituir `<ClosingModal ... />` (linha ~1937)
-Renderizar `<ClosingPlanModal />` e `<RegisterClosingModal />` recebendo `mtmSnapshots`, `marketData`, `d24Orders`, `user?.id`. Invalidar `operations_with_details`, `operations` e (no register) `d24-orders-active` ao salvar/fechar.
+---
 
-Remover `ClosingModal` antigo (declaração e props `closingOp`/`setClosingOp`) — confirmado que só é usado nesse JSX (linha 1937).
+### Fix 2 — "Assinaturas" section: show signed AND missing roles, split by flow
 
-## Restrições respeitadas
-- Apenas `src/pages/OperacoesD24.tsx`.
-- Sem novos hooks, sem Edge Functions.
-- Reusa queries existentes (`d24Orders`, `mtmSnapshots`, `marketData`).
-- Sem cálculo financeiro no frontend (apenas snapshot do MTM já calculado).
+**Problem.** Section shows only collected signatures; user can't see who is still pending. Also opening vs closing signatures are mixed.
+
+**Change — Replace the body of the "Assinaturas" Section (lines 1793-1812)** with an IIFE that:
+
+1. Computes the required roles tier (`low` / `mid` / `high`) from `selectedOperation.volume_sacks` using the same constants/logic as `usePendingApprovalsCount` (KG_PER_SACK = 60; thresholds 500 t / 1000 t).
+2. Splits `operationSignatures` by `flow_type` into `OPENING` and `CLOSING`.
+3. For each flow, derives `collected` from `decision === 'APPROVE'` and `missing` via a `countBy` diff.
+4. Renders an "Abertura" subsection always; renders "Encerramento" subsection only when there are closing signatures OR `opD24.closing_plan != null` (separated by `<Separator />`).
+5. Each subsection shows:
+   - Status badges row: green `outline` chips for collected roles (with `✓`), muted `secondary` chips for missing roles.
+   - Signatory cards: `user_id.slice(0,8)`, decision badge (Aprovado/Rejeitado), `role_used · signed_at`, optional notes.
+
+`Separator` is already imported (line 40). `opD24` is already declared at line 1536 inside the Sheet scope, so it's reachable here.
+
+---
+
+### Out of scope / constraints
+
+- Only `src/pages/OperacoesD24.tsx`.
+- No new hooks, no new Edge Functions, no schema changes.
+- `d24Orders` and `operationSignatures` queries already exist — reused as-is.
+- No changes to action buttons, modals, or other Sections.
