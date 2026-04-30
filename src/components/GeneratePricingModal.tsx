@@ -134,6 +134,20 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         paymentDate = combo.payment_date;
       }
 
+      // PROTEÇÃO: payment_date deve ser estritamente futuro (T>0 no Black-76).
+      // Se for hoje ou passado, avança para a próxima terça-feira útil.
+      {
+        const pd = new Date(paymentDate);
+        const today = new Date();
+        pd.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        if (pd <= today) {
+          const next = format(getNextTuesday(new Date()), 'yyyy-MM-dd');
+          toast.info(`${combo.ticker}/${warehouse.display_name}: pagamento ${paymentDate} ajustado para ${next} (data já vencida)`);
+          paymentDate = next;
+        }
+      }
+
       // Resolve grain_reception_date
       const grainReceptionDate = combo.grain_reception_date ?? paymentDate;
 
@@ -191,13 +205,6 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
     setGenerating(true);
     try {
-      // Warm-up ping to wake Render from cold start
-      try {
-        await callApi('/market/quotes', undefined, { method: 'GET', query: { tickers: 'USD/BRL' } });
-      } catch {
-        // Ignore warm-up errors — server may already be awake
-      }
-
       const result = await callApi<{ results: Record<string, unknown>[] }>('/pricing/table', {
         combinations: payload,
       });
