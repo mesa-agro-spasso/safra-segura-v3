@@ -6,7 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
 import { supabase } from '@/integrations/supabase/client';
-import logo from '/logo-spasso.png';
+import logoLight from '/logo-spasso.png';
+import logoDark from '/logo-spasso-dark.png';
 import iconCollapsed from '/icon-48x48.png';
 import {
   Sidebar,
@@ -65,9 +66,12 @@ export function AppSidebar() {
         <SidebarGroup>
           <div className={`flex items-center justify-center ${collapsed ? 'py-3' : 'py-4 px-3'}`}>
             {collapsed ? (
-              <img src={iconCollapsed} alt="Safra Segura" className="w-8 h-8 object-contain" />
+              <img src={iconCollapsed} alt="Grupo Spasso" className="w-8 h-8 object-contain" />
             ) : (
-              <img src={logo} alt="Grupo Spasso" className="w-36 object-contain" />
+              <>
+                <img src={logoLight} alt="Grupo Spasso" className="w-36 object-contain block dark:hidden" />
+                <img src={logoDark} alt="Grupo Spasso" className="w-36 object-contain hidden dark:block" />
+              </>
             )}
           </div>
           <SidebarGroupContent>
