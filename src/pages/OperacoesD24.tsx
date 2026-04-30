@@ -704,6 +704,24 @@ const OperacoesD24: React.FC = () => {
     [signaturesForOps]
   );
 
+  const { data: closingSignaturesForOps } = useQuery({
+    queryKey: ['closing-signatures-for-ops', operationIds],
+    enabled: operationIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('signatures' as any)
+        .select('operation_id')
+        .in('operation_id', operationIds)
+        .eq('flow_type', 'CLOSING');
+      if (error) throw error;
+      return (data ?? []) as unknown as { operation_id: string }[];
+    },
+  });
+  const closingSignedOperationIds = useMemo(
+    () => new Set((closingSignaturesForOps ?? []).map(s => s.operation_id)),
+    [closingSignaturesForOps]
+  );
+
   // ── Signatures for the selected operation (Sheet detail)
   const { data: operationSignatures } = useQuery({
     queryKey: ['signatures', selectedOperation?.id],
