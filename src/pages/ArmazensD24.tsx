@@ -177,6 +177,9 @@ const ArmazensD24: React.FC = () => {
 
   const [tab, setTab] = useState<'posicao' | 'config'>('posicao');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
+  const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
+  const [filterCommodity, setFilterCommodity] = useState<string>('all');
+  const armazemCols = usePersistedColumns('cols_armazens', ARMAZEM_COLUMNS);
 
   const executionSpread = pricingParameters?.[0]?.execution_spread_pct ?? 0.05;
 
