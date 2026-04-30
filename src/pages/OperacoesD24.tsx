@@ -2011,15 +2011,33 @@ const OperacoesD24: React.FC = () => {
         }}
       />
 
-      {/* ── Closing Modal ── */}
-      <ClosingModal
-        operation={closingOp}
-        operations={(rawOperations ?? []) as unknown as { id: string; warehouse_id: string; commodity: string; volume_sacks: number; status: string; display_code?: string | null }[]}
-        allOrders={allOrders ?? []}
+      {/* ── Closing Plan Modal ── */}
+      <ClosingPlanModal
+        operation={closingPlanOp}
         mtmSnapshots={mtmSnapshots ?? []}
-        onClose={() => setClosingOp(null)}
+        marketData={marketData ?? []}
+        userId={user?.id ?? null}
+        onClose={() => setClosingPlanOp(null)}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+          queryClient.invalidateQueries({ queryKey: ['operations'] });
+          setClosingPlanOp(null);
+        }}
       />
 
+      {/* ── Register Closing Modal ── */}
+      <RegisterClosingModal
+        operation={registerClosingOp}
+        d24Orders={d24Orders ?? []}
+        userId={user?.id ?? null}
+        onClose={() => setRegisterClosingOp(null)}
+        onClosed={() => {
+          queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+          queryClient.invalidateQueries({ queryKey: ['operations'] });
+          queryClient.invalidateQueries({ queryKey: ['d24-orders-active'] });
+          setRegisterClosingOp(null);
+        }}
+      />
       {/* ── Edit Hedge Plan Dialog ── */}
       <Dialog open={!!editPlanOp} onOpenChange={(o) => { if (!o) setEditPlanOp(null); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
