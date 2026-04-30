@@ -780,6 +780,42 @@ const OperacoesD24: React.FC = () => {
     }
   };
 
+  const handleSendClosingForSignature = async (op: OperationWithDetails) => {
+    if (!user?.id) return;
+    try {
+      const { error } = await supabase
+        .from('signatures' as any)
+        .insert({
+          operation_id: op.id,
+          flow_type: 'CLOSING',
+          user_id: user.id,
+          role_used: 'mesa',
+          decision: 'APPROVE',
+          signed_at: new Date().toISOString(),
+        } as never);
+      if (error) throw new Error(error.message ?? JSON.stringify(error));
+      toast.success('Encerramento enviado para assinatura');
+      queryClient.invalidateQueries({ queryKey: ['closing-signatures-for-ops'] });
+    } catch (e) {
+      toast.error('Erro: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
+
+  const handleCancelClosingPlan = async (op: OperationWithDetails) => {
+    try {
+      const { error } = await supabase
+        .from('operations' as any)
+        .update({ closing_plan: null } as never)
+        .eq('id', op.id);
+      if (error) throw new Error(error.message ?? JSON.stringify(error));
+      toast.success('Plano de encerramento cancelado');
+      queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+      queryClient.invalidateQueries({ queryKey: ['operations'] });
+    } catch (e) {
+      toast.error('Erro: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
+
   const renderOpActions = (op: OperationWithDetails) => {
     const status = op.status;
     const isDraft = status === 'DRAFT' || status === 'RASCUNHO';
@@ -811,11 +847,34 @@ const OperacoesD24: React.FC = () => {
       );
     }
     if (status === 'ACTIVE' || status === 'PARTIALLY_CLOSED') {
+      const opD24 = op as any;
+      const hasClosingPlan = !!opD24.closing_plan;
+      const hasClosingSignature = closingSignedOperationIds.has(op.id);
+      if (!hasClosingPlan) {
+        return (
+          <div className="flex gap-1">
+            <Button size="sm" variant="outline" className="h-7 text-xs"
+              onClick={() => setClosingPlanOp(op)}>
+              Encerrar
+            </Button>
+          </div>
+        );
+      }
       return (
-        <div className="flex gap-1">
-          <Button size="sm" variant="outline" className="h-7 text-xs"
-            onClick={() => setClosingOp(op)}>
-            Encerrar
+        <div className="flex flex-wrap gap-1">
+          {!hasClosingSignature && (
+            <Button size="sm" variant="secondary" className="h-7 text-xs"
+              onClick={() => handleSendClosingForSignature(op)}>
+              Enviar Enc. p/ Assinatura
+            </Button>
+          )}
+          <Button size="sm" variant="default" className="h-7 text-xs"
+            onClick={() => setRegisterClosingOp(op)}>
+            Registrar Encerramento
+          </Button>
+          <Button size="sm" variant="destructive" className="h-7 text-xs"
+            onClick={() => handleCancelClosingPlan(op)}>
+            Cancelar Plano
           </Button>
         </div>
       );
