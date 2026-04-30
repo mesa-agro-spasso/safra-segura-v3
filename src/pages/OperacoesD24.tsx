@@ -563,14 +563,14 @@ const OperacoesD24: React.FC = () => {
   const { data: pricingParameters } = usePricingParameters();
   const { data: pricingSnapshots = [] } = usePricingSnapshots();
 
-  // D24 orders (open positions) for MTM tab
+  // D24 orders (all: opening + closing) for MTM tab
   const { data: d24Orders } = useQuery({
-    queryKey: ['d24-orders-active'],
+    queryKey: ['d24-orders-all'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('orders' as any)
         .select('*')
-        .eq('is_closing', false);
+        .order('executed_at', { ascending: true });
       if (error) throw error;
       return (data ?? []) as any[];
     },
