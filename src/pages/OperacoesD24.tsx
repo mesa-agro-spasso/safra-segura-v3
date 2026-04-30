@@ -2181,7 +2181,7 @@ const OperacoesD24: React.FC = () => {
         onClosed={() => {
           queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
           queryClient.invalidateQueries({ queryKey: ['operations'] });
-          queryClient.invalidateQueries({ queryKey: ['d24-orders-active'] });
+          queryClient.invalidateQueries({ queryKey: ['d24-orders-all'] });
           setRegisterClosingOp(null);
         }}
       />
