@@ -30,6 +30,10 @@ const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'second
   ENCERRADA: { label: 'Encerrada', variant: 'secondary' },
   CANCELADA: { label: 'Cancelada', variant: 'destructive' },
   REPROVADA: { label: 'Reprovada', variant: 'destructive' },
+  ACTIVE: { label: 'Ativa', variant: 'default', className: 'bg-green-600 text-white' },
+  PARTIALLY_CLOSED: { label: 'Parcial. Encerrada', variant: 'outline', className: 'border-orange-500 text-orange-500' },
+  CLOSED: { label: 'Encerrada', variant: 'secondary' },
+  CANCELLED: { label: 'Cancelada', variant: 'destructive' },
 };
 
 const STATUS_ORDER: Record<string, number> = {
@@ -45,11 +49,16 @@ const STATUS_ORDER: Record<string, number> = {
   ENCERRADA: 98,
   CANCELADA: 99,
   REPROVADA: 99,
+  ACTIVE: 3,
+  PARTIALLY_CLOSED: 4,
+  CLOSED: 98,
+  CANCELLED: 99,
 };
 
 const ACTIVE_STATUSES = new Set([
   'RASCUNHO', 'DRAFT', 'SUBMETIDA', 'EM_APROVACAO', 'APROVADA',
-  'HEDGE_CONFIRMADO', 'ENCERRAMENTO_SOLICITADO', 'ENCERRAMENTO_APROVADO', 'MONITORAMENTO',
+  'HEDGE_CONFIRMADO', 'ENCERRAMENTO_SOLICITADO', 'ENCERRAMENTO_APROVADO',
+  'MONITORAMENTO', 'ACTIVE', 'PARTIALLY_CLOSED',
 ]);
 
 const fmtDate = (d?: string | null) =>
