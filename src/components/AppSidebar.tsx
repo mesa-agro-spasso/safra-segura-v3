@@ -6,8 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
 import { supabase } from '@/integrations/supabase/client';
-import logo from '/logo-safra-segura.png';
-import logoLight from '/logo-safra-segura-light.png';
+import logo from '/logo-spasso.png';
 import iconCollapsed from '/icon-48x48.png';
 import {
   Sidebar,
@@ -68,10 +67,7 @@ export function AppSidebar() {
             {collapsed ? (
               <img src={iconCollapsed} alt="Safra Segura" className="w-8 h-8 object-contain" />
             ) : (
-              <>
-                <img src={logoLight} alt="Safra Segura" className="w-36 object-contain block dark:hidden" />
-                <img src={logo} alt="Safra Segura" className="w-36 object-contain hidden dark:block" />
-              </>
+              <img src={logo} alt="Grupo Spasso" className="w-36 object-contain" />
             )}
           </div>
           <SidebarGroupContent>
