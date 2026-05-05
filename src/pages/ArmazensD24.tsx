@@ -20,6 +20,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import type { AllocateBatchResponse } from '@/types/d24';
 
 // ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
 
@@ -188,6 +193,7 @@ const BtStatusDot: React.FC<{ date: string; label: string }> = ({ date, label })
 
 const ArmazensD24: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: allWarehousesRaw = [] } = useWarehouses();
   const { data: activeArmazens = [] } = useActiveArmazens();
   const { data: operations = [] } = useOperationsWithDetails();
@@ -206,9 +212,9 @@ const ArmazensD24: React.FC = () => {
   const [btExchange, setBtExchange] = useState<'cbot' | 'b3' | ''>('');
   const [btVolume, setBtVolume] = useState('');
   const [btStrategy, setBtStrategy] = useState<'MAX_PROFIT' | 'MAX_LOSS' | 'PROPORTIONAL' | ''>('');
-  const [btProposals, setBtProposals] = useState<unknown>(null);
+  const [btProposals, setBtProposals] = useState<AllocateBatchResponse | null>(null);
   const [btWarnings, setBtWarnings] = useState<string[]>([]);
-  const [btLoading] = useState(false);
+  const [btLoading, setBtLoading] = useState(false);
   const [btExecutionOpen, setBtExecutionOpen] = useState(false);
 
   useEffect(() => {
@@ -252,6 +258,113 @@ const ArmazensD24: React.FC = () => {
     if (!dates.length) return null;
     return dates.sort((a, b) => b.localeCompare(a))[0];
   }, [btWarehouse, operations, latestByOpId]);
+
+  // Block Trade — orders for eligible operations of selected warehouse+commodity
+  const { data: btD24Orders = [] } = useQuery({
+    queryKey: ['d24-orders-for-bt', btWarehouse, btCommodity],
+    enabled: !!btWarehouse && !!btCommodity,
+    queryFn: async () => {
+      const eligibleOpIds = (operations ?? [])
+        .filter(op =>
+          op.warehouse_id === btWarehouse &&
+          op.commodity === btCommodity &&
+          (op.status === 'ACTIVE' || op.status === 'PARTIALLY_CLOSED')
+        )
+        .map(op => op.id);
+      if (!eligibleOpIds.length) return [];
+      const { data, error } = await (supabase as unknown as { from: (t: string) => { select: (s: string) => { in: (col: string, ids: string[]) => { order: (c: string, opts: { ascending: boolean }) => Promise<{ data: unknown; error: unknown }> } } } })
+        .from('orders')
+        .select('*')
+        .in('operation_id', eligibleOpIds)
+        .order('executed_at', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Record<string, unknown>[];
+    },
+  });
+
+  const handleBtAllocate = async () => {
+    if (!btWarehouse || !btCommodity || !btExchange || !btVolume || !btStrategy) {
+      toast.error('Preencha todos os campos antes de calcular');
+      return;
+    }
+    const targetVolume = parseFloat(btVolume);
+    if (!(targetVolume > 0)) {
+      toast.error('Volume inválido');
+      return;
+    }
+
+    const eligibleOps = (operations ?? []).filter(op =>
+      op.warehouse_id === btWarehouse &&
+      op.commodity === btCommodity &&
+      (op.status === 'ACTIVE' || op.status === 'PARTIALLY_CLOSED')
+    );
+
+    if (!eligibleOps.length) {
+      toast.error('Nenhuma operação ativa para este armazém e commodity');
+      return;
+    }
+
+    setBtLoading(true);
+    setBtProposals(null);
+    setBtWarnings([]);
+
+    try {
+      const operationSummaries = eligibleOps.map(op => {
+        const opOrders = (btD24Orders as Record<string, unknown>[]).filter(o => o.operation_id === op.id);
+        const snap = latestByOpId[op.id];
+        return {
+          operation_id: op.id,
+          display_code: (op as { display_code?: string }).display_code ?? op.id.slice(0, 8),
+          volume_sacks: op.volume_sacks,
+          mtm_total_brl: snap?.mtm_total_brl ?? undefined,
+          existing_orders: opOrders.map((o) => ({
+            operation_id: o.operation_id,
+            instrument_type: o.instrument_type,
+            direction: o.direction,
+            currency: o.currency,
+            contracts: o.contracts,
+            volume_units: o.volume_units,
+            is_closing: o.is_closing ?? false,
+            executed_at: o.executed_at,
+            executed_by: o.executed_by,
+            ticker: o.ticker ?? undefined,
+            price: o.price ?? undefined,
+            ndf_rate: o.ndf_rate ?? undefined,
+            ndf_maturity: o.ndf_maturity ?? undefined,
+            option_type: o.option_type ?? undefined,
+            strike: o.strike ?? undefined,
+            premium: o.premium ?? undefined,
+            expiration_date: o.expiration_date ?? undefined,
+            is_counterparty_insurance: o.is_counterparty_insurance ?? false,
+          })),
+        };
+      });
+
+      const { data, error } = await supabase.functions.invoke('api-proxy', {
+        body: {
+          endpoint: '/closing-batches/allocate',
+          body: {
+            warehouse_id: btWarehouse,
+            commodity: btCommodity,
+            exchange: btExchange,
+            target_volume_sacks: targetVolume,
+            strategy: btStrategy,
+            operations: operationSummaries,
+          },
+        },
+      });
+
+      if (error) throw new Error(error.message ?? JSON.stringify(error));
+      const resp = data as AllocateBatchResponse;
+      if (resp?.warnings?.length) setBtWarnings(resp.warnings);
+      setBtProposals(resp);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error('Erro ao calcular proposta: ' + msg);
+    } finally {
+      setBtLoading(false);
+    }
+  };
 
   // Per-warehouse aggregates
   const rows = useMemo(() => {
@@ -665,7 +778,7 @@ const ArmazensD24: React.FC = () => {
                 <Button
                   className="w-full"
                   disabled={!btWarehouse || !btCommodity || !btVolume || !btStrategy || btLoading}
-                  onClick={() => { /* conectar no Lote 2B */ }}
+                  onClick={handleBtAllocate}
                 >
                   {btLoading
                     ? <><span className="animate-spin mr-2">⟳</span>Calculando...</>
@@ -706,12 +819,60 @@ const ArmazensD24: React.FC = () => {
                   </div>
                 )}
 
-                {/* Tabela placeholder */}
+                {/* Tabela de propostas */}
                 {btProposals && (
                   <>
-                    <p className="text-sm text-muted-foreground">
-                      Propostas carregadas — implementação completa no próximo lote.
-                    </p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        {btProposals.proposals.length} operação(ões) · estratégia{' '}
+                        <span className="font-medium text-foreground">{btProposals.strategy_used}</span>
+                      </span>
+                      <span className="font-medium">
+                        Total: {btProposals.total_volume_allocated_sacks.toLocaleString('pt-BR')} sc
+                      </span>
+                    </div>
+
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Operação</TableHead>
+                          <TableHead className="text-right">Disponível (sc)</TableHead>
+                          <TableHead className="text-right">A fechar (sc)</TableHead>
+                          <TableHead className="text-right">MTM usado</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {btProposals.proposals.map((p, i) => (
+                          <TableRow key={`${p.operation_id}-${i}`}>
+                            <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                            <TableCell className="text-right">
+                              {p.current_volume_sacks.toLocaleString('pt-BR')}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {p.volume_to_close_sacks.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {p.mtm_at_allocation !== null && p.mtm_at_allocation !== undefined
+                                ? fmtBrl(p.mtm_at_allocation)
+                                : '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+
+                    {btProposals.proposals.some(p => p.allocation_reason?.includes('Warning')) && (
+                      <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 space-y-1">
+                        {btProposals.proposals.map((p, i) =>
+                          p.allocation_reason?.includes('Warning') ? (
+                            <p key={`warn-${i}`} className="text-xs text-yellow-700 dark:text-yellow-300">
+                              ⚠ <span className="font-mono">{p.display_code}</span>: {p.allocation_reason}
+                            </p>
+                          ) : null
+                        )}
+                      </div>
+                    )}
+
                     <Button
                       className="w-full"
                       onClick={() => setBtExecutionOpen(true)}
