@@ -169,6 +169,9 @@ export default function Approvals() {
   const [filterPaymentFrom, setFilterPaymentFrom] = useState<string>('');
   const [filterPaymentTo, setFilterPaymentTo] = useState<string>('');
 
+  const pendingCols = usePersistedColumns('cols_approvals_pending', APPROVAL_COLUMNS);
+  const signedCols = usePersistedColumns('cols_approvals_signed', APPROVAL_COLUMNS);
+
   // 1. Roles do usuário logado
   const { data: userRoles = [] } = useQuery({
     queryKey: ['current-user-roles', user?.id],
