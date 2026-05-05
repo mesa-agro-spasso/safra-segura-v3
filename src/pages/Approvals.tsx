@@ -124,30 +124,64 @@ export default function Approvals() {
     },
   });
 
-  // 3. Operações DRAFT com assinatura OPENING já enviada (D24)
-  const { data: operations = [] } = useQuery({
-    queryKey: ['pending-operations-d24'],
+  // 3. Eventos de assinatura: uma entrada por (operation_id, flow_type, batch_id)
+  const { data: events = [] } = useQuery<SignatureEvent[]>({
+    queryKey: ['signature-events'],
     queryFn: async () => {
       const { data: sigs, error: sigErr } = await (supabase as any)
         .from('signatures')
-        .select('operation_id')
-        .eq('flow_type', 'OPENING');
+        .select('operation_id, flow_type, batch_id');
       if (sigErr) throw sigErr;
-      const ids = [...new Set((sigs ?? []).map((s: any) => s.operation_id as string))];
-      if (!ids.length) return [];
-      const { data, error } = await (supabase as any)
-        .from('operations')
-        .select('*, warehouses(display_name), pricing_snapshots(payment_date)')
-        .in('id', ids);
-      if (error) throw error;
-      return data ?? [];
+
+      const seen = new Set<string>();
+      const groups: { operationId: string; flowType: 'OPENING' | 'CLOSING'; batchId: string | null }[] = [];
+      for (const s of (sigs ?? []) as any[]) {
+        const batchId = (s.batch_id ?? null) as string | null;
+        const flowType = s.flow_type as 'OPENING' | 'CLOSING';
+        const key = `${s.operation_id}:${flowType}:${batchId ?? 'none'}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        groups.push({ operationId: s.operation_id, flowType, batchId });
+      }
+      if (!groups.length) return [];
+
+      const opIds = [...new Set(groups.filter((g) => !g.batchId).map((g) => g.operationId))];
+      const batchIds = [...new Set(groups.filter((g) => g.batchId).map((g) => g.batchId as string))];
+
+      const [opsRes, batchesRes] = await Promise.all([
+        opIds.length
+          ? (supabase as any)
+              .from('operations')
+              .select('*, warehouses(display_name), pricing_snapshots(payment_date)')
+              .in('id', opIds)
+          : Promise.resolve({ data: [], error: null }),
+        batchIds.length
+          ? (supabase as any)
+              .from('warehouse_closing_batches')
+              .select('id, warehouse_id, commodity, total_volume_sacks, allocation_strategy, status, created_at, warehouses(display_name)')
+              .in('id', batchIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (opsRes.error) throw opsRes.error;
+      if (batchesRes.error) throw batchesRes.error;
+
+      const opMap = new Map<string, any>((opsRes.data ?? []).map((o: any) => [o.id, o]));
+      const batchMap = new Map<string, any>((batchesRes.data ?? []).map((b: any) => [b.id, b]));
+
+      return groups.map((g) => ({
+        operationId: g.operationId,
+        flowType: g.flowType,
+        batchId: g.batchId,
+        operation: g.batchId ? undefined : opMap.get(g.operationId),
+        batch: g.batchId ? batchMap.get(g.batchId) : undefined,
+      })) as SignatureEvent[];
     },
     staleTime: 0,
   });
 
   const operationIds = useMemo(
-    () => (operations as any[]).map((o: any) => o.id as string),
-    [operations]
+    () => [...new Set(events.map((e) => e.operationId))],
+    [events]
   );
 
   // 4. Signatures
@@ -167,43 +201,59 @@ export default function Approvals() {
   const effectivePolicy = policy ?? { threshold_x_tons: Infinity, threshold_y_tons: 0 };
 
   const allRows = useMemo(() => {
-    return operations.map((op: any) => {
-      const opSignatures = signatures.filter((s: any) => s.operation_id === op.id);
-      const collected = opSignatures.map((s: any) => s.role_used);
-      const userAlreadySigned = opSignatures.some(
-        (s: any) => s.user_id === user?.id && s.decision === 'APPROVE'
-      );
+    return events
+      .map((ev) => {
+        const isBatch = ev.batchId != null;
+        const src = isBatch ? ev.batch : ev.operation;
+        if (!src) return null;
 
-      const volumeSacks = Number(op.volume_sacks ?? 0);
-      const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
-      const required = getRequiredRoles(volumeTons, effectivePolicy as any);
-      const missing = getMissingRoles(required, collected);
-      const availableForUser = userRoles.filter((r) => missing.includes(r));
+        const opSignatures = signatures.filter(
+          (s: any) =>
+            s.operation_id === ev.operationId &&
+            s.flow_type === ev.flowType &&
+            (s.batch_id ?? null) === ev.batchId
+        );
+        const approveSigs = opSignatures.filter((s: any) => s.decision === 'APPROVE');
+        const collected = approveSigs.map((s: any) => s.role_used);
+        const userAlreadySigned = approveSigs.some((s: any) => s.user_id === user?.id);
 
-      const originationPrice = Number(op.origination_price_brl ?? 0);
-      const valueBRL = volumeSacks * originationPrice;
+        const volumeSacks = Number(
+          (isBatch ? src.total_volume_sacks : src.volume_sacks) ?? 0
+        );
+        const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
+        const required = getRequiredRoles(volumeTons, effectivePolicy as any);
+        const missing = getMissingRoles(required, collected);
+        const availableForUser = userRoles.filter((r) => missing.includes(r));
 
-      return {
-        operationId: op.id,
-        displayCode: op.display_code ?? op.id.slice(0, 8),
-        isClosing: false,
-        status: op.status as string,
-        warehouse: op.warehouses?.display_name ?? '—',
-        commodity: op.commodity as string,
-        volumeSacks,
-        valueBRL,
-        paymentDate: (op.pricing_snapshots?.payment_date ?? null) as string | null,
-        collected,
-        required,
-        missing,
-        availableForUser,
-        userAlreadySigned,
-      };
-    });
-  }, [operations, signatures, userRoles, effectivePolicy, user?.id]);
+        const valueBRL = isBatch ? 0 : volumeSacks * Number(src.origination_price_brl ?? 0);
+
+        return {
+          eventKey: `${ev.operationId}:${ev.flowType}:${ev.batchId ?? 'none'}`,
+          operationId: ev.operationId,
+          batchId: ev.batchId,
+          flowType: ev.flowType,
+          isBatch,
+          displayCode: isBatch
+            ? `BATCH-${(ev.batchId as string).slice(0, 8)}`
+            : (src.display_code ?? ev.operationId.slice(0, 8)),
+          status: src.status as string,
+          warehouse: src.warehouses?.display_name ?? '—',
+          commodity: src.commodity as string,
+          volumeSacks,
+          valueBRL,
+          paymentDate: isBatch ? null : ((src.pricing_snapshots?.payment_date ?? null) as string | null),
+          collected,
+          required,
+          missing,
+          availableForUser,
+          userAlreadySigned,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+  }, [events, signatures, userRoles, effectivePolicy, user?.id]);
 
   const pendingRows = useMemo(
-    () => allRows.filter((r) => r.status === 'DRAFT' && !r.userAlreadySigned && r.availableForUser.length > 0),
+    () => allRows.filter((r) => !r.userAlreadySigned && r.availableForUser.length > 0),
     [allRows]
   );
 
