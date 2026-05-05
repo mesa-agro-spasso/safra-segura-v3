@@ -980,4 +980,28 @@ const ConfigCard: React.FC<{
   );
 };
 
+const BlockTradeExecutionModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+}> = ({ open, onClose }) => (
+  <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Ajustar e Executar Block Trade</DialogTitle>
+      </DialogHeader>
+      <div className="flex flex-col items-center justify-center py-8 space-y-3 text-center">
+        <div className="rounded-full bg-muted p-4">
+          <Calculator className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Modal de execução — implementação completa no Lote 2C.
+        </p>
+      </div>
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={onClose}>Fechar</Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+);
+
 export default ArmazensD24;
