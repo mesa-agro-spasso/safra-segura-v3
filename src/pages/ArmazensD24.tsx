@@ -842,6 +842,11 @@ const ArmazensD24: React.FC = () => {
           )}
         </SheetContent>
       </Sheet>
+
+      <BlockTradeExecutionModal
+        open={btExecutionOpen}
+        onClose={() => setBtExecutionOpen(false)}
+      />
     </div>
   );
 };
