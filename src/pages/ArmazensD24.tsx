@@ -1269,6 +1269,128 @@ const ArmazensD24: React.FC = () => {
         </SheetContent>
       </Sheet>
 
+      {/* ── Sheet de detalhe do batch ── */}
+      <Sheet
+        open={!!btSelectedBatch}
+        onOpenChange={(o) => { if (!o) setBtSelectedBatch(null); }}
+      >
+        <SheetContent className="sm:max-w-2xl w-full overflow-y-auto">
+          {btSelectedBatch && (
+            <>
+              <SheetHeader>
+                <SheetTitle>
+                  <div className="flex items-center gap-2">
+                    <span>Batch — {btSelectedBatch.warehouses?.display_name ?? btSelectedBatch.warehouse_id}</span>
+                    <Badge variant="outline" className="text-[10px]">{btSelectedBatch.status}</Badge>
+                  </div>
+                </SheetTitle>
+                <p className="text-xs text-muted-foreground">
+                  {fmtDate(btSelectedBatch.created_at?.slice(0, 10))} · {btSelectedBatch.commodity} · {btSelectedBatch.allocation_strategy}
+                </p>
+              </SheetHeader>
+
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Volume Total</p>
+                    <p className="text-lg font-semibold">
+                      {Number(btSelectedBatch.total_volume_sacks).toLocaleString('pt-BR')} <span className="text-xs text-muted-foreground">sc</span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Operações</p>
+                    <p className="text-lg font-semibold">{btSelectedBatch.affected_operations_count ?? 0}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {btSelectedBatch.cancellation_reason && (
+                <div className="mt-3 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs">
+                  <span className="font-medium">Motivo do cancelamento:</span> {btSelectedBatch.cancellation_reason}
+                </div>
+              )}
+
+              {btSelectedBatch.mtm_staleness_warning && (
+                <div className="mt-3 rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 text-xs text-yellow-700 dark:text-yellow-300">
+                  ⚠ MTM com dados desatualizados no momento da criação do batch.
+                </div>
+              )}
+
+              <Separator className="my-4" />
+
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Operações afetadas
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Operação</TableHead>
+                    <TableHead className="text-right">Volume total (sc)</TableHead>
+                    <TableHead className="text-right">A fechar (sc)</TableHead>
+                    <TableHead className="text-right">MTM usado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(btSelectedBatch.allocation_snapshot ?? []).map((p: any, i: number) => (
+                    <TableRow key={`${p.operation_id}-${i}`}>
+                      <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                      <TableCell className="text-right">
+                        {Number(p.current_volume_sacks).toLocaleString('pt-BR')}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {p.mtm_at_allocation !== null && p.mtm_at_allocation !== undefined
+                          ? fmtBrl(p.mtm_at_allocation)
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* ── Dialog de cancelamento ── */}
+      <Dialog
+        open={!!btCancelTarget}
+        onOpenChange={(o) => { if (!o) { setBtCancelTarget(null); setBtCancelReason(''); } }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar Batch</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Armazém: <span className="font-medium text-foreground">{btCancelTarget?.warehouses?.display_name}</span> ·{' '}
+              Volume: <span className="font-medium text-foreground">{Number(btCancelTarget?.total_volume_sacks ?? 0).toLocaleString('pt-BR')} sc</span>
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Motivo (obrigatório)</Label>
+              <Textarea
+                value={btCancelReason}
+                onChange={(e) => setBtCancelReason(e.target.value)}
+                placeholder="Descreva o motivo do cancelamento..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setBtCancelTarget(null); setBtCancelReason(''); }} disabled={btSubmitting}>
+              Voltar
+            </Button>
+            <Button variant="destructive" onClick={handleBtCancel} disabled={!btCancelReason.trim() || btSubmitting}>
+              {btSubmitting ? 'Cancelando...' : 'Confirmar Cancelamento'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <BlockTradeExecutionModal
         open={btExecutionOpen}
         onClose={() => setBtExecutionOpen(false)}
