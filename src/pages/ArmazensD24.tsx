@@ -193,6 +193,7 @@ const BtStatusDot: React.FC<{ date: string; label: string }> = ({ date, label })
 
 const ArmazensD24: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: allWarehousesRaw = [] } = useWarehouses();
   const { data: activeArmazens = [] } = useActiveArmazens();
   const { data: operations = [] } = useOperationsWithDetails();
