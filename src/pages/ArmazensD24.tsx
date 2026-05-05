@@ -11,16 +11,17 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle, List, Plus, Send, X, ChevronRight } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -194,6 +195,7 @@ const BtStatusDot: React.FC<{ date: string; label: string }> = ({ date, label })
 const ArmazensD24: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: allWarehousesRaw = [] } = useWarehouses();
   const { data: activeArmazens = [] } = useActiveArmazens();
   const { data: operations = [] } = useOperationsWithDetails();
@@ -216,6 +218,11 @@ const ArmazensD24: React.FC = () => {
   const [btWarnings, setBtWarnings] = useState<string[]>([]);
   const [btLoading, setBtLoading] = useState(false);
   const [btExecutionOpen, setBtExecutionOpen] = useState(false);
+  const [btView, setBtView] = useState<'list' | 'new'>('list');
+  const [btSelectedBatch, setBtSelectedBatch] = useState<any>(null);
+  const [btCancelTarget, setBtCancelTarget] = useState<any>(null);
+  const [btCancelReason, setBtCancelReason] = useState('');
+  const [btSubmitting, setBtSubmitting] = useState(false);
 
   useEffect(() => {
     if (btCommodity === 'soybean') setBtExchange('cbot');
@@ -366,7 +373,121 @@ const ArmazensD24: React.FC = () => {
     }
   };
 
-  // Per-warehouse aggregates
+  // Block Trade — list of batches
+  const { data: btBatches = [] } = useQuery({
+    queryKey: ['warehouse-closing-batches'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('warehouse_closing_batches')
+        .select('*, warehouses(display_name)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
+  const handleBtSaveDraft = async () => {
+    if (!btProposals || !user?.id) return;
+    setBtSubmitting(true);
+    try {
+      const mtmDates = btProposals.proposals
+        .map(p => latestByOpId[p.operation_id]?.calculated_at)
+        .filter((d): d is string => !!d);
+      const oldestMtm = mtmDates.length
+        ? mtmDates.sort((a, b) => a.localeCompare(b))[0]
+        : null;
+      const mtmAgeHours = oldestMtm
+        ? Math.floor((Date.now() - new Date(oldestMtm).getTime()) / 3_600_000)
+        : null;
+      const stalenessWarning = mtmAgeHours === null ? null
+        : mtmAgeHours < 4 ? null
+        : mtmAgeHours < 24 ? 'yellow'
+        : 'red';
+
+      const { error } = await (supabase as any)
+        .from('warehouse_closing_batches')
+        .insert({
+          warehouse_id: btWarehouse,
+          commodity: btCommodity,
+          exchange: btExchange,
+          total_volume_sacks: btProposals.total_volume_allocated_sacks,
+          allocation_strategy: btStrategy,
+          mtm_snapshot_used_at: oldestMtm ?? null,
+          mtm_staleness_warning: stalenessWarning,
+          allocation_snapshot: btProposals.proposals,
+          affected_operations_count: btProposals.proposals.length,
+          generated_orders_count: 0,
+          status: 'DRAFT',
+          created_by: user.id,
+        });
+      if (error) throw new Error(error.message);
+      toast.success('Rascunho salvo');
+      queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
+      setBtView('list');
+      setBtProposals(null);
+      setBtWarnings([]);
+      setBtVolume('');
+      setBtStrategy('');
+    } catch (e: any) {
+      toast.error('Erro ao salvar rascunho: ' + (e?.message ?? String(e)));
+    } finally {
+      setBtSubmitting(false);
+    }
+  };
+
+  const handleBtSendForSignature = async (batch: any) => {
+    if (!user?.id) return;
+    setBtSubmitting(true);
+    try {
+      for (const proposal of (batch.allocation_snapshot ?? [])) {
+        const { error: sigError } = await (supabase as any)
+          .from('signatures')
+          .insert({
+            operation_id: proposal.operation_id,
+            batch_id: batch.id,
+            flow_type: 'CLOSING',
+            user_id: user.id,
+            role_used: 'mesa',
+            decision: 'APPROVE',
+            signed_at: new Date().toISOString(),
+          });
+        if (sigError) throw new Error(sigError.message);
+      }
+      toast.success('Enviado para assinatura');
+      queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
+      queryClient.invalidateQueries({ queryKey: ['signature-events'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+    } catch (e: any) {
+      toast.error('Erro ao enviar para assinatura: ' + (e?.message ?? String(e)));
+    } finally {
+      setBtSubmitting(false);
+    }
+  };
+
+  const handleBtCancel = async () => {
+    if (!btCancelTarget || !btCancelReason.trim()) return;
+    setBtSubmitting(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('warehouse_closing_batches')
+        .update({
+          status: 'CANCELLED',
+          cancellation_reason: btCancelReason.trim(),
+        })
+        .eq('id', btCancelTarget.id);
+      if (error) throw new Error(error.message);
+      toast.success('Batch cancelado');
+      queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
+      setBtCancelTarget(null);
+      setBtCancelReason('');
+    } catch (e: any) {
+      toast.error('Erro ao cancelar: ' + (e?.message ?? String(e)));
+    } finally {
+      setBtSubmitting(false);
+    }
+  };
+
+
   const rows = useMemo(() => {
     return warehouses.map(w => {
       const ops = (operations ?? []).filter(
@@ -663,13 +784,145 @@ const ArmazensD24: React.FC = () => {
 
         {/* ───────────── Aba Block Trade ───────────── */}
         <TabsContent value="block_trade" className="space-y-4">
-          {btLatestMtmDate && (
-            <div className="px-1">
-              <BtStatusDot date={btLatestMtmDate} label="MTM mais recente" />
+          {/* Header com toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {btView === 'new' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); }}
+                >
+                  ← Voltar
+                </Button>
+              )}
+              <h2 className="text-lg font-semibold">
+                {btView === 'list' ? 'Block Trades' : 'Novo Batch'}
+              </h2>
             </div>
+            {btView === 'list' && (
+              <Button onClick={() => setBtView('new')}>
+                <Plus className="h-4 w-4 mr-1" />
+                Novo Batch
+              </Button>
+            )}
+          </div>
+
+          {/* ══════════ SUB-VIEW: LISTA ══════════ */}
+          {btView === 'list' && (
+            <Card>
+              <CardContent className="p-0">
+                {btBatches.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-3 text-center">
+                    <div className="rounded-full bg-muted p-4">
+                      <List className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground max-w-xs">
+                      Nenhum batch criado ainda. Clique em "Novo Batch" para começar.
+                    </p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Armazém</TableHead>
+                        <TableHead>Commodity</TableHead>
+                        <TableHead className="text-right">Volume (sc)</TableHead>
+                        <TableHead>Estratégia</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {btBatches.map((batch: any) => {
+                        const isDraft = batch.status === 'DRAFT';
+                        const statusBadge = ({
+                          DRAFT: { label: 'Rascunho', className: 'border-yellow-500 text-yellow-500' },
+                          EXECUTED: { label: 'Executado', className: 'bg-green-600 text-white' },
+                          CANCELLED: { label: 'Cancelado', className: '' },
+                        } as Record<string, { label: string; className: string }>)[batch.status] ?? { label: batch.status, className: '' };
+
+                        return (
+                          <TableRow
+                            key={batch.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setBtSelectedBatch(batch)}
+                          >
+                            <TableCell className="text-xs">
+                              {fmtDate(batch.created_at?.slice(0, 10))}
+                            </TableCell>
+                            <TableCell>{batch.warehouses?.display_name ?? batch.warehouse_id}</TableCell>
+                            <TableCell>{batch.commodity}</TableCell>
+                            <TableCell className="text-right">
+                              {Number(batch.total_volume_sacks).toLocaleString('pt-BR')}
+                            </TableCell>
+                            <TableCell className="text-xs">{batch.allocation_strategy}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`text-[10px] ${statusBadge.className}`}>
+                                {statusBadge.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()} className="text-right">
+                              <div className="flex justify-end gap-1">
+                                {isDraft && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={btSubmitting}
+                                      onClick={() => handleBtSendForSignature(batch)}
+                                    >
+                                      <Send className="h-3 w-3 mr-1" />
+                                      Enviar p/ Assinatura
+                                    </Button>
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => {
+                                        setBtProposals({
+                                          proposals: batch.allocation_snapshot ?? [],
+                                          total_volume_allocated_sacks: batch.total_volume_sacks,
+                                          strategy_used: batch.allocation_strategy,
+                                          warnings: [],
+                                        } as AllocateBatchResponse);
+                                        setBtExecutionOpen(true);
+                                      }}
+                                    >
+                                      Executar
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => { setBtCancelTarget(batch); setBtCancelReason(''); }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                )}
+                                {!isDraft && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* ══════════ SUB-VIEW: NOVO BATCH ══════════ */}
+          {btView === 'new' && (
+            <>
+              {btLatestMtmDate && (
+                <div className="px-1">
+                  <BtStatusDot date={btLatestMtmDate} label="MTM mais recente" />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* ── Painel esquerdo — configuração ── */}
             <Card>
               <CardHeader>
@@ -873,17 +1126,29 @@ const ArmazensD24: React.FC = () => {
                       </div>
                     )}
 
-                    <Button
-                      className="w-full"
-                      onClick={() => setBtExecutionOpen(true)}
-                    >
-                      Ajustar e Executar
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        disabled={btSubmitting}
+                        onClick={handleBtSaveDraft}
+                      >
+                        {btSubmitting ? 'Salvando...' : 'Salvar Rascunho'}
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={() => setBtExecutionOpen(true)}
+                      >
+                        Ajustar e Executar
+                      </Button>
+                    </div>
                   </>
                 )}
               </CardContent>
             </Card>
-          </div>
+              </div>
+            </>
+          )}
         </TabsContent>
 
         {/* ───────────── Aba Configuração ───────────── */}
@@ -1003,6 +1268,128 @@ const ArmazensD24: React.FC = () => {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* ── Sheet de detalhe do batch ── */}
+      <Sheet
+        open={!!btSelectedBatch}
+        onOpenChange={(o) => { if (!o) setBtSelectedBatch(null); }}
+      >
+        <SheetContent className="sm:max-w-2xl w-full overflow-y-auto">
+          {btSelectedBatch && (
+            <>
+              <SheetHeader>
+                <SheetTitle>
+                  <div className="flex items-center gap-2">
+                    <span>Batch — {btSelectedBatch.warehouses?.display_name ?? btSelectedBatch.warehouse_id}</span>
+                    <Badge variant="outline" className="text-[10px]">{btSelectedBatch.status}</Badge>
+                  </div>
+                </SheetTitle>
+                <p className="text-xs text-muted-foreground">
+                  {fmtDate(btSelectedBatch.created_at?.slice(0, 10))} · {btSelectedBatch.commodity} · {btSelectedBatch.allocation_strategy}
+                </p>
+              </SheetHeader>
+
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Volume Total</p>
+                    <p className="text-lg font-semibold">
+                      {Number(btSelectedBatch.total_volume_sacks).toLocaleString('pt-BR')} <span className="text-xs text-muted-foreground">sc</span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Operações</p>
+                    <p className="text-lg font-semibold">{btSelectedBatch.affected_operations_count ?? 0}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {btSelectedBatch.cancellation_reason && (
+                <div className="mt-3 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs">
+                  <span className="font-medium">Motivo do cancelamento:</span> {btSelectedBatch.cancellation_reason}
+                </div>
+              )}
+
+              {btSelectedBatch.mtm_staleness_warning && (
+                <div className="mt-3 rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 text-xs text-yellow-700 dark:text-yellow-300">
+                  ⚠ MTM com dados desatualizados no momento da criação do batch.
+                </div>
+              )}
+
+              <Separator className="my-4" />
+
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Operações afetadas
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Operação</TableHead>
+                    <TableHead className="text-right">Volume total (sc)</TableHead>
+                    <TableHead className="text-right">A fechar (sc)</TableHead>
+                    <TableHead className="text-right">MTM usado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(btSelectedBatch.allocation_snapshot ?? []).map((p: any, i: number) => (
+                    <TableRow key={`${p.operation_id}-${i}`}>
+                      <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                      <TableCell className="text-right">
+                        {Number(p.current_volume_sacks).toLocaleString('pt-BR')}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {p.mtm_at_allocation !== null && p.mtm_at_allocation !== undefined
+                          ? fmtBrl(p.mtm_at_allocation)
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* ── Dialog de cancelamento ── */}
+      <Dialog
+        open={!!btCancelTarget}
+        onOpenChange={(o) => { if (!o) { setBtCancelTarget(null); setBtCancelReason(''); } }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar Batch</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Armazém: <span className="font-medium text-foreground">{btCancelTarget?.warehouses?.display_name}</span> ·{' '}
+              Volume: <span className="font-medium text-foreground">{Number(btCancelTarget?.total_volume_sacks ?? 0).toLocaleString('pt-BR')} sc</span>
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Motivo (obrigatório)</Label>
+              <Textarea
+                value={btCancelReason}
+                onChange={(e) => setBtCancelReason(e.target.value)}
+                placeholder="Descreva o motivo do cancelamento..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setBtCancelTarget(null); setBtCancelReason(''); }} disabled={btSubmitting}>
+              Voltar
+            </Button>
+            <Button variant="destructive" onClick={handleBtCancel} disabled={!btCancelReason.trim() || btSubmitting}>
+              {btSubmitting ? 'Cancelando...' : 'Confirmar Cancelamento'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BlockTradeExecutionModal
         open={btExecutionOpen}
