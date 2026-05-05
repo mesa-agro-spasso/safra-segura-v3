@@ -928,6 +928,7 @@ export type Database = {
           affected_operations_count: number | null
           allocation_snapshot: Json | null
           allocation_strategy: string
+          cancellation_reason: string | null
           commodity: string
           created_at: string
           created_by: string
@@ -937,6 +938,7 @@ export type Database = {
           mtm_snapshot_used_at: string | null
           mtm_staleness_warning: string | null
           notes: string | null
+          status: string
           total_volume_sacks: number
           warehouse_id: string
         }
@@ -944,6 +946,7 @@ export type Database = {
           affected_operations_count?: number | null
           allocation_snapshot?: Json | null
           allocation_strategy: string
+          cancellation_reason?: string | null
           commodity: string
           created_at?: string
           created_by: string
@@ -953,6 +956,7 @@ export type Database = {
           mtm_snapshot_used_at?: string | null
           mtm_staleness_warning?: string | null
           notes?: string | null
+          status?: string
           total_volume_sacks: number
           warehouse_id: string
         }
@@ -960,6 +964,7 @@ export type Database = {
           affected_operations_count?: number | null
           allocation_snapshot?: Json | null
           allocation_strategy?: string
+          cancellation_reason?: string | null
           commodity?: string
           created_at?: string
           created_by?: string
@@ -969,6 +974,7 @@ export type Database = {
           mtm_snapshot_used_at?: string | null
           mtm_staleness_warning?: string | null
           notes?: string | null
+          status?: string
           total_volume_sacks?: number
           warehouse_id?: string
         }
