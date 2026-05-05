@@ -296,6 +296,8 @@ export default function Approvals() {
   const openSign = (row: (typeof pendingRows)[number]) => {
     setSigning({
       operationId: row.operationId,
+      batchId: row.batchId,
+      flowType: row.flowType,
       displayCode: row.displayCode,
       available: row.availableForUser,
       collected: row.collected,
@@ -308,6 +310,8 @@ export default function Approvals() {
   const openReject = (row: (typeof pendingRows)[number]) => {
     setRejecting({
       operationId: row.operationId,
+      batchId: row.batchId,
+      flowType: row.flowType,
       displayCode: row.displayCode,
       available: row.availableForUser,
       collected: row.collected,
@@ -318,6 +322,10 @@ export default function Approvals() {
 
   const handleReject = async () => {
     if (!rejecting || !rejectReason.trim() || !user) return;
+    if (rejecting.flowType !== 'OPENING' || rejecting.batchId) {
+      toast.error('Apenas aberturas podem ser recusadas');
+      return;
+    }
     setSubmitting(true);
     try {
       const reason = rejectReason.trim();
@@ -346,7 +354,7 @@ export default function Approvals() {
       if (sigError) throw sigError;
 
       toast.success('Operação recusada');
-      queryClient.invalidateQueries({ queryKey: ['pending-operations-d24'] });
+      queryClient.invalidateQueries({ queryKey: ['signature-events'] });
       queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
       queryClient.invalidateQueries({ queryKey: ['operations'] });
       queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
@@ -365,9 +373,10 @@ export default function Approvals() {
     try {
       const { error: insertError } = await (supabase as any).from('signatures').insert({
         operation_id: signing.operationId,
+        batch_id: signing.batchId ?? null,
         user_id: user.id,
         role_used: selectedRole,
-        flow_type: 'OPENING',
+        flow_type: signing.flowType,
         decision: 'APPROVE',
         notes: notes || null,
         signed_at: new Date().toISOString(),
@@ -376,13 +385,13 @@ export default function Approvals() {
 
       const newCollected = [...signing.collected, selectedRole];
       if (allSigned(signing.required, newCollected)) {
-        toast.success('Todas as assinaturas coletadas — operação pode ser executada');
+        toast.success('Todas as assinaturas coletadas — pode ser executada');
       } else {
         toast.success('Assinatura registrada');
       }
 
       queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
-      queryClient.invalidateQueries({ queryKey: ['pending-operations-d24'] });
+      queryClient.invalidateQueries({ queryKey: ['signature-events'] });
       queryClient.invalidateQueries({ queryKey: ['signatures-for-ops'] });
       queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
       setSigning(null);
