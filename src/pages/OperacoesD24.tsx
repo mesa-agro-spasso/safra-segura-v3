@@ -914,13 +914,23 @@ const OperacoesD24: React.FC = () => {
     }));
   }, [mtmSnapshots]);
 
-  const displayResults = results ?? (snapshotResults as Record<string, unknown>[] | null);
-
   // ── D24 active operations available for MTM
   const activeOpsForMtm = useMemo(
     () => (operations ?? []).filter(op => op.status === 'ACTIVE' || op.status === 'PARTIALLY_CLOSED'),
     [operations]
   );
+
+  // Only show MTM rows for operations still active/partially closed (matches Posição & Inputs tables)
+  const activeOpIdsForMtm = useMemo(
+    () => new Set(activeOpsForMtm.map(op => op.id)),
+    [activeOpsForMtm]
+  );
+
+  const displayResults = useMemo(() => {
+    const base = results ?? (snapshotResults as Record<string, unknown>[] | null);
+    if (!base) return base;
+    return base.filter(r => activeOpIdsForMtm.has(r.operation_id as string));
+  }, [results, snapshotResults, activeOpIdsForMtm]);
 
   // ── D20 formulas (authorized exception)
   const targetProfitSoybean = pricingParameters?.find(p => p.id === 'soybean_cbot')?.target_profit_brl_per_sack ?? 2.0;
