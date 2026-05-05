@@ -62,10 +62,20 @@ const formatDate = (d: string | null | undefined) =>
 
 interface SigningTarget {
   operationId: string;
+  batchId: string | null;
+  flowType: 'OPENING' | 'CLOSING';
   displayCode: string;
   available: string[];
   collected: string[];
   required: string[];
+}
+
+interface SignatureEvent {
+  operationId: string;
+  batchId: string | null;
+  flowType: 'OPENING' | 'CLOSING';
+  batch?: any;
+  operation?: any;
 }
 
 export default function Approvals() {

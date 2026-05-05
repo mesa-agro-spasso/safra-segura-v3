@@ -1,52 +1,146 @@
-# Lote 2B — Block Trade: Conexão com a API
+# Lote 2C-1 — Approvals + usePendingApprovalsCount
 
-Único arquivo modificado: `src/pages/ArmazensD24.tsx`. Sem persistência (nenhum INSERT). Modal de execução continua placeholder.
+Mostrar uma linha por evento de governança `(operation_id, flow_type, batch_id)` em vez de uma por operação. Inclui CLOSING e batches Block Trade. Sem mudar lógica de alçada nem layout.
 
-## Mudanças
+## Arquivos
 
-### 1. Imports (topo do arquivo)
-Adicionar:
-- `useQuery` de `@tanstack/react-query`
-- `supabase` de `@/integrations/supabase/client`
-- `useAuth` de `@/contexts/AuthContext`
-- `toast` de `sonner` (verificar se já existe)
-- `type { AllocateBatchResponse, ClosingAllocationProposalOut }` de `@/types/d24`
+- `src/pages/Approvals.tsx`
+- `src/hooks/usePendingApprovalsCount.ts`
 
-### 2. Estado tipado e mutável (linhas 209, 211)
-- `btProposals` passa a ser `useState<AllocateBatchResponse | null>(null)`
-- `btLoading` passa a ter setter: `const [btLoading, setBtLoading] = useState(false)`
+## src/pages/Approvals.tsx
 
-### 3. Hook de auth no componente
-Adicionar `const { user } = useAuth();` junto aos demais hooks no topo de `ArmazensD24`.
+### 1. Atualizar `SigningTarget`
 
-### 4. Query `btD24Orders`
-Inserir após o `useMemo` de `btLatestMtmDate` (~linha 254): busca `orders` para todas as operações ACTIVE/PARTIALLY_CLOSED do warehouse+commodity selecionados, ordenadas por `executed_at` ASC. `enabled` somente quando ambos selecionados.
+```ts
+interface SigningTarget {
+  operationId: string;
+  batchId: string | null;
+  flowType: 'OPENING' | 'CLOSING';
+  displayCode: string;
+  available: string[];
+  collected: string[];
+  required: string[];
+}
+```
 
-### 5. Handler `handleBtAllocate`
-Inserir logo após a query acima. Fluxo:
-1. Validar `btWarehouse`, `btCommodity`, `btExchange`, `btVolume`, `btStrategy`; volume > 0.
-2. Filtrar operações elegíveis (ACTIVE/PARTIALLY_CLOSED do warehouse+commodity). Se vazio → `toast.error("Nenhuma operação ativa…")`.
-3. `setBtLoading(true)`, `setBtProposals(null)`, `setBtWarnings([])`.
-4. Montar `operationSummaries` mapeando cada op → `{ operation_id, display_code, volume_sacks, mtm_total_brl, existing_orders[] }`. As orders vêm de `btD24Orders` filtradas por `operation_id`, e cada uma é normalizada para `OrderIn` (campos opcionais com `?? undefined`, `is_closing ?? false`, `is_counterparty_insurance ?? false`).
-5. `supabase.functions.invoke('api-proxy', { body: { endpoint: '/closing-batches/allocate', body: { warehouse_id, commodity, exchange, target_volume_sacks, strategy, operations: operationSummaries } } })`.
-6. Em erro → `toast.error('Erro ao calcular proposta: ' + msg)`. Em sucesso → setar `btWarnings` (se houver) e `btProposals`.
-7. `finally` → `setBtLoading(false)`.
+### 2. Substituir query `pending-operations-d24` por `signature-events`
 
-### 6. Conectar botão "Calcular Proposta" (linha ~667)
-Trocar o `onClick` placeholder por `onClick={handleBtAllocate}`. (O botão já tem `disabled` correto e mostra spinner via `btLoading`.)
+Buscar **todas** as signatures (sem filtro `flow_type`), deduplicar por chave `${operation_id}:${flow_type}:${batch_id ?? 'none'}`, e em seguida buscar dois grupos:
 
-### 7. Renderizar tabela de propostas (bloco `{btProposals && (...)}` ~linha 710)
-Substituir o placeholder atual por:
-- **Cabeçalho de resumo**: `{proposals.length} operação(ões) · estratégia {strategy_used}` à esquerda, `Total: {total_volume_allocated_sacks} sc` à direita.
-- **Tabela** com colunas: Operação (`display_code`), Disponível (sc), A fechar (sc, até 4 casas), MTM usado (`fmtBrl` ou `—` se null/undefined).
-- **Banner amarelo** por proposal cujo `allocation_reason` contenha "Warning", listando `⚠ {display_code}: {reason}`.
-- **Botão "Ajustar e Executar"** com `onClick={() => setBtExecutionOpen(true)}` (modal já existe e continua placeholder).
+- Grupos com `batch_id != null` → `warehouse_closing_batches` (`id, warehouse_id, commodity, total_volume_sacks, allocation_strategy, created_at`) + join `warehouses(display_name)`.
+- Grupos com `batch_id == null` → `operations` (atual, já com `warehouses` + `pricing_snapshots`).
 
-## Regras observadas
-- Zero cálculo financeiro no front: alocação 100% via API.
-- Sem catch silencioso: todos os erros viram `toast.error` explícito.
-- Nenhum outro arquivo é modificado.
-- Nenhum INSERT é feito; modal de execução permanece placeholder.
+Retornar lista de eventos com shape unificado:
 
-## Validação manual (após aplicar)
-Executar o checklist dos 8 itens da tarefa: spinner no clique, render correto da tabela, total no cabeçalho, ausência de warnings em PROPORTIONAL, banner em MAX_PROFIT/LOSS sem MTM, `toast.error` em volume excedido e em ausência de ops ativas, abertura do modal placeholder.
+```ts
+{ operationId, batchId, flowType, batch?: row, operation?: row }
+```
+
+### 3. Manter query `pending-signatures` mas alargar o `select`
+
+Já busca `*`. Garantir que retorna `operation_id, flow_type, batch_id, role_used, user_id, decision`.
+
+### 4. Reescrever `allRows` com filtro por `(operation_id, flow_type, batch_id)`
+
+```ts
+const opSignatures = signatures.filter(
+  (s) =>
+    s.operation_id === ev.operationId &&
+    s.flow_type === ev.flowType &&
+    (s.batch_id ?? null) === ev.batchId
+);
+```
+
+Para cada evento construir uma row:
+
+```ts
+{
+  eventKey,
+  operationId,
+  batchId,
+  flowType,
+  isBatch: batchId != null,
+  displayCode: isBatch ? `BATCH-${batchId.slice(0,8)}` : op.display_code,
+  status: isBatch ? batch.status : op.status,
+  warehouse, commodity,
+  volumeSacks: isBatch ? batch.total_volume_sacks : op.volume_sacks,
+  valueBRL: isBatch ? 0 : volumeSacks * origination_price_brl,
+  paymentDate: isBatch ? null : op.pricing_snapshots?.payment_date,
+  collected, required, missing, availableForUser, userAlreadySigned,
+}
+```
+
+Cálculo de alçada idêntico ao atual (volume em toneladas → `getRequiredRoles`).
+
+### 5. Filtros pendente / assinado
+
+- **Pendente:** `!userAlreadySigned && availableForUser.length > 0`. Remover o filtro hardcoded `r.status === 'DRAFT'` (CLOSING acontece em ACTIVE/PARTIALLY_CLOSED; batches em DRAFT do batch). Passar a depender só do estado do evento (existência da signature inicial já garante elegibilidade).
+- **Assinado por mim:** inalterado (`userAlreadySigned`).
+
+Usar `row.eventKey` como `key` do React em ambas as tabelas.
+
+### 6. Badges na coluna "Código" (tabela Pendentes e Assinadas)
+
+Substituir o uso de `row.isClosing`:
+
+```tsx
+{row.isBatch && (
+  <Badge variant="outline" className="border-purple-500 text-purple-500 text-[10px]">
+    Block Trade
+  </Badge>
+)}
+{!row.isBatch && row.flowType === 'CLOSING' && (
+  <Badge variant="outline" className="border-orange-500 text-orange-500 text-[10px]">
+    Encerramento
+  </Badge>
+)}
+```
+
+### 7. `openSign` / `openReject`
+
+Passar `batchId` e `flowType` para o `SigningTarget`. Botão "Recusar" só renderiza quando `row.flowType === 'OPENING' && !row.isBatch`.
+
+### 8. `handleSign`
+
+```ts
+await supabase.from('signatures').insert({
+  operation_id: signing.operationId,
+  batch_id: signing.batchId ?? null,
+  user_id: user.id,
+  role_used: selectedRole,
+  flow_type: signing.flowType,   // não hardcoded
+  decision: 'APPROVE',
+  notes: notes || null,
+  signed_at: new Date().toISOString(),
+});
+```
+
+Invalidar também `['signature-events']`.
+
+### 9. `handleReject`
+
+Verificação no início: `if (rejecting.flowType !== 'OPENING' || rejecting.batchId) return;`. Resto inalterado.
+
+## src/hooks/usePendingApprovalsCount.ts
+
+Mesma mudança estrutural:
+
+1. Buscar `signatures` sem filtro de `flow_type`, retornando `operation_id, flow_type, batch_id`.
+2. Deduplicar por `(operation_id, flow_type, batch_id)`.
+3. Carregar em paralelo:
+   - `operations` (id, status, volume_sacks) para grupos sem batch.
+   - `warehouse_closing_batches` (id, status, total_volume_sacks) para grupos com batch.
+   - Todas as signatures dos `operation_id`s envolvidos.
+4. Iterar eventos: filtrar `opSigs` por `(operation_id, flow_type, batch_id)`, calcular `volumeTons` (operações: do `volume_sacks` da operação; batches: do `total_volume_sacks`), aplicar `getRequiredRoles`/`getMissingRoles`, e incrementar contador se usuário pode assinar e ainda não assinou.
+
+Remover o filtro `.eq('status','DRAFT')` em operations — CLOSING ocorre em ACTIVE/PARTIALLY_CLOSED.
+
+## Validação manual
+
+1. Op DRAFT com OPENING parcial → linha em "Pendentes" para roles faltantes.
+2. Op DRAFT com OPENING totalmente assinada → linha em "Assinadas por mim".
+3. Op ACTIVE com CLOSING (mesa) → linha separada com badge laranja "Encerramento".
+4. Mesma operação com OPENING + CLOSING → duas linhas distintas, badges não duplicam.
+5. Batch com signature → linha com badge roxa "Block Trade", `displayCode` `BATCH-xxxxxxxx`.
+6. Botão "Recusar" só aparece em OPENING não-batch.
+7. Badge no menu reflete OPENING + CLOSING + batches.
