@@ -778,7 +778,7 @@ const ArmazensD24: React.FC = () => {
                 <Button
                   className="w-full"
                   disabled={!btWarehouse || !btCommodity || !btVolume || !btStrategy || btLoading}
-                  onClick={() => { /* conectar no Lote 2B */ }}
+                  onClick={handleBtAllocate}
                 >
                   {btLoading
                     ? <><span className="animate-spin mr-2">⟳</span>Calculando...</>
