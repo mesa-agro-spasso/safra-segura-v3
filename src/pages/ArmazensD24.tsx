@@ -184,6 +184,28 @@ const ArmazensD24: React.FC = () => {
   const [filterCommodity, setFilterCommodity] = useState<string>('all');
   const armazemCols = usePersistedColumns('cols_armazens', ARMAZEM_COLUMNS);
 
+  // Block Trade — UI state (Lote 2A: visual only)
+  const [btWarehouse, setBtWarehouse] = useState('');
+  const [btCommodity, setBtCommodity] = useState<'soybean' | 'corn' | ''>('');
+  const [btExchange, setBtExchange] = useState<'cbot' | 'b3' | ''>('');
+  const [btVolume, setBtVolume] = useState('');
+  const [btStrategy, setBtStrategy] = useState<'MAX_PROFIT' | 'MAX_LOSS' | 'PROPORTIONAL' | ''>('');
+  const [btProposals, setBtProposals] = useState<unknown>(null);
+  const [btWarnings, setBtWarnings] = useState<string[]>([]);
+  const [btLoading] = useState(false);
+  const [btExecutionOpen, setBtExecutionOpen] = useState(false);
+
+  useEffect(() => {
+    if (btCommodity === 'soybean') setBtExchange('cbot');
+    else if (btCommodity === 'corn') setBtExchange('b3');
+    else setBtExchange('');
+  }, [btCommodity]);
+
+  useEffect(() => {
+    setBtProposals(null);
+    setBtWarnings([]);
+  }, [btWarehouse, btCommodity]);
+
   const executionSpread = pricingParameters?.[0]?.execution_spread_pct ?? 0.05;
 
   // Active, non-HQ warehouses
