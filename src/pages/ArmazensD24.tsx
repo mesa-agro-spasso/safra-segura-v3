@@ -218,6 +218,11 @@ const ArmazensD24: React.FC = () => {
   const [btWarnings, setBtWarnings] = useState<string[]>([]);
   const [btLoading, setBtLoading] = useState(false);
   const [btExecutionOpen, setBtExecutionOpen] = useState(false);
+  const [btView, setBtView] = useState<'list' | 'new'>('list');
+  const [btSelectedBatch, setBtSelectedBatch] = useState<any>(null);
+  const [btCancelTarget, setBtCancelTarget] = useState<any>(null);
+  const [btCancelReason, setBtCancelReason] = useState('');
+  const [btSubmitting, setBtSubmitting] = useState(false);
 
   useEffect(() => {
     if (btCommodity === 'soybean') setBtExchange('cbot');
