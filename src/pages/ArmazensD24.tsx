@@ -168,6 +168,22 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   return <Badge variant={cfg.variant} className={cfg.className}>{cfg.label}</Badge>;
 };
 
+const BtStatusDot: React.FC<{ date: string; label: string }> = ({ date, label }) => {
+  const d = new Date(date);
+  const hoursAgo = Math.floor((Date.now() - d.getTime()) / 3_600_000);
+  const color =
+    hoursAgo < 12 ? 'text-green-400' :
+    hoursAgo < 24 ? 'text-yellow-400' :
+    'text-red-400';
+  const timeLabel = `${label}: ${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}${hoursAgo >= 12 ? ` (${hoursAgo}h atrás)` : ''}`;
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <span className={color}>●</span>
+      <span>{timeLabel}</span>
+    </div>
+  );
+};
+
 // ───────────────────────── main page ─────────────────────────
 
 const ArmazensD24: React.FC = () => {
