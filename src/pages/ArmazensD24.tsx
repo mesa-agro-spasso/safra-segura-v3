@@ -226,6 +226,17 @@ const ArmazensD24: React.FC = () => {
     return map;
   }, [snapshots]);
 
+  // Block Trade — most recent MTM date for selected warehouse
+  const btLatestMtmDate = useMemo(() => {
+    if (!btWarehouse) return null;
+    const opsInWarehouse = (operations ?? []).filter(op => op.warehouse_id === btWarehouse);
+    const dates = opsInWarehouse
+      .map(op => latestByOpId[op.id]?.calculated_at)
+      .filter((d): d is string => !!d);
+    if (!dates.length) return null;
+    return dates.sort((a, b) => b.localeCompare(a))[0];
+  }, [btWarehouse, operations, latestByOpId]);
+
   // Per-warehouse aggregates
   const rows = useMemo(() => {
     return warehouses.map(w => {
