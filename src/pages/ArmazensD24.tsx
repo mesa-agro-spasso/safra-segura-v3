@@ -259,6 +259,113 @@ const ArmazensD24: React.FC = () => {
     return dates.sort((a, b) => b.localeCompare(a))[0];
   }, [btWarehouse, operations, latestByOpId]);
 
+  // Block Trade — orders for eligible operations of selected warehouse+commodity
+  const { data: btD24Orders = [] } = useQuery({
+    queryKey: ['d24-orders-for-bt', btWarehouse, btCommodity],
+    enabled: !!btWarehouse && !!btCommodity,
+    queryFn: async () => {
+      const eligibleOpIds = (operations ?? [])
+        .filter(op =>
+          op.warehouse_id === btWarehouse &&
+          op.commodity === btCommodity &&
+          (op.status === 'ACTIVE' || op.status === 'PARTIALLY_CLOSED')
+        )
+        .map(op => op.id);
+      if (!eligibleOpIds.length) return [];
+      const { data, error } = await (supabase as unknown as { from: (t: string) => { select: (s: string) => { in: (col: string, ids: string[]) => { order: (c: string, opts: { ascending: boolean }) => Promise<{ data: unknown; error: unknown }> } } } })
+        .from('orders')
+        .select('*')
+        .in('operation_id', eligibleOpIds)
+        .order('executed_at', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Record<string, unknown>[];
+    },
+  });
+
+  const handleBtAllocate = async () => {
+    if (!btWarehouse || !btCommodity || !btExchange || !btVolume || !btStrategy) {
+      toast.error('Preencha todos os campos antes de calcular');
+      return;
+    }
+    const targetVolume = parseFloat(btVolume);
+    if (!(targetVolume > 0)) {
+      toast.error('Volume inválido');
+      return;
+    }
+
+    const eligibleOps = (operations ?? []).filter(op =>
+      op.warehouse_id === btWarehouse &&
+      op.commodity === btCommodity &&
+      (op.status === 'ACTIVE' || op.status === 'PARTIALLY_CLOSED')
+    );
+
+    if (!eligibleOps.length) {
+      toast.error('Nenhuma operação ativa para este armazém e commodity');
+      return;
+    }
+
+    setBtLoading(true);
+    setBtProposals(null);
+    setBtWarnings([]);
+
+    try {
+      const operationSummaries = eligibleOps.map(op => {
+        const opOrders = (btD24Orders as Record<string, unknown>[]).filter(o => o.operation_id === op.id);
+        const snap = latestByOpId[op.id];
+        return {
+          operation_id: op.id,
+          display_code: (op as { display_code?: string }).display_code ?? op.id.slice(0, 8),
+          volume_sacks: op.volume_sacks,
+          mtm_total_brl: snap?.mtm_total_brl ?? undefined,
+          existing_orders: opOrders.map((o) => ({
+            operation_id: o.operation_id,
+            instrument_type: o.instrument_type,
+            direction: o.direction,
+            currency: o.currency,
+            contracts: o.contracts,
+            volume_units: o.volume_units,
+            is_closing: o.is_closing ?? false,
+            executed_at: o.executed_at,
+            executed_by: o.executed_by,
+            ticker: o.ticker ?? undefined,
+            price: o.price ?? undefined,
+            ndf_rate: o.ndf_rate ?? undefined,
+            ndf_maturity: o.ndf_maturity ?? undefined,
+            option_type: o.option_type ?? undefined,
+            strike: o.strike ?? undefined,
+            premium: o.premium ?? undefined,
+            expiration_date: o.expiration_date ?? undefined,
+            is_counterparty_insurance: o.is_counterparty_insurance ?? false,
+          })),
+        };
+      });
+
+      const { data, error } = await supabase.functions.invoke('api-proxy', {
+        body: {
+          endpoint: '/closing-batches/allocate',
+          body: {
+            warehouse_id: btWarehouse,
+            commodity: btCommodity,
+            exchange: btExchange,
+            target_volume_sacks: targetVolume,
+            strategy: btStrategy,
+            operations: operationSummaries,
+          },
+        },
+      });
+
+      if (error) throw new Error(error.message ?? JSON.stringify(error));
+      const resp = data as AllocateBatchResponse;
+      if (resp?.warnings?.length) setBtWarnings(resp.warnings);
+      setBtProposals(resp);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error('Erro ao calcular proposta: ' + msg);
+    } finally {
+      setBtLoading(false);
+    }
+  };
+
   // Per-warehouse aggregates
   const rows = useMemo(() => {
     return warehouses.map(w => {
