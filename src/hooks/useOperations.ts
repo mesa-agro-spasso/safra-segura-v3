@@ -38,7 +38,7 @@ export function useOperationsWithDetails() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('operations')
-        .select('*, warehouses(display_name), pricing_snapshots(trade_date, payment_date, grain_reception_date, sale_date, ticker, origination_price_brl, futures_price_brl, exchange_rate, target_basis_brl, additional_discount_brl, outputs_json)')
+        .select('*, display_code, exchange, warehouses(display_name), pricing_snapshots(trade_date, payment_date, grain_reception_date, sale_date, ticker, origination_price_brl, futures_price_brl, exchange_rate, target_basis_brl, additional_discount_brl, outputs_json)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as unknown as OperationWithDetails[];
