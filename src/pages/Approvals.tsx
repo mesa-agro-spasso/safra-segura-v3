@@ -570,8 +570,22 @@ export default function Approvals() {
               </TableHeader>
               <TableBody>
                 {filteredSigned.map((row) => (
-                  <TableRow key={row.operationId} className="opacity-70">
-                    <TableCell className="font-mono text-xs">{row.displayCode}</TableCell>
+                  <TableRow key={row.eventKey} className="opacity-70">
+                    <TableCell className="font-mono text-xs">
+                      <div className="flex items-center gap-2">
+                        {row.displayCode}
+                        {row.isBatch && (
+                          <Badge variant="outline" className="border-purple-500 text-purple-500 text-[10px]">
+                            Block Trade
+                          </Badge>
+                        )}
+                        {!row.isBatch && row.flowType === 'CLOSING' && (
+                          <Badge variant="outline" className="border-orange-500 text-orange-500 text-[10px]">
+                            Encerramento
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline">{row.status}</Badge>
                     </TableCell>
