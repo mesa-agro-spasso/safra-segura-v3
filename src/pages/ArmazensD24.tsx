@@ -549,19 +549,179 @@ const ArmazensD24: React.FC = () => {
         </TabsContent>
 
         {/* ───────────── Aba Block Trade ───────────── */}
-        <TabsContent value="block_trade">
-          <div className="flex flex-col items-center justify-center py-24 space-y-4 text-center">
-            <div className="rounded-full bg-muted p-6">
-              <Calculator className="h-10 w-10 text-muted-foreground" />
+        <TabsContent value="block_trade" className="space-y-4">
+          {btLatestMtmDate && (
+            <div className="px-1">
+              <BtStatusDot date={btLatestMtmDate} label="MTM mais recente" />
             </div>
-            <h2 className="text-xl font-semibold">Block Trade</h2>
-            <p className="text-muted-foreground max-w-sm">
-              Encerramento em bloco por armazém. Esta funcionalidade está em desenvolvimento
-              e será disponibilizada em breve.
-            </p>
-            <Badge variant="outline" className="border-yellow-500 text-yellow-500">
-              Em desenvolvimento
-            </Badge>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* ── Painel esquerdo — configuração ── */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Configurar Batch</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Defina os parâmetros do fechamento em bloco.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Armazém */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Armazém</Label>
+                  <Select value={btWarehouse} onValueChange={(v) => { setBtWarehouse(v); setBtCommodity(''); }}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Selecione um armazém" /></SelectTrigger>
+                    <SelectContent>
+                      {warehouses.map(w => (
+                        <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Commodity */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Commodity</Label>
+                  <Select
+                    value={btCommodity}
+                    onValueChange={(v) => setBtCommodity(v as 'soybean' | 'corn')}
+                    disabled={!btWarehouse}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Selecione a commodity" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="soybean">Soja CBOT</SelectItem>
+                      <SelectItem value="corn">Milho B3</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Exchange — derivado, read-only */}
+                {btExchange && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Benchmark (derivado)</Label>
+                    <div className="h-9 flex items-center px-3 rounded-md border border-input bg-muted text-sm">
+                      {btExchange.toUpperCase()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Volume */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Volume a fechar (sacas)</Label>
+                  <Input
+                    type="number"
+                    placeholder="Ex.: 5000"
+                    value={btVolume}
+                    onChange={(e) => setBtVolume(e.target.value)}
+                    disabled={!btCommodity}
+                    className="h-9"
+                  />
+                </div>
+
+                {/* Estratégia */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Estratégia de alocação</Label>
+                  <Select
+                    value={btStrategy}
+                    onValueChange={(v) => setBtStrategy(v as 'MAX_PROFIT' | 'MAX_LOSS' | 'PROPORTIONAL')}
+                    disabled={!btCommodity}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Selecione a estratégia" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PROPORTIONAL">Proporcional</SelectItem>
+                      <SelectItem value="MAX_PROFIT">Maior Lucro (MAX_PROFIT)</SelectItem>
+                      <SelectItem value="MAX_LOSS">Maior Prejuízo (MAX_LOSS)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {btStrategy === 'MAX_PROFIT' && (
+                    <p className="text-xs text-muted-foreground">
+                      Fecha primeiro as operações com maior MTM positivo.
+                    </p>
+                  )}
+                  {btStrategy === 'MAX_LOSS' && (
+                    <p className="text-xs text-muted-foreground">
+                      Fecha primeiro as operações com maior prejuízo (menor MTM).
+                    </p>
+                  )}
+                  {btStrategy === 'PROPORTIONAL' && (
+                    <p className="text-xs text-muted-foreground">
+                      Distribui o volume proporcionalmente entre todas as operações ativas.
+                    </p>
+                  )}
+                </div>
+
+                {/* Link Ver MTM */}
+                <div>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => navigate('/operacoes-mtm')}
+                  >
+                    Ver MTM das operações →
+                  </Button>
+                </div>
+
+                {/* Botão calcular */}
+                <Button
+                  className="w-full"
+                  disabled={!btWarehouse || !btCommodity || !btVolume || !btStrategy || btLoading}
+                  onClick={() => { /* conectar no Lote 2B */ }}
+                >
+                  {btLoading
+                    ? <><span className="animate-spin mr-2">⟳</span>Calculando...</>
+                    : 'Calcular Proposta'
+                  }
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* ── Painel direito — resultado ── */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Proposta de Alocação</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Estado vazio */}
+                {!btProposals && (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-3 text-center">
+                    <div className="rounded-full bg-muted p-4">
+                      <Calculator className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground max-w-xs">
+                      Configure os parâmetros e clique em "Calcular Proposta" para ver a distribuição sugerida.
+                    </p>
+                  </div>
+                )}
+
+                {/* Warnings */}
+                {btWarnings.length > 0 && (
+                  <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                      <AlertTriangle className="h-4 w-4" />
+                      Avisos da alocação — revise antes de executar
+                    </div>
+                    {btWarnings.map((w, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">{w}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Tabela placeholder */}
+                {btProposals && (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Propostas carregadas — implementação completa no próximo lote.
+                    </p>
+                    <Button
+                      className="w-full"
+                      onClick={() => setBtExecutionOpen(true)}
+                    >
+                      Ajustar e Executar
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
