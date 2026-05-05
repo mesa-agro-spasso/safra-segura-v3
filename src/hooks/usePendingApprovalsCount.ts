@@ -51,38 +51,63 @@ export function usePendingApprovalsCount() {
 
       const { data: sigs } = await (supabase as any)
         .from('signatures')
-        .select('operation_id')
-        .eq('flow_type', 'OPENING');
-      const ids = [...new Set((sigs ?? []).map((s: any) => s.operation_id))] as string[];
-      if (!ids.length) return 0;
+        .select('operation_id, flow_type, batch_id');
+      const groups = new Map<string, { operationId: string; flowType: string; batchId: string | null }>();
+      for (const s of (sigs ?? []) as any[]) {
+        const batchId = (s.batch_id ?? null) as string | null;
+        const key = `${s.operation_id}:${s.flow_type}:${batchId ?? 'none'}`;
+        if (!groups.has(key)) {
+          groups.set(key, { operationId: s.operation_id, flowType: s.flow_type, batchId });
+        }
+      }
+      if (!groups.size) return 0;
 
-      const [{ data: ops }, { data: allSigs }] = await Promise.all([
-        (supabase as any)
-          .from('operations')
-          .select('id, volume_sacks')
-          .in('id', ids)
-          .eq('status', 'DRAFT'),
+      const events = [...groups.values()];
+      const opIds = [...new Set(events.filter((e) => !e.batchId).map((e) => e.operationId))];
+      const batchIds = [...new Set(events.filter((e) => e.batchId).map((e) => e.batchId as string))];
+      const allOpIds = [...new Set(events.map((e) => e.operationId))];
+
+      const [opsRes, batchesRes, allSigsRes] = await Promise.all([
+        opIds.length
+          ? (supabase as any).from('operations').select('id, volume_sacks').in('id', opIds)
+          : Promise.resolve({ data: [] }),
+        batchIds.length
+          ? (supabase as any)
+              .from('warehouse_closing_batches')
+              .select('id, total_volume_sacks')
+              .in('id', batchIds)
+          : Promise.resolve({ data: [] }),
         (supabase as any)
           .from('signatures')
-          .select('operation_id, role_used, user_id, decision')
-          .in('operation_id', ids),
+          .select('operation_id, flow_type, batch_id, role_used, user_id, decision')
+          .in('operation_id', allOpIds),
       ]);
 
-      const operations = ops ?? [];
-      if (!operations.length) return 0;
+      const opMap = new Map<string, any>((opsRes.data ?? []).map((o: any) => [o.id, o]));
+      const batchMap = new Map<string, any>((batchesRes.data ?? []).map((b: any) => [b.id, b]));
+      const allSigs = (allSigsRes.data ?? []) as any[];
 
       const effectivePolicy = policy ?? { threshold_x_tons: Infinity, threshold_y_tons: 0 };
 
       let count = 0;
-      for (const op of operations as any[]) {
-        const opSigs = (allSigs ?? []).filter(
-          (s: any) => s.operation_id === op.id && s.decision === 'APPROVE'
+      for (const ev of events) {
+        const src = ev.batchId ? batchMap.get(ev.batchId) : opMap.get(ev.operationId);
+        if (!src) continue;
+
+        const evSigs = allSigs.filter(
+          (s) =>
+            s.operation_id === ev.operationId &&
+            s.flow_type === ev.flowType &&
+            (s.batch_id ?? null) === ev.batchId &&
+            s.decision === 'APPROVE',
         );
-        const userAlreadySigned = opSigs.some((s: any) => s.user_id === user!.id);
+        const userAlreadySigned = evSigs.some((s) => s.user_id === user!.id);
         if (userAlreadySigned) continue;
 
-        const collected = opSigs.map((s: any) => s.role_used);
-        const volumeSacks = Number(op.volume_sacks ?? 0);
+        const collected = evSigs.map((s) => s.role_used);
+        const volumeSacks = Number(
+          (ev.batchId ? src.total_volume_sacks : src.volume_sacks) ?? 0,
+        );
         const volumeTons = (volumeSacks * KG_PER_SACK) / 1000;
         const required = getRequiredRoles(volumeTons, effectivePolicy as any);
         const missing = getMissingRoles(required, collected);
