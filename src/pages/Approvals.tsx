@@ -18,7 +18,81 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { AlertCircle } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertCircle, Columns } from 'lucide-react';
+
+// ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
+
+interface Col { key: string; label: string; }
+
+function usePersistedColumns(storageKey: string, columns: Col[], defaultKeys?: string[]) {
+  const allKeys = useMemo(() => columns.map(c => c.key), [columns]);
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* noop */ }
+    return new Set(defaultKeys ?? allKeys);
+  });
+  const update = (next: Set<string>) => {
+    setVisible(next);
+    try { localStorage.setItem(storageKey, JSON.stringify([...next])); } catch { /* noop */ }
+  };
+  return { visible, setVisible: update };
+}
+
+const ColumnSelector: React.FC<{
+  columns: Col[];
+  visible: Set<string>;
+  onChange: (next: Set<string>) => void;
+}> = ({ columns, visible, onChange }) => {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8">
+          <Columns className="h-4 w-4 mr-1" />
+          Colunas
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-2 w-56" align="end">
+        <div className="flex gap-2 mb-2">
+          <Button size="sm" variant="ghost" className="h-7 text-xs flex-1"
+            onClick={() => onChange(new Set(columns.map(c => c.key)))}>Todas</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs flex-1"
+            onClick={() => onChange(new Set())}>Nenhuma</Button>
+        </div>
+        <div className="space-y-1 max-h-[260px] overflow-auto">
+          {columns.map(c => (
+            <label key={c.key} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-accent cursor-pointer">
+              <Checkbox
+                checked={visible.has(c.key)}
+                onCheckedChange={(v) => {
+                  const next = new Set(visible);
+                  if (v) next.add(c.key); else next.delete(c.key);
+                  onChange(next);
+                }}
+              />
+              <span className="text-xs">{c.label}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const APPROVAL_COLUMNS: Col[] = [
+  { key: 'codigo',      label: 'Código' },
+  { key: 'tipo',        label: 'Tipo' },
+  { key: 'status',      label: 'Status' },
+  { key: 'praca',       label: 'Praça' },
+  { key: 'commodity',   label: 'Commodity' },
+  { key: 'volume',      label: 'Volume (sc)' },
+  { key: 'valor',       label: 'Valor' },
+  { key: 'pagamento',   label: 'Data Pagamento' },
+  { key: 'assinaturas', label: 'Assinaturas' },
+];
 
 const KG_PER_SACK = 60;
 
