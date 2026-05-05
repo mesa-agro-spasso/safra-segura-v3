@@ -819,12 +819,60 @@ const ArmazensD24: React.FC = () => {
                   </div>
                 )}
 
-                {/* Tabela placeholder */}
+                {/* Tabela de propostas */}
                 {btProposals && (
                   <>
-                    <p className="text-sm text-muted-foreground">
-                      Propostas carregadas — implementação completa no próximo lote.
-                    </p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        {btProposals.proposals.length} operação(ões) · estratégia{' '}
+                        <span className="font-medium text-foreground">{btProposals.strategy_used}</span>
+                      </span>
+                      <span className="font-medium">
+                        Total: {btProposals.total_volume_allocated_sacks.toLocaleString('pt-BR')} sc
+                      </span>
+                    </div>
+
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Operação</TableHead>
+                          <TableHead className="text-right">Disponível (sc)</TableHead>
+                          <TableHead className="text-right">A fechar (sc)</TableHead>
+                          <TableHead className="text-right">MTM usado</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {btProposals.proposals.map((p, i) => (
+                          <TableRow key={`${p.operation_id}-${i}`}>
+                            <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                            <TableCell className="text-right">
+                              {p.current_volume_sacks.toLocaleString('pt-BR')}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {p.volume_to_close_sacks.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {p.mtm_at_allocation !== null && p.mtm_at_allocation !== undefined
+                                ? fmtBrl(p.mtm_at_allocation)
+                                : '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+
+                    {btProposals.proposals.some(p => p.allocation_reason?.includes('Warning')) && (
+                      <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 space-y-1">
+                        {btProposals.proposals.map((p, i) =>
+                          p.allocation_reason?.includes('Warning') ? (
+                            <p key={`warn-${i}`} className="text-xs text-yellow-700 dark:text-yellow-300">
+                              ⚠ <span className="font-mono">{p.display_code}</span>: {p.allocation_reason}
+                            </p>
+                          ) : null
+                        )}
+                      </div>
+                    )}
+
                     <Button
                       className="w-full"
                       onClick={() => setBtExecutionOpen(true)}
