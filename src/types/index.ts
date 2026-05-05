@@ -197,4 +197,6 @@ export interface OperationWithDetails {
     additional_discount_brl: number;
     outputs_json?: Record<string, unknown>;
   } | null;
+  display_code?: string | null;
+  exchange?: string | null;
 }
