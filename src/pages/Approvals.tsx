@@ -18,7 +18,81 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { AlertCircle } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertCircle, Columns } from 'lucide-react';
+
+// ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
+
+interface Col { key: string; label: string; }
+
+function usePersistedColumns(storageKey: string, columns: Col[], defaultKeys?: string[]) {
+  const allKeys = useMemo(() => columns.map(c => c.key), [columns]);
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* noop */ }
+    return new Set(defaultKeys ?? allKeys);
+  });
+  const update = (next: Set<string>) => {
+    setVisible(next);
+    try { localStorage.setItem(storageKey, JSON.stringify([...next])); } catch { /* noop */ }
+  };
+  return { visible, setVisible: update };
+}
+
+const ColumnSelector: React.FC<{
+  columns: Col[];
+  visible: Set<string>;
+  onChange: (next: Set<string>) => void;
+}> = ({ columns, visible, onChange }) => {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8">
+          <Columns className="h-4 w-4 mr-1" />
+          Colunas
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-2 w-56" align="end">
+        <div className="flex gap-2 mb-2">
+          <Button size="sm" variant="ghost" className="h-7 text-xs flex-1"
+            onClick={() => onChange(new Set(columns.map(c => c.key)))}>Todas</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs flex-1"
+            onClick={() => onChange(new Set())}>Nenhuma</Button>
+        </div>
+        <div className="space-y-1 max-h-[260px] overflow-auto">
+          {columns.map(c => (
+            <label key={c.key} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-accent cursor-pointer">
+              <Checkbox
+                checked={visible.has(c.key)}
+                onCheckedChange={(v) => {
+                  const next = new Set(visible);
+                  if (v) next.add(c.key); else next.delete(c.key);
+                  onChange(next);
+                }}
+              />
+              <span className="text-xs">{c.label}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const APPROVAL_COLUMNS: Col[] = [
+  { key: 'codigo',      label: 'Código' },
+  { key: 'tipo',        label: 'Tipo' },
+  { key: 'status',      label: 'Status' },
+  { key: 'praca',       label: 'Praça' },
+  { key: 'commodity',   label: 'Commodity' },
+  { key: 'volume',      label: 'Volume (sc)' },
+  { key: 'valor',       label: 'Valor' },
+  { key: 'pagamento',   label: 'Data Pagamento' },
+  { key: 'assinaturas', label: 'Assinaturas' },
+];
 
 const KG_PER_SACK = 60;
 
@@ -94,6 +168,9 @@ export default function Approvals() {
   const [filterCommodity, setFilterCommodity] = useState<string>('all');
   const [filterPaymentFrom, setFilterPaymentFrom] = useState<string>('');
   const [filterPaymentTo, setFilterPaymentTo] = useState<string>('');
+
+  const pendingCols = usePersistedColumns('cols_approvals_pending', APPROVAL_COLUMNS);
+  const signedCols = usePersistedColumns('cols_approvals_signed', APPROVAL_COLUMNS);
 
   // 1. Roles do usuário logado
   const { data: userRoles = [] } = useQuery({
@@ -465,7 +542,14 @@ export default function Approvals() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Pendentes ({filteredPending.length})</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Pendentes ({filteredPending.length})</CardTitle>
+            <ColumnSelector
+              columns={APPROVAL_COLUMNS}
+              visible={pendingCols.visible}
+              onChange={pendingCols.setVisible}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {filteredPending.length === 0 ? (
@@ -476,55 +560,69 @@ export default function Approvals() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Praça</TableHead>
-                  <TableHead>Commodity</TableHead>
-                  <TableHead className="text-right">Volume (sacas)</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead>Data Pagamento</TableHead>
-                  <TableHead>Assinaturas</TableHead>
+                  {pendingCols.visible.has('codigo')      && <TableHead>Código</TableHead>}
+                  {pendingCols.visible.has('tipo')        && <TableHead>Tipo</TableHead>}
+                  {pendingCols.visible.has('status')      && <TableHead>Status</TableHead>}
+                  {pendingCols.visible.has('praca')       && <TableHead>Praça</TableHead>}
+                  {pendingCols.visible.has('commodity')   && <TableHead>Commodity</TableHead>}
+                  {pendingCols.visible.has('volume')      && <TableHead className="text-right">Volume (sc)</TableHead>}
+                  {pendingCols.visible.has('valor')       && <TableHead className="text-right">Valor</TableHead>}
+                  {pendingCols.visible.has('pagamento')   && <TableHead>Data Pagamento</TableHead>}
+                  {pendingCols.visible.has('assinaturas') && <TableHead>Assinaturas</TableHead>}
                   <TableHead className="text-right">Ação</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredPending.map((row) => (
                   <TableRow key={row.eventKey}>
-                    <TableCell className="font-mono text-xs">
-                      <div className="flex items-center gap-2">
-                        {row.displayCode}
-                        {row.isBatch && (
-                          <Badge variant="outline" className="border-purple-500 text-purple-500 text-[10px]">
-                            Block Trade
-                          </Badge>
+                    {pendingCols.visible.has('codigo') && (
+                      <TableCell className="font-mono text-xs">{row.displayCode}</TableCell>
+                    )}
+                    {pendingCols.visible.has('tipo') && (
+                      <TableCell>
+                        {row.isBatch ? (
+                          <Badge variant="outline" className="border-purple-500 text-purple-500">Block Trade</Badge>
+                        ) : row.flowType === 'CLOSING' ? (
+                          <Badge variant="outline" className="border-orange-500 text-orange-500">Encerramento</Badge>
+                        ) : (
+                          <Badge variant="outline">Abertura</Badge>
                         )}
-                        {!row.isBatch && row.flowType === 'CLOSING' && (
-                          <Badge variant="outline" className="border-orange-500 text-orange-500 text-[10px]">
-                            Encerramento
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{row.warehouse}</TableCell>
-                    <TableCell className="capitalize">{row.commodity}</TableCell>
-                    <TableCell className="text-right">
-                      {row.volumeSacks.toLocaleString('pt-BR')}
-                    </TableCell>
-                    <TableCell className="text-right">{formatBRL(row.valueBRL)}</TableCell>
-                    <TableCell>{formatDate(row.paymentDate)}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {row.collected.map((r, i) => (
-                          <Badge key={`c-${i}`} className="bg-emerald-600 hover:bg-emerald-600/90 text-primary-foreground">
-                            {r}
-                          </Badge>
-                        ))}
-                        {row.missing.map((r, i) => (
-                          <Badge key={`m-${i}`} variant="outline" className="text-muted-foreground">
-                            {r}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
+                      </TableCell>
+                    )}
+                    {pendingCols.visible.has('status') && (
+                      <TableCell><Badge variant="outline">{row.status}</Badge></TableCell>
+                    )}
+                    {pendingCols.visible.has('praca') && (
+                      <TableCell>{row.warehouse}</TableCell>
+                    )}
+                    {pendingCols.visible.has('commodity') && (
+                      <TableCell className="capitalize">{row.commodity}</TableCell>
+                    )}
+                    {pendingCols.visible.has('volume') && (
+                      <TableCell className="text-right">{row.volumeSacks.toLocaleString('pt-BR')}</TableCell>
+                    )}
+                    {pendingCols.visible.has('valor') && (
+                      <TableCell className="text-right">{formatBRL(row.valueBRL)}</TableCell>
+                    )}
+                    {pendingCols.visible.has('pagamento') && (
+                      <TableCell>{formatDate(row.paymentDate)}</TableCell>
+                    )}
+                    {pendingCols.visible.has('assinaturas') && (
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {row.collected.map((r, i) => (
+                            <Badge key={`c-${i}`} className="bg-emerald-600 hover:bg-emerald-600/90 text-primary-foreground">
+                              {r}
+                            </Badge>
+                          ))}
+                          {row.missing.map((r, i) => (
+                            <Badge key={`m-${i}`} variant="outline" className="text-muted-foreground">
+                              {r}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button size="sm" onClick={() => openSign(row)}>
@@ -547,7 +645,14 @@ export default function Approvals() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Assinadas por mim ({filteredSigned.length})</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Assinadas por mim ({filteredSigned.length})</CardTitle>
+            <ColumnSelector
+              columns={APPROVAL_COLUMNS}
+              visible={signedCols.visible}
+              onChange={signedCols.setVisible}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {filteredSigned.length === 0 ? (
@@ -558,58 +663,68 @@ export default function Approvals() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Praça</TableHead>
-                  <TableHead>Commodity</TableHead>
-                  <TableHead className="text-right">Volume (sacas)</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead>Data Pagamento</TableHead>
-                  <TableHead>Assinaturas</TableHead>
+                  {signedCols.visible.has('codigo')      && <TableHead>Código</TableHead>}
+                  {signedCols.visible.has('tipo')        && <TableHead>Tipo</TableHead>}
+                  {signedCols.visible.has('status')      && <TableHead>Status</TableHead>}
+                  {signedCols.visible.has('praca')       && <TableHead>Praça</TableHead>}
+                  {signedCols.visible.has('commodity')   && <TableHead>Commodity</TableHead>}
+                  {signedCols.visible.has('volume')      && <TableHead className="text-right">Volume (sc)</TableHead>}
+                  {signedCols.visible.has('valor')       && <TableHead className="text-right">Valor</TableHead>}
+                  {signedCols.visible.has('pagamento')   && <TableHead>Data Pagamento</TableHead>}
+                  {signedCols.visible.has('assinaturas') && <TableHead>Assinaturas</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredSigned.map((row) => (
                   <TableRow key={row.eventKey} className="opacity-70">
-                    <TableCell className="font-mono text-xs">
-                      <div className="flex items-center gap-2">
-                        {row.displayCode}
-                        {row.isBatch && (
-                          <Badge variant="outline" className="border-purple-500 text-purple-500 text-[10px]">
-                            Block Trade
-                          </Badge>
+                    {signedCols.visible.has('codigo') && (
+                      <TableCell className="font-mono text-xs">{row.displayCode}</TableCell>
+                    )}
+                    {signedCols.visible.has('tipo') && (
+                      <TableCell>
+                        {row.isBatch ? (
+                          <Badge variant="outline" className="border-purple-500 text-purple-500">Block Trade</Badge>
+                        ) : row.flowType === 'CLOSING' ? (
+                          <Badge variant="outline" className="border-orange-500 text-orange-500">Encerramento</Badge>
+                        ) : (
+                          <Badge variant="outline">Abertura</Badge>
                         )}
-                        {!row.isBatch && row.flowType === 'CLOSING' && (
-                          <Badge variant="outline" className="border-orange-500 text-orange-500 text-[10px]">
-                            Encerramento
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{row.status}</Badge>
-                    </TableCell>
-                    <TableCell>{row.warehouse}</TableCell>
-                    <TableCell className="capitalize">{row.commodity}</TableCell>
-                    <TableCell className="text-right">
-                      {row.volumeSacks.toLocaleString('pt-BR')}
-                    </TableCell>
-                    <TableCell className="text-right">{formatBRL(row.valueBRL)}</TableCell>
-                    <TableCell>{formatDate(row.paymentDate)}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {row.collected.map((r, i) => (
-                          <Badge key={`c-${i}`} className="bg-emerald-600 hover:bg-emerald-600/90 text-primary-foreground">
-                            {r}
-                          </Badge>
-                        ))}
-                        {row.missing.map((r, i) => (
-                          <Badge key={`m-${i}`} variant="outline" className="text-muted-foreground">
-                            {r}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
+                      </TableCell>
+                    )}
+                    {signedCols.visible.has('status') && (
+                      <TableCell><Badge variant="outline">{row.status}</Badge></TableCell>
+                    )}
+                    {signedCols.visible.has('praca') && (
+                      <TableCell>{row.warehouse}</TableCell>
+                    )}
+                    {signedCols.visible.has('commodity') && (
+                      <TableCell className="capitalize">{row.commodity}</TableCell>
+                    )}
+                    {signedCols.visible.has('volume') && (
+                      <TableCell className="text-right">{row.volumeSacks.toLocaleString('pt-BR')}</TableCell>
+                    )}
+                    {signedCols.visible.has('valor') && (
+                      <TableCell className="text-right">{formatBRL(row.valueBRL)}</TableCell>
+                    )}
+                    {signedCols.visible.has('pagamento') && (
+                      <TableCell>{formatDate(row.paymentDate)}</TableCell>
+                    )}
+                    {signedCols.visible.has('assinaturas') && (
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {row.collected.map((r, i) => (
+                            <Badge key={`c-${i}`} className="bg-emerald-600 hover:bg-emerald-600/90 text-primary-foreground">
+                              {r}
+                            </Badge>
+                          ))}
+                          {row.missing.map((r, i) => (
+                            <Badge key={`m-${i}`} variant="outline" className="text-muted-foreground">
+                              {r}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
