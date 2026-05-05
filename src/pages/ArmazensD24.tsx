@@ -784,13 +784,145 @@ const ArmazensD24: React.FC = () => {
 
         {/* ───────────── Aba Block Trade ───────────── */}
         <TabsContent value="block_trade" className="space-y-4">
-          {btLatestMtmDate && (
-            <div className="px-1">
-              <BtStatusDot date={btLatestMtmDate} label="MTM mais recente" />
+          {/* Header com toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {btView === 'new' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); }}
+                >
+                  ← Voltar
+                </Button>
+              )}
+              <h2 className="text-lg font-semibold">
+                {btView === 'list' ? 'Block Trades' : 'Novo Batch'}
+              </h2>
             </div>
+            {btView === 'list' && (
+              <Button onClick={() => setBtView('new')}>
+                <Plus className="h-4 w-4 mr-1" />
+                Novo Batch
+              </Button>
+            )}
+          </div>
+
+          {/* ══════════ SUB-VIEW: LISTA ══════════ */}
+          {btView === 'list' && (
+            <Card>
+              <CardContent className="p-0">
+                {btBatches.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-3 text-center">
+                    <div className="rounded-full bg-muted p-4">
+                      <List className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground max-w-xs">
+                      Nenhum batch criado ainda. Clique em "Novo Batch" para começar.
+                    </p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Armazém</TableHead>
+                        <TableHead>Commodity</TableHead>
+                        <TableHead className="text-right">Volume (sc)</TableHead>
+                        <TableHead>Estratégia</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {btBatches.map((batch: any) => {
+                        const isDraft = batch.status === 'DRAFT';
+                        const statusBadge = ({
+                          DRAFT: { label: 'Rascunho', className: 'border-yellow-500 text-yellow-500' },
+                          EXECUTED: { label: 'Executado', className: 'bg-green-600 text-white' },
+                          CANCELLED: { label: 'Cancelado', className: '' },
+                        } as Record<string, { label: string; className: string }>)[batch.status] ?? { label: batch.status, className: '' };
+
+                        return (
+                          <TableRow
+                            key={batch.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setBtSelectedBatch(batch)}
+                          >
+                            <TableCell className="text-xs">
+                              {fmtDate(batch.created_at?.slice(0, 10))}
+                            </TableCell>
+                            <TableCell>{batch.warehouses?.display_name ?? batch.warehouse_id}</TableCell>
+                            <TableCell>{batch.commodity}</TableCell>
+                            <TableCell className="text-right">
+                              {Number(batch.total_volume_sacks).toLocaleString('pt-BR')}
+                            </TableCell>
+                            <TableCell className="text-xs">{batch.allocation_strategy}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`text-[10px] ${statusBadge.className}`}>
+                                {statusBadge.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()} className="text-right">
+                              <div className="flex justify-end gap-1">
+                                {isDraft && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={btSubmitting}
+                                      onClick={() => handleBtSendForSignature(batch)}
+                                    >
+                                      <Send className="h-3 w-3 mr-1" />
+                                      Enviar p/ Assinatura
+                                    </Button>
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => {
+                                        setBtProposals({
+                                          proposals: batch.allocation_snapshot ?? [],
+                                          total_volume_allocated_sacks: batch.total_volume_sacks,
+                                          strategy_used: batch.allocation_strategy,
+                                          warnings: [],
+                                        } as AllocateBatchResponse);
+                                        setBtExecutionOpen(true);
+                                      }}
+                                    >
+                                      Executar
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => { setBtCancelTarget(batch); setBtCancelReason(''); }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                )}
+                                {!isDraft && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* ══════════ SUB-VIEW: NOVO BATCH ══════════ */}
+          {btView === 'new' && (
+            <>
+              {btLatestMtmDate && (
+                <div className="px-1">
+                  <BtStatusDot date={btLatestMtmDate} label="MTM mais recente" />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* ── Painel esquerdo — configuração ── */}
             <Card>
               <CardHeader>
@@ -994,17 +1126,29 @@ const ArmazensD24: React.FC = () => {
                       </div>
                     )}
 
-                    <Button
-                      className="w-full"
-                      onClick={() => setBtExecutionOpen(true)}
-                    >
-                      Ajustar e Executar
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        disabled={btSubmitting}
+                        onClick={handleBtSaveDraft}
+                      >
+                        {btSubmitting ? 'Salvando...' : 'Salvar Rascunho'}
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={() => setBtExecutionOpen(true)}
+                      >
+                        Ajustar e Executar
+                      </Button>
+                    </div>
                   </>
                 )}
               </CardContent>
             </Card>
-          </div>
+              </div>
+            </>
+          )}
         </TabsContent>
 
         {/* ───────────── Aba Configuração ───────────── */}
