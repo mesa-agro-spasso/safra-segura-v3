@@ -211,9 +211,9 @@ const ArmazensD24: React.FC = () => {
   const [btExchange, setBtExchange] = useState<'cbot' | 'b3' | ''>('');
   const [btVolume, setBtVolume] = useState('');
   const [btStrategy, setBtStrategy] = useState<'MAX_PROFIT' | 'MAX_LOSS' | 'PROPORTIONAL' | ''>('');
-  const [btProposals, setBtProposals] = useState<unknown>(null);
+  const [btProposals, setBtProposals] = useState<AllocateBatchResponse | null>(null);
   const [btWarnings, setBtWarnings] = useState<string[]>([]);
-  const [btLoading] = useState(false);
+  const [btLoading, setBtLoading] = useState(false);
   const [btExecutionOpen, setBtExecutionOpen] = useState(false);
 
   useEffect(() => {
