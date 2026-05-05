@@ -488,11 +488,16 @@ export default function Approvals() {
               </TableHeader>
               <TableBody>
                 {filteredPending.map((row) => (
-                  <TableRow key={row.operationId}>
+                  <TableRow key={row.eventKey}>
                     <TableCell className="font-mono text-xs">
                       <div className="flex items-center gap-2">
                         {row.displayCode}
-                        {row.isClosing && (
+                        {row.isBatch && (
+                          <Badge variant="outline" className="border-purple-500 text-purple-500 text-[10px]">
+                            Block Trade
+                          </Badge>
+                        )}
+                        {!row.isBatch && row.flowType === 'CLOSING' && (
                           <Badge variant="outline" className="border-orange-500 text-orange-500 text-[10px]">
                             Encerramento
                           </Badge>
@@ -525,9 +530,11 @@ export default function Approvals() {
                         <Button size="sm" onClick={() => openSign(row)}>
                           Assinar
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => openReject(row)}>
-                          Recusar
-                        </Button>
+                        {row.flowType === 'OPENING' && !row.isBatch && (
+                          <Button size="sm" variant="destructive" onClick={() => openReject(row)}>
+                            Recusar
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
