@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWarehouses, useActiveArmazens } from '@/hooks/useWarehouses';
 import { useOperationsWithDetails } from '@/hooks/useOperations';
@@ -16,7 +16,10 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronDown, ExternalLink, MapPin, Columns, Calculator } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle } from 'lucide-react';
 
 // ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
 
