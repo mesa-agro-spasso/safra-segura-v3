@@ -373,7 +373,121 @@ const ArmazensD24: React.FC = () => {
     }
   };
 
-  // Per-warehouse aggregates
+  // Block Trade — list of batches
+  const { data: btBatches = [] } = useQuery({
+    queryKey: ['warehouse-closing-batches'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('warehouse_closing_batches')
+        .select('*, warehouses(display_name)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
+  const handleBtSaveDraft = async () => {
+    if (!btProposals || !user?.id) return;
+    setBtSubmitting(true);
+    try {
+      const mtmDates = btProposals.proposals
+        .map(p => latestByOpId[p.operation_id]?.calculated_at)
+        .filter((d): d is string => !!d);
+      const oldestMtm = mtmDates.length
+        ? mtmDates.sort((a, b) => a.localeCompare(b))[0]
+        : null;
+      const mtmAgeHours = oldestMtm
+        ? Math.floor((Date.now() - new Date(oldestMtm).getTime()) / 3_600_000)
+        : null;
+      const stalenessWarning = mtmAgeHours === null ? null
+        : mtmAgeHours < 4 ? null
+        : mtmAgeHours < 24 ? 'yellow'
+        : 'red';
+
+      const { error } = await (supabase as any)
+        .from('warehouse_closing_batches')
+        .insert({
+          warehouse_id: btWarehouse,
+          commodity: btCommodity,
+          exchange: btExchange,
+          total_volume_sacks: btProposals.total_volume_allocated_sacks,
+          allocation_strategy: btStrategy,
+          mtm_snapshot_used_at: oldestMtm ?? null,
+          mtm_staleness_warning: stalenessWarning,
+          allocation_snapshot: btProposals.proposals,
+          affected_operations_count: btProposals.proposals.length,
+          generated_orders_count: 0,
+          status: 'DRAFT',
+          created_by: user.id,
+        });
+      if (error) throw new Error(error.message);
+      toast.success('Rascunho salvo');
+      queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
+      setBtView('list');
+      setBtProposals(null);
+      setBtWarnings([]);
+      setBtVolume('');
+      setBtStrategy('');
+    } catch (e: any) {
+      toast.error('Erro ao salvar rascunho: ' + (e?.message ?? String(e)));
+    } finally {
+      setBtSubmitting(false);
+    }
+  };
+
+  const handleBtSendForSignature = async (batch: any) => {
+    if (!user?.id) return;
+    setBtSubmitting(true);
+    try {
+      for (const proposal of (batch.allocation_snapshot ?? [])) {
+        const { error: sigError } = await (supabase as any)
+          .from('signatures')
+          .insert({
+            operation_id: proposal.operation_id,
+            batch_id: batch.id,
+            flow_type: 'CLOSING',
+            user_id: user.id,
+            role_used: 'mesa',
+            decision: 'APPROVE',
+            signed_at: new Date().toISOString(),
+          });
+        if (sigError) throw new Error(sigError.message);
+      }
+      toast.success('Enviado para assinatura');
+      queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
+      queryClient.invalidateQueries({ queryKey: ['signature-events'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+    } catch (e: any) {
+      toast.error('Erro ao enviar para assinatura: ' + (e?.message ?? String(e)));
+    } finally {
+      setBtSubmitting(false);
+    }
+  };
+
+  const handleBtCancel = async () => {
+    if (!btCancelTarget || !btCancelReason.trim()) return;
+    setBtSubmitting(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('warehouse_closing_batches')
+        .update({
+          status: 'CANCELLED',
+          cancellation_reason: btCancelReason.trim(),
+        })
+        .eq('id', btCancelTarget.id);
+      if (error) throw new Error(error.message);
+      toast.success('Batch cancelado');
+      queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
+      setBtCancelTarget(null);
+      setBtCancelReason('');
+    } catch (e: any) {
+      toast.error('Erro ao cancelar: ' + (e?.message ?? String(e)));
+    } finally {
+      setBtSubmitting(false);
+    }
+  };
+
+
   const rows = useMemo(() => {
     return warehouses.map(w => {
       const ops = (operations ?? []).filter(
