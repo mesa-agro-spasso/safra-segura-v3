@@ -212,13 +212,20 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
   };
 
   const handleSavePlan = async () => {
-    if (!messages || savingPlan) return;
+    if (savingPlan) return;
+    if (!isDraft) {
+      toast.error('Plano só pode ser editado em DRAFT');
+      return;
+    }
     setSavingPlan(true);
     try {
+      // Preserve existing order_message/confirmation_message unless user generated new ones
+      const existingPlan = (opD24 as any)?.hedge_plan;
+      const existingMsgs = !Array.isArray(existingPlan) && existingPlan ? existingPlan : {};
       const newHedgePlan = {
         plan: editLegs.map(buildLegPayload),
-        order_message: messages.order_message,
-        confirmation_message: messages.confirmation_message,
+        order_message: messages?.order_message ?? existingMsgs.order_message ?? null,
+        confirmation_message: messages?.confirmation_message ?? existingMsgs.confirmation_message ?? null,
       };
       const { error } = await supabase
         .from('operations' as any)
