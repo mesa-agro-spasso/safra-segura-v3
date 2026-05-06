@@ -687,6 +687,25 @@ const OperacoesD24: React.FC = () => {
     );
   }, [selectedOperation, d24Orders]);
 
+  // Active DRAFT closing batch that includes the selected operation
+  const { data: activeDraftBatchForSelected } = useQuery({
+    queryKey: ['active-draft-batch-for-op', selectedOperation?.id],
+    enabled: !!selectedOperation?.id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('warehouse_closing_batches')
+        .select('*')
+        .eq('status', 'DRAFT')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const batches = (data ?? []) as any[];
+      return batches.find(b =>
+        Array.isArray(b.allocation_snapshot) &&
+        b.allocation_snapshot.some((p: any) => p.operation_id === selectedOperation!.id)
+      ) ?? null;
+    },
+  });
+
   // ── Signatures (batch for table actions)
   const operationIds = useMemo(
     () => filteredOperations.map(op => op.id),
@@ -1702,54 +1721,56 @@ const OperacoesD24: React.FC = () => {
                   )}
                 </Section>
 
-                {/* 4. Plano de Hedge */}
-                <Section
-                  title="Plano de Hedge"
-                  defaultOpen
-                  action={isDraft ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 text-xs"
-                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditPlanOp(selectedOperation); }}
-                    >
-                      Editar
-                    </Button>
-                  ) : undefined}
-                >
-                  {planLegs.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nenhum plano definido.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {planLegs.map((leg: any, i: number) => (
-                        <div key={i} className="rounded-md border p-3 space-y-1 text-sm">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline">{leg.instrument_type}</Badge>
-                            <Badge variant="secondary">{leg.direction}</Badge>
-                            <Badge variant="outline">{leg.currency}</Badge>
+                {/* 4. Plano de Hedge — só enquanto a operação ainda é rascunho */}
+                {isDraft && (
+                  <Section
+                    title="Plano de Hedge"
+                    defaultOpen
+                    action={(
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-xs"
+                        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditPlanOp(selectedOperation); }}
+                      >
+                        Editar
+                      </Button>
+                    )}
+                  >
+                    {planLegs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhum plano definido.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {planLegs.map((leg: any, i: number) => (
+                          <div key={i} className="rounded-md border p-3 space-y-1 text-sm">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="outline">{leg.instrument_type}</Badge>
+                              <Badge variant="secondary">{leg.direction}</Badge>
+                              <Badge variant="outline">{leg.currency}</Badge>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                              {leg.ticker && <Row label="Ticker">{leg.ticker}</Row>}
+                              {leg.contracts != null && <Row label="Contratos">{leg.contracts}</Row>}
+                              {leg.volume_units != null && <Row label="Volume">{Number(leg.volume_units).toLocaleString('pt-BR')}</Row>}
+                              {leg.price_estimated != null && <Row label="Preço estimado">{Number(leg.price_estimated).toFixed(4)}</Row>}
+                              {leg.ndf_rate != null && <Row label="NDF rate">{Number(leg.ndf_rate).toFixed(4)}</Row>}
+                              {leg.ndf_maturity && <Row label="NDF maturity">{fmtDate(leg.ndf_maturity)}</Row>}
+                              {leg.option_type && <Row label="Tipo opção">{leg.option_type}</Row>}
+                              {leg.strike != null && <Row label="Strike">{Number(leg.strike).toFixed(4)}</Row>}
+                              {leg.premium != null && <Row label="Prêmio">{Number(leg.premium).toFixed(4)}</Row>}
+                              {leg.expiration_date && <Row label="Vencimento">{fmtDate(leg.expiration_date)}</Row>}
+                              {leg.notes && <Row label="Notas">{leg.notes}</Row>}
+                            </div>
                           </div>
-                          <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
-                            {leg.ticker && <Row label="Ticker">{leg.ticker}</Row>}
-                            {leg.contracts != null && <Row label="Contratos">{leg.contracts}</Row>}
-                            {leg.volume_units != null && <Row label="Volume">{Number(leg.volume_units).toLocaleString('pt-BR')}</Row>}
-                            {leg.price_estimated != null && <Row label="Preço estimado">{Number(leg.price_estimated).toFixed(4)}</Row>}
-                            {leg.ndf_rate != null && <Row label="NDF rate">{Number(leg.ndf_rate).toFixed(4)}</Row>}
-                            {leg.ndf_maturity && <Row label="NDF maturity">{fmtDate(leg.ndf_maturity)}</Row>}
-                            {leg.option_type && <Row label="Tipo opção">{leg.option_type}</Row>}
-                            {leg.strike != null && <Row label="Strike">{Number(leg.strike).toFixed(4)}</Row>}
-                            {leg.premium != null && <Row label="Prêmio">{Number(leg.premium).toFixed(4)}</Row>}
-                            {leg.expiration_date && <Row label="Vencimento">{fmtDate(leg.expiration_date)}</Row>}
-                            {leg.notes && <Row label="Notas">{leg.notes}</Row>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Section>
+                        ))}
+                      </div>
+                    )}
+                  </Section>
+                )}
 
 
-                {/* 5. Mensagens */}
-                {(orderMsg || confirmMsg) && (
+                {/* 5. Mensagens — só enquanto a operação ainda é rascunho */}
+                {isDraft && (orderMsg || confirmMsg) && (
                   <Section title="Mensagens" defaultOpen>
                     <div className="space-y-3">
                       {orderMsg && (
@@ -1777,6 +1798,55 @@ const OperacoesD24: React.FC = () => {
                     </div>
                   </Section>
                 )}
+
+                {/* 5b. Rascunho de Encerramento ativo (Block Trade DRAFT) */}
+                {!isDraft && activeDraftBatchForSelected && (() => {
+                  const batch = activeDraftBatchForSelected as any;
+                  const myAlloc = (batch.allocation_snapshot ?? []).find((p: any) => p.operation_id === selectedOperation.id);
+                  return (
+                    <Section title="Rascunho de Encerramento" defaultOpen>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-[140px_1fr] gap-y-1 text-sm">
+                          <Row label="Batch">
+                            <span className="font-mono text-xs">{String(batch.id).slice(0, 8)}</span>
+                          </Row>
+                          <Row label="Estratégia">{batch.allocation_strategy}</Row>
+                          <Row label="Volume total batch">
+                            {Number(batch.total_volume_sacks).toLocaleString('pt-BR')} sc
+                          </Row>
+                          {myAlloc && (
+                            <Row label="A fechar (esta op)">
+                              {Number(myAlloc.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} sc
+                            </Row>
+                          )}
+                          <Row label="Criado em">{fmtDateTime(batch.created_at)}</Row>
+                        </div>
+                        {batch.order_message && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-semibold text-muted-foreground">Mensagem da Ordem (Stonex)</span>
+                              <Button size="sm" variant="ghost" onClick={() => copyToClipboard(batch.order_message)}>
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{batch.order_message}</pre>
+                          </div>
+                        )}
+                        {batch.confirmation_message && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-semibold text-muted-foreground">Confirmação</span>
+                              <Button size="sm" variant="ghost" onClick={() => copyToClipboard(batch.confirmation_message)}>
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{batch.confirmation_message}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </Section>
+                  );
+                })()}
 
                 {/* 6. Ordens Vinculadas */}
                 <Section title={`Ordens Vinculadas (${ordersForSelectedOperation.length})`} defaultOpen>
