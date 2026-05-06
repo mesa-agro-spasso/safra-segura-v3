@@ -1626,7 +1626,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     const rows: { display_code: string; instrument: string; direction: string; contracts: number; volume_units: number; price: number | '' }[] = [];
     for (const p of proposals.proposals) {
       const opOrders = openOrdersByOpId[p.operation_id] ?? [];
-      const proporção = (volumes[p.operation_id] ?? 0) / (p.current_volume_sacks || 1);
+      const proporção = (Number(p.volume_to_close_sacks) || 0) / (p.current_volume_sacks || 1);
       const seen = new Set<string>();
       for (const o of opOrders) {
         if (seen.has(o.instrument_type)) continue;
@@ -1642,7 +1642,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
       }
     }
     return rows;
-  }, [proposals, openOrdersByOpId, volumes, prices]);
+  }, [proposals, openOrdersByOpId, prices]);
 
   const handleExecute = async () => {
     if (!batch || !proposals || !userId) return;
@@ -1653,7 +1653,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
       for (const p of proposals.proposals) {
         const opOrders = openOrdersByOpId[p.operation_id] ?? [];
-        const volumeToClose = volumes[p.operation_id] ?? 0;
+        const volumeToClose = Number(p.volume_to_close_sacks) || 0;
         if (volumeToClose <= 0) continue;
         const proporção = volumeToClose / (p.current_volume_sacks || 1);
 
@@ -1707,7 +1707,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
       setExecutedSummary(proposals.proposals.map(p => ({
         display_code: p.display_code,
-        volume_closed: volumes[p.operation_id] ?? 0,
+        volume_closed: Number(p.volume_to_close_sacks) || 0,
       })));
       toast.success('Batch executado com sucesso');
     } catch (e: any) {
