@@ -1808,7 +1808,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
               ))}
               <div className="pt-4 flex justify-end gap-2">
                 <Button variant="outline" onClick={onClose}>Cancelar</Button>
-                <Button disabled={!volumeOk || !pricesOk} onClick={() => setStep(2)}>
+                <Button disabled={!pricesOk} onClick={() => setStep(2)}>
                   Revisar →
                 </Button>
               </div>
