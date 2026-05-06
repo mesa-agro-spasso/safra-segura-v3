@@ -150,66 +150,58 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
     };
   };
 
-  const handleGenerateMessages = async () => {
-    if (generatingMessages) return;
-    setGeneratingMessages(true);
-    try {
-      const snap = operation.pricing_snapshots as any;
-      const outputs = (snap?.outputs_json ?? {}) as Record<string, unknown>;
-      const isCbotSoy = opD24.commodity === 'soybean' && (opD24.exchange ?? '').toLowerCase() === 'cbot';
-      const futuresPriceUsd = typeof outputs.futures_price_usd === 'number'
-        ? outputs.futures_price_usd as number : undefined;
-      const futuresPrice = isCbotSoy
-        ? (futuresPriceUsd ?? 0)
-        : (snap?.futures_price_brl ?? 0);
+  const generateMessages = async (): Promise<{ order_message: string; confirmation_message: string }> => {
+    const snap = operation.pricing_snapshots as any;
+    const outputs = (snap?.outputs_json ?? {}) as Record<string, unknown>;
+    const isCbotSoy = opD24.commodity === 'soybean' && (opD24.exchange ?? '').toLowerCase() === 'cbot';
+    const futuresPriceUsd = typeof outputs.futures_price_usd === 'number'
+      ? outputs.futures_price_usd as number : undefined;
+    const futuresPrice = isCbotSoy
+      ? (futuresPriceUsd ?? 0)
+      : (snap?.futures_price_brl ?? 0);
 
-      const legsForApi = editLegs.map(l => ({
-        leg_type: l.instrument_type,
-        direction: l.direction,
-        currency: l.currency,
-        ticker: l.ticker || undefined,
-        contracts: l.contracts ? parseFloat(l.contracts) : undefined,
-        price: !['ndf'].includes(l.instrument_type) && l.price_estimated
-          ? parseFloat(l.price_estimated) : undefined,
-        ndf_rate: l.instrument_type === 'ndf' && l.ndf_rate
-          ? parseFloat(l.ndf_rate) : undefined,
-        ndf_maturity: l.ndf_maturity || undefined,
-        option_type: l.instrument_type === 'option' ? l.option_type : undefined,
-        strike: l.strike ? parseFloat(l.strike) : undefined,
-        premium: l.premium ? parseFloat(l.premium) : undefined,
-        expiration_date: l.expiration_date || undefined,
-        is_counterparty_insurance: l.is_counterparty_insurance,
-        notes: l.notes || undefined,
-      }));
+    const legsForApi = editLegs.map(l => ({
+      leg_type: l.instrument_type,
+      direction: l.direction,
+      currency: l.currency,
+      ticker: l.ticker || undefined,
+      contracts: l.contracts ? parseFloat(l.contracts) : undefined,
+      price: !['ndf'].includes(l.instrument_type) && l.price_estimated
+        ? parseFloat(l.price_estimated) : undefined,
+      ndf_rate: l.instrument_type === 'ndf' && l.ndf_rate
+        ? parseFloat(l.ndf_rate) : undefined,
+      ndf_maturity: l.ndf_maturity || undefined,
+      option_type: l.instrument_type === 'option' ? l.option_type : undefined,
+      strike: l.strike ? parseFloat(l.strike) : undefined,
+      premium: l.premium ? parseFloat(l.premium) : undefined,
+      expiration_date: l.expiration_date || undefined,
+      is_counterparty_insurance: l.is_counterparty_insurance,
+      notes: l.notes || undefined,
+    }));
 
-      const { data, error } = await supabase.functions.invoke('api-proxy', {
+    const { data, error } = await supabase.functions.invoke('api-proxy', {
+      body: {
+        endpoint: '/orders/build',
         body: {
-          endpoint: '/orders/build',
-          body: {
-            commodity: opD24.commodity,
-            exchange: opD24.exchange ?? 'cbot',
-            origination_price_brl: opD24.origination_price_brl ?? 0,
-            futures_price: futuresPrice,
-            exchange_rate: snap?.exchange_rate ?? (typeof outputs.exchange_rate === 'number' ? outputs.exchange_rate : null),
-            ticker: snap?.ticker ?? '',
-            payment_date: snap?.payment_date ?? opD24.payment_date ?? '',
-            sale_date: opD24.sale_date ?? '',
-            grain_reception_date: opD24.grain_reception_date ?? opD24.payment_date ?? '',
-            volume_sacks: operation.volume_sacks,
-            use_custom_structure: true,
-            legs: legsForApi,
-          },
+          commodity: opD24.commodity,
+          exchange: opD24.exchange ?? 'cbot',
+          origination_price_brl: opD24.origination_price_brl ?? 0,
+          futures_price: futuresPrice,
+          exchange_rate: snap?.exchange_rate ?? (typeof outputs.exchange_rate === 'number' ? outputs.exchange_rate : null),
+          ticker: snap?.ticker ?? '',
+          payment_date: snap?.payment_date ?? opD24.payment_date ?? '',
+          sale_date: opD24.sale_date ?? '',
+          grain_reception_date: opD24.grain_reception_date ?? opD24.payment_date ?? '',
+          volume_sacks: operation.volume_sacks,
+          use_custom_structure: true,
+          legs: legsForApi,
         },
-      });
-      if (error) throw error;
-      const orderMsg = data?.order?.order_message ?? data?.order_message ?? '';
-      const confirmMsg = data?.order?.confirmation_message ?? data?.confirmation_message ?? '';
-      setMessages({ order_message: orderMsg, confirmation_message: confirmMsg });
-    } catch (e) {
-      toast.error('Erro ao gerar mensagens: ' + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setGeneratingMessages(false);
-    }
+      },
+    });
+    if (error) throw error;
+    const orderMsg = data?.order?.order_message ?? data?.order_message ?? '';
+    const confirmMsg = data?.order?.confirmation_message ?? data?.confirmation_message ?? '';
+    return { order_message: orderMsg, confirmation_message: confirmMsg };
   };
 
   const handleSavePlan = async () => {
@@ -220,13 +212,20 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
     }
     setSavingPlan(true);
     try {
-      // Preserve existing order_message/confirmation_message unless user generated new ones
-      const existingPlan = (opD24 as any)?.hedge_plan;
-      const existingMsgs = !Array.isArray(existingPlan) && existingPlan ? existingPlan : {};
+      // Always regenerate messages on save so the saved plan is in sync.
+      let msgs = messages;
+      try {
+        msgs = await generateMessages();
+        setMessages(msgs);
+      } catch (e) {
+        toast.error('Erro ao gerar mensagens: ' + (e instanceof Error ? e.message : String(e)));
+        setSavingPlan(false);
+        return;
+      }
       const newHedgePlan = {
         plan: editLegs.map(buildLegPayload),
-        order_message: messages?.order_message ?? existingMsgs.order_message ?? null,
-        confirmation_message: messages?.confirmation_message ?? existingMsgs.confirmation_message ?? null,
+        order_message: msgs?.order_message ?? null,
+        confirmation_message: msgs?.confirmation_message ?? null,
       };
       const { error } = await supabase
         .from('operations' as any)
@@ -236,7 +235,6 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
       toast.success('Plano salvo');
       onSaved();
       setSavingPlan(false);
-      setMessages(null);
     } catch (e) {
       toast.error('Erro ao salvar: ' + (e instanceof Error ? e.message : String(e)));
       setSavingPlan(false);
