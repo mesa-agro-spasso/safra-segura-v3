@@ -3,10 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
-import { CalendarIcon, Plus, Edit2, ChevronDown } from 'lucide-react';
+import { CalendarIcon, Plus, Edit2, ChevronDown, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWarehouses, useUpsertWarehouse, useActiveArmazens } from '@/hooks/useWarehouses';
-import { usePricingCombinations, useUpsertPricingCombination, useTogglePricingCombinationActive } from '@/hooks/usePricingCombinations';
+import { usePricingCombinations, useUpsertPricingCombination, useTogglePricingCombinationActive, useDeletePricingCombination } from '@/hooks/usePricingCombinations';
 import { useMarketData } from '@/hooks/useMarketData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -346,6 +347,7 @@ function CombinationsTab() {
   const { data: marketData } = useMarketData();
   const upsert = useUpsertPricingCombination();
   const toggleActive = useTogglePricingCombinationActive();
+  const deleteCombination = useDeletePricingCombination();
   const [editing, setEditing] = useState<Partial<PricingCombination> | null>(null);
   const [open, setOpen] = useState(false);
   const [showActiveOnly, setShowActiveOnly] = useState(false);
@@ -554,9 +556,42 @@ function CombinationsTab() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); }}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); }}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir combinação?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação é permanente. A combinação {warehouseMap[c.warehouse_id] || c.warehouse_id} / {c.commodity} / {c.ticker} será removida.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={async () => {
+                                    try {
+                                      await deleteCombination.mutateAsync(c.id);
+                                      toast.success('Combinação excluída');
+                                    } catch (err) {
+                                      toast.error(err instanceof Error ? err.message : 'Erro ao excluir');
+                                    }
+                                  }}
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
