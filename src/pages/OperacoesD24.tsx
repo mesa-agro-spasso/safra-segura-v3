@@ -92,7 +92,7 @@ export interface HedgePlanEditorProps {
   copyToClipboard: (text: string) => void;
 }
 
-export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, planLegs, userId, onSaved, copyToClipboard }) => {
+export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, planLegs, userId, onSaved, onCancel, copyToClipboard }) => {
   const isDraft = (operation as any)?.status === 'DRAFT' || (operation as any)?.status === 'RASCUNHO';
   const [editLegsRaw, setEditLegsRaw] = React.useState<EditableLeg[]>(() =>
     planLegs.map((l: any) => ({
