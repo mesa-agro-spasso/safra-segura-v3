@@ -82,7 +82,7 @@ const emptyLeg = (): EditableLeg => ({
   is_counterparty_insurance: false,
 });
 
-interface HedgePlanEditorProps {
+export interface HedgePlanEditorProps {
   operation: OperationWithDetails;
   opD24: any;
   planLegs: any[];
@@ -91,14 +91,17 @@ interface HedgePlanEditorProps {
   copyToClipboard: (text: string) => void;
 }
 
-const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, planLegs, userId, onSaved, copyToClipboard }) => {
+export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, planLegs, userId, onSaved, copyToClipboard }) => {
+  const isDraft = (operation as any)?.status === 'DRAFT' || (operation as any)?.status === 'RASCUNHO';
   const [editLegsRaw, setEditLegsRaw] = React.useState<EditableLeg[]>(() =>
     planLegs.map((l: any) => ({
       instrument_type: (l.instrument_type ?? 'futures') as EditableLeg['instrument_type'],
       direction: (l.direction ?? 'sell') as 'buy' | 'sell',
       currency: l.currency ?? (l.instrument_type === 'ndf' ? 'BRL' : 'USD'),
       ticker: l.ticker ?? '',
-      contracts: l.contracts != null ? String(l.contracts) : '',
+      contracts: l.instrument_type === 'ndf'
+        ? (l.volume_units != null ? String(l.volume_units) : (l.contracts != null ? String(l.contracts) : ''))
+        : (l.contracts != null ? String(l.contracts) : ''),
       price_estimated: l.price_estimated != null ? String(l.price_estimated) : '',
       ndf_rate: l.ndf_rate != null ? String(l.ndf_rate) : '',
       ndf_maturity: l.ndf_maturity ?? '',
