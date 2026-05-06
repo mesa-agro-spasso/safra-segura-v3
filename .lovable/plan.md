@@ -1,90 +1,56 @@
-## Lote 2C-2b — Modal de Execução do Block Trade
+## Lote 2C-2c — Volumes editáveis no Novo Batch + simplificação do modal
 
-Editar **apenas** `src/pages/ArmazensD24.tsx`. Sem alterações em outros arquivos, sem migrations (estrutura de `orders` e `warehouse_closing_batches` já comporta tudo).
+Editar **apenas** `src/pages/ArmazensD24.tsx`.
 
-### 1. Atualizar callsite na lista de batches (~linha 882-893)
+### 1. Estado e derivações de volumes editados (sub-view "new")
 
-No `onClick` do botão "Executar", anexar `_batchId` ao `btProposals` para o modal localizar o batch:
-
-```tsx
-setBtProposals({
-  proposals: batch.allocation_snapshot ?? [],
-  total_volume_allocated_sacks: batch.total_volume_sacks,
-  strategy_used: batch.allocation_strategy,
-  warnings: [],
-  _batchId: batch.id,
-} as AllocateBatchResponse & { _batchId: string });
-setBtExecutionOpen(true);
+Adicionar junto aos estados de Block Trade:
+```ts
+const [btEditedVolumes, setBtEditedVolumes] = useState<Record<string, number | ''>>({});
 ```
 
-### 2. Atualizar render do modal (~linha 1394)
+`useEffect([btProposals])` que reinicializa o mapa com `volume_to_close_sacks` de cada proposal (ou limpa se `btProposals` for null).
 
-```tsx
-<BlockTradeExecutionModal
-  open={btExecutionOpen}
-  onClose={() => setBtExecutionOpen(false)}
-  batch={
-    btBatches.find((b: any) => b.id === (btProposals as any)?._batchId) ??
-    btBatches.find((b: any) => b.status === 'DRAFT') ?? null
-  }
-  proposals={btProposals}
-  d24Orders={btD24Orders as any[]}
-  userId={user?.id ?? null}
-  onExecuted={() => {
-    setBtExecutionOpen(false);
-    queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
-    queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
-    queryClient.invalidateQueries({ queryKey: ['d24-orders-for-bt'] });
-  }}
-/>
+Derivações:
+```ts
+const btTotalEdited = Object.values(btEditedVolumes).reduce((s,v)=>s+(Number(v)||0),0);
+const btTotalExpected = btProposals?.total_volume_allocated_sacks ?? 0;
+const btVolumeOk = Math.abs(btTotalEdited - btTotalExpected) < 0.01;
 ```
 
-### 3. Substituir o componente `BlockTradeExecutionModal` (linhas 1531-1553)
+### 2. `handleBtSaveDraft`
 
-Reescrita completa com 2 etapas (`step: 1 | 2`):
+Trocar o INSERT em `warehouse_closing_batches` para usar volumes editados:
+- `allocation_snapshot`: map sobre `btProposals.proposals` substituindo `volume_to_close_sacks` por `Number(btEditedVolumes[p.operation_id] ?? p.volume_to_close_sacks)`.
+- `total_volume_sacks`: `btTotalEdited`.
 
-**Estado interno**: `step`, `volumes` (Record<op_id, number>), `prices` (Record<instrument, number|''>), `submitting`, `executedSummary`. `useQueryClient` para invalidações pós-execução.
+### 3. Painel direito da sub-view "new"
 
-**Init via useEffect([open])**: ao abrir, popular `volumes` com `volume_to_close_sacks` de cada proposal; resetar `prices`, `step=1`, `executedSummary=null`.
+Substituir o bloco `{btProposals && (...)}` pela versão especificada:
+- Tabela com colunas Operação / Disponível / **A fechar (Input editável)** / MTM usado.
+- Indicador de total alocado (verde se `btVolumeOk`, vermelho caso contrário).
+- Bloco de warnings preservado.
+- **Único botão: "Salvar Rascunho"**, desabilitado se `btSubmitting || !btVolumeOk`.
+- Mensagem de ajuda em vermelho quando `!btVolumeOk`.
+- Remover completamente o botão "Ajustar e Executar".
 
-**Derivações memoizadas**:
-- `totalEdited`, `totalExpected`, `volumeOk` (delta < 0.01)
-- `openOrdersByOpId`: filtra `d24Orders` por `operation_id` e `!is_closing`, ordenados por `executed_at` ASC (FIFO)
-- `batchInstruments`: set único de `instrument_type` em todas as operações do batch
+### 4. `BlockTradeExecutionModal` — simplificar para 2 etapas
 
-**Etapa 1 — Edição** (layout 2 colunas em md+):
-- *Esquerda* — Tabela de volumes editáveis (1 linha por proposal): código, volume proposto (read-only), input editável, diferença colorida. Rodapé com `total X sc / Y sc` em verde/vermelho conforme `volumeOk`.
-- *Direita* — Um Input por instrumento em `batchInstruments`, com label diferenciado para `futures` (USD/bushel), `ndf` (R$/USD), `option` (premium).
-- Botão "Revisar →" habilitado só se `volumeOk && batchInstruments.every(i => Number(prices[i]) > 0)`.
+Volumes agora vêm fixos do `batch.allocation_snapshot`; o modal não edita mais volumes.
 
-**Etapa 2a — Resumo pré-execução** (antes do confirm):
-Tabela calculada via mesma lógica do handler: para cada op, para cada instrumento (FIFO), proporção = `volumes[op] / current_volume_sacks`, contracts/volume_units arredondados a 2 casas, `direction` invertida. Botões "← Voltar" e "Confirmar Execução" (destructive).
+- Remover do estado interno: `volumes`, `totalEdited`, `volumeOk` e o `useEffect` que populava volumes.
+- Manter: `step`, `prices`, `submitting`, `executedSummary`.
+- **Etapa 1**: tabela read-only (display_code + volume_to_close_sacks do snapshot) à esquerda; inputs de preço por instrumento à direita. Botão "Revisar →" habilitado quando todos os preços > 0.
+- **Etapa 2a (preview)**: usar `p.volume_to_close_sacks` direto do snapshot no cálculo proporcional (em vez de `volumes[p.operation_id]`).
+- **`handleExecute`**: idem — `p.volume_to_close_sacks` direto do snapshot.
+- **Etapa 2b**: inalterada.
 
-**handleExecute**:
-- Para cada proposal × cada instrumento (FIFO): `INSERT into orders` com `is_closing=true`, `closes_order_id=openOrder.id`, `batch_id`, `executed_by=userId`, preço alocado conforme tipo (`price` para futures, `ndf_rate` para ndf, `premium` para option), herdando `currency`, `ticker`, `option_type`, `strike`, `expiration_date`, `ndf_maturity` da order de abertura.
-- Após inserts, `UPDATE warehouse_closing_batches SET status='EXECUTED', generated_orders_count=N WHERE id=batch.id`.
-- Em sucesso: monta `executedSummary`, vai para etapa 2 pós-execução, toast.success, invalida queries.
-- Erros (insert/update) viram `toast.error` no catch — sem swallow.
+### Checklist de validação
 
-**Etapa 2b — Pós-execução** (quando `executedSummary !== null`):
-Check verde + tabela com `display_code` e `volume_closed`, botão "Fechar" único que chama `onExecuted()` + `onClose()`.
-
-### Pontos de atenção técnicos
-
-- `proposals.proposals[].operation_id` e `display_code` vêm tanto da resposta da API quanto do snapshot persistido — mesma forma, ok.
-- Cast `(supabase as any).from('orders').insert(...)` segue o padrão já usado em `handleBtSendForSignature`.
-- `batch?.id` necessário para o INSERT — modal protege com guard `if (!batch || !proposals || !userId) return;`.
-- Trigger `advance_operation_after_order` cuida da transição de status da operation; nada a fazer no frontend.
-
-### Checklist de validação (a rodar após implementação)
-
-1. Botão "Executar" em batch DRAFT abre modal já em etapa 1.
-2. Tabela de volumes editável; total fica vermelho ao divergir e verde ao bater.
-3. "Revisar →" desabilitado até volumes OK + todos os preços preenchidos.
-4. Etapa 2 pré-execução mostra contratos proporcionais corretos (regra de três sobre as orders de abertura FIFO).
-5. "Confirmar Execução" insere N orders com `is_closing=true`, `batch_id`, `closes_order_id` corretos no Supabase.
-6. `warehouse_closing_batches` vai para `status='EXECUTED'` com `generated_orders_count=N`.
-7. Batch some dos botões de ação na lista (não é mais DRAFT).
-8. Resumo pós-execução exibido; "Fechar" invalida queries e fecha modal.
-
-Reportar resultado item a item após implementar.
+1. Inputs editáveis aparecem na coluna "A fechar".
+2. Indicador total atualiza em tempo real, vermelho ao divergir.
+3. Verde quando total bate.
+4. "Salvar Rascunho" desabilitado enquanto diverge.
+5. `allocation_snapshot` no Supabase reflete volumes editados; `total_volume_sacks` correto.
+6. Modal de execução não tem inputs de volume — só preços.
+7. "Ajustar e Executar" não existe mais no painel "Novo Batch".

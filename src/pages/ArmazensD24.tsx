@@ -223,6 +223,23 @@ const ArmazensD24: React.FC = () => {
   const [btCancelTarget, setBtCancelTarget] = useState<any>(null);
   const [btCancelReason, setBtCancelReason] = useState('');
   const [btSubmitting, setBtSubmitting] = useState(false);
+  const [btEditedVolumes, setBtEditedVolumes] = useState<Record<string, number | ''>>({});
+
+  useEffect(() => {
+    if (!btProposals) {
+      setBtEditedVolumes({});
+      return;
+    }
+    const init: Record<string, number | ''> = {};
+    btProposals.proposals.forEach(p => {
+      init[p.operation_id] = p.volume_to_close_sacks;
+    });
+    setBtEditedVolumes(init);
+  }, [btProposals]);
+
+  const btTotalEdited = Object.values(btEditedVolumes).reduce<number>((s, v) => s + (Number(v) || 0), 0);
+  const btTotalExpected = btProposals?.total_volume_allocated_sacks ?? 0;
+  const btVolumeOk = Math.abs(btTotalEdited - btTotalExpected) < 0.01;
 
   useEffect(() => {
     if (btCommodity === 'soybean') setBtExchange('cbot');
@@ -410,11 +427,14 @@ const ArmazensD24: React.FC = () => {
           warehouse_id: btWarehouse,
           commodity: btCommodity,
           exchange: btExchange,
-          total_volume_sacks: btProposals.total_volume_allocated_sacks,
+          total_volume_sacks: btTotalEdited,
           allocation_strategy: btStrategy,
           mtm_snapshot_used_at: oldestMtm ?? null,
           mtm_staleness_warning: stalenessWarning,
-          allocation_snapshot: btProposals.proposals,
+          allocation_snapshot: btProposals.proposals.map(p => ({
+            ...p,
+            volume_to_close_sacks: Number(btEditedVolumes[p.operation_id] ?? p.volume_to_close_sacks),
+          })),
           affected_operations_count: btProposals.proposals.length,
           generated_orders_count: 0,
           status: 'DRAFT',
@@ -1081,9 +1101,6 @@ const ArmazensD24: React.FC = () => {
                         {btProposals.proposals.length} operação(ões) · estratégia{' '}
                         <span className="font-medium text-foreground">{btProposals.strategy_used}</span>
                       </span>
-                      <span className="font-medium">
-                        Total: {btProposals.total_volume_allocated_sacks.toLocaleString('pt-BR')} sc
-                      </span>
                     </div>
 
                     <Table>
@@ -1099,13 +1116,23 @@ const ArmazensD24: React.FC = () => {
                         {btProposals.proposals.map((p, i) => (
                           <TableRow key={`${p.operation_id}-${i}`}>
                             <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right text-xs">
                               {p.current_volume_sacks.toLocaleString('pt-BR')}
                             </TableCell>
-                            <TableCell className="text-right font-medium">
-                              {p.volume_to_close_sacks.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
-                            </TableCell>
                             <TableCell className="text-right">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.0001"
+                                className="h-7 w-28 text-right text-xs ml-auto"
+                                value={btEditedVolumes[p.operation_id] ?? ''}
+                                onChange={(e) => setBtEditedVolumes(prev => ({
+                                  ...prev,
+                                  [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
+                                }))}
+                              />
+                            </TableCell>
+                            <TableCell className="text-right text-xs">
                               {p.mtm_at_allocation !== null && p.mtm_at_allocation !== undefined
                                 ? fmtBrl(p.mtm_at_allocation)
                                 : '—'}
@@ -1114,6 +1141,15 @@ const ArmazensD24: React.FC = () => {
                         ))}
                       </TableBody>
                     </Table>
+
+                    <div className={`flex items-center justify-between text-xs font-medium px-1 ${btVolumeOk ? 'text-green-500' : 'text-red-500'}`}>
+                      <span>Total alocado</span>
+                      <span>
+                        {btTotalEdited.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} sc
+                        {' / '}
+                        {btTotalExpected.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} sc
+                      </span>
+                    </div>
 
                     {btProposals.proposals.some(p => p.allocation_reason?.includes('Warning')) && (
                       <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 space-y-1">
@@ -1127,22 +1163,18 @@ const ArmazensD24: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        disabled={btSubmitting}
-                        onClick={handleBtSaveDraft}
-                      >
-                        {btSubmitting ? 'Salvando...' : 'Salvar Rascunho'}
-                      </Button>
-                      <Button
-                        className="flex-1"
-                        onClick={() => setBtExecutionOpen(true)}
-                      >
-                        Ajustar e Executar
-                      </Button>
-                    </div>
+                    <Button
+                      className="w-full"
+                      disabled={btSubmitting || !btVolumeOk}
+                      onClick={handleBtSaveDraft}
+                    >
+                      {btSubmitting ? 'Salvando...' : 'Salvar Rascunho'}
+                    </Button>
+                    {!btVolumeOk && (
+                      <p className="text-xs text-red-500 text-center">
+                        Ajuste os volumes para que o total bata com o valor calculado.
+                      </p>
+                    )}
                   </>
                 )}
               </CardContent>
@@ -1556,26 +1588,17 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   open, onClose, batch, proposals, d24Orders, userId, onExecuted,
 }) => {
   const [step, setStep] = useState<1 | 2>(1);
-  const [volumes, setVolumes] = useState<Record<string, number>>({});
   const [prices, setPrices] = useState<Record<string, number | ''>>({});
   const [submitting, setSubmitting] = useState(false);
   const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
 
   useEffect(() => {
-    if (!open || !proposals) return;
-    const initVolumes: Record<string, number> = {};
-    proposals.proposals.forEach(p => {
-      initVolumes[p.operation_id] = p.volume_to_close_sacks;
-    });
-    setVolumes(initVolumes);
+    if (!open) return;
     setPrices({});
     setStep(1);
     setExecutedSummary(null);
-  }, [open, proposals]);
+  }, [open]);
 
-  const totalEdited = Object.values(volumes).reduce((s, v) => s + (Number(v) || 0), 0);
-  const totalExpected = proposals?.total_volume_allocated_sacks ?? 0;
-  const volumeOk = Math.abs(totalEdited - totalExpected) < 0.01;
 
   const openOrdersByOpId = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -1603,7 +1626,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     const rows: { display_code: string; instrument: string; direction: string; contracts: number; volume_units: number; price: number | '' }[] = [];
     for (const p of proposals.proposals) {
       const opOrders = openOrdersByOpId[p.operation_id] ?? [];
-      const proporção = (volumes[p.operation_id] ?? 0) / (p.current_volume_sacks || 1);
+      const proporção = (Number(p.volume_to_close_sacks) || 0) / (p.current_volume_sacks || 1);
       const seen = new Set<string>();
       for (const o of opOrders) {
         if (seen.has(o.instrument_type)) continue;
@@ -1619,7 +1642,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
       }
     }
     return rows;
-  }, [proposals, openOrdersByOpId, volumes, prices]);
+  }, [proposals, openOrdersByOpId, prices]);
 
   const handleExecute = async () => {
     if (!batch || !proposals || !userId) return;
@@ -1630,7 +1653,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
       for (const p of proposals.proposals) {
         const opOrders = openOrdersByOpId[p.operation_id] ?? [];
-        const volumeToClose = volumes[p.operation_id] ?? 0;
+        const volumeToClose = Number(p.volume_to_close_sacks) || 0;
         if (volumeToClose <= 0) continue;
         const proporção = volumeToClose / (p.current_volume_sacks || 1);
 
@@ -1684,7 +1707,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
       setExecutedSummary(proposals.proposals.map(p => ({
         display_code: p.display_code,
-        volume_closed: volumes[p.operation_id] ?? 0,
+        volume_closed: Number(p.volume_to_close_sacks) || 0,
       })));
       toast.success('Batch executado com sucesso');
     } catch (e: any) {
@@ -1737,49 +1760,27 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
           </div>
         ) : step === 1 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Volumes */}
+            {/* Volumes (read-only) */}
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Volumes por operação</h3>
+              <h3 className="text-sm font-semibold">Volumes do batch</h3>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Código</TableHead>
-                    <TableHead className="text-right">Proposto</TableHead>
-                    <TableHead className="text-right">A fechar</TableHead>
-                    <TableHead className="text-right">Δ</TableHead>
+                    <TableHead className="text-right">A fechar (sc)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {proposals.proposals.map((p) => {
-                    const v = volumes[p.operation_id] ?? 0;
-                    const diff = v - p.volume_to_close_sacks;
-                    return (
-                      <TableRow key={p.operation_id}>
-                        <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground">
-                          {Number(p.volume_to_close_sacks).toLocaleString('pt-BR')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.0001"
-                            value={v}
-                            onChange={(e) => setVolumes(prev => ({ ...prev, [p.operation_id]: Number(e.target.value) || 0 }))}
-                            className="h-8 w-28 ml-auto text-right"
-                          />
-                        </TableCell>
-                        <TableCell className={`text-right text-xs ${Math.abs(diff) < 0.01 ? 'text-green-500' : 'text-red-500'}`}>
-                          {diff > 0 ? '+' : ''}{diff.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {proposals.proposals.map((p) => (
+                    <TableRow key={p.operation_id}>
+                      <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                      <TableCell className="text-right text-xs">
+                        {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
-              <div className={`text-sm font-medium text-right ${volumeOk ? 'text-green-500' : 'text-red-500'}`}>
-                Total: {totalEdited.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} sc / {totalExpected.toLocaleString('pt-BR')} sc
-              </div>
             </div>
 
             {/* Prices */}
@@ -1807,7 +1808,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
               ))}
               <div className="pt-4 flex justify-end gap-2">
                 <Button variant="outline" onClick={onClose}>Cancelar</Button>
-                <Button disabled={!volumeOk || !pricesOk} onClick={() => setStep(2)}>
+                <Button disabled={!pricesOk} onClick={() => setStep(2)}>
                   Revisar →
                 </Button>
               </div>
