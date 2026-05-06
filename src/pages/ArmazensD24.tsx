@@ -1588,26 +1588,17 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   open, onClose, batch, proposals, d24Orders, userId, onExecuted,
 }) => {
   const [step, setStep] = useState<1 | 2>(1);
-  const [volumes, setVolumes] = useState<Record<string, number>>({});
   const [prices, setPrices] = useState<Record<string, number | ''>>({});
   const [submitting, setSubmitting] = useState(false);
   const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
 
   useEffect(() => {
-    if (!open || !proposals) return;
-    const initVolumes: Record<string, number> = {};
-    proposals.proposals.forEach(p => {
-      initVolumes[p.operation_id] = p.volume_to_close_sacks;
-    });
-    setVolumes(initVolumes);
+    if (!open) return;
     setPrices({});
     setStep(1);
     setExecutedSummary(null);
-  }, [open, proposals]);
+  }, [open]);
 
-  const totalEdited = Object.values(volumes).reduce((s, v) => s + (Number(v) || 0), 0);
-  const totalExpected = proposals?.total_volume_allocated_sacks ?? 0;
-  const volumeOk = Math.abs(totalEdited - totalExpected) < 0.01;
 
   const openOrdersByOpId = useMemo(() => {
     const map: Record<string, any[]> = {};
