@@ -1261,7 +1261,7 @@ const ArmazensD24: React.FC = () => {
                       disabled={btSubmitting || !btVolumeOk}
                       onClick={handleBtSaveDraft}
                     >
-                      {btSubmitting ? 'Salvando...' : 'Salvar Rascunho'}
+                      {btSubmitting ? 'Salvando...' : (btEditingBatchId ? 'Atualizar Rascunho' : 'Salvar Rascunho')}
                     </Button>
                     {!btVolumeOk && (
                       <p className="text-xs text-red-500 text-center">
