@@ -421,6 +421,67 @@ const ArmazensD24: React.FC = () => {
         : mtmAgeHours < 24 ? 'yellow'
         : 'red';
 
+      // Build allocation_snapshot with edited volumes
+      const snapshotRows = btProposals.proposals.map(p => ({
+        ...p,
+        volume_to_close_sacks: Number(btEditedVolumes[p.operation_id] ?? p.volume_to_close_sacks),
+      }));
+
+      // Build closing-order message client-side, proportionally to each operation's open orders.
+      const ordersList = btD24Orders as any[];
+      const commodityLabel = btCommodity === 'soybean' ? 'SOJA' : btCommodity === 'corn' ? 'MILHO' : btCommodity.toUpperCase();
+      const warehouseName = warehouses.find(w => w.id === btWarehouse)?.display_name ?? btWarehouse;
+      const fmtNum = (n: number, d = 2) => Number(n).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+      const orderLines: string[] = [];
+      const confirmLines: string[] = [];
+      for (const p of snapshotRows) {
+        const opOrders = ordersList.filter(o => o.operation_id === p.operation_id && !o.is_closing);
+        const proporcao = (Number(p.volume_to_close_sacks) || 0) / (p.current_volume_sacks || 1);
+        const seen = new Set<string>();
+        const legParts: string[] = [];
+        for (const o of opOrders) {
+          if (seen.has(o.instrument_type)) continue;
+          seen.add(o.instrument_type);
+          const closingDirection = o.direction === 'buy' ? 'COMPRAR' : 'VENDER';
+          const contracts = Math.round((Number(o.contracts) * proporcao) * 100) / 100;
+          const volume_units = Math.round((Number(o.volume_units) * proporcao) * 100) / 100;
+          if (o.instrument_type === 'futures') {
+            legParts.push(`${closingDirection} ${fmtNum(contracts)} cts ${o.ticker ?? ''}`.trim());
+          } else if (o.instrument_type === 'ndf') {
+            const closeNdfDir = o.direction === 'buy' ? 'VENDER' : 'COMPRAR';
+            legParts.push(`NDF ${closeNdfDir} USD ${fmtNum(volume_units)}${o.ndf_maturity ? ` venc ${o.ndf_maturity}` : ''}`);
+          } else if (o.instrument_type === 'option') {
+            legParts.push(`${closingDirection} ${fmtNum(contracts)} ${(o.option_type ?? '').toUpperCase()} strike ${fmtNum(Number(o.strike) || 0, 4)}`);
+          }
+        }
+        orderLines.push(`• ${p.display_code} (${fmtNum(Number(p.volume_to_close_sacks), 2)} sc): ${legParts.join(' | ')}`);
+        confirmLines.push(`• ${p.display_code}: ${fmtNum(Number(p.volume_to_close_sacks), 2)} sc`);
+      }
+
+      const orderMessage = [
+        `🚨 *ORDEM DE ENCERRAMENTO (BLOCK TRADE)* 🚨`,
+        `Praça: ${warehouseName}`,
+        `Commodity: ${commodityLabel}`,
+        `Volume Total: ${fmtNum(btTotalEdited, 2)} sc`,
+        `Estratégia: ${btStrategy}`,
+        ``,
+        `Operações afetadas:`,
+        ...orderLines,
+        ``,
+        `Favor confirmar execução e repassar os preços médios.`,
+      ].join('\n');
+
+      const confirmationMessage = [
+        `✅ *ENCERRAMENTO ESTRUTURADO* ✅`,
+        `Praça: ${warehouseName}`,
+        `Commodity: ${commodityLabel}`,
+        `Volume Total: ${fmtNum(btTotalEdited, 2)} sc`,
+        ``,
+        `Operações encerradas:`,
+        ...confirmLines,
+      ].join('\n');
+
       const { error } = await (supabase as any)
         .from('warehouse_closing_batches')
         .insert({
@@ -431,14 +492,13 @@ const ArmazensD24: React.FC = () => {
           allocation_strategy: btStrategy,
           mtm_snapshot_used_at: oldestMtm ?? null,
           mtm_staleness_warning: stalenessWarning,
-          allocation_snapshot: btProposals.proposals.map(p => ({
-            ...p,
-            volume_to_close_sacks: Number(btEditedVolumes[p.operation_id] ?? p.volume_to_close_sacks),
-          })),
+          allocation_snapshot: snapshotRows,
           affected_operations_count: btProposals.proposals.length,
           generated_orders_count: 0,
           status: 'DRAFT',
           created_by: user.id,
+          order_message: orderMessage,
+          confirmation_message: confirmationMessage,
         });
       if (error) throw new Error(error.message);
       toast.success('Rascunho salvo');
