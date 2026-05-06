@@ -1395,6 +1395,19 @@ const ArmazensD24: React.FC = () => {
       <BlockTradeExecutionModal
         open={btExecutionOpen}
         onClose={() => setBtExecutionOpen(false)}
+        batch={
+          btBatches.find((b: any) => b.id === (btProposals as any)?._batchId) ??
+          btBatches.find((b: any) => b.status === 'DRAFT') ?? null
+        }
+        proposals={btProposals}
+        d24Orders={btD24Orders as any[]}
+        userId={user?.id ?? null}
+        onExecuted={() => {
+          setBtExecutionOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
+          queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+          queryClient.invalidateQueries({ queryKey: ['d24-orders-for-bt'] });
+        }}
       />
     </div>
   );
