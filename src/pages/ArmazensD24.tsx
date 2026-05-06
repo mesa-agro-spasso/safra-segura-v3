@@ -223,6 +223,23 @@ const ArmazensD24: React.FC = () => {
   const [btCancelTarget, setBtCancelTarget] = useState<any>(null);
   const [btCancelReason, setBtCancelReason] = useState('');
   const [btSubmitting, setBtSubmitting] = useState(false);
+  const [btEditedVolumes, setBtEditedVolumes] = useState<Record<string, number | ''>>({});
+
+  useEffect(() => {
+    if (!btProposals) {
+      setBtEditedVolumes({});
+      return;
+    }
+    const init: Record<string, number | ''> = {};
+    btProposals.proposals.forEach(p => {
+      init[p.operation_id] = p.volume_to_close_sacks;
+    });
+    setBtEditedVolumes(init);
+  }, [btProposals]);
+
+  const btTotalEdited = Object.values(btEditedVolumes).reduce((s, v) => s + (Number(v) || 0), 0);
+  const btTotalExpected = btProposals?.total_volume_allocated_sacks ?? 0;
+  const btVolumeOk = Math.abs(btTotalEdited - btTotalExpected) < 0.01;
 
   useEffect(() => {
     if (btCommodity === 'soybean') setBtExchange('cbot');
