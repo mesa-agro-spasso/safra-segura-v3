@@ -407,14 +407,15 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
         </p>
       )}
       <div className="flex gap-2 pt-2">
-        <Button size="sm" variant="outline" onClick={handleGenerateMessages}
-          disabled={editLegs.length === 0 || generatingMessages || !isDraft}>
-          {generatingMessages ? 'Gerando...' : 'Gerar Mensagens'}
-        </Button>
         <Button size="sm" onClick={handleSavePlan}
-          disabled={savingPlan || !isDraft}>
+          disabled={savingPlan || !isDraft || editLegs.length === 0}>
           {savingPlan ? 'Salvando...' : 'Salvar Plano'}
         </Button>
+        {onCancel && (
+          <Button size="sm" variant="outline" onClick={onCancel} disabled={savingPlan}>
+            Cancelar
+          </Button>
+        )}
       </div>
     </div>
   );
