@@ -885,7 +885,8 @@ const ArmazensD24: React.FC = () => {
                                           total_volume_allocated_sacks: batch.total_volume_sacks,
                                           strategy_used: batch.allocation_strategy,
                                           warnings: [],
-                                        } as AllocateBatchResponse);
+                                          _batchId: batch.id,
+                                        } as AllocateBatchResponse & { _batchId: string });
                                         setBtExecutionOpen(true);
                                       }}
                                     >
@@ -1394,6 +1395,19 @@ const ArmazensD24: React.FC = () => {
       <BlockTradeExecutionModal
         open={btExecutionOpen}
         onClose={() => setBtExecutionOpen(false)}
+        batch={
+          btBatches.find((b: any) => b.id === (btProposals as any)?._batchId) ??
+          btBatches.find((b: any) => b.status === 'DRAFT') ?? null
+        }
+        proposals={btProposals}
+        d24Orders={btD24Orders as any[]}
+        userId={user?.id ?? null}
+        onExecuted={() => {
+          setBtExecutionOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
+          queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+          queryClient.invalidateQueries({ queryKey: ['d24-orders-for-bt'] });
+        }}
       />
     </div>
   );
@@ -1528,28 +1542,314 @@ const ConfigCard: React.FC<{
   );
 };
 
-const BlockTradeExecutionModal: React.FC<{
+interface BlockTradeExecutionModalProps {
   open: boolean;
   onClose: () => void;
-}> = ({ open, onClose }) => (
-  <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Ajustar e Executar Block Trade</DialogTitle>
-      </DialogHeader>
-      <div className="flex flex-col items-center justify-center py-8 space-y-3 text-center">
-        <div className="rounded-full bg-muted p-4">
-          <Calculator className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <p className="text-sm text-muted-foreground max-w-xs">
-          Modal de execução — implementação completa no Lote 2C.
-        </p>
-      </div>
-      <div className="flex justify-end">
-        <Button variant="outline" onClick={onClose}>Fechar</Button>
-      </div>
-    </DialogContent>
-  </Dialog>
-);
+  batch: any | null;
+  proposals: AllocateBatchResponse | null;
+  d24Orders: any[];
+  userId: string | null;
+  onExecuted: () => void;
+}
+
+const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
+  open, onClose, batch, proposals, d24Orders, userId, onExecuted,
+}) => {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [volumes, setVolumes] = useState<Record<string, number>>({});
+  const [prices, setPrices] = useState<Record<string, number | ''>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
+
+  useEffect(() => {
+    if (!open || !proposals) return;
+    const initVolumes: Record<string, number> = {};
+    proposals.proposals.forEach(p => {
+      initVolumes[p.operation_id] = p.volume_to_close_sacks;
+    });
+    setVolumes(initVolumes);
+    setPrices({});
+    setStep(1);
+    setExecutedSummary(null);
+  }, [open, proposals]);
+
+  const totalEdited = Object.values(volumes).reduce((s, v) => s + (Number(v) || 0), 0);
+  const totalExpected = proposals?.total_volume_allocated_sacks ?? 0;
+  const volumeOk = Math.abs(totalEdited - totalExpected) < 0.01;
+
+  const openOrdersByOpId = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const p of (proposals?.proposals ?? [])) {
+      map[p.operation_id] = d24Orders
+        .filter((o: any) => o.operation_id === p.operation_id && !o.is_closing)
+        .sort((a: any, b: any) => String(a.executed_at ?? '').localeCompare(String(b.executed_at ?? '')));
+    }
+    return map;
+  }, [proposals, d24Orders]);
+
+  const batchInstruments = useMemo(() => {
+    const set = new Set<string>();
+    for (const orders of Object.values(openOrdersByOpId)) {
+      orders.forEach((o: any) => set.add(o.instrument_type));
+    }
+    return Array.from(set);
+  }, [openOrdersByOpId]);
+
+  const pricesOk = batchInstruments.every(i => Number(prices[i]) > 0);
+
+  // Build preview rows for step 2 (pre-execution summary)
+  const previewRows = useMemo(() => {
+    if (!proposals) return [];
+    const rows: { display_code: string; instrument: string; direction: string; contracts: number; volume_units: number; price: number | '' }[] = [];
+    for (const p of proposals.proposals) {
+      const opOrders = openOrdersByOpId[p.operation_id] ?? [];
+      const proporção = (volumes[p.operation_id] ?? 0) / (p.current_volume_sacks || 1);
+      const seen = new Set<string>();
+      for (const o of opOrders) {
+        if (seen.has(o.instrument_type)) continue;
+        seen.add(o.instrument_type);
+        rows.push({
+          display_code: p.display_code,
+          instrument: o.instrument_type,
+          direction: o.direction === 'buy' ? 'sell' : 'buy',
+          contracts: Math.round((Number(o.contracts) * proporção) * 100) / 100,
+          volume_units: Math.round((Number(o.volume_units) * proporção) * 100) / 100,
+          price: prices[o.instrument_type] ?? '',
+        });
+      }
+    }
+    return rows;
+  }, [proposals, openOrdersByOpId, volumes, prices]);
+
+  const handleExecute = async () => {
+    if (!batch || !proposals || !userId) return;
+    setSubmitting(true);
+    try {
+      const now = new Date().toISOString();
+      let totalOrdersInserted = 0;
+
+      for (const p of proposals.proposals) {
+        const opOrders = openOrdersByOpId[p.operation_id] ?? [];
+        const volumeToClose = volumes[p.operation_id] ?? 0;
+        if (volumeToClose <= 0) continue;
+        const proporção = volumeToClose / (p.current_volume_sacks || 1);
+
+        const byInstrument: Record<string, any> = {};
+        for (const o of opOrders) {
+          if (!byInstrument[o.instrument_type]) byInstrument[o.instrument_type] = o;
+        }
+
+        for (const [instrument, openOrder] of Object.entries(byInstrument)) {
+          const contracts = Math.round((Number(openOrder.contracts) * proporção) * 100) / 100;
+          const volume_units = Math.round((Number(openOrder.volume_units) * proporção) * 100) / 100;
+          const direction = openOrder.direction === 'buy' ? 'sell' : 'buy';
+          const priceVal = instrument === 'futures' ? (Number(prices[instrument]) || null) : null;
+          const ndfRate = instrument === 'ndf' ? (Number(prices[instrument]) || null) : null;
+          const premium = instrument === 'option' ? (Number(prices[instrument]) || null) : null;
+
+          const { error } = await (supabase as any)
+            .from('orders')
+            .insert({
+              operation_id: p.operation_id,
+              batch_id: batch.id,
+              instrument_type: instrument,
+              direction,
+              currency: openOrder.currency,
+              contracts,
+              volume_units,
+              price: priceVal,
+              ndf_rate: ndfRate,
+              ndf_maturity: openOrder.ndf_maturity ?? null,
+              option_type: openOrder.option_type ?? null,
+              strike: openOrder.strike ?? null,
+              expiration_date: openOrder.expiration_date ?? null,
+              ticker: openOrder.ticker ?? null,
+              is_counterparty_insurance: false,
+              is_closing: true,
+              closes_order_id: openOrder.id,
+              executed_at: now,
+              executed_by: userId,
+              premium,
+            });
+          if (error) throw new Error(error.message);
+          totalOrdersInserted++;
+        }
+      }
+
+      const { error: batchError } = await (supabase as any)
+        .from('warehouse_closing_batches')
+        .update({ status: 'EXECUTED', generated_orders_count: totalOrdersInserted })
+        .eq('id', batch.id);
+      if (batchError) throw new Error(batchError.message);
+
+      setExecutedSummary(proposals.proposals.map(p => ({
+        display_code: p.display_code,
+        volume_closed: volumes[p.operation_id] ?? 0,
+      })));
+      toast.success('Batch executado com sucesso');
+    } catch (e: any) {
+      toast.error('Erro ao executar batch: ' + (e?.message ?? String(e)));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {executedSummary ? 'Execução Concluída' : step === 1 ? 'Ajustar Volumes e Preços' : 'Revisar Execução'}
+          </DialogTitle>
+        </DialogHeader>
+
+        {!proposals || !batch ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            Nenhum batch selecionado.
+          </div>
+        ) : executedSummary ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-green-500">
+              <span className="text-lg">✓</span>
+              <span className="font-medium">Batch executado com sucesso</span>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Operação</TableHead>
+                  <TableHead className="text-right">Volume fechado (sc)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {executedSummary.map((s, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="font-mono text-xs">{s.display_code}</TableCell>
+                    <TableCell className="text-right">
+                      {Number(s.volume_closed).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Button className="w-full" onClick={() => { onExecuted(); onClose(); }}>
+              Fechar
+            </Button>
+          </div>
+        ) : step === 1 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Volumes */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Volumes por operação</h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead className="text-right">Proposto</TableHead>
+                    <TableHead className="text-right">A fechar</TableHead>
+                    <TableHead className="text-right">Δ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {proposals.proposals.map((p) => {
+                    const v = volumes[p.operation_id] ?? 0;
+                    const diff = v - p.volume_to_close_sacks;
+                    return (
+                      <TableRow key={p.operation_id}>
+                        <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">
+                          {Number(p.volume_to_close_sacks).toLocaleString('pt-BR')}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.0001"
+                            value={v}
+                            onChange={(e) => setVolumes(prev => ({ ...prev, [p.operation_id]: Number(e.target.value) || 0 }))}
+                            className="h-8 w-28 ml-auto text-right"
+                          />
+                        </TableCell>
+                        <TableCell className={`text-right text-xs ${Math.abs(diff) < 0.01 ? 'text-green-500' : 'text-red-500'}`}>
+                          {diff > 0 ? '+' : ''}{diff.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              <div className={`text-sm font-medium text-right ${volumeOk ? 'text-green-500' : 'text-red-500'}`}>
+                Total: {totalEdited.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} sc / {totalExpected.toLocaleString('pt-BR')} sc
+              </div>
+            </div>
+
+            {/* Prices */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Preço por instrumento</h3>
+              {batchInstruments.length === 0 && (
+                <p className="text-xs text-muted-foreground">Nenhum instrumento encontrado nas operações do batch.</p>
+              )}
+              {batchInstruments.map(instrument => (
+                <div key={instrument} className="space-y-1.5">
+                  <Label className="text-xs">
+                    Preço — {instrument === 'futures' ? 'Futures (USD/bushel)'
+                      : instrument === 'ndf' ? 'NDF (R$/USD)'
+                      : `${instrument} (premium)`}
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    placeholder="Preço real executado"
+                    value={prices[instrument] ?? ''}
+                    onChange={(e) => setPrices(prev => ({ ...prev, [instrument]: e.target.value === '' ? '' : parseFloat(e.target.value) }))}
+                    className="h-9"
+                  />
+                </div>
+              ))}
+              <div className="pt-4 flex justify-end gap-2">
+                <Button variant="outline" onClick={onClose}>Cancelar</Button>
+                <Button disabled={!volumeOk || !pricesOk} onClick={() => setStep(2)}>
+                  Revisar →
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Operação</TableHead>
+                  <TableHead>Instrumento</TableHead>
+                  <TableHead>Direção</TableHead>
+                  <TableHead className="text-right">Contratos</TableHead>
+                  <TableHead className="text-right">Volume (sc)</TableHead>
+                  <TableHead className="text-right">Preço</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {previewRows.map((r, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="font-mono text-xs">{r.display_code}</TableCell>
+                    <TableCell className="text-xs">{r.instrument}</TableCell>
+                    <TableCell className="text-xs uppercase">{r.direction}</TableCell>
+                    <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStep(1)} disabled={submitting}>← Voltar</Button>
+              <Button variant="destructive" onClick={handleExecute} disabled={submitting}>
+                {submitting ? 'Executando...' : 'Confirmar Execução'}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 export default ArmazensD24;
