@@ -270,11 +270,11 @@ const OrdensD24: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Ordens D24</h1>
+        <h1 className="text-2xl font-bold">Ordens</h1>
         <Button
           size="sm"
           onClick={() => navigate('/operacoes-d24')}
-          title="Para criar uma nova ordem, crie ou selecione uma operação em Operações D24"
+          title="Para criar uma nova ordem, crie ou selecione uma operação em Operações"
         >
           Nova Ordem
         </Button>
