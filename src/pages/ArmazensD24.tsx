@@ -224,6 +224,7 @@ const ArmazensD24: React.FC = () => {
   const [btCancelReason, setBtCancelReason] = useState('');
   const [btSubmitting, setBtSubmitting] = useState(false);
   const [btEditedVolumes, setBtEditedVolumes] = useState<Record<string, number | ''>>({});
+  const [btEditingBatchId, setBtEditingBatchId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!btProposals) {
@@ -482,32 +483,42 @@ const ArmazensD24: React.FC = () => {
         ...confirmLines,
       ].join('\n');
 
-      const { error } = await (supabase as any)
-        .from('warehouse_closing_batches')
-        .insert({
-          warehouse_id: btWarehouse,
-          commodity: btCommodity,
-          exchange: btExchange,
-          total_volume_sacks: btTotalEdited,
-          allocation_strategy: btStrategy,
-          mtm_snapshot_used_at: oldestMtm ?? null,
-          mtm_staleness_warning: stalenessWarning,
-          allocation_snapshot: snapshotRows,
-          affected_operations_count: btProposals.proposals.length,
-          generated_orders_count: 0,
-          status: 'DRAFT',
-          created_by: user.id,
-          order_message: orderMessage,
-          confirmation_message: confirmationMessage,
-        });
-      if (error) throw new Error(error.message);
-      toast.success('Rascunho salvo');
+      const payload: any = {
+        warehouse_id: btWarehouse,
+        commodity: btCommodity,
+        exchange: btExchange,
+        total_volume_sacks: btTotalEdited,
+        allocation_strategy: btStrategy,
+        mtm_snapshot_used_at: oldestMtm ?? null,
+        mtm_staleness_warning: stalenessWarning,
+        allocation_snapshot: snapshotRows,
+        affected_operations_count: btProposals.proposals.length,
+        generated_orders_count: 0,
+        status: 'DRAFT',
+        order_message: orderMessage,
+        confirmation_message: confirmationMessage,
+      };
+      if (btEditingBatchId) {
+        const { error } = await (supabase as any)
+          .from('warehouse_closing_batches')
+          .update(payload)
+          .eq('id', btEditingBatchId);
+        if (error) throw new Error(error.message);
+        toast.success('Rascunho atualizado');
+      } else {
+        const { error } = await (supabase as any)
+          .from('warehouse_closing_batches')
+          .insert({ ...payload, created_by: user.id });
+        if (error) throw new Error(error.message);
+        toast.success('Rascunho salvo');
+      }
       queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
       setBtView('list');
       setBtProposals(null);
       setBtWarnings([]);
       setBtVolume('');
       setBtStrategy('');
+      setBtEditingBatchId(null);
     } catch (e: any) {
       toast.error('Erro ao salvar rascunho: ' + (e?.message ?? String(e)));
     } finally {
@@ -871,13 +882,13 @@ const ArmazensD24: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); }}
+                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); setBtEditingBatchId(null); }}
                 >
                   ← Voltar
                 </Button>
               )}
               <h2 className="text-lg font-semibold">
-                {btView === 'list' ? 'Block Trades' : 'Novo Batch'}
+                {btView === 'list' ? 'Block Trades' : (btEditingBatchId ? 'Editar Rascunho' : 'Novo Batch')}
               </h2>
             </div>
             {btView === 'list' && (
@@ -947,6 +958,28 @@ const ArmazensD24: React.FC = () => {
                               <div className="flex justify-end gap-1">
                                 {isDraft && (
                                   <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setBtEditingBatchId(batch.id);
+                                        setBtWarehouse(batch.warehouse_id);
+                                        setBtCommodity(batch.commodity);
+                                        setBtExchange(batch.exchange);
+                                        setBtVolume(String(batch.total_volume_sacks));
+                                        setBtStrategy(batch.allocation_strategy);
+                                        setBtProposals({
+                                          proposals: batch.allocation_snapshot ?? [],
+                                          total_volume_allocated_sacks: batch.total_volume_sacks,
+                                          strategy_used: batch.allocation_strategy,
+                                          warnings: [],
+                                        } as AllocateBatchResponse);
+                                        setBtWarnings([]);
+                                        setBtView('new');
+                                      }}
+                                    >
+                                      Editar
+                                    </Button>
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -1228,7 +1261,7 @@ const ArmazensD24: React.FC = () => {
                       disabled={btSubmitting || !btVolumeOk}
                       onClick={handleBtSaveDraft}
                     >
-                      {btSubmitting ? 'Salvando...' : 'Salvar Rascunho'}
+                      {btSubmitting ? 'Salvando...' : (btEditingBatchId ? 'Atualizar Rascunho' : 'Salvar Rascunho')}
                     </Button>
                     {!btVolumeOk && (
                       <p className="text-xs text-red-500 text-center">
