@@ -885,7 +885,8 @@ const ArmazensD24: React.FC = () => {
                                           total_volume_allocated_sacks: batch.total_volume_sacks,
                                           strategy_used: batch.allocation_strategy,
                                           warnings: [],
-                                        } as AllocateBatchResponse);
+                                          _batchId: batch.id,
+                                        } as AllocateBatchResponse & { _batchId: string });
                                         setBtExecutionOpen(true);
                                       }}
                                     >
