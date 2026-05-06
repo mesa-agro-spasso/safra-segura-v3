@@ -82,7 +82,7 @@ const emptyLeg = (): EditableLeg => ({
   is_counterparty_insurance: false,
 });
 
-interface HedgePlanEditorProps {
+export interface HedgePlanEditorProps {
   operation: OperationWithDetails;
   opD24: any;
   planLegs: any[];
@@ -91,14 +91,17 @@ interface HedgePlanEditorProps {
   copyToClipboard: (text: string) => void;
 }
 
-const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, planLegs, userId, onSaved, copyToClipboard }) => {
+export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, planLegs, userId, onSaved, copyToClipboard }) => {
+  const isDraft = (operation as any)?.status === 'DRAFT' || (operation as any)?.status === 'RASCUNHO';
   const [editLegsRaw, setEditLegsRaw] = React.useState<EditableLeg[]>(() =>
     planLegs.map((l: any) => ({
       instrument_type: (l.instrument_type ?? 'futures') as EditableLeg['instrument_type'],
       direction: (l.direction ?? 'sell') as 'buy' | 'sell',
       currency: l.currency ?? (l.instrument_type === 'ndf' ? 'BRL' : 'USD'),
       ticker: l.ticker ?? '',
-      contracts: l.contracts != null ? String(l.contracts) : '',
+      contracts: l.instrument_type === 'ndf'
+        ? (l.volume_units != null ? String(l.volume_units) : (l.contracts != null ? String(l.contracts) : ''))
+        : (l.contracts != null ? String(l.contracts) : ''),
       price_estimated: l.price_estimated != null ? String(l.price_estimated) : '',
       ndf_rate: l.ndf_rate != null ? String(l.ndf_rate) : '',
       ndf_maturity: l.ndf_maturity ?? '',
@@ -125,22 +128,26 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
     setMessages(null);
   };
 
-  const buildLegPayload = (l: EditableLeg) => ({
-    instrument_type: l.instrument_type,
-    direction: l.direction,
-    currency: l.currency,
-    ticker: l.ticker || undefined,
-    contracts: l.contracts ? parseFloat(l.contracts) : undefined,
-    price_estimated: l.price_estimated ? parseFloat(l.price_estimated) : undefined,
-    ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
-    ndf_maturity: l.ndf_maturity || undefined,
-    option_type: l.instrument_type === 'option' ? l.option_type : undefined,
-    strike: l.strike ? parseFloat(l.strike) : undefined,
-    premium: l.premium ? parseFloat(l.premium) : undefined,
-    expiration_date: l.expiration_date || undefined,
-    is_counterparty_insurance: l.is_counterparty_insurance,
-    notes: l.notes || undefined,
-  });
+  const buildLegPayload = (l: EditableLeg) => {
+    const qty = l.contracts ? parseFloat(l.contracts) : undefined;
+    return {
+      instrument_type: l.instrument_type,
+      direction: l.direction,
+      currency: l.currency,
+      ticker: l.ticker || undefined,
+      contracts: qty,
+      volume_units: l.instrument_type === 'ndf' ? qty : undefined,
+      price_estimated: l.price_estimated ? parseFloat(l.price_estimated) : undefined,
+      ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
+      ndf_maturity: l.ndf_maturity || undefined,
+      option_type: l.instrument_type === 'option' ? l.option_type : undefined,
+      strike: l.strike ? parseFloat(l.strike) : undefined,
+      premium: l.premium ? parseFloat(l.premium) : undefined,
+      expiration_date: l.expiration_date || undefined,
+      is_counterparty_insurance: l.is_counterparty_insurance,
+      notes: l.notes || undefined,
+    };
+  };
 
   const handleGenerateMessages = async () => {
     if (generatingMessages) return;
@@ -205,13 +212,20 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
   };
 
   const handleSavePlan = async () => {
-    if (!messages || savingPlan) return;
+    if (savingPlan) return;
+    if (!isDraft) {
+      toast.error('Plano só pode ser editado em DRAFT');
+      return;
+    }
     setSavingPlan(true);
     try {
+      // Preserve existing order_message/confirmation_message unless user generated new ones
+      const existingPlan = (opD24 as any)?.hedge_plan;
+      const existingMsgs = !Array.isArray(existingPlan) && existingPlan ? existingPlan : {};
       const newHedgePlan = {
         plan: editLegs.map(buildLegPayload),
-        order_message: messages.order_message,
-        confirmation_message: messages.confirmation_message,
+        order_message: messages?.order_message ?? existingMsgs.order_message ?? null,
+        confirmation_message: messages?.confirmation_message ?? existingMsgs.confirmation_message ?? null,
       };
       const { error } = await supabase
         .from('operations' as any)
@@ -388,13 +402,18 @@ const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD24, pla
         </div>
       )}
 
+      {!isDraft && (
+        <p className="text-xs text-muted-foreground italic">
+          Plano congelado — só pode ser editado enquanto a operação está em DRAFT.
+        </p>
+      )}
       <div className="flex gap-2 pt-2">
         <Button size="sm" variant="outline" onClick={handleGenerateMessages}
-          disabled={editLegs.length === 0 || generatingMessages}>
+          disabled={editLegs.length === 0 || generatingMessages || !isDraft}>
           {generatingMessages ? 'Gerando...' : 'Gerar Mensagens'}
         </Button>
         <Button size="sm" onClick={handleSavePlan}
-          disabled={savingPlan || !messages}>
+          disabled={savingPlan || !isDraft}>
           {savingPlan ? 'Salvando...' : 'Salvar Plano'}
         </Button>
       </div>
