@@ -88,6 +88,7 @@ export interface HedgePlanEditorProps {
   planLegs: any[];
   userId: string;
   onSaved: () => void;
+  onCancel?: () => void;
   copyToClipboard: (text: string) => void;
 }
 
