@@ -483,32 +483,42 @@ const ArmazensD24: React.FC = () => {
         ...confirmLines,
       ].join('\n');
 
-      const { error } = await (supabase as any)
-        .from('warehouse_closing_batches')
-        .insert({
-          warehouse_id: btWarehouse,
-          commodity: btCommodity,
-          exchange: btExchange,
-          total_volume_sacks: btTotalEdited,
-          allocation_strategy: btStrategy,
-          mtm_snapshot_used_at: oldestMtm ?? null,
-          mtm_staleness_warning: stalenessWarning,
-          allocation_snapshot: snapshotRows,
-          affected_operations_count: btProposals.proposals.length,
-          generated_orders_count: 0,
-          status: 'DRAFT',
-          created_by: user.id,
-          order_message: orderMessage,
-          confirmation_message: confirmationMessage,
-        });
-      if (error) throw new Error(error.message);
-      toast.success('Rascunho salvo');
+      const payload: any = {
+        warehouse_id: btWarehouse,
+        commodity: btCommodity,
+        exchange: btExchange,
+        total_volume_sacks: btTotalEdited,
+        allocation_strategy: btStrategy,
+        mtm_snapshot_used_at: oldestMtm ?? null,
+        mtm_staleness_warning: stalenessWarning,
+        allocation_snapshot: snapshotRows,
+        affected_operations_count: btProposals.proposals.length,
+        generated_orders_count: 0,
+        status: 'DRAFT',
+        order_message: orderMessage,
+        confirmation_message: confirmationMessage,
+      };
+      if (btEditingBatchId) {
+        const { error } = await (supabase as any)
+          .from('warehouse_closing_batches')
+          .update(payload)
+          .eq('id', btEditingBatchId);
+        if (error) throw new Error(error.message);
+        toast.success('Rascunho atualizado');
+      } else {
+        const { error } = await (supabase as any)
+          .from('warehouse_closing_batches')
+          .insert({ ...payload, created_by: user.id });
+        if (error) throw new Error(error.message);
+        toast.success('Rascunho salvo');
+      }
       queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
       setBtView('list');
       setBtProposals(null);
       setBtWarnings([]);
       setBtVolume('');
       setBtStrategy('');
+      setBtEditingBatchId(null);
     } catch (e: any) {
       toast.error('Erro ao salvar rascunho: ' + (e?.message ?? String(e)));
     } finally {
