@@ -2565,21 +2565,136 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
         {planResp && (
           <div className="mt-3 space-y-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Plano de Hedge</p>
-              <div className="space-y-2">
-                {planResp.plan.map((leg: HedgePlanItemIn, i: number) => (
-                  <div key={i} className="border rounded p-2 text-xs">
-                    <div className="flex flex-wrap gap-x-3 gap-y-1">
-                      <span><b>{leg.instrument_type}</b></span>
-                      <span>{leg.direction}</span>
-                      <span>{leg.currency}</span>
-                      {leg.ticker && <span className="font-mono">{leg.ticker}</span>}
-                      {leg.contracts != null && <span>{leg.contracts} ct</span>}
-                      {leg.price_estimated != null && <span>~ {leg.price_estimated}</span>}
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Plano de Hedge (editável)</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7"
+                  onClick={() => setPlanResp(prev => prev ? {
+                    ...prev,
+                    plan: [...prev.plan, { instrument_type: 'futures', direction: 'sell', currency: 'USD' } as HedgePlanItemIn],
+                  } : prev)}
+                >
+                  + Perna
+                </Button>
               </div>
+              <div className="space-y-2">
+                {planResp.plan.map((leg: HedgePlanItemIn, i: number) => {
+                  const updateLeg = (patch: Partial<HedgePlanItemIn>) => setPlanResp(prev => prev ? {
+                    ...prev,
+                    plan: prev.plan.map((l, j) => j === i ? { ...l, ...patch } : l),
+                  } : prev);
+                  const removeLeg = () => setPlanResp(prev => prev ? {
+                    ...prev,
+                    plan: prev.plan.filter((_, j) => j !== i),
+                  } : prev);
+                  const isNdf = leg.instrument_type === 'ndf';
+                  const isOption = leg.instrument_type === 'option';
+                  const qtyValue = isNdf
+                    ? (leg.volume_units ?? leg.contracts ?? '')
+                    : (leg.contracts ?? '');
+                  return (
+                    <div key={i} className="border rounded p-2 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Select
+                          value={leg.instrument_type ?? 'futures'}
+                          onValueChange={(v) => updateLeg({
+                            instrument_type: v as HedgePlanItemIn['instrument_type'],
+                            currency: v === 'ndf' ? 'BRL' : 'USD',
+                          })}
+                        >
+                          <SelectTrigger className="h-8 w-[110px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="futures">Futuro</SelectItem>
+                            <SelectItem value="ndf">NDF</SelectItem>
+                            <SelectItem value="option">Opção</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={leg.direction ?? 'sell'}
+                          onValueChange={(v) => updateLeg({ direction: v as 'buy' | 'sell' })}
+                        >
+                          <SelectTrigger className="h-8 w-[90px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="buy">Buy</SelectItem>
+                            <SelectItem value="sell">Sell</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Badge variant="outline">{leg.currency ?? 'USD'}</Badge>
+                        <Button size="sm" variant="ghost" className="ml-auto h-8 w-8 p-0 text-destructive" onClick={removeLeg}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Ticker</Label>
+                          <Input className="h-8" value={leg.ticker ?? ''}
+                            onChange={(e) => updateLeg({ ticker: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">{isNdf ? 'Volume USD' : 'Contratos'}</Label>
+                          <Input className="h-8" inputMode="decimal" value={String(qtyValue ?? '')}
+                            onChange={(e) => {
+                              const num = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                              updateLeg(isNdf ? { volume_units: num, contracts: num } : { contracts: num });
+                            }} />
+                        </div>
+                        {!isNdf && !isOption && (
+                          <div>
+                            <Label className="text-xs">Preço estimado</Label>
+                            <Input className="h-8" inputMode="decimal" value={leg.price_estimated != null ? String(leg.price_estimated) : ''}
+                              onChange={(e) => updateLeg({ price_estimated: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                          </div>
+                        )}
+                        {isNdf && (<>
+                          <div>
+                            <Label className="text-xs">Taxa NDF (BRL/USD)</Label>
+                            <Input className="h-8" inputMode="decimal" value={leg.ndf_rate != null ? String(leg.ndf_rate) : ''}
+                              onChange={(e) => updateLeg({ ndf_rate: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Maturidade</Label>
+                            <Input className="h-8" type="date" value={leg.ndf_maturity ?? ''}
+                              onChange={(e) => updateLeg({ ndf_maturity: e.target.value || undefined })} />
+                          </div>
+                        </>)}
+                        {isOption && (<>
+                          <div>
+                            <Label className="text-xs">Tipo</Label>
+                            <Select value={leg.option_type ?? 'call'}
+                              onValueChange={(v) => updateLeg({ option_type: v as 'call' | 'put' })}>
+                              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="call">Call</SelectItem>
+                                <SelectItem value="put">Put</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs">Strike</Label>
+                            <Input className="h-8" inputMode="decimal" value={leg.strike != null ? String(leg.strike) : ''}
+                              onChange={(e) => updateLeg({ strike: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Prêmio</Label>
+                            <Input className="h-8" inputMode="decimal" value={leg.premium != null ? String(leg.premium) : ''}
+                              onChange={(e) => updateLeg({ premium: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Vencimento</Label>
+                            <Input className="h-8" type="date" value={leg.expiration_date ?? ''}
+                              onChange={(e) => updateLeg({ expiration_date: e.target.value || undefined })} />
+                          </div>
+                        </>)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                Edições nas pernas invalidam as mensagens — clique em "Gerar Plano" novamente para atualizá-las antes de salvar.
+              </p>
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Mensagem da Ordem</p>
