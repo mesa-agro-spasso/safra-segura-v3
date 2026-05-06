@@ -882,7 +882,7 @@ const ArmazensD24: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); }}
+                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); setBtEditingBatchId(null); }}
                 >
                   ← Voltar
                 </Button>
