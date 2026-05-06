@@ -961,6 +961,28 @@ const ArmazensD24: React.FC = () => {
                                     <Button
                                       variant="outline"
                                       size="sm"
+                                      onClick={() => {
+                                        setBtEditingBatchId(batch.id);
+                                        setBtWarehouse(batch.warehouse_id);
+                                        setBtCommodity(batch.commodity);
+                                        setBtExchange(batch.exchange);
+                                        setBtVolume(String(batch.total_volume_sacks));
+                                        setBtStrategy(batch.allocation_strategy);
+                                        setBtProposals({
+                                          proposals: batch.allocation_snapshot ?? [],
+                                          total_volume_allocated_sacks: batch.total_volume_sacks,
+                                          strategy_used: batch.allocation_strategy,
+                                          warnings: [],
+                                        } as AllocateBatchResponse);
+                                        setBtWarnings([]);
+                                        setBtView('new');
+                                      }}
+                                    >
+                                      Editar
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
                                       disabled={btSubmitting}
                                       onClick={() => handleBtSendForSignature(batch)}
                                     >
