@@ -402,13 +402,18 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
         </div>
       )}
 
+      {!isDraft && (
+        <p className="text-xs text-muted-foreground italic">
+          Plano congelado — só pode ser editado enquanto a operação está em DRAFT.
+        </p>
+      )}
       <div className="flex gap-2 pt-2">
         <Button size="sm" variant="outline" onClick={handleGenerateMessages}
-          disabled={editLegs.length === 0 || generatingMessages}>
+          disabled={editLegs.length === 0 || generatingMessages || !isDraft}>
           {generatingMessages ? 'Gerando...' : 'Gerar Mensagens'}
         </Button>
         <Button size="sm" onClick={handleSavePlan}
-          disabled={savingPlan || !messages}>
+          disabled={savingPlan || !isDraft}>
           {savingPlan ? 'Salvando...' : 'Salvar Plano'}
         </Button>
       </div>
