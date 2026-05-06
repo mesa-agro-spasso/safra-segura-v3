@@ -1140,7 +1140,7 @@ const OperacoesD24: React.FC = () => {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Operações D24</h1>
+          <h1 className="text-2xl font-bold">Operações</h1>
           {lastMtmCalculated && <StatusDot date={lastMtmCalculated} label="Último MTM" />}
           {lastMarketUpdate && <StatusDot date={lastMarketUpdate} label="Mercado" />}
         </div>
