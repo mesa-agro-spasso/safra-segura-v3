@@ -1760,49 +1760,27 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
           </div>
         ) : step === 1 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Volumes */}
+            {/* Volumes (read-only) */}
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Volumes por operação</h3>
+              <h3 className="text-sm font-semibold">Volumes do batch</h3>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Código</TableHead>
-                    <TableHead className="text-right">Proposto</TableHead>
-                    <TableHead className="text-right">A fechar</TableHead>
-                    <TableHead className="text-right">Δ</TableHead>
+                    <TableHead className="text-right">A fechar (sc)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {proposals.proposals.map((p) => {
-                    const v = volumes[p.operation_id] ?? 0;
-                    const diff = v - p.volume_to_close_sacks;
-                    return (
-                      <TableRow key={p.operation_id}>
-                        <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground">
-                          {Number(p.volume_to_close_sacks).toLocaleString('pt-BR')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.0001"
-                            value={v}
-                            onChange={(e) => setVolumes(prev => ({ ...prev, [p.operation_id]: Number(e.target.value) || 0 }))}
-                            className="h-8 w-28 ml-auto text-right"
-                          />
-                        </TableCell>
-                        <TableCell className={`text-right text-xs ${Math.abs(diff) < 0.01 ? 'text-green-500' : 'text-red-500'}`}>
-                          {diff > 0 ? '+' : ''}{diff.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {proposals.proposals.map((p) => (
+                    <TableRow key={p.operation_id}>
+                      <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                      <TableCell className="text-right text-xs">
+                        {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
-              <div className={`text-sm font-medium text-right ${volumeOk ? 'text-green-500' : 'text-red-500'}`}>
-                Total: {totalEdited.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} sc / {totalExpected.toLocaleString('pt-BR')} sc
-              </div>
             </div>
 
             {/* Prices */}
