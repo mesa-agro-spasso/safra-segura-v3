@@ -20,12 +20,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle, List, Plus, Send, X, ChevronRight } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle, List, Plus, Send, X, ChevronRight, Copy } from 'lucide-react';
+import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { AllocateBatchResponse } from '@/types/d24';
+import { HedgePlanEditor } from '@/pages/OperacoesD24';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { buildHedgePlan } from '@/services/d24Api';
 
 // ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
 
