@@ -687,6 +687,25 @@ const OperacoesD24: React.FC = () => {
     );
   }, [selectedOperation, d24Orders]);
 
+  // Active DRAFT closing batch that includes the selected operation
+  const { data: activeDraftBatchForSelected } = useQuery({
+    queryKey: ['active-draft-batch-for-op', selectedOperation?.id],
+    enabled: !!selectedOperation?.id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('warehouse_closing_batches')
+        .select('*')
+        .eq('status', 'DRAFT')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const batches = (data ?? []) as any[];
+      return batches.find(b =>
+        Array.isArray(b.allocation_snapshot) &&
+        b.allocation_snapshot.some((p: any) => p.operation_id === selectedOperation!.id)
+      ) ?? null;
+    },
+  });
+
   // ── Signatures (batch for table actions)
   const operationIds = useMemo(
     () => filteredOperations.map(op => op.id),
