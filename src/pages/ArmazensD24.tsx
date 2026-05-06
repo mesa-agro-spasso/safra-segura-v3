@@ -237,7 +237,7 @@ const ArmazensD24: React.FC = () => {
     setBtEditedVolumes(init);
   }, [btProposals]);
 
-  const btTotalEdited = Object.values(btEditedVolumes).reduce((s, v) => s + (Number(v) || 0), 0);
+  const btTotalEdited = Object.values(btEditedVolumes).reduce<number>((s, v) => s + (Number(v) || 0), 0);
   const btTotalExpected = btProposals?.total_volume_allocated_sacks ?? 0;
   const btVolumeOk = Math.abs(btTotalEdited - btTotalExpected) < 0.01;
 
