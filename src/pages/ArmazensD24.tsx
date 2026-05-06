@@ -888,7 +888,7 @@ const ArmazensD24: React.FC = () => {
                 </Button>
               )}
               <h2 className="text-lg font-semibold">
-                {btView === 'list' ? 'Block Trades' : 'Novo Batch'}
+                {btView === 'list' ? 'Block Trades' : (btEditingBatchId ? 'Editar Rascunho' : 'Novo Batch')}
               </h2>
             </div>
             {btView === 'list' && (
