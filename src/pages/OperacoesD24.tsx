@@ -2426,7 +2426,14 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
         exchange_rate: selectedSnapshot.exchange_rate ?? (typeof outputs.exchange_rate === 'number' ? outputs.exchange_rate as number : undefined),
       };
       const resp = await buildHedgePlan(op, ps);
-      setPlanResp(resp);
+      // NDF maturity = data de encerramento da operação (sale_date), não pagamento
+      const adjusted = {
+        ...resp,
+        plan: resp.plan.map((l) => l.instrument_type === 'ndf'
+          ? { ...l, ndf_maturity: saleDate || l.ndf_maturity }
+          : l),
+      };
+      setPlanResp(adjusted);
       toast.success('Plano gerado');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao gerar plano');
