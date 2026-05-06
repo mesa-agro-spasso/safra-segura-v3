@@ -224,6 +224,7 @@ const ArmazensD24: React.FC = () => {
   const [btCancelReason, setBtCancelReason] = useState('');
   const [btSubmitting, setBtSubmitting] = useState(false);
   const [btEditedVolumes, setBtEditedVolumes] = useState<Record<string, number | ''>>({});
+  const [btEditingBatchId, setBtEditingBatchId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!btProposals) {
