@@ -1101,9 +1101,6 @@ const ArmazensD24: React.FC = () => {
                         {btProposals.proposals.length} operação(ões) · estratégia{' '}
                         <span className="font-medium text-foreground">{btProposals.strategy_used}</span>
                       </span>
-                      <span className="font-medium">
-                        Total: {btProposals.total_volume_allocated_sacks.toLocaleString('pt-BR')} sc
-                      </span>
                     </div>
 
                     <Table>
@@ -1119,13 +1116,23 @@ const ArmazensD24: React.FC = () => {
                         {btProposals.proposals.map((p, i) => (
                           <TableRow key={`${p.operation_id}-${i}`}>
                             <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right text-xs">
                               {p.current_volume_sacks.toLocaleString('pt-BR')}
                             </TableCell>
-                            <TableCell className="text-right font-medium">
-                              {p.volume_to_close_sacks.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
-                            </TableCell>
                             <TableCell className="text-right">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.0001"
+                                className="h-7 w-28 text-right text-xs ml-auto"
+                                value={btEditedVolumes[p.operation_id] ?? ''}
+                                onChange={(e) => setBtEditedVolumes(prev => ({
+                                  ...prev,
+                                  [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
+                                }))}
+                              />
+                            </TableCell>
+                            <TableCell className="text-right text-xs">
                               {p.mtm_at_allocation !== null && p.mtm_at_allocation !== undefined
                                 ? fmtBrl(p.mtm_at_allocation)
                                 : '—'}
@@ -1134,6 +1141,15 @@ const ArmazensD24: React.FC = () => {
                         ))}
                       </TableBody>
                     </Table>
+
+                    <div className={`flex items-center justify-between text-xs font-medium px-1 ${btVolumeOk ? 'text-green-500' : 'text-red-500'}`}>
+                      <span>Total alocado</span>
+                      <span>
+                        {btTotalEdited.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} sc
+                        {' / '}
+                        {btTotalExpected.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} sc
+                      </span>
+                    </div>
 
                     {btProposals.proposals.some(p => p.allocation_reason?.includes('Warning')) && (
                       <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 space-y-1">
@@ -1147,22 +1163,18 @@ const ArmazensD24: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        disabled={btSubmitting}
-                        onClick={handleBtSaveDraft}
-                      >
-                        {btSubmitting ? 'Salvando...' : 'Salvar Rascunho'}
-                      </Button>
-                      <Button
-                        className="flex-1"
-                        onClick={() => setBtExecutionOpen(true)}
-                      >
-                        Ajustar e Executar
-                      </Button>
-                    </div>
+                    <Button
+                      className="w-full"
+                      disabled={btSubmitting || !btVolumeOk}
+                      onClick={handleBtSaveDraft}
+                    >
+                      {btSubmitting ? 'Salvando...' : 'Salvar Rascunho'}
+                    </Button>
+                    {!btVolumeOk && (
+                      <p className="text-xs text-red-500 text-center">
+                        Ajuste os volumes para que o total bata com o valor calculado.
+                      </p>
+                    )}
                   </>
                 )}
               </CardContent>
