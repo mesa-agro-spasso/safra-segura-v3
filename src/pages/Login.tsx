@@ -76,22 +76,8 @@ const Login = () => {
     }
   };
 
-  const isStaging = typeof window !== 'undefined' && localStorage.getItem('mesa_env') === 'staging';
-  const toggleEnv = () => {
-    if (isStaging) localStorage.removeItem('mesa_env');
-    else localStorage.setItem('mesa_env', 'staging');
-    localStorage.removeItem('sb-ngwhatepvofvwgzbudth-auth-token');
-    localStorage.removeItem('sb-bocsovenbertyepsiobp-auth-token');
-    window.location.reload();
-  };
-
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      {isStaging && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-destructive text-destructive-foreground text-center text-sm font-bold py-2 tracking-wider">
-          ⚠️ AMBIENTE DE STAGING — dados fictícios
-        </div>
-      )}
       <Card className="w-full max-w-md border-border">
         <CardHeader className="text-center">
           <img src="/logo-spasso.png" alt="Grupo Spasso" className="w-56 mx-auto mb-2 block dark:hidden" />
@@ -183,14 +169,6 @@ const Login = () => {
           </Tabs>
         </CardContent>
       </Card>
-      <button
-        type="button"
-        onClick={toggleEnv}
-        className="mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        Ambiente: <span className={isStaging ? 'font-bold text-destructive' : 'font-medium'}>{isStaging ? 'Staging' : 'Produção'}</span>
-        <span className="ml-2 underline">alternar</span>
-      </button>
     </div>
   );
 };

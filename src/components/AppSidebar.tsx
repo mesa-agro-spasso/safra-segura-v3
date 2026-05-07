@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
 import { supabase } from '@/integrations/supabase/client';
+import { useMesaEnv } from '@/contexts/MesaEnvContext';
 import logoLight from '/logo-spasso.png';
 import logoDark from '/logo-spasso-dark.png';
 import iconCollapsed from '/icon-48x48.png';
@@ -22,9 +23,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-
-const isStagingEnv = () =>
-  typeof window !== 'undefined' && localStorage.getItem('mesa_env') === 'staging';
+import { Switch } from '@/components/ui/switch';
 
 const ROLE_LABELS: Record<string, string> = {
   mesa: 'Mesa',
@@ -50,6 +49,7 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { signOut, user, profile } = useAuth();
   const { isAdmin } = useAuthorization();
+  const { isStaging, toggle } = useMesaEnv();
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
   const { data: userRoles = [] } = useQuery({
     queryKey: ['sidebar-user-roles', user?.id],
@@ -77,9 +77,9 @@ export function AppSidebar() {
               </>
             )}
           </div>
-          {isStagingEnv() && (
+          {isStaging && (
             <div className={`flex justify-center ${collapsed ? 'pb-2' : 'pb-2 px-3'}`}>
-              <Badge variant="destructive" className={collapsed ? 'h-5 px-1 text-[9px]' : 'w-full justify-center text-[10px] font-bold tracking-wider'}>
+              <Badge variant="destructive" className={collapsed ? 'h-5 px-1 text-[9px]' : 'w-full justify-center text-[10px] font-bold tracking-wider bg-yellow-500 text-black hover:bg-yellow-500'}>
                 {collapsed ? 'S' : 'STAGING'}
               </Badge>
             </div>
@@ -154,6 +154,14 @@ export function AppSidebar() {
                 {userRoles.map(formatRole).join(' · ')}
               </p>
             )}
+          </div>
+        )}
+        {!collapsed && (
+          <div className="mb-2 flex items-center justify-between rounded-md border border-sidebar-border/50 px-2 py-1.5">
+            <span className="text-[11px] text-sidebar-foreground/70">
+              Ambiente: <span className={isStaging ? 'font-bold text-yellow-500' : 'font-medium'}>{isStaging ? 'Staging' : 'Produção'}</span>
+            </span>
+            <Switch checked={isStaging} onCheckedChange={toggle} aria-label="Alternar ambiente" />
           </div>
         )}
         <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground">
