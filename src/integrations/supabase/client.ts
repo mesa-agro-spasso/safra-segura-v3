@@ -35,6 +35,10 @@ const baseClient: SupabaseClient<Database> = createClient<Database>(
   },
 );
 
+// Always-production client (ignores mesa_env). Use for auth/profile/authorization
+// reads, since auth.users is shared across both schemas.
+export const supabasePublic: SupabaseClient<Database> = baseClient;
+
 // Routes data calls (`.from`, `.rpc`, `.schema`) through the schema matching
 // the current env. Everything else (auth, functions, storage, realtime,
 // channel, etc.) uses the underlying client directly.
