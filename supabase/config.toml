@@ -1,1 +1,4 @@
 project_id = "ngwhatepvofvwgzbudth"
+
+[functions.provision-staging-users]
+verify_jwt = false
