@@ -42,6 +42,28 @@ function WarehousesTab() {
   const [open, setOpen] = useState(false);
   const [abbrError, setAbbrError] = useState('');
 
+  const queryClient = useQueryClient();
+  const isExisting = !!editing?.id && !!warehouses?.some((w) => w.id === editing.id);
+
+  const handleDelete = async () => {
+    if (!editing?.id) return;
+    try {
+      const { error } = await supabase.from('warehouses').delete().eq('id', editing.id);
+      if (error) throw error;
+      toast.success('Armazém excluído');
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] });
+      setOpen(false);
+      setEditing(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao excluir';
+      if (msg.includes('foreign key') || msg.includes('violates') || msg.includes('23503')) {
+        toast.error('Não é possível excluir: existem registros vinculados a este armazém.');
+      } else {
+        toast.error(msg);
+      }
+    }
+  };
+
   const handleSave = async () => {
     if (!editing?.id || !editing?.display_name) { toast.error('ID e nome são obrigatórios'); return; }
     const abbr = editing.abbr ?? '';
@@ -281,6 +303,33 @@ function WarehousesTab() {
                 </div>
 
                 <Button onClick={handleSave} className="w-full">Salvar</Button>
+
+                {isExisting && (
+                  <div className="border-t pt-4 mt-4">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" className="w-full">
+                          <Trash2 className="mr-2 h-4 w-4" /> Excluir Armazém
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir armazém?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta ação é permanente. O armazém <strong>{editing?.display_name}</strong> será removido.
+                            Se houver operações, ordens ou outros registros vinculados, a exclusão falhará.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>
