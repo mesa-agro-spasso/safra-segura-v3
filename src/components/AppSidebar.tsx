@@ -22,21 +22,9 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 
 const isStagingEnv = () =>
   typeof window !== 'undefined' && localStorage.getItem('mesa_env') === 'staging';
-
-const toggleStagingEnv = async (enabled: boolean) => {
-  if (enabled) localStorage.setItem('mesa_env', 'staging');
-  else localStorage.removeItem('mesa_env');
-  try {
-    await supabase.auth.signOut();
-  } catch {
-    // ignore — proceed with reload regardless
-  }
-  window.location.reload();
-};
 
 const ROLE_LABELS: Record<string, string> = {
   mesa: 'Mesa',
@@ -152,15 +140,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-3">
-        {isAdmin() && !collapsed && (
-          <div className="mb-2 flex items-center justify-between rounded-md border border-sidebar-border px-2 py-1.5">
-            <span className="text-[11px] text-sidebar-foreground/70">Staging</span>
-            <Switch
-              checked={isStagingEnv()}
-              onCheckedChange={toggleStagingEnv}
-            />
-          </div>
-        )}
+        
         {!collapsed && (
           <div className="mb-2 space-y-0.5">
             <Link
