@@ -21,13 +21,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle, List, Plus, Send, X, ChevronRight, Copy } from 'lucide-react';
-import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { AllocateBatchResponse } from '@/types/d24';
-import { HedgePlanEditor } from '@/pages/OperacoesD24';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { buildHedgePlan } from '@/services/d24Api';
 
 // ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
@@ -193,13 +191,11 @@ const BtStatusDot: React.FC<{ date: string; label: string }> = ({ date, label })
   );
 };
 
-// ───────────────────────── BatchOperationsPanel ─────────────────────────
+// ───────────────────────── BatchConsolidatedPlanPanel ─────────────────────────
 
-interface BatchOperationsPanelProps {
-  batchId: string;
+interface BatchConsolidatedPlanPanelProps {
+  batch: any;
   operationIds: string[];
-  userId: string;
-  onSaved: () => void;
 }
 
 const copyToClipboardHelper = (text: string) => {
@@ -207,9 +203,12 @@ const copyToClipboardHelper = (text: string) => {
   toast.success('Copiado');
 };
 
-const BatchOperationsPanel: React.FC<BatchOperationsPanelProps> = ({ batchId, operationIds, userId, onSaved }) => {
-  const { data: ops = [], isLoading } = useQuery({
-    queryKey: ['batch-operations', batchId],
+const BatchConsolidatedPlanPanel: React.FC<BatchConsolidatedPlanPanelProps> = ({ batch, operationIds }) => {
+  const queryClient = useQueryClient();
+  const hasSavedMessage = !!(batch.order_message && batch.order_message.length > 0);
+
+  const { data: ops = [], isLoading: opsLoading } = useQuery({
+    queryKey: ['batch-operations', batch.id],
     queryFn: async () => {
       if (operationIds.length === 0) return [];
       const { data, error } = await supabase
@@ -219,152 +218,128 @@ const BatchOperationsPanel: React.FC<BatchOperationsPanelProps> = ({ batchId, op
       if (error) throw error;
       return (data ?? []) as any[];
     },
-    enabled: operationIds.length > 0,
+    enabled: operationIds.length > 0 && !hasSavedMessage,
   });
 
-  const eligibleOps = (ops as any[]).filter(o =>
-    o.status === 'DRAFT' || o.status === 'RASCUNHO' || o.status === 'ACTIVE' || o.status === 'HEDGE_CONFIRMADO'
-  );
+  const representative = (ops as any[])[0];
+  const canBuild = !hasSavedMessage && !!representative && !!representative.pricing_snapshots;
 
-  const msgQueries = useQueries({
-    queries: eligibleOps.map((o: any) => ({
-      queryKey: ['batch-build-plan', o.id, o.updated_at],
-      queryFn: async () => {
-        const snap = o.pricing_snapshots as any;
-        const planRaw = o.hedge_plan;
-        const planArr = Array.isArray(planRaw) ? planRaw : (planRaw?.plan ?? []);
-        const operation = {
-          id: o.id,
-          warehouse_id: o.warehouse_id,
-          commodity: o.commodity,
-          exchange: o.exchange,
-          volume_sacks: Number(o.volume_sacks),
-          origination_price_brl: Number(o.origination_price_brl),
-          trade_date: o.trade_date,
-          payment_date: o.payment_date,
-          grain_reception_date: o.grain_reception_date,
-          sale_date: o.sale_date,
-          display_code: o.display_code,
-          status: o.status,
-          hedge_plan: planArr,
-        };
-        const pricingSnap = {
-          ticker: snap?.ticker ?? '',
-          payment_date: snap?.payment_date ?? o.payment_date,
-          futures_price_brl: snap?.futures_price_brl ?? undefined,
-          exchange_rate: snap?.exchange_rate ?? undefined,
-        };
-        const resp = await buildHedgePlan(operation as any, pricingSnap as any);
-        return { opId: o.id, resp };
-      },
-      staleTime: 60_000,
-      retry: false,
-    })),
-  });
-
-  const messagesByOp: Record<string, { order_message: string; confirmation_message: string }> = {};
-  msgQueries.forEach(q => {
-    const d: any = q.data;
-    if (d) {
-      messagesByOp[d.opId] = {
-        order_message: d.resp.order_message ?? '',
-        confirmation_message: d.resp.confirmation_message ?? '',
+  const { data: planResp, isLoading: planLoading, error: planError } = useQuery({
+    queryKey: ['batch-consolidated-plan', batch.id],
+    queryFn: async () => {
+      const snap = representative.pricing_snapshots as any;
+      const operation = {
+        warehouse_id: batch.warehouse_id,
+        commodity: batch.commodity,
+        exchange: batch.exchange,
+        volume_sacks: Number(batch.total_volume_sacks),
+        origination_price_brl: 0,
+        trade_date: new Date().toISOString().slice(0, 10),
+        payment_date: representative.payment_date ?? snap?.payment_date,
+        grain_reception_date: representative.grain_reception_date ?? snap?.grain_reception_date,
+        sale_date: representative.sale_date ?? snap?.sale_date,
+        status: 'DRAFT',
+        hedge_plan: [],
       };
-    }
+      const pricingSnap = {
+        ticker: snap.ticker,
+        payment_date: snap.payment_date,
+        futures_price_usd: snap.futures_price_usd ?? undefined,
+        futures_price_brl: snap.futures_price_brl ?? undefined,
+        exchange_rate: snap.exchange_rate ?? undefined,
+      };
+      return await buildHedgePlan(operation as any, pricingSnap as any);
+    },
+    enabled: canBuild,
+    staleTime: 60_000,
+    retry: false,
   });
 
-  if (isLoading) {
-    return <p className="text-xs text-muted-foreground">Carregando operações…</p>;
-  }
-  if (ops.length === 0) {
-    return <p className="text-xs text-muted-foreground">Nenhuma operação encontrada.</p>;
-  }
+  // Persist generated message to the batch (one-shot, only if not already saved)
+  useEffect(() => {
+    if (hasSavedMessage || !planResp) return;
+    (async () => {
+      const { error } = await supabase
+        .from('warehouse_closing_batches')
+        .update({
+          order_message: planResp.order_message ?? null,
+          confirmation_message: planResp.confirmation_message ?? null,
+        })
+        .eq('id', batch.id)
+        .is('order_message', null);
+      if (!error) {
+        queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
+      }
+    })();
+  }, [planResp, hasSavedMessage, batch.id, queryClient]);
+
+  const orderMessage = hasSavedMessage ? batch.order_message : planResp?.order_message;
+  const confirmationMessage = hasSavedMessage ? batch.confirmation_message : planResp?.confirmation_message;
+  const planLegs: any[] = (planResp?.plan ?? []) as any[];
+
+  const isLoading = opsLoading || planLoading;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-        Plano de Hedge & Mensagens por Operação
+        Plano consolidado & Mensagem da ordem
       </p>
-      <Accordion type="multiple" className="space-y-2">
-        {(ops as any[]).map((op: any) => {
-          const planRaw = op.hedge_plan;
-          const planLegs = Array.isArray(planRaw) ? planRaw : (planRaw?.plan ?? []);
-          const isDraft = op.status === 'DRAFT' || op.status === 'RASCUNHO';
-          const msgs = messagesByOp[op.id];
-          return (
-            <AccordionItem key={op.id} value={op.id} className="border rounded-md px-3">
-              <AccordionTrigger className="text-sm hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs">{op.display_code ?? op.id.slice(0, 8)}</span>
-                  <Badge variant="outline" className="text-[10px]">{op.status}</Badge>
-                  {!isDraft && (
-                    <span className="text-[10px] text-muted-foreground italic">read-only</span>
-                  )}
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4 pt-2">
-                {isDraft ? (
-                  <HedgePlanEditor
-                    operation={op}
-                    opD24={op}
-                    planLegs={planLegs}
-                    userId={userId}
-                    onSaved={onSaved}
-                    copyToClipboard={copyToClipboardHelper}
-                  />
-                ) : (
-                  <div className="space-y-2">
-                    {planLegs.length === 0 && (
-                      <p className="text-xs text-muted-foreground">Sem pernas no plano.</p>
-                    )}
-                    {planLegs.map((leg: any, i: number) => (
-                      <div key={i} className="rounded-md border p-2 text-xs flex flex-wrap gap-2">
-                        <Badge variant="outline">{leg.instrument_type}</Badge>
-                        <Badge variant="secondary">{leg.direction}</Badge>
-                        <Badge>{leg.currency}</Badge>
-                        {leg.ticker && <span>· {leg.ticker}</span>}
-                        {leg.contracts != null && <span>· {leg.contracts} ct</span>}
-                        {leg.volume_units != null && <span>· {leg.volume_units} un</span>}
-                        {leg.ndf_rate && <span>· NDF {leg.ndf_rate}</span>}
-                        {leg.strike && <span>· strike {leg.strike}</span>}
-                      </div>
-                    ))}
-                    <p className="text-xs text-muted-foreground italic">
-                      Plano congelado — operação não está mais em DRAFT.
-                    </p>
-                  </div>
-                )}
 
-                {msgs?.order_message && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold text-muted-foreground">Mensagem da Ordem</span>
-                      <Button size="sm" variant="ghost" onClick={() => copyToClipboardHelper(msgs.order_message)}>
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{msgs.order_message}</pre>
-                  </div>
-                )}
-                {msgs?.confirmation_message && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold text-muted-foreground">Confirmação</span>
-                      <Button size="sm" variant="ghost" onClick={() => copyToClipboardHelper(msgs.confirmation_message)}>
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{msgs.confirmation_message}</pre>
-                  </div>
-                )}
-              </AccordionContent>
-            </AccordionItem>
-          );
-        })}
-      </Accordion>
+      {isLoading && (
+        <p className="text-xs text-muted-foreground">Gerando plano consolidado…</p>
+      )}
+
+      {planError && !hasSavedMessage && (
+        <p className="text-xs text-destructive">
+          Erro ao gerar plano: {(planError as Error).message}
+        </p>
+      )}
+
+      {planLegs.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Pernas consolidadas (read-only)</p>
+          {planLegs.map((leg: any, i: number) => (
+            <div key={i} className="rounded-md border p-2 text-xs flex flex-wrap gap-2">
+              <Badge variant="outline">{leg.instrument_type}</Badge>
+              <Badge variant="secondary">{leg.direction}</Badge>
+              <Badge>{leg.currency}</Badge>
+              {leg.ticker && <span>· {leg.ticker}</span>}
+              {leg.contracts != null && <span>· {leg.contracts} ct</span>}
+              {leg.volume_units != null && <span>· {leg.volume_units} un</span>}
+              {leg.ndf_rate && <span>· NDF {leg.ndf_rate}</span>}
+              {leg.strike && <span>· strike {leg.strike}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {orderMessage && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-muted-foreground">Mensagem da Ordem</span>
+            <Button size="sm" variant="ghost" onClick={() => copyToClipboardHelper(orderMessage)}>
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
+          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{orderMessage}</pre>
+        </div>
+      )}
+
+      {confirmationMessage && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-muted-foreground">Confirmação</span>
+            <Button size="sm" variant="ghost" onClick={() => copyToClipboardHelper(confirmationMessage)}>
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
+          <pre className="whitespace-pre-wrap text-xs font-mono bg-muted p-2 rounded-md">{confirmationMessage}</pre>
+        </div>
+      )}
     </div>
   );
 };
+
 
 // ───────────────────────── main page ─────────────────────────
 
@@ -1656,16 +1631,9 @@ const ArmazensD24: React.FC = () => {
 
               <Separator className="my-4" />
 
-              <BatchOperationsPanel
-                batchId={btSelectedBatch.id}
+              <BatchConsolidatedPlanPanel
+                batch={btSelectedBatch}
                 operationIds={(btSelectedBatch.allocation_snapshot ?? []).map((p: any) => p.operation_id).filter(Boolean)}
-                userId={user?.id ?? ''}
-                onSaved={() => {
-                  queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
-                  queryClient.invalidateQueries({ queryKey: ['operations'] });
-                  queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
-                  queryClient.invalidateQueries({ queryKey: ['batch-operations', btSelectedBatch.id] });
-                }}
               />
             </>
           )}
