@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { getMesaEnv, setMesaEnv } from '@/integrations/supabase/client';
 
 const PendingApproval = () => {
   const { user, profile, refreshProfile, signOut } = useAuth();
