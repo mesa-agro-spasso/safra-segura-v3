@@ -2,16 +2,22 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://ngwhatepvofvwgzbudth.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nd2hhdGVwdm9mdndnemJ1ZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNDA2NzgsImV4cCI6MjA5MDYxNjY3OH0.t6_qd3X3_DyNWlkHg2Yp26GHQu2EiQgKk8_x7hBXz_o";
+const PROD_URL = "https://ngwhatepvofvwgzbudth.supabase.co";
+const PROD_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nd2hhdGVwdm9mdndnemJ1ZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNDA2NzgsImV4cCI6MjA5MDYxNjY3OH0.t6_qd3X3_DyNWlkHg2Yp26GHQu2EiQgKk8_x7hBXz_o";
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+const STAGING_URL = "https://bocsovenbertyepsiobp.supabase.co";
+const STAGING_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvY3NvdmVuYmVydHllcHNpb2JwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzM5MzMsImV4cCI6MjA5MzcwOTkzM30.1babVqYKQqSjgL5-EC_bv0_Fz3Hoo2zjfP65L3Xplco";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
+const isStaging = typeof window !== 'undefined' && localStorage.getItem('mesa_env') === 'staging';
+
+export const supabase = createClient<Database>(
+  isStaging ? STAGING_URL : PROD_URL,
+  isStaging ? STAGING_KEY : PROD_KEY,
+  {
+    auth: {
+      storage: localStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+    }
   }
-});
+);
