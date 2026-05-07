@@ -169,14 +169,6 @@ const Login = () => {
           </Tabs>
         </CardContent>
       </Card>
-      <button
-        type="button"
-        onClick={toggleEnv}
-        className="mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        Ambiente: <span className={isStaging ? 'font-bold text-destructive' : 'font-medium'}>{isStaging ? 'Staging' : 'Produção'}</span>
-        <span className="ml-2 underline">alternar</span>
-      </button>
     </div>
   );
 };
