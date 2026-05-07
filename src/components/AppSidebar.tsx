@@ -84,6 +84,13 @@ export function AppSidebar() {
               </>
             )}
           </div>
+          {isStagingEnv() && (
+            <div className={`flex justify-center ${collapsed ? 'pb-2' : 'pb-2 px-3'}`}>
+              <Badge variant="destructive" className={collapsed ? 'h-5 px-1 text-[9px]' : 'w-full justify-center text-[10px] font-bold tracking-wider'}>
+                {collapsed ? 'S' : 'STAGING'}
+              </Badge>
+            </div>
+          )}
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -140,6 +147,15 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-3">
+        {isAdmin() && !collapsed && (
+          <div className="mb-2 flex items-center justify-between rounded-md border border-sidebar-border px-2 py-1.5">
+            <span className="text-[11px] text-sidebar-foreground/70">Staging</span>
+            <Switch
+              checked={isStagingEnv()}
+              onCheckedChange={toggleStagingEnv}
+            />
+          </div>
+        )}
         {!collapsed && (
           <div className="mb-2 space-y-0.5">
             <Link
