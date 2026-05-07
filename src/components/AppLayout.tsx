@@ -1,6 +1,6 @@
-import { Outlet } from 'react-router-dom';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
+import { KeepAliveOutlet } from '@/components/KeepAliveOutlet';
 import { useMesaEnv } from '@/contexts/MesaEnvContext';
 
 export function AppLayout() {
@@ -20,7 +20,7 @@ export function AppLayout() {
             <h1 className="text-sm font-semibold text-foreground/80">Mesa Integrada de Hedge</h1>
           </header>
           <main className="flex-1 p-6 overflow-auto">
-            <Outlet />
+            <KeepAliveOutlet />
           </main>
         </div>
       </div>
