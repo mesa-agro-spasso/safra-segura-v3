@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { getMesaEnv, setMesaEnv as setEnvLS, type MesaEnv } from '@/integrations/supabase/client';
 
 interface Ctx {
@@ -13,17 +12,18 @@ const MesaEnvContext = createContext<Ctx | null>(null);
 
 export function MesaEnvProvider({ children }: { children: ReactNode }) {
   const [env, setEnvState] = useState<MesaEnv>(getMesaEnv());
-  const queryClient = useQueryClient();
 
   useEffect(() => {
     const handler = (e: Event) => {
       const next = (e as CustomEvent<MesaEnv>).detail ?? getMesaEnv();
       setEnvState(next);
-      queryClient.clear();
+      // Hard reload to guarantee zero cross-env contamination
+      // (React Query cache, in-flight requests, component state).
+      window.location.reload();
     };
     window.addEventListener('mesa-env-change', handler);
     return () => window.removeEventListener('mesa-env-change', handler);
-  }, [queryClient]);
+  }, []);
 
   const setEnv = (next: MesaEnv) => setEnvLS(next);
   const toggle = () => setEnvLS(env === 'staging' ? 'production' : 'staging');
