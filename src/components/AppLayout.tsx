@@ -1,7 +1,40 @@
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
-import { KeepAliveOutlet } from '@/components/KeepAliveOutlet';
+import { KeepAliveOutlet, KeepAliveRoute } from '@/components/KeepAliveOutlet';
+import { AdminRoute } from '@/components/AdminRoute';
 import { useMesaEnv } from '@/contexts/MesaEnvContext';
+import PricingTable from '@/pages/PricingTable';
+import Orders from '@/pages/Orders';
+import OrdensD24 from '@/pages/OrdensD24';
+import Approvals from '@/pages/Approvals';
+import Operations from '@/pages/Operations';
+import OperationsMTM from '@/pages/OperationsMTM';
+import OperacoesD24 from '@/pages/OperacoesD24';
+import ArmazensD24 from '@/pages/ArmazensD24';
+import MTM from '@/pages/MTM';
+import Market from '@/pages/Market';
+import Settings from '@/pages/Settings';
+import AdminUsers from '@/pages/AdminUsers';
+import Financial from '@/pages/Financial';
+import Profile from '@/pages/Profile';
+import NotFound from '@/pages/NotFound';
+
+const routes: KeepAliveRoute[] = [
+  { path: '/', element: <PricingTable />, end: true },
+  { path: '/ordens', element: <Orders /> },
+  { path: '/ordens-d24', element: <OrdensD24 /> },
+  { path: '/aprovacoes', element: <Approvals /> },
+  { path: '/operacoes-mtm', element: <OperationsMTM /> },
+  { path: '/operacoes-d24', element: <OperacoesD24 /> },
+  { path: '/armazens-d24', element: <ArmazensD24 /> },
+  { path: '/operacoes', element: <Operations /> },
+  { path: '/mtm', element: <MTM /> },
+  { path: '/mercado', element: <Market /> },
+  { path: '/financeiro', element: <Financial /> },
+  { path: '/configuracoes', element: <Settings /> },
+  { path: '/perfil', element: <Profile /> },
+  { path: '/admin/usuarios', element: <AdminRoute><AdminUsers /></AdminRoute> },
+];
 
 export function AppLayout() {
   const { isStaging } = useMesaEnv();
@@ -20,7 +53,7 @@ export function AppLayout() {
             <h1 className="text-sm font-semibold text-foreground/80">Mesa Integrada de Hedge</h1>
           </header>
           <main className="flex-1 p-6 overflow-auto">
-            <KeepAliveOutlet />
+            <KeepAliveOutlet routes={routes} fallback={<NotFound />} />
           </main>
         </div>
       </div>
