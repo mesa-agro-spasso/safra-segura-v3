@@ -80,6 +80,8 @@ const Login = () => {
   const toggleEnv = () => {
     if (isStaging) localStorage.removeItem('mesa_env');
     else localStorage.setItem('mesa_env', 'staging');
+    localStorage.removeItem('sb-ngwhatepvofvwgzbudth-auth-token');
+    localStorage.removeItem('sb-bocsovenbertyepsiobp-auth-token');
     window.location.reload();
   };
 
