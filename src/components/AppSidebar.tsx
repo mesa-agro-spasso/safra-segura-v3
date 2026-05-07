@@ -27,9 +27,14 @@ import { Switch } from '@/components/ui/switch';
 const isStagingEnv = () =>
   typeof window !== 'undefined' && localStorage.getItem('mesa_env') === 'staging';
 
-const toggleStagingEnv = (enabled: boolean) => {
+const toggleStagingEnv = async (enabled: boolean) => {
   if (enabled) localStorage.setItem('mesa_env', 'staging');
   else localStorage.removeItem('mesa_env');
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // ignore — proceed with reload regardless
+  }
   window.location.reload();
 };
 
