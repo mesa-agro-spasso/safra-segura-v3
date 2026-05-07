@@ -7,6 +7,10 @@ const ALLOWED_POST_ENDPOINTS = [
   '/pricing/table',
   '/orders/build',
   '/orders/validate',
+  '/orders/validate-execution',
+  '/operations/build-plan',
+  '/operations/balance',
+  '/closing-batches/allocate',
   '/mtm/run',
 ]
 
