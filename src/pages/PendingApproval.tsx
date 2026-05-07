@@ -43,6 +43,15 @@ const PendingApproval = () => {
             <Button onClick={handleRefresh} variant="outline">
               Verificar status
             </Button>
+            {getMesaEnv() === 'staging' && (
+              <Button
+                onClick={() => { setMesaEnv('production'); window.location.reload(); }}
+                variant="outline"
+                className="border-yellow-500 text-yellow-600"
+              >
+                Sair do modo Staging
+              </Button>
+            )}
             <Button onClick={handleSignOut} variant="ghost" className="text-muted-foreground">
               Sair
             </Button>
