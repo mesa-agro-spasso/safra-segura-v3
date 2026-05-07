@@ -1631,16 +1631,9 @@ const ArmazensD24: React.FC = () => {
 
               <Separator className="my-4" />
 
-              <BatchOperationsPanel
-                batchId={btSelectedBatch.id}
+              <BatchConsolidatedPlanPanel
+                batch={btSelectedBatch}
                 operationIds={(btSelectedBatch.allocation_snapshot ?? []).map((p: any) => p.operation_id).filter(Boolean)}
-                userId={user?.id ?? ''}
-                onSaved={() => {
-                  queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
-                  queryClient.invalidateQueries({ queryKey: ['operations'] });
-                  queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
-                  queryClient.invalidateQueries({ queryKey: ['batch-operations', btSelectedBatch.id] });
-                }}
               />
             </>
           )}
