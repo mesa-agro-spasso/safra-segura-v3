@@ -1,32 +1,51 @@
-import { useOutlet, useLocation } from 'react-router-dom';
-import { useRef } from 'react';
+import { useLocation, matchPath } from 'react-router-dom';
+import { useRef, ReactNode } from 'react';
+
+export interface KeepAliveRoute {
+  path: string;
+  element: ReactNode;
+  /** se true, faz match exato (usar para "/") */
+  end?: boolean;
+}
+
+interface Props {
+  routes: KeepAliveRoute[];
+  fallback?: ReactNode;
+}
 
 /**
- * Outlet "keep-alive": mantém todas as páginas já visitadas montadas
- * em segundo plano, escondendo-as via CSS quando não estão ativas.
- * Preserva todo o estado local (modais, sub-abas, formulários, scroll).
+ * Renderiza TODAS as páginas já visitadas mantidas montadas em segundo plano,
+ * escondendo as inativas via CSS. Diferente de <Outlet />, NÃO depende de
+ * <Routes>, então o React Router não desmonta as páginas ao trocar de rota.
+ * Preserva 100% do estado local (modais, sub-abas, formulários, scroll).
  */
-export function KeepAliveOutlet() {
-  const element = useOutlet();
+export function KeepAliveOutlet({ routes, fallback = null }: Props) {
   const location = useLocation();
-  const cacheRef = useRef<Map<string, React.ReactNode>>(new Map());
+  const visitedRef = useRef<Set<string>>(new Set());
 
-  // Atualiza/insere a entrada da rota atual
-  if (element) {
-    cacheRef.current.set(location.pathname, element);
+  const activeRoute = routes.find((r) =>
+    matchPath({ path: r.path, end: r.end ?? true }, location.pathname),
+  );
+
+  if (activeRoute) {
+    visitedRef.current.add(activeRoute.path);
   }
+
+  const visited = routes.filter((r) => visitedRef.current.has(r.path));
+
+  if (visited.length === 0) return <>{fallback}</>;
 
   return (
     <>
-      {Array.from(cacheRef.current.entries()).map(([path, node]) => {
-        const isActive = path === location.pathname;
+      {visited.map((r) => {
+        const isActive = r.path === activeRoute?.path;
         return (
           <div
-            key={path}
+            key={r.path}
             style={{ display: isActive ? 'contents' : 'none' }}
             aria-hidden={!isActive}
           >
-            {node}
+            {r.element}
           </div>
         );
       })}
