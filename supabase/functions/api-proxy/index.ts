@@ -12,6 +12,7 @@ const ALLOWED_POST_ENDPOINTS = [
   '/operations/balance',
   '/closing-batches/allocate',
   '/mtm/run',
+  '/mtm/run-d24',
 ]
 
 const ALLOWED_GET_ENDPOINTS = [
