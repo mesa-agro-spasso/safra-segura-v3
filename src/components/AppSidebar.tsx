@@ -140,15 +140,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-3">
-        {isAdmin() && !collapsed && (
-          <div className="mb-2 flex items-center justify-between rounded-md border border-sidebar-border px-2 py-1.5">
-            <span className="text-[11px] text-sidebar-foreground/70">Staging</span>
-            <Switch
-              checked={isStagingEnv()}
-              onCheckedChange={toggleStagingEnv}
-            />
-          </div>
-        )}
+        
         {!collapsed && (
           <div className="mb-2 space-y-0.5">
             <Link
