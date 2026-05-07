@@ -1,6 +1,8 @@
-// Single Supabase client. Schema is selected dynamically via mesa_env.
-// Production = 'public', Staging = 'staging' (same project, different schema).
-import { createClient } from '@supabase/supabase-js';
+// Single Supabase project, two schemas: public (production) and staging.
+// We keep ONE underlying client and route data calls through `.schema()`
+// based on localStorage.mesa_env. Auth, edge functions, storage, realtime
+// always use the canonical client (single session shared by both envs).
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 const SUPABASE_URL = "https://ngwhatepvofvwgzbudth.supabase.co";
@@ -19,41 +21,36 @@ export const setMesaEnv = (env: MesaEnv) => {
   window.dispatchEvent(new CustomEvent('mesa-env-change', { detail: env }));
 };
 
-const schemaFor = (env: MesaEnv) => (env === 'staging' ? 'staging' : 'public');
-
-// One auth-enabled client (handles login/session) on the public schema.
-// Used for `supabase.auth.*` and as the default for prod data.
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
-
-// Separate client for the staging schema. Shares the same auth storage key
-// so the user is logged in for both, but uses a different schema for queries.
-const stagingClient = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-    storageKey: `sb-${new URL(SUPABASE_URL).hostname.split('.')[0]}-auth-token`,
-  },
-  db: { schema: 'staging' as never },
-});
-
-// Returns the data client for the current env. Auth always uses `supabase`.
-export const getDb = () => (getMesaEnv() === 'staging' ? stagingClient : supabase);
-
-// Convenience: same as getDb() but resolved at call time. Use this in hooks
-// that need to react to env changes (combine with the env from useMesaEnv()
-// in queryKeys to trigger refetch).
-export const db = new Proxy({} as typeof supabase, {
-  get(_t, prop) {
-    return (getDb() as any)[prop];
-  },
-});
-
-export const STAGING_SCHEMA = 'staging';
 export const isStagingEnv = () => getMesaEnv() === 'staging';
+
+const baseClient: SupabaseClient<Database> = createClient<Database>(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  {
+    auth: {
+      storage: localStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  },
+);
+
+// Routes data calls (`.from`, `.rpc`, `.schema`) through the schema matching
+// the current env. Everything else (auth, functions, storage, realtime,
+// channel, etc.) uses the underlying client directly.
+const DATA_PROPS = new Set(['from', 'rpc', 'schema']);
+
+export const supabase: SupabaseClient<Database> = new Proxy(baseClient, {
+  get(target, prop, receiver) {
+    if (typeof prop === 'string' && DATA_PROPS.has(prop)) {
+      const env = getMesaEnv();
+      if (env === 'staging') {
+        const scoped = (target as any).schema('staging');
+        const value = (scoped as any)[prop];
+        return typeof value === 'function' ? value.bind(scoped) : value;
+      }
+    }
+    const value = Reflect.get(target, prop, receiver);
+    return typeof value === 'function' ? value.bind(target) : value;
+  },
+}) as SupabaseClient<Database>;
