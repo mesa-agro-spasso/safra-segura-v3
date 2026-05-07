@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { MesaEnvProvider } from "@/contexts/MesaEnvContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminRoute } from "@/components/AdminRoute";
 import { AppLayout } from "@/components/AppLayout";
@@ -33,6 +34,7 @@ const App = () => (
     <TooltipProvider>
       <Sonner />
       <BrowserRouter>
+        <MesaEnvProvider>
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -58,6 +60,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
+        </MesaEnvProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
