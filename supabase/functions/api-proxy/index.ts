@@ -12,6 +12,7 @@ const ALLOWED_POST_ENDPOINTS = [
 
 const ALLOWED_GET_ENDPOINTS = [
   '/market/quotes',
+  '/market/b3-corn-quotes',
 ]
 
 const API_BASE = 'https://safra-segura-api.onrender.com'
