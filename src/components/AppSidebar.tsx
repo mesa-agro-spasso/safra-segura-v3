@@ -156,6 +156,14 @@ export function AppSidebar() {
             )}
           </div>
         )}
+        {!collapsed && (
+          <div className="mb-2 flex items-center justify-between rounded-md border border-sidebar-border/50 px-2 py-1.5">
+            <span className="text-[11px] text-sidebar-foreground/70">
+              Ambiente: <span className={isStaging ? 'font-bold text-yellow-500' : 'font-medium'}>{isStaging ? 'Staging' : 'Produção'}</span>
+            </span>
+            <Switch checked={isStaging} onCheckedChange={toggle} aria-label="Alternar ambiente" />
+          </div>
+        )}
         <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground">
           <LogOut className="mr-2 h-4 w-4" />
           {!collapsed && 'Sair'}
