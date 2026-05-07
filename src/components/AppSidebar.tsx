@@ -22,6 +22,16 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+
+const isStagingEnv = () =>
+  typeof window !== 'undefined' && localStorage.getItem('mesa_env') === 'staging';
+
+const toggleStagingEnv = (enabled: boolean) => {
+  if (enabled) localStorage.setItem('mesa_env', 'staging');
+  else localStorage.removeItem('mesa_env');
+  window.location.reload();
+};
 
 const ROLE_LABELS: Record<string, string> = {
   mesa: 'Mesa',
