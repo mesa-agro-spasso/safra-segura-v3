@@ -303,6 +303,33 @@ function WarehousesTab() {
                 </div>
 
                 <Button onClick={handleSave} className="w-full">Salvar</Button>
+
+                {isExisting && (
+                  <div className="border-t pt-4 mt-4">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" className="w-full">
+                          <Trash2 className="mr-2 h-4 w-4" /> Excluir Armazém
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir armazém?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta ação é permanente. O armazém <strong>{editing?.display_name}</strong> será removido.
+                            Se houver operações, ordens ou outros registros vinculados, a exclusão falhará.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>
