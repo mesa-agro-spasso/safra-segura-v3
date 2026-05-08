@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, supabasePublic } from '@/integrations/supabase/client';
 import type { UserProfile } from '@/types';
@@ -25,6 +25,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const authStateRef = useRef<{ user: User | null; profile: UserProfile | null }>({ user: null, profile: null });
+
+  authStateRef.current = { user, profile };
 
   const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     try {
@@ -83,17 +86,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // Set loading so ProtectedRoute shows spinner until profile loads
-        setLoading(true);
+        const shouldBlockUi = !authStateRef.current.profile || authStateRef.current.user?.id !== session.user.id;
+
+        if (event === 'TOKEN_REFRESHED' && !shouldBlockUi) {
+          return;
+        }
+
+        if (shouldBlockUi) {
+          setLoading(true);
+        }
+
         // Use setTimeout to avoid blocking the auth state change processing
         setTimeout(async () => {
           if (mounted) {
             await fetchProfile(session.user.id);
-            if (mounted) setLoading(false);
+            if (mounted && shouldBlockUi) setLoading(false);
           }
         }, 0);
       } else {
         setProfile(null);
+        setLoading(false);
       }
     });
 
