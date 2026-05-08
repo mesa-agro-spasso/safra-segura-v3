@@ -32,6 +32,12 @@ const MTM = () => {
       return stored ? JSON.parse(stored) : {};
     } catch { return {}; }
   });
+  const [groupPrices, setGroupPrices] = useState<Record<string, string>>(() => {
+    try {
+      const stored = sessionStorage.getItem('mtm_group_prices');
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
   const [calculating, setCalculating] = useState(false);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
   const [detailResult, setDetailResult] = useState<Record<string, unknown> | null>(null);
@@ -56,6 +62,36 @@ const MTM = () => {
     if (!orders?.length) return [];
     return [...new Set(orders.map(o => o.operation?.warehouses?.display_name).filter(Boolean))] as string[];
   }, [orders]);
+
+  const physicalGroups = useMemo(() => {
+    if (!orders?.length) return [] as { key: string; warehouse: string; commodity: string; operationIds: string[] }[];
+    const map = new Map<string, { key: string; warehouse: string; commodity: string; operationIds: string[] }>();
+    for (const o of orders) {
+      const warehouse = o.operation?.warehouses?.display_name ?? '—';
+      const commodity = o.commodity;
+      const key = `${warehouse}__${commodity}`;
+      if (!map.has(key)) map.set(key, { key, warehouse, commodity, operationIds: [] });
+      map.get(key)!.operationIds.push(o.operation_id);
+    }
+    return [...map.values()].sort((a, b) =>
+      a.warehouse.localeCompare(b.warehouse) || a.commodity.localeCompare(b.commodity)
+    );
+  }, [orders]);
+
+  const applyGroupPrice = (group: { key: string; operationIds: string[] }) => {
+    const value = groupPrices[group.key];
+    if (!value) {
+      toast.error('Preencha o preço primeiro');
+      return;
+    }
+    setPhysicalPrices((p) => {
+      const updated = { ...p };
+      for (const id of group.operationIds) updated[id] = value;
+      try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    toast.success(`Aplicado a ${group.operationIds.length} operação(ões)`);
+  };
 
   const filteredResults = useMemo(() => {
     if (!results) return results;
@@ -341,6 +377,59 @@ const MTM = () => {
               </CardContent>
             </Card>
           )}
+
+          {/* Group shortcut card */}
+          {orders?.length ? (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="text-sm">Preço Físico por Praça (atalho)</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Preencha um valor e clique em Aplicar para copiar para todas as operações da praça/commodity. Cada linha continua editável individualmente abaixo.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Praça</TableHead>
+                      <TableHead>Commodity</TableHead>
+                      <TableHead>Operações</TableHead>
+                      <TableHead>Preço (R$/sc)</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {physicalGroups.map((g) => (
+                      <TableRow key={g.key}>
+                        <TableCell>{g.warehouse}</TableCell>
+                        <TableCell>{g.commodity === 'soybean' ? 'Soja' : g.commodity === 'corn' ? 'Milho' : g.commodity}</TableCell>
+                        <TableCell>{g.operationIds.length}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="h-8 w-28"
+                            placeholder="0.00"
+                            value={groupPrices[g.key] || ''}
+                            onChange={(e) => setGroupPrices((p) => {
+                              const updated = { ...p, [g.key]: e.target.value };
+                              try { sessionStorage.setItem('mtm_group_prices', JSON.stringify(updated)); } catch {}
+                              return updated;
+                            })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button size="sm" variant="secondary" onClick={() => applyGroupPrice(g)}>
+                            Aplicar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
 
           {/* Active operations table */}
           {loading ? (
