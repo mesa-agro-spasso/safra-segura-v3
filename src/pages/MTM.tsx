@@ -378,6 +378,59 @@ const MTM = () => {
             </Card>
           )}
 
+          {/* Group shortcut card */}
+          {orders?.length ? (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="text-sm">Preço Físico por Praça (atalho)</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Preencha um valor e clique em Aplicar para copiar para todas as operações da praça/commodity. Cada linha continua editável individualmente abaixo.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Praça</TableHead>
+                      <TableHead>Commodity</TableHead>
+                      <TableHead>Operações</TableHead>
+                      <TableHead>Preço (R$/sc)</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {physicalGroups.map((g) => (
+                      <TableRow key={g.key}>
+                        <TableCell>{g.warehouse}</TableCell>
+                        <TableCell>{g.commodity === 'soybean' ? 'Soja' : g.commodity === 'corn' ? 'Milho' : g.commodity}</TableCell>
+                        <TableCell>{g.operationIds.length}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="h-8 w-28"
+                            placeholder="0.00"
+                            value={groupPrices[g.key] || ''}
+                            onChange={(e) => setGroupPrices((p) => {
+                              const updated = { ...p, [g.key]: e.target.value };
+                              try { sessionStorage.setItem('mtm_group_prices', JSON.stringify(updated)); } catch {}
+                              return updated;
+                            })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button size="sm" variant="secondary" onClick={() => applyGroupPrice(g)}>
+                            Aplicar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {/* Active operations table */}
           {loading ? (
             <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
