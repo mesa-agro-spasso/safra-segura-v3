@@ -618,6 +618,12 @@ const OperacoesD24: React.FC = () => {
       return stored ? JSON.parse(stored) : {};
     } catch { return {}; }
   });
+  const [groupPrices, setGroupPrices] = useState<Record<string, string>>(() => {
+    try {
+      const stored = sessionStorage.getItem('mtm_group_prices');
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
   const [calculating, setCalculating] = useState(false);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
   const [detailResult, setDetailResult] = useState<Record<string, unknown> | null>(null);
@@ -1397,6 +1403,77 @@ const OperacoesD24: React.FC = () => {
               </CardContent>
             </Card>
           )}
+
+          {activeOpsForMtm.length ? (() => {
+            const groupsMap = new Map<string, { key: string; warehouse: string; commodity: string; opIds: string[] }>();
+            for (const op of activeOpsForMtm) {
+              const warehouse = (op as any).warehouses?.display_name ?? '—';
+              const commodity = (op as any).commodity ?? '—';
+              const key = `${warehouse}__${commodity}`;
+              if (!groupsMap.has(key)) groupsMap.set(key, { key, warehouse, commodity, opIds: [] });
+              groupsMap.get(key)!.opIds.push(op.id);
+            }
+            const groups = [...groupsMap.values()].sort((a, b) =>
+              a.warehouse.localeCompare(b.warehouse) || a.commodity.localeCompare(b.commodity)
+            );
+            const applyGroup = (g: { key: string; opIds: string[] }) => {
+              const value = groupPrices[g.key];
+              if (!value) { toast.error('Preencha o preço primeiro'); return; }
+              setPhysicalPrices(p => {
+                const updated = { ...p };
+                for (const id of g.opIds) updated[id] = value;
+                try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch { /* noop */ }
+                return updated;
+              });
+              toast.success(`Aplicado a ${g.opIds.length} operação(ões)`);
+            };
+            return (
+              <Card className="border-primary/30">
+                <CardHeader>
+                  <CardTitle className="text-sm">Preço Físico por Praça (atalho)</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Preencha um valor e clique em <strong>Aplicar</strong> para copiar para todas as operações da praça/commodity. Cada linha continua editável individualmente abaixo.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Praça</TableHead>
+                        <TableHead>Commodity</TableHead>
+                        <TableHead>Operações</TableHead>
+                        <TableHead>Preço (R$/sc)</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {groups.map(g => (
+                        <TableRow key={g.key}>
+                          <TableCell>{g.warehouse}</TableCell>
+                          <TableCell>{g.commodity === 'soybean' ? 'Soja' : g.commodity === 'corn' ? 'Milho' : g.commodity}</TableCell>
+                          <TableCell>{g.opIds.length}</TableCell>
+                          <TableCell>
+                            <Input
+                              type="number" step="0.01" className="h-8 w-28" placeholder="0.00"
+                              value={groupPrices[g.key] || ''}
+                              onChange={(e) => setGroupPrices(p => {
+                                const updated = { ...p, [g.key]: e.target.value };
+                                try { sessionStorage.setItem('mtm_group_prices', JSON.stringify(updated)); } catch { /* noop */ }
+                                return updated;
+                              })}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Button size="sm" variant="secondary" onClick={() => applyGroup(g)}>Aplicar</Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            );
+          })() : null}
 
           {activeOpsForMtm.length ? (
             <Card>
