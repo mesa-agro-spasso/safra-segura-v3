@@ -618,6 +618,12 @@ const OperacoesD24: React.FC = () => {
       return stored ? JSON.parse(stored) : {};
     } catch { return {}; }
   });
+  const [groupPrices, setGroupPrices] = useState<Record<string, string>>(() => {
+    try {
+      const stored = sessionStorage.getItem('mtm_group_prices');
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
   const [calculating, setCalculating] = useState(false);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
   const [detailResult, setDetailResult] = useState<Record<string, unknown> | null>(null);
