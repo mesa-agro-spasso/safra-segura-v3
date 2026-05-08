@@ -63,6 +63,36 @@ const MTM = () => {
     return [...new Set(orders.map(o => o.operation?.warehouses?.display_name).filter(Boolean))] as string[];
   }, [orders]);
 
+  const physicalGroups = useMemo(() => {
+    if (!orders?.length) return [] as { key: string; warehouse: string; commodity: string; operationIds: string[] }[];
+    const map = new Map<string, { key: string; warehouse: string; commodity: string; operationIds: string[] }>();
+    for (const o of orders) {
+      const warehouse = o.operation?.warehouses?.display_name ?? '—';
+      const commodity = o.commodity;
+      const key = `${warehouse}__${commodity}`;
+      if (!map.has(key)) map.set(key, { key, warehouse, commodity, operationIds: [] });
+      map.get(key)!.operationIds.push(o.operation_id);
+    }
+    return [...map.values()].sort((a, b) =>
+      a.warehouse.localeCompare(b.warehouse) || a.commodity.localeCompare(b.commodity)
+    );
+  }, [orders]);
+
+  const applyGroupPrice = (group: { key: string; operationIds: string[] }) => {
+    const value = groupPrices[group.key];
+    if (!value) {
+      toast.error('Preencha o preço primeiro');
+      return;
+    }
+    setPhysicalPrices((p) => {
+      const updated = { ...p };
+      for (const id of group.operationIds) updated[id] = value;
+      try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    toast.success(`Aplicado a ${group.operationIds.length} operação(ões)`);
+  };
+
   const filteredResults = useMemo(() => {
     if (!results) return results;
     return results.filter(r => {
