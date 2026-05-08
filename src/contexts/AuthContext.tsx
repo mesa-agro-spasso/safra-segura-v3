@@ -83,17 +83,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // Set loading so ProtectedRoute shows spinner until profile loads
-        setLoading(true);
+        const shouldBlockUi = !profile || user?.id !== session.user.id;
+
+        if (event === 'TOKEN_REFRESHED' && !shouldBlockUi) {
+          return;
+        }
+
+        if (shouldBlockUi) {
+          setLoading(true);
+        }
+
         // Use setTimeout to avoid blocking the auth state change processing
         setTimeout(async () => {
           if (mounted) {
             await fetchProfile(session.user.id);
-            if (mounted) setLoading(false);
+            if (mounted && shouldBlockUi) setLoading(false);
           }
         }, 0);
       } else {
         setProfile(null);
+        setLoading(false);
       }
     });
 
@@ -101,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, profile, user]);
 
   const refreshProfile = useCallback(async () => {
     if (user) {
