@@ -1286,7 +1286,7 @@ const ArmazensD24: React.FC = () => {
                   <Button
                     variant="link"
                     className="h-auto p-0 text-xs"
-                    onClick={() => navigate('/operacoes-mtm')}
+                    onClick={() => navigate('/operacoes-d24')}
                   >
                     Ver MTM das operações →
                   </Button>
