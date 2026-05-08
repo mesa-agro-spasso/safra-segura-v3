@@ -1416,24 +1416,31 @@ const OperacoesD24: React.FC = () => {
             const groups = [...groupsMap.values()].sort((a, b) =>
               a.warehouse.localeCompare(b.warehouse) || a.commodity.localeCompare(b.commodity)
             );
-            const applyGroup = (g: { key: string; opIds: string[] }) => {
-              const value = groupPrices[g.key];
-              if (!value) { toast.error('Preencha o preço primeiro'); return; }
+            const applyAll = () => {
+              const filled = groups.filter(g => (groupPrices[g.key] ?? '').trim() !== '');
+              if (filled.length === 0) { toast.error('Preencha ao menos um preço'); return; }
+              let count = 0;
               setPhysicalPrices(p => {
                 const updated = { ...p };
-                for (const id of g.opIds) updated[id] = value;
+                for (const g of filled) {
+                  const value = groupPrices[g.key];
+                  for (const id of g.opIds) { updated[id] = value; count++; }
+                }
                 try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch { /* noop */ }
                 return updated;
               });
-              toast.success(`Aplicado a ${g.opIds.length} operação(ões)`);
+              toast.success(`Aplicado a ${count} operação(ões) em ${filled.length} grupo(s)`);
             };
             return (
               <Card className="border-primary/30">
-                <CardHeader>
-                  <CardTitle className="text-sm">Preço Físico por Praça (atalho)</CardTitle>
-                  <p className="text-xs text-muted-foreground">
-                    Preencha um valor e clique em <strong>Aplicar</strong> para copiar para todas as operações da praça/commodity. Cada linha continua editável individualmente abaixo.
-                  </p>
+                <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+                  <div>
+                    <CardTitle className="text-sm">Preço Físico por Praça (atalho)</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Preencha os preços por praça/commodity e clique em <strong>Aplicar todos</strong>. Cada linha continua editável individualmente abaixo.
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={applyAll}>Aplicar todos</Button>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -1443,7 +1450,6 @@ const OperacoesD24: React.FC = () => {
                         <TableHead>Commodity</TableHead>
                         <TableHead>Operações</TableHead>
                         <TableHead>Preço (R$/sc)</TableHead>
-                        <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1462,9 +1468,6 @@ const OperacoesD24: React.FC = () => {
                                 return updated;
                               })}
                             />
-                          </TableCell>
-                          <TableCell>
-                            <Button size="sm" variant="secondary" onClick={() => applyGroup(g)}>Aplicar</Button>
                           </TableCell>
                         </TableRow>
                       ))}
