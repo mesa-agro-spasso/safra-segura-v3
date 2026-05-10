@@ -1001,10 +1001,26 @@ const OperacoesD24: React.FC = () => {
     return matched?.commodity === 'soybean' ? targetProfitSoybean : targetProfitCorn;
   };
 
-  const getPhysicalForCalc = (r: Record<string, unknown>): number => {
-    const opId = r.operation_id as string;
+  const getMarketPhysical = (warehouseId: string | undefined, commodity: string | undefined): number | null => {
+    if (!warehouseId || !commodity) return null;
+    const found = latestPhysicalPrices.find(
+      (p) => p.warehouse_id === warehouseId && p.commodity === commodity,
+    );
+    return found ? Number(found.price_brl_per_sack) : null;
+  };
+
+  const getPhysicalForOp = (opId: string): number => {
     const fromInput = parseFloat(physicalPrices[opId] || '');
     if (!isNaN(fromInput) && fromInput > 0) return fromInput;
+    const op = (operations ?? []).find((o) => o.id === opId) as any;
+    const market = getMarketPhysical(op?.warehouse_id, op?.commodity);
+    return market ?? 0;
+  };
+
+  const getPhysicalForCalc = (r: Record<string, unknown>): number => {
+    const opId = r.operation_id as string;
+    const v = getPhysicalForOp(opId);
+    if (v > 0) return v;
     const snap = (r.market_snapshot as Record<string, number | null> | null) ?? null;
     return snap?.physical_price_current ?? 0;
   };
