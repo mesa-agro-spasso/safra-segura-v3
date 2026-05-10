@@ -121,7 +121,7 @@ const MarketFisico = () => {
                       {r.price != null ? `R$ ${r.price.toFixed(2)}` : '-'}
                     </TableCell>
                     <TableCell>{r.refDate ?? '-'}</TableCell>
-                    <TableCell>{freshnessBadge(r.updatedAt)}</TableCell>
+                    <TableCell>{freshnessBadge(r.refDate)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
