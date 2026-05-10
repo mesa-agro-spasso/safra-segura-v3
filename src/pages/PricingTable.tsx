@@ -472,6 +472,19 @@ const PricingTable = () => {
                   })}
                 </>
               )}
+
+              <Separator />
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={() => {
+                    const id = detailSnap.id;
+                    setDetailSnap(null);
+                    navigate('/operacoes-d24', { state: { openNewOp: true, snapshotId: id } });
+                  }}
+                >
+                  Criar operação com este preço
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
         );
