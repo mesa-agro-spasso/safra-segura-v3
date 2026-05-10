@@ -642,6 +642,7 @@ const OperacoesD24: React.FC = () => {
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
   const [detailResult, setDetailResult] = useState<Record<string, unknown> | null>(null);
   const [chartByOperation, setChartByOperation] = useState(false);
+  const [editingPhysical, setEditingPhysical] = useState<Record<string, boolean>>({});
 
   // Detail dialog collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
