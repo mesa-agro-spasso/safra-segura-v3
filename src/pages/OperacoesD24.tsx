@@ -1334,28 +1334,49 @@ const OperacoesD24: React.FC = () => {
         <TabsContent value="mtm" className="space-y-4">
           {(() => {
             const hoursAgo = (d: string | null) => d ? Math.floor((Date.now() - new Date(d).getTime()) / 3_600_000) : null;
-            const fmt = (d: string | null) => {
+            const daysSinceDate = (d: string | null) => {
+              if (!d) return null;
+              const ref = new Date(d + 'T00:00:00');
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              return Math.floor((today.getTime() - ref.getTime()) / 86_400_000);
+            };
+            const fmtDt = (d: string | null) => {
               if (!d) return 'sem registro';
               const dt = new Date(d);
               const h = hoursAgo(d)!;
               return `${dt.toLocaleDateString('pt-BR')} ${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} (${h}h)`;
             };
-            const badgeCls = (d: string | null) => {
-              const h = hoursAgo(d);
+            const fmtRefDate = (d: string | null) => {
+              if (!d) return 'sem registro';
+              const days = daysSinceDate(d)!;
+              const dt = new Date(d + 'T00:00:00');
+              const ago = days === 0 ? 'hoje' : days === 1 ? '1d' : `${days}d`;
+              return `${dt.toLocaleDateString('pt-BR')} (${ago})`;
+            };
+            const badgeClsHours = (h: number | null) => {
               if (h == null) return 'bg-muted text-muted-foreground';
               if (h <= 24) return 'bg-green-500/15 text-green-400 border-green-500/30';
               if (h <= 48) return 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30';
               return 'bg-red-500/15 text-red-400 border-red-500/30';
             };
+            const badgeClsDays = (d: number | null) => {
+              if (d == null) return 'bg-muted text-muted-foreground';
+              if (d <= 1) return 'bg-green-500/15 text-green-400 border-green-500/30';
+              if (d <= 2) return 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30';
+              return 'bg-red-500/15 text-red-400 border-red-500/30';
+            };
             const bolsaH = hoursAgo(lastMarketUpdate);
-            const fisicoH = hoursAgo(lastFisicoUpdate);
-            const stale = (bolsaH != null && bolsaH > 48) || (fisicoH != null && fisicoH > 48) || bolsaH == null || fisicoH == null;
+            const fisicoD = daysSinceDate(lastFisicoRefDate);
+            const bolsaStale = bolsaH == null || bolsaH > 48;
+            const fisicoStale = fisicoD == null || fisicoD > 2;
+            const stale = bolsaStale || fisicoStale;
             return (
               <>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className={badgeCls(lastMarketUpdate)}>Bolsa: {fmt(lastMarketUpdate)}</Badge>
-                  <Badge variant="outline" className={badgeCls(lastFisicoUpdate)}>Físico: {fmt(lastFisicoUpdate)}</Badge>
-                  <Badge variant="outline" className={badgeCls(lastMtmCalculated)}>MTM: {fmt(lastMtmCalculated)}</Badge>
+                  <Badge variant="outline" className={badgeClsHours(bolsaH)}>Bolsa: {fmtDt(lastMarketUpdate)}</Badge>
+                  <Badge variant="outline" className={badgeClsDays(fisicoD)}>Físico: {fmtRefDate(lastFisicoRefDate)}</Badge>
+                  <Badge variant="outline" className={badgeClsHours(hoursAgo(lastMtmCalculated))}>MTM: {fmtDt(lastMtmCalculated)}</Badge>
                 </div>
                 {stale && (
                   <Card className="border-red-500/50 bg-red-500/5">
@@ -1363,8 +1384,8 @@ const OperacoesD24: React.FC = () => {
                       <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
                       <p className="text-xs text-red-200">
                         Dados de mercado desatualizados (mais de 2 dias){' '}
-                        {bolsaH == null || bolsaH > 48 ? '— Bolsa ' : ''}
-                        {fisicoH == null || fisicoH > 48 ? '— Físico ' : ''}
+                        {bolsaStale ? '— Bolsa ' : ''}
+                        {fisicoStale ? '— Físico ' : ''}
                         sem atualização recente. O cálculo do MTM seguirá usando os últimos valores disponíveis.
                       </p>
                     </CardContent>
