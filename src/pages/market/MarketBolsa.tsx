@@ -55,7 +55,7 @@ interface B3SavedPrice {
   source: string;
 }
 
-const Market = () => {
+const MarketBolsa = () => {
   const { data: marketData, isLoading } = useMarketData();
   const { data: parameters } = usePricingParameters();
   const cbotQty = parameters?.[0]?.cbot_ticker_count ?? 5;
@@ -633,4 +633,4 @@ const Market = () => {
   );
 };
 
-export default Market;
+export default MarketBolsa;
