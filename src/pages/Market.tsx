@@ -606,7 +606,7 @@ const Market = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {b3Tickers.map((t) => {
+                    {visibleB3Tickers.map((t) => {
                       const saved = b3Prices[t.ticker];
                       return (
                         <TableRow key={t.ticker}>
