@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOperations, useOperationsWithDetails } from '@/hooks/useOperations';
@@ -606,6 +607,17 @@ const OperacoesD24: React.FC = () => {
   const [filterCommodity, setFilterCommodity] = useState<string>('all');
   const [selectedOperation, setSelectedOperation] = useState<OperationWithDetails | null>(null);
   const [newOpModal, setNewOpModal] = useState(false);
+  const [prefillSnapshotId, setPrefillSnapshotId] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const st = location.state as { openNewOp?: boolean; snapshotId?: string } | null;
+    if (st?.openNewOp) {
+      setPrefillSnapshotId(st.snapshotId ?? null);
+      setNewOpModal(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.state, location.pathname, navigate]);
   const [editPlanOp, setEditPlanOp] = useState<OperationWithDetails | null>(null);
   const [registerExecutionOp, setRegisterExecutionOp] = useState<OperationWithDetails | null>(null);
   const [closingPlanOp, setClosingPlanOp] = useState<OperationWithDetails | null>(null);
@@ -2326,14 +2338,16 @@ const OperacoesD24: React.FC = () => {
       {/* ── New Operation Modal ── */}
       <NewOperationModal
         open={newOpModal}
-        onClose={() => setNewOpModal(false)}
+        onClose={() => { setNewOpModal(false); setPrefillSnapshotId(null); }}
         warehouses={warehouses}
         pricingSnapshots={pricingSnapshots}
         userId={user?.id ?? null}
+        prefillSnapshotId={prefillSnapshotId}
         onCreated={() => {
           queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
           queryClient.invalidateQueries({ queryKey: ['operations'] });
           setNewOpModal(false);
+          setPrefillSnapshotId(null);
         }}
       />
 
@@ -2420,10 +2434,11 @@ interface NewOpModalProps {
   warehouses: { id: string; display_name: string }[];
   pricingSnapshots: PricingSnapshot[];
   userId: string | null;
+  prefillSnapshotId?: string | null;
   onCreated: () => void;
 }
 
-const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouses, pricingSnapshots, userId, onCreated }) => {
+const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouses, pricingSnapshots, userId, prefillSnapshotId, onCreated }) => {
   const [warehouseId, setWarehouseId] = useState('');
   const [commodityKey, setCommodityKey] = useState<'soybean|cbot' | 'corn|b3' | ''>('');
   const [volume, setVolume] = useState('');
@@ -2442,13 +2457,26 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
   const prevOpenRef = React.useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      setWarehouseId(''); setCommodityKey(''); setVolume(''); setOriginPrice('');
-      setSnapshotId(''); setTradeDate(new Date().toISOString().slice(0, 10));
-      setPaymentDate(''); setReceptionDate(''); setSaleDate(''); setNotes('');
+      const pre = prefillSnapshotId ? pricingSnapshots.find(s => s.id === prefillSnapshotId) : null;
+      if (pre) {
+        setWarehouseId(pre.warehouse_id);
+        const ck = `${pre.commodity}|${pre.benchmark.toLowerCase()}` as 'soybean|cbot' | 'corn|b3';
+        setCommodityKey(ck === 'soybean|cbot' || ck === 'corn|b3' ? ck : '');
+        setSnapshotId(pre.id);
+        setOriginPrice(String(pre.origination_price_brl ?? ''));
+        setPaymentDate(pre.payment_date ?? '');
+        setReceptionDate(pre.grain_reception_date ?? '');
+        setSaleDate(pre.sale_date ?? '');
+      } else {
+        setWarehouseId(''); setCommodityKey(''); setSnapshotId(''); setOriginPrice('');
+        setPaymentDate(''); setReceptionDate(''); setSaleDate('');
+      }
+      setVolume(''); setTradeDate(new Date().toISOString().slice(0, 10));
+      setNotes('');
       setPlanResp(null);
     }
     prevOpenRef.current = open;
-  }, [open]);
+  }, [open, prefillSnapshotId, pricingSnapshots]);
 
   const [commodity, exchange] = commodityKey ? commodityKey.split('|') : ['', ''];
 
