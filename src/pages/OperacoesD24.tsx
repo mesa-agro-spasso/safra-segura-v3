@@ -2338,14 +2338,16 @@ const OperacoesD24: React.FC = () => {
       {/* ── New Operation Modal ── */}
       <NewOperationModal
         open={newOpModal}
-        onClose={() => setNewOpModal(false)}
+        onClose={() => { setNewOpModal(false); setPrefillSnapshotId(null); }}
         warehouses={warehouses}
         pricingSnapshots={pricingSnapshots}
         userId={user?.id ?? null}
+        prefillSnapshotId={prefillSnapshotId}
         onCreated={() => {
           queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
           queryClient.invalidateQueries({ queryKey: ['operations'] });
           setNewOpModal(false);
+          setPrefillSnapshotId(null);
         }}
       />
 
