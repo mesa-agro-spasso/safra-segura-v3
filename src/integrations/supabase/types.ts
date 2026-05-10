@@ -653,6 +653,8 @@ export type Database = {
       }
       pricing_parameters: {
         Row: {
+          b3_corn_ticker_count: number
+          cbot_ticker_count: number
           execution_spread_pct: number | null
           id: string
           sigma: number
@@ -660,6 +662,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          b3_corn_ticker_count?: number
+          cbot_ticker_count?: number
           execution_spread_pct?: number | null
           id: string
           sigma: number
@@ -667,6 +671,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          b3_corn_ticker_count?: number
+          cbot_ticker_count?: number
           execution_spread_pct?: number | null
           id?: string
           sigma?: number

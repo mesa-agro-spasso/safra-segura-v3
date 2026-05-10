@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useMarketData, useUpsertMarketData, getHoursAgo } from '@/hooks/useMarketData';
+import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { callApi } from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,6 +57,9 @@ interface B3SavedPrice {
 
 const Market = () => {
   const { data: marketData, isLoading } = useMarketData();
+  const { data: parameters } = usePricingParameters();
+  const cbotQty = parameters?.[0]?.cbot_ticker_count ?? 5;
+  const b3Qty = parameters?.[0]?.b3_corn_ticker_count ?? 10;
   const upsertMarket = useUpsertMarketData();
   const [fetchingOp, setFetchingOp] = useState<'fx' | 'soybean' | 'corn_cbot' | 'corn_b3' | 'all' | 'markets' | null>(null);
   const [editingTicker, setEditingTicker] = useState<string | null>(null);
@@ -104,7 +108,7 @@ const Market = () => {
   // ---- Atomic functions ----
 
   const fetchQuotes = async (fxOverride?: number) => {
-    const query: Record<string, string> = { quantity: '5' };
+    const query: Record<string, string> = { quantity: String(cbotQty) };
     if (fxOverride !== undefined) {
       query.fx_override = fxOverride.toString();
     }
@@ -159,7 +163,7 @@ const Market = () => {
   const persistCornB3 = async () => {
     const b3Result = await callApi<B3Response>(
       '/market/b3-corn-quotes', undefined,
-      { method: 'GET', query: { quantity: '10' } }
+      { method: 'GET', query: { quantity: String(b3Qty) } }
     );
     const apiTickers = b3Result.corn_b3 ?? [];
     const { data: existing } = await supabase

@@ -19,17 +19,21 @@ export function usePricingParameters() {
 export function useUpdatePricingParameter() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, sigma, target_profit_brl_per_sack, execution_spread_pct }: {
+    mutationFn: async ({ id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count }: {
       id: string;
       sigma: number;
       target_profit_brl_per_sack?: number;
       execution_spread_pct?: number;
+      cbot_ticker_count?: number;
+      b3_corn_ticker_count?: number;
     }) => {
-      const update: { sigma: number; updated_at: string; target_profit_brl_per_sack?: number; execution_spread_pct?: number } = { sigma, updated_at: new Date().toISOString() };
+      const update: Record<string, unknown> = { sigma, updated_at: new Date().toISOString() };
       if (target_profit_brl_per_sack !== undefined) update.target_profit_brl_per_sack = target_profit_brl_per_sack;
       if (execution_spread_pct !== undefined) update.execution_spread_pct = execution_spread_pct;
-      const { error } = await supabase
-        .from('pricing_parameters')
+      if (cbot_ticker_count !== undefined) update.cbot_ticker_count = cbot_ticker_count;
+      if (b3_corn_ticker_count !== undefined) update.b3_corn_ticker_count = b3_corn_ticker_count;
+      const { error } = await (supabase
+        .from('pricing_parameters') as any)
         .update(update)
         .eq('id', id);
       if (error) throw error;
