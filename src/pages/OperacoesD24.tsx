@@ -44,7 +44,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Columns, Calculator, AlertTriangle, ChevronDown, Copy, Trash2, Plus, CheckCircle2, AlertCircle, Download } from 'lucide-react';
+import { Columns, Calculator, AlertTriangle, ChevronDown, Copy, Trash2, Plus, CheckCircle2, AlertCircle, Download, Pencil, X as XIcon } from 'lucide-react';
+import { useLatestPhysicalPrices } from '@/hooks/usePhysicalPrices';
 import { toast } from 'sonner';
 
 // ───────────────────────── helpers (replicated, no cross-page imports) ─────────────────────────
@@ -582,6 +583,7 @@ const OperacoesD24: React.FC = () => {
   const saveMtm = useSaveMtmSnapshot();
   const { data: pricingParameters } = usePricingParameters();
   const { data: pricingSnapshots = [] } = usePricingSnapshots();
+  const { data: latestPhysicalPrices = [] } = useLatestPhysicalPrices();
 
   // D24 orders (all: opening + closing) for MTM tab
   const { data: d24Orders } = useQuery({
@@ -640,6 +642,7 @@ const OperacoesD24: React.FC = () => {
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
   const [detailResult, setDetailResult] = useState<Record<string, unknown> | null>(null);
   const [chartByOperation, setChartByOperation] = useState(false);
+  const [editingPhysical, setEditingPhysical] = useState<Record<string, boolean>>({});
 
   // Detail dialog collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -998,10 +1001,26 @@ const OperacoesD24: React.FC = () => {
     return matched?.commodity === 'soybean' ? targetProfitSoybean : targetProfitCorn;
   };
 
-  const getPhysicalForCalc = (r: Record<string, unknown>): number => {
-    const opId = r.operation_id as string;
+  const getMarketPhysical = (warehouseId: string | undefined, commodity: string | undefined): number | null => {
+    if (!warehouseId || !commodity) return null;
+    const found = latestPhysicalPrices.find(
+      (p) => p.warehouse_id === warehouseId && p.commodity === commodity,
+    );
+    return found ? Number(found.price_brl_per_sack) : null;
+  };
+
+  const getPhysicalForOp = (opId: string): number => {
     const fromInput = parseFloat(physicalPrices[opId] || '');
     if (!isNaN(fromInput) && fromInput > 0) return fromInput;
+    const op = (operations ?? []).find((o) => o.id === opId) as any;
+    const market = getMarketPhysical(op?.warehouse_id, op?.commodity);
+    return market ?? 0;
+  };
+
+  const getPhysicalForCalc = (r: Record<string, unknown>): number => {
+    const opId = r.operation_id as string;
+    const v = getPhysicalForOp(opId);
+    if (v > 0) return v;
     const snap = (r.market_snapshot as Record<string, number | null> | null) ?? null;
     return snap?.physical_price_current ?? 0;
   };
@@ -1140,7 +1159,7 @@ const OperacoesD24: React.FC = () => {
           })),
           snapshot: {
             futures_price_current: futuresPrice,
-            physical_price_current: parseFloat(physicalPrices[op.id] || '0'),
+            physical_price_current: getPhysicalForOp(op.id),
             spot_rate_current: spotFx,
             option_premium_current: optionPremiumCurrent,
           },
@@ -1324,13 +1343,7 @@ const OperacoesD24: React.FC = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm">Resultado MTM</CardTitle>
-                  <div className="flex gap-2">
-                    <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
-                    <Button onClick={handleCalculate} disabled={calculating || activeOpsForMtm.length === 0} size="sm">
-                      <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
-                      {calculating ? 'Calculando...' : 'Calcular MTM'}
-                    </Button>
-                  </div>
+                  <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
                 </div>
               </CardHeader>
               <CardContent>
@@ -1401,13 +1414,7 @@ const OperacoesD24: React.FC = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm">Resultado MTM</CardTitle>
-                  <div className="flex gap-2">
-                    <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
-                    <Button onClick={handleCalculate} disabled={calculating || activeOpsForMtm.length === 0} size="sm">
-                      <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
-                      {calculating ? 'Calculando...' : 'Calcular MTM'}
-                    </Button>
-                  </div>
+                  <ColumnSelector columns={MTM_COLUMNS} visible={mtmCols.visible} onChange={mtmCols.setVisible} />
                 </div>
               </CardHeader>
               <CardContent>
@@ -1416,83 +1423,20 @@ const OperacoesD24: React.FC = () => {
             </Card>
           )}
 
-          {activeOpsForMtm.length ? (() => {
-            const groupsMap = new Map<string, { key: string; warehouse: string; commodity: string; opIds: string[] }>();
-            for (const op of activeOpsForMtm) {
-              const warehouse = (op as any).warehouses?.display_name ?? '—';
-              const commodity = (op as any).commodity ?? '—';
-              const key = `${warehouse}__${commodity}`;
-              if (!groupsMap.has(key)) groupsMap.set(key, { key, warehouse, commodity, opIds: [] });
-              groupsMap.get(key)!.opIds.push(op.id);
-            }
-            const groups = [...groupsMap.values()].sort((a, b) =>
-              a.warehouse.localeCompare(b.warehouse) || a.commodity.localeCompare(b.commodity)
-            );
-            const applyAll = () => {
-              const filled = groups.filter(g => (groupPrices[g.key] ?? '').trim() !== '');
-              if (filled.length === 0) { toast.error('Preencha ao menos um preço'); return; }
-              let count = 0;
-              setPhysicalPrices(p => {
-                const updated = { ...p };
-                for (const g of filled) {
-                  const value = groupPrices[g.key];
-                  for (const id of g.opIds) { updated[id] = value; count++; }
-                }
-                try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch { /* noop */ }
-                return updated;
-              });
-              toast.success(`Aplicado a ${count} operação(ões) em ${filled.length} grupo(s)`);
-            };
-            return (
-              <Card className="border-primary/30">
-                <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
-                  <div>
-                    <CardTitle className="text-sm">Preço Físico por Praça (atalho)</CardTitle>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Preencha os preços por praça/commodity e clique em <strong>Aplicar todos</strong>. Cada linha continua editável individualmente abaixo.
-                    </p>
-                  </div>
-                  <Button size="sm" onClick={applyAll}>Aplicar todos</Button>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Praça</TableHead>
-                        <TableHead>Commodity</TableHead>
-                        <TableHead>Operações</TableHead>
-                        <TableHead>Preço (R$/sc)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {groups.map(g => (
-                        <TableRow key={g.key}>
-                          <TableCell>{g.warehouse}</TableCell>
-                          <TableCell>{g.commodity === 'soybean' ? 'Soja' : g.commodity === 'corn' ? 'Milho' : g.commodity}</TableCell>
-                          <TableCell>{g.opIds.length}</TableCell>
-                          <TableCell>
-                            <Input
-                              type="number" step="0.01" className="h-8 w-28" placeholder="0.00"
-                              value={groupPrices[g.key] || ''}
-                              onChange={(e) => setGroupPrices(p => {
-                                const updated = { ...p, [g.key]: e.target.value };
-                                try { sessionStorage.setItem('mtm_group_prices', JSON.stringify(updated)); } catch { /* noop */ }
-                                return updated;
-                              })}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            );
-          })() : null}
-
           {activeOpsForMtm.length ? (
             <Card>
-              <CardHeader><CardTitle className="text-sm">Operações Ativas — Inputs</CardTitle></CardHeader>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Operações Ativas — Inputs</CardTitle>
+                  <Button onClick={handleCalculate} disabled={calculating || activeOpsForMtm.length === 0} size="sm">
+                    <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
+                    {calculating ? 'Calculando...' : 'Calcular MTM'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Preço físico pré-preenchido a partir de <strong>Mercado / Físico</strong>. Clique no lápis para sobrescrever apenas para este cálculo.
+                </p>
+              </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
@@ -1508,9 +1452,13 @@ const OperacoesD24: React.FC = () => {
                   <TableBody>
                     {activeOpsForMtm.map(op => {
                       const opAny = op as any;
-                      const commodityLabel = opAny.commodity === 'soybean'
-                        ? 'Soja'
-                        : opAny.commodity === 'corn' ? 'Milho' : (opAny.commodity ?? '—');
+                      const market = getMarketPhysical(opAny.warehouse_id, opAny.commodity);
+                      const override = physicalPrices[op.id];
+                      const hasOverride = override != null && override !== '';
+                      const displayValue = hasOverride
+                        ? Number(override)
+                        : market;
+                      const isEditing = !!editingPhysical[op.id];
                       return (
                         <TableRow key={op.id}>
                           <TableCell className="font-mono text-xs">{(op as any).display_code ?? op.id.slice(0, 8)}</TableCell>
@@ -1519,15 +1467,50 @@ const OperacoesD24: React.FC = () => {
                           <TableCell>{Number(op.volume_sacks ?? 0).toLocaleString('pt-BR')}</TableCell>
                           <TableCell>R$ {Number(opAny.origination_price_brl ?? 0).toFixed(2)}</TableCell>
                           <TableCell>
-                            <Input
-                              type="number" step="0.01" className="h-8 w-28" placeholder="0.00"
-                              value={physicalPrices[op.id] || ''}
-                              onChange={(e) => setPhysicalPrices(p => {
-                                const updated = { ...p, [op.id]: e.target.value };
-                                try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch { /* noop */ }
-                                return updated;
-                              })}
-                            />
+                            {isEditing ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  autoFocus
+                                  type="number" step="0.01" className="h-8 w-28" placeholder={market != null ? market.toFixed(2) : '0.00'}
+                                  value={override ?? (market != null ? String(market) : '')}
+                                  onChange={(e) => setPhysicalPrices(p => {
+                                    const updated = { ...p, [op.id]: e.target.value };
+                                    try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(updated)); } catch { /* noop */ }
+                                    return updated;
+                                  })}
+                                />
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
+                                  onClick={() => setEditingPhysical(s => ({ ...s, [op.id]: false }))}>
+                                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
+                                  onClick={() => {
+                                    setPhysicalPrices(p => {
+                                      const { [op.id]: _, ...rest } = p;
+                                      try { sessionStorage.setItem('mtm_physical_prices', JSON.stringify(rest)); } catch { /* noop */ }
+                                      return rest;
+                                    });
+                                    setEditingPhysical(s => ({ ...s, [op.id]: false }));
+                                  }}
+                                  title="Restaurar valor de Mercado">
+                                  <XIcon className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className={`tabular-nums ${hasOverride ? 'font-semibold text-primary' : ''}`}>
+                                  {displayValue != null ? `R$ ${Number(displayValue).toFixed(2)}` : <span className="text-muted-foreground italic">sem preço</span>}
+                                </span>
+                                {hasOverride && (
+                                  <Badge variant="outline" className="h-5 text-[10px]">manual</Badge>
+                                )}
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
+                                  onClick={() => setEditingPhysical(s => ({ ...s, [op.id]: true }))}
+                                  title="Editar preço">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
