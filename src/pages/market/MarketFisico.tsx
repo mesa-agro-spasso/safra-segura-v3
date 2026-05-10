@@ -25,12 +25,21 @@ interface Row {
   updatedAt: string | null;
 }
 
-function freshnessBadge(updatedAt: string | null) {
-  if (!updatedAt) return <Badge variant="secondary">sem registro</Badge>;
-  const h = getHoursAgo(updatedAt);
-  if (h <= 24) return <Badge className="bg-[hsl(var(--success,142_71%_45%))] text-white hover:bg-[hsl(var(--success,142_71%_45%))]">{h}h</Badge>;
-  if (h <= 72) return <Badge className="bg-[hsl(var(--warning))] text-white hover:bg-[hsl(var(--warning))]">{h}h</Badge>;
-  return <Badge variant="destructive">{h}h</Badge>;
+function daysSinceRefDate(refDate: string): number {
+  // Compare midnight-to-midnight in local time
+  const ref = new Date(refDate + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.floor((today.getTime() - ref.getTime()) / 86_400_000);
+}
+
+function freshnessBadge(refDate: string | null) {
+  if (!refDate) return <Badge variant="secondary">sem registro</Badge>;
+  const d = daysSinceRefDate(refDate);
+  const label = d === 0 ? 'hoje' : d === 1 ? '1d' : `${d}d`;
+  if (d <= 1) return <Badge className="bg-[hsl(var(--success,142_71%_45%))] text-white hover:bg-[hsl(var(--success,142_71%_45%))]">{label}</Badge>;
+  if (d <= 3) return <Badge className="bg-[hsl(var(--warning))] text-white hover:bg-[hsl(var(--warning))]">{label}</Badge>;
+  return <Badge variant="destructive">{label}</Badge>;
 }
 
 const MarketFisico = () => {
@@ -112,7 +121,7 @@ const MarketFisico = () => {
                       {r.price != null ? `R$ ${r.price.toFixed(2)}` : '-'}
                     </TableCell>
                     <TableCell>{r.refDate ?? '-'}</TableCell>
-                    <TableCell>{freshnessBadge(r.updatedAt)}</TableCell>
+                    <TableCell>{freshnessBadge(r.refDate)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
