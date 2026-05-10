@@ -28,6 +28,9 @@ const formatDate = (d: string | null | undefined) => {
 const PricingTable = () => {
   const { data: snapshots, isLoading: loadingSnapshots } = usePricingSnapshots();
   const { data: marketData, isLoading: loadingMarket } = useMarketData();
+  const { data: parameters } = usePricingParameters();
+  const cbotQty = parameters?.[0]?.cbot_ticker_count ?? 5;
+  const b3Qty = parameters?.[0]?.b3_corn_ticker_count ?? 10;
   const { data: warehouses } = useActiveArmazens();
   const navigate = useNavigate();
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
@@ -40,13 +43,25 @@ const PricingTable = () => {
   const [filterTicker, setFilterTicker] = useState<string[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
-  const staleTickers = useMemo(() => {
+  // Restrict displayed/monitored market data to the configured ticker quantities,
+  // ordered by exp_date. FX is always included.
+  const visibleMarket = useMemo(() => {
     if (!marketData) return [];
-    return marketData.filter((m) => getHoursAgo(m.updated_at) > 24);
-  }, [marketData]);
+    const sortByExp = (a: typeof marketData[0], b: typeof marketData[0]) =>
+      (a.exp_date ?? '').localeCompare(b.exp_date ?? '');
+    const soja = marketData.filter(m => m.commodity === 'SOJA').sort(sortByExp).slice(0, cbotQty);
+    const cbot = marketData.filter(m => m.commodity === 'MILHO_CBOT').sort(sortByExp).slice(0, cbotQty);
+    const b3 = marketData.filter(m => m.commodity === 'MILHO').sort(sortByExp).slice(0, b3Qty);
+    const fx = marketData.filter(m => m.commodity === 'FX');
+    return [...fx, ...soja, ...cbot, ...b3];
+  }, [marketData, cbotQty, b3Qty]);
 
-  const staleCorn = useMemo(() => staleTickers.filter((t) => B3_CORN_TICKERS.includes(t.ticker)), [staleTickers]);
-  const staleOther = useMemo(() => staleTickers.filter((t) => !B3_CORN_TICKERS.includes(t.ticker)), [staleTickers]);
+  const staleTickers = useMemo(() => {
+    return visibleMarket.filter((m) => getHoursAgo(m.updated_at) > 24);
+  }, [visibleMarket]);
+
+  const staleCorn = useMemo(() => staleTickers.filter((t) => t.commodity === 'MILHO'), [staleTickers]);
+  const staleOther = useMemo(() => staleTickers.filter((t) => t.commodity !== 'MILHO'), [staleTickers]);
 
   const warehouseMap = useMemo(() => {
     const map: Record<string, string> = {};
