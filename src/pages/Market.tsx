@@ -319,7 +319,7 @@ const Market = () => {
   const handleConfirmB3Update = async () => {
     setConfirmingB3(true);
     try {
-      const tickers = b3Tickers.map(t => t.ticker);
+      const tickers = visibleB3Tickers.map(t => t.ticker);
       for (const ticker of tickers) {
         await supabase
           .from('market_data')
