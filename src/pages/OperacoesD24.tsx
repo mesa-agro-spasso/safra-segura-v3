@@ -657,6 +657,10 @@ const OperacoesD24: React.FC = () => {
     if (!marketData?.length) return null;
     return marketData.reduce((latest, m) => (!latest || m.updated_at > latest ? m.updated_at : latest), null as string | null);
   }, [marketData]);
+  const lastFisicoUpdate = useMemo(() => {
+    if (!latestPhysicalPrices.length) return null;
+    return latestPhysicalPrices.reduce((latest, p) => (!latest || p.updated_at > latest ? p.updated_at : latest), null as string | null);
+  }, [latestPhysicalPrices]);
 
   const StatusDot = ({ date, label }: { date: string; label: string }) => {
     const d = new Date(date);
