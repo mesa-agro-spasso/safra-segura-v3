@@ -163,7 +163,7 @@ const Market = () => {
   const persistCornB3 = async () => {
     const b3Result = await callApi<B3Response>(
       '/market/b3-corn-quotes', undefined,
-      { method: 'GET', query: { quantity: '10' } }
+      { method: 'GET', query: { quantity: String(b3Qty) } }
     );
     const apiTickers = b3Result.corn_b3 ?? [];
     const { data: existing } = await supabase
