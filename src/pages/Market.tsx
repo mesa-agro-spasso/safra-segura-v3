@@ -570,7 +570,7 @@ const Market = () => {
                   <Button variant="ghost" size="sm" onClick={handleFetchCornB3} disabled={fetchingOp !== null}>
                     <RefreshCw className={`h-3 w-3 ${fetchingOp === 'corn_b3' ? 'animate-spin' : ''}`} />
                   </Button>
-                  {b3Tickers.length > 0 && (
+                  {visibleB3Tickers.length > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
