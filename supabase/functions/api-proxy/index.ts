@@ -13,6 +13,7 @@ const ALLOWED_POST_ENDPOINTS = [
   '/closing-batches/allocate',
   '/mtm/run',
   '/mtm/run-d24',
+  '/pricing/option-premium',
 ]
 
 const ALLOWED_GET_ENDPOINTS = [
