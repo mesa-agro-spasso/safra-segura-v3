@@ -2434,10 +2434,11 @@ interface NewOpModalProps {
   warehouses: { id: string; display_name: string }[];
   pricingSnapshots: PricingSnapshot[];
   userId: string | null;
+  prefillSnapshotId?: string | null;
   onCreated: () => void;
 }
 
-const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouses, pricingSnapshots, userId, onCreated }) => {
+const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouses, pricingSnapshots, userId, prefillSnapshotId, onCreated }) => {
   const [warehouseId, setWarehouseId] = useState('');
   const [commodityKey, setCommodityKey] = useState<'soybean|cbot' | 'corn|b3' | ''>('');
   const [volume, setVolume] = useState('');
@@ -2456,13 +2457,26 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
   const prevOpenRef = React.useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      setWarehouseId(''); setCommodityKey(''); setVolume(''); setOriginPrice('');
-      setSnapshotId(''); setTradeDate(new Date().toISOString().slice(0, 10));
-      setPaymentDate(''); setReceptionDate(''); setSaleDate(''); setNotes('');
+      const pre = prefillSnapshotId ? pricingSnapshots.find(s => s.id === prefillSnapshotId) : null;
+      if (pre) {
+        setWarehouseId(pre.warehouse_id);
+        const ck = `${pre.commodity}|${pre.benchmark.toLowerCase()}` as 'soybean|cbot' | 'corn|b3';
+        setCommodityKey(ck === 'soybean|cbot' || ck === 'corn|b3' ? ck : '');
+        setSnapshotId(pre.id);
+        setOriginPrice(String(pre.origination_price_brl ?? ''));
+        setPaymentDate(pre.payment_date ?? '');
+        setReceptionDate(pre.grain_reception_date ?? '');
+        setSaleDate(pre.sale_date ?? '');
+      } else {
+        setWarehouseId(''); setCommodityKey(''); setSnapshotId(''); setOriginPrice('');
+        setPaymentDate(''); setReceptionDate(''); setSaleDate('');
+      }
+      setVolume(''); setTradeDate(new Date().toISOString().slice(0, 10));
+      setNotes('');
       setPlanResp(null);
     }
     prevOpenRef.current = open;
-  }, [open]);
+  }, [open, prefillSnapshotId, pricingSnapshots]);
 
   const [commodity, exchange] = commodityKey ? commodityKey.split('|') : ['', ''];
 
