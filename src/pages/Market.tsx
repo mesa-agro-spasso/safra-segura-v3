@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useMarketData, useUpsertMarketData, getHoursAgo } from '@/hooks/useMarketData';
+import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { callApi } from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
