@@ -1332,6 +1332,48 @@ const OperacoesD24: React.FC = () => {
 
         {/* TAB 2 — MTM */}
         <TabsContent value="mtm" className="space-y-4">
+          {(() => {
+            const hoursAgo = (d: string | null) => d ? Math.floor((Date.now() - new Date(d).getTime()) / 3_600_000) : null;
+            const fmt = (d: string | null) => {
+              if (!d) return 'sem registro';
+              const dt = new Date(d);
+              const h = hoursAgo(d)!;
+              return `${dt.toLocaleDateString('pt-BR')} ${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} (${h}h)`;
+            };
+            const badgeCls = (d: string | null) => {
+              const h = hoursAgo(d);
+              if (h == null) return 'bg-muted text-muted-foreground';
+              if (h <= 24) return 'bg-green-500/15 text-green-400 border-green-500/30';
+              if (h <= 48) return 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30';
+              return 'bg-red-500/15 text-red-400 border-red-500/30';
+            };
+            const bolsaH = hoursAgo(lastMarketUpdate);
+            const fisicoH = hoursAgo(lastFisicoUpdate);
+            const stale = (bolsaH != null && bolsaH > 48) || (fisicoH != null && fisicoH > 48) || bolsaH == null || fisicoH == null;
+            return (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={badgeCls(lastMarketUpdate)}>Bolsa: {fmt(lastMarketUpdate)}</Badge>
+                  <Badge variant="outline" className={badgeCls(lastFisicoUpdate)}>Físico: {fmt(lastFisicoUpdate)}</Badge>
+                  <Badge variant="outline" className={badgeCls(lastMtmCalculated)}>MTM: {fmt(lastMtmCalculated)}</Badge>
+                </div>
+                {stale && (
+                  <Card className="border-red-500/50 bg-red-500/5">
+                    <CardContent className="pt-4 pb-4 flex gap-2 items-start">
+                      <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+                      <p className="text-xs text-red-200">
+                        Dados de mercado desatualizados (mais de 2 dias){' '}
+                        {bolsaH == null || bolsaH > 48 ? '— Bolsa ' : ''}
+                        {fisicoH == null || fisicoH > 48 ? '— Físico ' : ''}
+                        sem atualização recente. O cálculo do MTM seguirá usando os últimos valores disponíveis.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            );
+          })()}
+
           <Card className="border-yellow-500/50 bg-yellow-500/5">
             <CardContent className="pt-4 pb-4 flex gap-2 items-start">
               <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
