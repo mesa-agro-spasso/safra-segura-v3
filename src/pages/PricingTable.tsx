@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { usePricingSnapshots } from '@/hooks/usePricingSnapshots';
 import { useMarketData, getHoursAgo } from '@/hooks/useMarketData';
+import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +28,9 @@ const formatDate = (d: string | null | undefined) => {
 const PricingTable = () => {
   const { data: snapshots, isLoading: loadingSnapshots } = usePricingSnapshots();
   const { data: marketData, isLoading: loadingMarket } = useMarketData();
+  const { data: parameters } = usePricingParameters();
+  const cbotQty = parameters?.[0]?.cbot_ticker_count ?? 5;
+  const b3Qty = parameters?.[0]?.b3_corn_ticker_count ?? 10;
   const { data: warehouses } = useActiveArmazens();
   const navigate = useNavigate();
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
@@ -39,13 +43,25 @@ const PricingTable = () => {
   const [filterTicker, setFilterTicker] = useState<string[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
-  const staleTickers = useMemo(() => {
+  // Restrict displayed/monitored market data to the configured ticker quantities,
+  // ordered by exp_date. FX is always included.
+  const visibleMarket = useMemo(() => {
     if (!marketData) return [];
-    return marketData.filter((m) => getHoursAgo(m.updated_at) > 24);
-  }, [marketData]);
+    const sortByExp = (a: typeof marketData[0], b: typeof marketData[0]) =>
+      (a.exp_date ?? '').localeCompare(b.exp_date ?? '');
+    const soja = marketData.filter(m => m.commodity === 'SOJA').sort(sortByExp).slice(0, cbotQty);
+    const cbot = marketData.filter(m => m.commodity === 'MILHO_CBOT').sort(sortByExp).slice(0, cbotQty);
+    const b3 = marketData.filter(m => m.commodity === 'MILHO').sort(sortByExp).slice(0, b3Qty);
+    const fx = marketData.filter(m => m.commodity === 'FX');
+    return [...fx, ...soja, ...cbot, ...b3];
+  }, [marketData, cbotQty, b3Qty]);
 
-  const staleCorn = useMemo(() => staleTickers.filter((t) => B3_CORN_TICKERS.includes(t.ticker)), [staleTickers]);
-  const staleOther = useMemo(() => staleTickers.filter((t) => !B3_CORN_TICKERS.includes(t.ticker)), [staleTickers]);
+  const staleTickers = useMemo(() => {
+    return visibleMarket.filter((m) => getHoursAgo(m.updated_at) > 24);
+  }, [visibleMarket]);
+
+  const staleCorn = useMemo(() => staleTickers.filter((t) => t.commodity === 'MILHO'), [staleTickers]);
+  const staleOther = useMemo(() => staleTickers.filter((t) => t.commodity !== 'MILHO'), [staleTickers]);
 
   const warehouseMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -144,12 +160,12 @@ const PricingTable = () => {
               );
             })()}
             {(() => {
-              const maxHoursAgo = marketData?.length
-                ? Math.max(...marketData.map((m) => getHoursAgo(m.updated_at)))
+              const maxHoursAgo = visibleMarket.length
+                ? Math.max(...visibleMarket.map((m) => getHoursAgo(m.updated_at)))
                 : 0;
               const color = maxHoursAgo < 12 ? 'text-green-400' : maxHoursAgo < 24 ? 'text-yellow-400' : 'text-red-400';
-              const oldest = marketData?.length
-                ? new Date(Math.min(...marketData.map((m) => new Date(m.updated_at).getTime())))
+              const oldest = visibleMarket.length
+                ? new Date(Math.min(...visibleMarket.map((m) => new Date(m.updated_at).getTime())))
                 : null;
               const timeLabel = oldest
                 ? `${String(oldest.getDate()).padStart(2, '0')}/${String(oldest.getMonth() + 1).padStart(2, '0')} ${String(oldest.getHours()).padStart(2, '0')}:${String(oldest.getMinutes()).padStart(2, '0')}`
@@ -184,9 +200,9 @@ const PricingTable = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {tickersExpanded && marketData && (
+          {tickersExpanded && visibleMarket.length > 0 && (
             <div className="flex flex-wrap gap-3 mb-4">
-              {marketData.map((m) => {
+              {visibleMarket.map((m) => {
                 const hours = getHoursAgo(m.updated_at);
                 return (
                   <span key={m.ticker} className={`text-xs px-2 py-1 rounded ${hours > 24 ? 'bg-[hsl(var(--warning)/0.2)] text-[hsl(var(--warning))]' : 'bg-muted text-muted-foreground'}`}>

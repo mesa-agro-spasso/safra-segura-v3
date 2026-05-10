@@ -319,7 +319,7 @@ const Market = () => {
   const handleConfirmB3Update = async () => {
     setConfirmingB3(true);
     try {
-      const tickers = b3Tickers.map(t => t.ticker);
+      const tickers = visibleB3Tickers.map(t => t.ticker);
       for (const ticker of tickers) {
         await supabase
           .from('market_data')
@@ -342,11 +342,12 @@ const Market = () => {
     }
   };
 
-  // Group saved market data
+  // Group saved market data — limit displayed rows to configured quantities
   const sortByExpDate = (a: { exp_date?: string | null }, b: { exp_date?: string | null }) =>
     (a.exp_date ?? '').localeCompare(b.exp_date ?? '');
-  const soybeanRows = (marketData?.filter(m => m.commodity === 'SOJA') ?? []).sort(sortByExpDate);
-  const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT') ?? []).sort(sortByExpDate);
+  const soybeanRows = (marketData?.filter(m => m.commodity === 'SOJA') ?? []).sort(sortByExpDate).slice(0, cbotQty);
+  const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT') ?? []).sort(sortByExpDate).slice(0, cbotQty);
+  const visibleB3Tickers = b3Tickers.slice(0, b3Qty);
   const fxRow = dataMap['USD/BRL'];
 
   const renderEditCell = (ticker: string, currentPrice?: number) => {
@@ -569,7 +570,7 @@ const Market = () => {
                   <Button variant="ghost" size="sm" onClick={handleFetchCornB3} disabled={fetchingOp !== null}>
                     <RefreshCw className={`h-3 w-3 ${fetchingOp === 'corn_b3' ? 'animate-spin' : ''}`} />
                   </Button>
-                  {b3Tickers.length > 0 && (
+                  {visibleB3Tickers.length > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -591,7 +592,7 @@ const Market = () => {
                 </div>
               ) : b3Error ? (
                 <p className="text-muted-foreground text-sm">Aguardando servidor acordar... ({b3Error})</p>
-              ) : b3Tickers.length === 0 ? (
+              ) : visibleB3Tickers.length === 0 ? (
                 <p className="text-muted-foreground text-sm">Clique em "Atualizar Tudo" para carregar os tickers B3.</p>
               ) : (
                 <Table>
@@ -605,7 +606,7 @@ const Market = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {b3Tickers.map((t) => {
+                    {visibleB3Tickers.map((t) => {
                       const saved = b3Prices[t.ticker];
                       return (
                         <TableRow key={t.ticker}>
