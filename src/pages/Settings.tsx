@@ -789,6 +789,80 @@ function ParametersTab() {
           </div>
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Quantidade de Contratos por Mercado</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">Define quantos vencimentos (tickers) são buscados e exibidos nas tabelas de Soja CBOT, Milho CBOT e Milho B3.</p>
+          <div className="flex items-end gap-3 max-w-md">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Soja & Milho CBOT</Label>
+              <Input
+                type="number"
+                step="1"
+                min="1"
+                max="24"
+                placeholder={String(parameters?.[0]?.cbot_ticker_count ?? 5)}
+                value={values['cbot_qty'] ?? (parameters?.[0]?.cbot_ticker_count ?? '')}
+                onChange={(e) => setValues((v) => ({ ...v, cbot_qty: e.target.value }))}
+              />
+              <p className="text-[10px] text-muted-foreground">Atual: {parameters?.[0]?.cbot_ticker_count ?? 5}</p>
+            </div>
+            <Button
+              size="sm"
+              disabled={updateParameter.isPending}
+              onClick={async () => {
+                const raw = values['cbot_qty'];
+                if (raw === undefined || raw === '') { toast.error('Informe um valor'); return; }
+                const val = parseInt(raw, 10);
+                if (isNaN(val) || val < 1 || val > 24) { toast.error('Valor entre 1 e 24'); return; }
+                try {
+                  for (const p of parameters ?? []) {
+                    await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, cbot_ticker_count: val });
+                  }
+                  toast.success('Quantidade CBOT atualizada');
+                  setValues((v) => { const n = { ...v }; delete n['cbot_qty']; return n; });
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+                }
+              }}
+            >Salvar</Button>
+          </div>
+          <div className="flex items-end gap-3 max-w-md">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Milho B3</Label>
+              <Input
+                type="number"
+                step="1"
+                min="1"
+                max="24"
+                placeholder={String(parameters?.[0]?.b3_corn_ticker_count ?? 10)}
+                value={values['b3_qty'] ?? (parameters?.[0]?.b3_corn_ticker_count ?? '')}
+                onChange={(e) => setValues((v) => ({ ...v, b3_qty: e.target.value }))}
+              />
+              <p className="text-[10px] text-muted-foreground">Atual: {parameters?.[0]?.b3_corn_ticker_count ?? 10}</p>
+            </div>
+            <Button
+              size="sm"
+              disabled={updateParameter.isPending}
+              onClick={async () => {
+                const raw = values['b3_qty'];
+                if (raw === undefined || raw === '') { toast.error('Informe um valor'); return; }
+                const val = parseInt(raw, 10);
+                if (isNaN(val) || val < 1 || val > 24) { toast.error('Valor entre 1 e 24'); return; }
+                try {
+                  for (const p of parameters ?? []) {
+                    await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, b3_corn_ticker_count: val });
+                  }
+                  toast.success('Quantidade Milho B3 atualizada');
+                  setValues((v) => { const n = { ...v }; delete n['b3_qty']; return n; });
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+                }
+              }}
+            >Salvar</Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
