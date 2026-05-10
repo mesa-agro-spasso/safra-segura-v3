@@ -583,6 +583,7 @@ const OperacoesD24: React.FC = () => {
   const saveMtm = useSaveMtmSnapshot();
   const { data: pricingParameters } = usePricingParameters();
   const { data: pricingSnapshots = [] } = usePricingSnapshots();
+  const { data: latestPhysicalPrices = [] } = useLatestPhysicalPrices();
 
   // D24 orders (all: opening + closing) for MTM tab
   const { data: d24Orders } = useQuery({
