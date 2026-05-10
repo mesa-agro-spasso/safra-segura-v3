@@ -607,6 +607,17 @@ const OperacoesD24: React.FC = () => {
   const [filterCommodity, setFilterCommodity] = useState<string>('all');
   const [selectedOperation, setSelectedOperation] = useState<OperationWithDetails | null>(null);
   const [newOpModal, setNewOpModal] = useState(false);
+  const [prefillSnapshotId, setPrefillSnapshotId] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const st = location.state as { openNewOp?: boolean; snapshotId?: string } | null;
+    if (st?.openNewOp) {
+      setPrefillSnapshotId(st.snapshotId ?? null);
+      setNewOpModal(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.state, location.pathname, navigate]);
   const [editPlanOp, setEditPlanOp] = useState<OperationWithDetails | null>(null);
   const [registerExecutionOp, setRegisterExecutionOp] = useState<OperationWithDetails | null>(null);
   const [closingPlanOp, setClosingPlanOp] = useState<OperationWithDetails | null>(null);
