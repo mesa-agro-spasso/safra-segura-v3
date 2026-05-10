@@ -32,8 +32,8 @@ export function useUpdatePricingParameter() {
       if (execution_spread_pct !== undefined) update.execution_spread_pct = execution_spread_pct;
       if (cbot_ticker_count !== undefined) update.cbot_ticker_count = cbot_ticker_count;
       if (b3_corn_ticker_count !== undefined) update.b3_corn_ticker_count = b3_corn_ticker_count;
-      const { error } = await supabase
-        .from('pricing_parameters')
+      const { error } = await (supabase
+        .from('pricing_parameters') as any)
         .update(update)
         .eq('id', id);
       if (error) throw error;
