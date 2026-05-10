@@ -200,9 +200,9 @@ const PricingTable = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {tickersExpanded && marketData && (
+          {tickersExpanded && visibleMarket.length > 0 && (
             <div className="flex flex-wrap gap-3 mb-4">
-              {marketData.map((m) => {
+              {visibleMarket.map((m) => {
                 const hours = getHoursAgo(m.updated_at);
                 return (
                   <span key={m.ticker} className={`text-xs px-2 py-1 rounded ${hours > 24 ? 'bg-[hsl(var(--warning)/0.2)] text-[hsl(var(--warning))]' : 'bg-muted text-muted-foreground'}`}>
