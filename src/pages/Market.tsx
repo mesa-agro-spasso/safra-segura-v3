@@ -108,7 +108,7 @@ const Market = () => {
   // ---- Atomic functions ----
 
   const fetchQuotes = async (fxOverride?: number) => {
-    const query: Record<string, string> = { quantity: '5' };
+    const query: Record<string, string> = { quantity: String(cbotQty) };
     if (fxOverride !== undefined) {
       query.fx_override = fxOverride.toString();
     }
