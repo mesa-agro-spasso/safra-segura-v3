@@ -312,7 +312,11 @@ const PricingTable = () => {
                     const totalCosts = costs?.total_brl ?? null;
 
                     return (
-                      <TableRow key={snap.id} className={showWarehouse ? 'border-t-2 border-border' : ''}>
+                      <TableRow
+                        key={snap.id}
+                        className={`cursor-pointer hover:bg-muted/50 ${showWarehouse ? 'border-t-2 border-border' : ''}`}
+                        onClick={() => setDetailSnap(snap)}
+                      >
                         <TableCell className="font-medium">
                           {showWarehouse ? wName : ''}
                         </TableCell>
@@ -331,7 +335,13 @@ const PricingTable = () => {
                         <TableCell className="text-right">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <button className="font-bold text-primary hover:underline cursor-pointer tabular-nums" onClick={(e) => { e.stopPropagation(); setDetailSnap(snap); }}>
+                              <button
+                                className="font-bold text-primary hover:underline cursor-pointer tabular-nums"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate('/operacoes-d24', { state: { openNewOp: true, snapshotId: snap.id } });
+                                }}
+                              >
                                 R$ {snap.origination_price_brl.toFixed(2)}
                               </button>
                             </TooltipTrigger>
@@ -351,6 +361,7 @@ const PricingTable = () => {
                               <p>Futuros: R$ {snap.futures_price_brl.toFixed(2)}</p>
                               <p>Câmbio: {snap.exchange_rate?.toFixed(4) ?? '-'}</p>
                               {snap.additional_discount_brl > 0 && <p>Desconto: R$ {snap.additional_discount_brl.toFixed(2)}</p>}
+                              <p className="border-t border-border pt-1 italic text-muted-foreground">Clique para criar uma operação com este preço.</p>
                             </TooltipContent>
                           </Tooltip>
                         </TableCell>
