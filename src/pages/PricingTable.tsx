@@ -160,12 +160,12 @@ const PricingTable = () => {
               );
             })()}
             {(() => {
-              const maxHoursAgo = marketData?.length
-                ? Math.max(...marketData.map((m) => getHoursAgo(m.updated_at)))
+              const maxHoursAgo = visibleMarket.length
+                ? Math.max(...visibleMarket.map((m) => getHoursAgo(m.updated_at)))
                 : 0;
               const color = maxHoursAgo < 12 ? 'text-green-400' : maxHoursAgo < 24 ? 'text-yellow-400' : 'text-red-400';
-              const oldest = marketData?.length
-                ? new Date(Math.min(...marketData.map((m) => new Date(m.updated_at).getTime())))
+              const oldest = visibleMarket.length
+                ? new Date(Math.min(...visibleMarket.map((m) => new Date(m.updated_at).getTime())))
                 : null;
               const timeLabel = oldest
                 ? `${String(oldest.getDate()).padStart(2, '0')}/${String(oldest.getMonth() + 1).padStart(2, '0')} ${String(oldest.getHours()).padStart(2, '0')}:${String(oldest.getMinutes()).padStart(2, '0')}`
