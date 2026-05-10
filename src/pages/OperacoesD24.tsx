@@ -1159,7 +1159,7 @@ const OperacoesD24: React.FC = () => {
           })),
           snapshot: {
             futures_price_current: futuresPrice,
-            physical_price_current: parseFloat(physicalPrices[op.id] || '0'),
+            physical_price_current: getPhysicalForOp(op.id),
             spot_rate_current: spotFx,
             option_premium_current: optionPremiumCurrent,
           },
