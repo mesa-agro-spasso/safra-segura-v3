@@ -738,6 +738,8 @@ const ArmazensD24: React.FC = () => {
       );
       const commodities = Array.from(new Set(ops.map(o => o.commodity)));
       const volumeTotal = ops.reduce((acc, o) => acc + (o.volume_sacks ?? 0), 0);
+      const volumeSoja = ops.filter(o => o.commodity === 'soybean').reduce((acc, o) => acc + (o.volume_sacks ?? 0), 0);
+      const volumeMilho = ops.filter(o => o.commodity === 'corn').reduce((acc, o) => acc + (o.volume_sacks ?? 0), 0);
       const mtmTotal = ops.reduce((acc, o) => acc + (latestByOpId[o.id]?.mtm_total_brl ?? 0), 0);
 
       let beNum = 0;
