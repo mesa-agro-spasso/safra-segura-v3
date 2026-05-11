@@ -286,7 +286,9 @@ const Producers = () => {
                               {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
                           </CollapsibleTrigger>
+                        </TableCell>
                         <TableCell className="font-medium">{p.full_name ?? '—'}</TableCell>
+
                         <TableCell>{p.responsible_name ?? '—'}</TableCell>
                         <TableCell>
                           <Badge variant={c.active > 0 ? 'default' : 'secondary'} className="font-mono">
