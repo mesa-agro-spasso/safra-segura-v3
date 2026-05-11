@@ -10,6 +10,8 @@ import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePricingSnapshots } from '@/hooks/usePricingSnapshots';
+import { useProducers } from '@/hooks/useProducers';
+import { useUpdateOperationProducer } from '@/hooks/useUpdateOperationProducer';
 import { callApi } from '@/lib/api';
 import {
   buildHedgePlan,
@@ -585,6 +587,8 @@ const OperacoesD24: React.FC = () => {
   const { data: pricingParameters } = usePricingParameters();
   const { data: pricingSnapshots = [] } = usePricingSnapshots();
   const { data: latestPhysicalPrices = [] } = useLatestPhysicalPrices();
+  const { data: producers = [] } = useProducers();
+  const updateOpProducer = useUpdateOperationProducer();
 
   // D24 orders (all: opening + closing) for MTM tab
   const { data: d24Orders } = useQuery({
@@ -621,6 +625,21 @@ const OperacoesD24: React.FC = () => {
       navigate(location.pathname, { replace: true, state: null });
     }
   }, [location.state, location.pathname, navigate]);
+
+  // Deep-link: ?op=<id> opens detail Sheet for that operation
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const opId = params.get('op');
+    if (opId && operations) {
+      const found = operations.find((o) => o.id === opId);
+      if (found) {
+        setSelectedOperation(found);
+        params.delete('op');
+        const qs = params.toString();
+        navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, { replace: true });
+      }
+    }
+  }, [location.search, location.pathname, operations, navigate]);
   const [editPlanOp, setEditPlanOp] = useState<OperationWithDetails | null>(null);
   const [registerExecutionOp, setRegisterExecutionOp] = useState<OperationWithDetails | null>(null);
   const [closingPlanOp, setClosingPlanOp] = useState<OperationWithDetails | null>(null);
@@ -1838,6 +1857,31 @@ const OperacoesD24: React.FC = () => {
                     <Row label="Exchange">{opD24.exchange ?? '—'}</Row>
                     <Row label="Volume">{`${selectedOperation.volume_sacks.toLocaleString('pt-BR')} sc`}</Row>
                     <Row label="Criada em">{fmtDate(selectedOperation.created_at?.slice(0, 10))}</Row>
+                    <Row label="Produtor">
+                      <Select
+                        value={(selectedOperation as any).producer_id ?? '__none__'}
+                        onValueChange={(val) => {
+                          updateOpProducer.mutate(
+                            { operationId: selectedOperation.id, producerId: val === '__none__' ? null : val },
+                            {
+                              onSuccess: () => {
+                                toast.success('Produtor atualizado');
+                                setSelectedOperation({ ...selectedOperation, producer_id: val === '__none__' ? null : val } as any);
+                              },
+                              onError: (e: any) => toast.error(e?.message ?? 'Erro ao vincular produtor'),
+                            },
+                          );
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Sem produtor" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Sem produtor —</SelectItem>
+                          {producers.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.full_name ?? `(sem nome) ${p.id.slice(0, 6)}`}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Row>
                     {selectedOperation.notes && <Row label="Notas">{selectedOperation.notes}</Row>}
                   </div>
                 </Section>
