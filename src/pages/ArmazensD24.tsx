@@ -28,6 +28,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { AllocateBatchResponse } from '@/types/d24';
 import { buildHedgePlan } from '@/services/d24Api';
+import { getSuggestedExecutionPrices, resolveExecutionBatch, toExecutionProposals } from '@/lib/blockTradeExecution';
 
 // ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
 
@@ -371,6 +372,7 @@ const ArmazensD24: React.FC = () => {
   const [btWarnings, setBtWarnings] = useState<string[]>([]);
   const [btLoading, setBtLoading] = useState(false);
   const [btExecutionOpen, setBtExecutionOpen] = useState(false);
+  const [btExecutionBatch, setBtExecutionBatch] = useState<any>(null);
   const [btView, setBtView] = useState<'list' | 'new'>('list');
   const [btSelectedBatch, setBtSelectedBatch] = useState<any>(null);
   const [btCancelTarget, setBtCancelTarget] = useState<any>(null);
@@ -404,6 +406,7 @@ const ArmazensD24: React.FC = () => {
   useEffect(() => {
     setBtProposals(null);
     setBtWarnings([]);
+    setBtExecutionBatch(null);
   }, [btWarehouse, btCommodity]);
 
   const executionSpread = pricingParameters?.[0]?.execution_spread_pct ?? 0.05;
@@ -1057,7 +1060,7 @@ const ArmazensD24: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); setBtEditingBatchId(null); }}
+                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); setBtEditingBatchId(null); setBtExecutionBatch(null); }}
                 >
                   ← Voltar
                 </Button>
@@ -1067,7 +1070,7 @@ const ArmazensD24: React.FC = () => {
               </h2>
             </div>
             {btView === 'list' && (
-              <Button onClick={() => setBtView('new')}>
+              <Button onClick={() => { setBtView('new'); setBtExecutionBatch(null); }}>
                 <Plus className="h-4 w-4 mr-1" />
                 Novo Batch
               </Button>
@@ -1150,12 +1153,7 @@ const ArmazensD24: React.FC = () => {
                                             setBtExchange(batch.exchange);
                                             setBtVolume(String(batch.total_volume_sacks));
                                             setBtStrategy(batch.allocation_strategy);
-                                            setBtProposals({
-                                              proposals: batch.allocation_snapshot ?? [],
-                                              total_volume_allocated_sacks: batch.total_volume_sacks,
-                                              strategy_used: batch.allocation_strategy,
-                                              warnings: [],
-                                            } as AllocateBatchResponse);
+                                            setBtProposals(toExecutionProposals(batch));
                                             setBtWarnings([]);
                                             setBtView('new');
                                           }}
@@ -1182,13 +1180,8 @@ const ArmazensD24: React.FC = () => {
                                           setBtWarehouse(batch.warehouse_id);
                                           setBtCommodity(batch.commodity);
                                           setBtExchange(batch.exchange);
-                                          setBtProposals({
-                                            proposals: batch.allocation_snapshot ?? [],
-                                            total_volume_allocated_sacks: batch.total_volume_sacks,
-                                            strategy_used: batch.allocation_strategy,
-                                            warnings: [],
-                                            _batchId: batch.id,
-                                          } as AllocateBatchResponse & { _batchId: string });
+                                          setBtExecutionBatch(batch);
+                                          setBtProposals(toExecutionProposals(batch));
                                           setBtExecutionOpen(true);
                                         }}
                                       >
@@ -1749,16 +1742,17 @@ const ArmazensD24: React.FC = () => {
 
       <BlockTradeExecutionModal
         open={btExecutionOpen}
-        onClose={() => setBtExecutionOpen(false)}
-        batch={
-          btBatches.find((b: any) => b.id === (btProposals as any)?._batchId) ??
-          btBatches.find((b: any) => b.status === 'DRAFT') ?? null
-        }
+        onClose={() => {
+          setBtExecutionOpen(false);
+          setBtExecutionBatch(null);
+        }}
+        batch={resolveExecutionBatch(btExecutionBatch, btBatches as any[])}
         proposals={btProposals}
         d24Orders={btD24Orders as any[]}
         userId={user?.id ?? null}
         onExecuted={() => {
           setBtExecutionOpen(false);
+          setBtExecutionBatch(null);
           queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
           queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
           queryClient.invalidateQueries({ queryKey: ['d24-orders-for-bt'] });
@@ -1958,29 +1952,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
   // Suggested price per instrument from market_data
   const suggestedPrices = useMemo(() => {
-    const out: Record<string, { value: number; ticker: string } | undefined> = {};
-    if (!marketData) return out;
-    for (const instrument of batchInstruments) {
-      const ticker = tickerByInstrument[instrument];
-      if (!ticker) continue;
-      const md = marketData.find((m: any) => m.ticker === ticker);
-      if (!md) continue;
-      if (instrument === 'futures' && md.price != null) {
-        out[instrument] = { value: Number(md.price), ticker };
-      } else if (instrument === 'ndf') {
-        const v = (md as any).ndf_override ?? (md as any).ndf_estimated ?? (md as any).ndf_spot;
-        if (v != null) {
-          out[instrument] = { value: Number(v), ticker };
-        } else {
-          // Fallback: USD/BRL spot from market_data
-          const fx = marketData.find((m: any) => m.ticker === 'USD/BRL');
-          if (fx?.price != null) {
-            out[instrument] = { value: Number(fx.price), ticker: 'USD/BRL spot' };
-          }
-        }
-      }
-    }
-    return out;
+    return getSuggestedExecutionPrices(batchInstruments, tickerByInstrument, marketData);
   }, [marketData, batchInstruments, tickerByInstrument]);
 
   // Pre-fill empty price slots when suggestions become available
