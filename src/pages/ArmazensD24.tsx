@@ -804,6 +804,8 @@ const ArmazensD24: React.FC = () => {
         ops,
         commodities,
         volumeTotal,
+        volumeSoja,
+        volumeMilho,
         mtmTotal,
         breakevenMedio,
         mtmPerSackMedio,
