@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Trash2, Edit2, Check, X } from 'lucide-react';
 import {
@@ -25,6 +26,15 @@ interface Props {
 
 const commodityLabel = (c: string) => (c === 'soybean' ? 'Soja' : c === 'corn' ? 'Milho' : c);
 
+type Period = '1m' | '6m' | '1a' | '5a' | 'tudo';
+const PERIOD_DAYS: Record<Period, number | null> = {
+  '1m': 30,
+  '6m': 182,
+  '1a': 365,
+  '5a': 365 * 5,
+  'tudo': null,
+};
+
 export function PhysicalPriceHistoryDialog({
   open, onOpenChange, warehouseId, warehouseName, commodity,
 }: Props) {
@@ -36,11 +46,28 @@ export function PhysicalPriceHistoryDialog({
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [period, setPeriod] = useState<Period>('tudo');
 
-  const chartData = history.map((h) => ({
-    date: h.reference_date,
-    price: Number(h.price_brl_per_sack),
-  }));
+  const chartData = useMemo(() => {
+    const all = history.map((h) => ({
+      date: h.reference_date,
+      price: Number(h.price_brl_per_sack),
+    }));
+    const days = PERIOD_DAYS[period];
+    if (days == null) return all;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    return all.filter((d) => new Date(d.date) >= cutoff);
+  }, [history, period]);
+
+  const yDomain = useMemo<[number, number] | undefined>(() => {
+    if (chartData.length === 0) return undefined;
+    const prices = chartData.map((d) => d.price);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    if (min === max) return [min * 0.9, max * 1.1];
+    return [min * 0.9, max * 1.1];
+  }, [chartData]);
 
   const handleSaveEdit = async (row: typeof history[number]) => {
     const p = parseFloat(editValue);
@@ -88,29 +115,55 @@ export function PhysicalPriceHistoryDialog({
             <p className="text-muted-foreground text-sm">Sem histórico de preços.</p>
           ) : (
             <>
+              <div className="flex justify-end">
+                <ToggleGroup
+                  type="single"
+                  value={period}
+                  onValueChange={(v) => v && setPeriod(v as Period)}
+                  size="sm"
+                >
+                  <ToggleGroupItem value="1m">1m</ToggleGroupItem>
+                  <ToggleGroupItem value="6m">6m</ToggleGroupItem>
+                  <ToggleGroupItem value="1a">1a</ToggleGroupItem>
+                  <ToggleGroupItem value="5a">5a</ToggleGroupItem>
+                  <ToggleGroupItem value="tudo">Tudo</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+
               <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'hsl(var(--popover))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: 6,
-                      }}
-                      formatter={(v: number) => [`R$ ${v.toFixed(2)}`, 'Preço']}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="price"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                {chartData.length === 0 ? (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    Sem dados no período selecionado.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                      <YAxis
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={11}
+                        domain={yDomain}
+                        tickFormatter={(v: number) => v.toFixed(2)}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'hsl(var(--popover))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: 6,
+                        }}
+                        formatter={(v: number) => [`R$ ${v.toFixed(2)}`, 'Preço']}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="price"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
 
               <Table>
