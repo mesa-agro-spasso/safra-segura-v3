@@ -714,6 +714,7 @@ const ArmazensD24: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
       queryClient.invalidateQueries({ queryKey: ['signature-events'] });
       queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+      queryClient.invalidateQueries({ queryKey: ['batch-signatures-set'] });
     } catch (e: any) {
       toast.error('Erro ao enviar para assinatura: ' + (e?.message ?? String(e)));
     } finally {
