@@ -1497,7 +1497,22 @@ const OperacoesD24: React.FC = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm">Operações Ativas — Inputs</CardTitle>
-                  <Button onClick={handleCalculate} disabled={calculating || activeOpsForMtm.length === 0} size="sm">
+                  <Button
+                    onClick={() => {
+                      const bH = lastMarketUpdate ? Math.floor((Date.now() - new Date(lastMarketUpdate).getTime()) / 3_600_000) : null;
+                      const fD = (() => {
+                        if (!lastFisicoRefDate) return null;
+                        const ref = new Date(lastFisicoRefDate + 'T00:00:00');
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        return Math.floor((today.getTime() - ref.getTime()) / 86_400_000);
+                      })();
+                      const isStale = bH == null || bH > 48 || fD == null || fD > 2;
+                      if (isStale) setConfirmStaleOpen(true);
+                      else handleCalculate();
+                    }}
+                    disabled={calculating || activeOpsForMtm.length === 0}
+                    size="sm"
+                  >
                     <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
                     {calculating ? 'Calculando...' : 'Calcular MTM'}
                   </Button>
