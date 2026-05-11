@@ -1178,6 +1178,10 @@ const ArmazensD24: React.FC = () => {
                                         variant="default"
                                         size="sm"
                                         onClick={() => {
+                                          // Ensure btD24Orders refetches for THIS batch's warehouse+commodity
+                                          setBtWarehouse(batch.warehouse_id);
+                                          setBtCommodity(batch.commodity);
+                                          setBtExchange(batch.exchange);
                                           setBtProposals({
                                             proposals: batch.allocation_snapshot ?? [],
                                             total_volume_allocated_sacks: batch.total_volume_sacks,
