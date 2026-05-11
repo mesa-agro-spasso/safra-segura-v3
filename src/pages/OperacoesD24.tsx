@@ -587,6 +587,8 @@ const OperacoesD24: React.FC = () => {
   const { data: pricingParameters } = usePricingParameters();
   const { data: pricingSnapshots = [] } = usePricingSnapshots();
   const { data: latestPhysicalPrices = [] } = useLatestPhysicalPrices();
+  const { data: producers = [] } = useProducers();
+  const updateOpProducer = useUpdateOperationProducer();
 
   // D24 orders (all: opening + closing) for MTM tab
   const { data: d24Orders } = useQuery({
