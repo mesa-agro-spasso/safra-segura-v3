@@ -1941,7 +1941,15 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         out[instrument] = { value: Number(md.price), ticker };
       } else if (instrument === 'ndf') {
         const v = (md as any).ndf_override ?? (md as any).ndf_estimated ?? (md as any).ndf_spot;
-        if (v != null) out[instrument] = { value: Number(v), ticker };
+        if (v != null) {
+          out[instrument] = { value: Number(v), ticker };
+        } else {
+          // Fallback: USD/BRL spot from market_data
+          const fx = marketData.find((m: any) => m.ticker === 'USD/BRL');
+          if (fx?.price != null) {
+            out[instrument] = { value: Number(fx.price), ticker: 'USD/BRL spot' };
+          }
+        }
       }
     }
     return out;
