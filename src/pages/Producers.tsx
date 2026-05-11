@@ -17,7 +17,7 @@ import {
   Plus, Pencil, Trash2, ChevronDown, ChevronUp, Filter, ArrowUpDown,
 } from 'lucide-react';
 import {
-  useProducers, useDeleteProducer, useProducerOperationCounts, useUpdateProducer,
+  useProducers, useDeleteProducer, useProducerOperationCounts,
   type ProducerOpCount,
 } from '@/hooks/useProducers';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
@@ -43,7 +43,7 @@ const Producers = () => {
   const { data: warehouses = [] } = useActiveArmazens();
   const { data: opCounts = {} } = useProducerOperationCounts();
   const del = useDeleteProducer();
-  const update = useUpdateProducer();
+  
 
   const [sortKey, setSortKey] = useState<SortKey>('full_name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -154,13 +154,7 @@ const Producers = () => {
     }
   };
 
-  const handleRatingChange = async (p: Producer, value: number | null) => {
-    try {
-      await update.mutateAsync({ id: p.id, credit_rating: value });
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Erro ao atualizar nota');
-    }
-  };
+
 
   return (
     <div className="space-y-6">
@@ -177,14 +171,15 @@ const Producers = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8"></TableHead>
+                {TEXT_COLS.map((c) => (
+                  <TableHead key={c.key}><TextHeader k={c.key} label={c.label} /></TableHead>
+                ))}
                 <TableHead>
                   <button onClick={() => handleSort('operations_count')} className="hover:text-foreground flex items-center gap-1">
                     Operações <SortIcon k="operations_count" />
                   </button>
                 </TableHead>
-                {TEXT_COLS.map((c) => (
-                  <TableHead key={c.key}><TextHeader k={c.key} label={c.label} /></TableHead>
-                ))}
+
                 <TableHead>
                   <div className="flex items-center gap-1">
                     <button onClick={() => handleSort('warehouses')} className="hover:text-foreground flex items-center gap-1">
@@ -286,13 +281,14 @@ const Producers = () => {
                             </button>
                           </CollapsibleTrigger>
                         </TableCell>
+                        <TableCell className="font-medium">{p.full_name ?? '—'}</TableCell>
+
+                        <TableCell>{p.responsible_name ?? '—'}</TableCell>
                         <TableCell>
                           <Badge variant={c.active > 0 ? 'default' : 'secondary'} className="font-mono">
                             {c.active}/{c.total}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-medium">{p.full_name ?? '—'}</TableCell>
-                        <TableCell>{p.responsible_name ?? '—'}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {(p.warehouse_ids ?? []).length === 0 && <span className="text-muted-foreground">—</span>}
@@ -303,11 +299,9 @@ const Producers = () => {
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <StarRating
-                            value={p.credit_rating}
-                            onChange={(v) => handleRatingChange(p, v)}
-                          />
+                        <TableCell>
+                          <StarRating value={p.credit_rating} readOnly />
+
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
