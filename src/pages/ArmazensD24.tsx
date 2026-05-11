@@ -2281,7 +2281,9 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                             <TableHead>Direção</TableHead>
                             <TableHead className="text-right">Contratos</TableHead>
                             <TableHead className="text-right">Volume (sc)</TableHead>
-                            <TableHead className="text-right">Preço (USD/bushel)</TableHead>
+                            <TableHead className="text-right">Preço aberto</TableHead>
+                            <TableHead className="text-right">Preço fech.</TableHead>
+                            <TableHead className="text-right">Resultado (R$)</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2291,9 +2293,19 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                               <TableCell className="text-xs uppercase">{r.direction}</TableCell>
                               <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
                               <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{r.open_price == null ? '—' : r.open_price.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
                               <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
+                              <TableCell className={`text-right font-medium ${r.pnl_brl == null ? '' : r.pnl_brl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {r.pnl_brl == null ? '—' : fmtBRL(r.pnl_brl)}
+                              </TableCell>
                             </TableRow>
                           ))}
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-right text-xs font-semibold">Subtotal Futures</TableCell>
+                            <TableCell className={`text-right font-semibold ${futuresRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {fmtBRL(futuresRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0))}
+                            </TableCell>
+                          </TableRow>
                         </TableBody>
                       </Table>
                     </div>
@@ -2309,7 +2321,9 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                             <TableHead>Direção</TableHead>
                             <TableHead className="text-right">Contratos</TableHead>
                             <TableHead className="text-right">Notional (USD)</TableHead>
-                            <TableHead className="text-right">Taxa (R$/USD)</TableHead>
+                            <TableHead className="text-right">Taxa aberta</TableHead>
+                            <TableHead className="text-right">Taxa fech.</TableHead>
+                            <TableHead className="text-right">Resultado (R$)</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2319,9 +2333,19 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                               <TableCell className="text-xs uppercase">{r.direction}</TableCell>
                               <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
                               <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</TableCell>
+                              <TableCell className="text-right">{r.open_price == null ? '—' : r.open_price.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
                               <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
+                              <TableCell className={`text-right font-medium ${r.pnl_brl == null ? '' : r.pnl_brl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {r.pnl_brl == null ? '—' : fmtBRL(r.pnl_brl)}
+                              </TableCell>
                             </TableRow>
                           ))}
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-right text-xs font-semibold">Subtotal NDF</TableCell>
+                            <TableCell className={`text-right font-semibold ${ndfRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {fmtBRL(ndfRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0))}
+                            </TableCell>
+                          </TableRow>
                         </TableBody>
                       </Table>
                     </div>
