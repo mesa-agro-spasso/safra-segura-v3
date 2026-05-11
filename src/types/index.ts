@@ -173,6 +173,32 @@ export interface PricingParameter {
   updated_at: string;
 }
 
+export interface Producer {
+  id: string;
+  full_name: string | null;
+  responsible_name: string | null;
+  tax_id: string | null;
+  phone: string | null;
+  email: string | null;
+  farm_address: string | null;
+  warehouse_ids: string[] | null;
+  credit_rating: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProducerOperation {
+  id: string;
+  display_code: string | null;
+  status: string;
+  commodity: string;
+  volume_sacks: number;
+  trade_date: string;
+  warehouse_id: string;
+  warehouses: { display_name: string } | null;
+}
+
 export interface OperationWithDetails {
   id: string;
   warehouse_id: string;
