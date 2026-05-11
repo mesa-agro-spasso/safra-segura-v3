@@ -682,20 +682,21 @@ const ArmazensD24: React.FC = () => {
     if (!user?.id) return;
     setBtSubmitting(true);
     try {
-      for (const proposal of (batch.allocation_snapshot ?? [])) {
-        const { error: sigError } = await (supabase as any)
-          .from('signatures')
-          .insert({
-            operation_id: proposal.operation_id,
-            batch_id: batch.id,
-            flow_type: 'CLOSING',
-            user_id: user.id,
-            role_used: 'mesa',
-            decision: 'APPROVE',
-            signed_at: new Date().toISOString(),
-          });
-        if (sigError) throw new Error(sigError.message);
-      }
+      const proposals = (batch.allocation_snapshot ?? []) as any[];
+      const firstOpId = proposals[0]?.operation_id;
+      if (!firstOpId) throw new Error('Batch sem operações para assinar');
+      const { error: sigError } = await (supabase as any)
+        .from('signatures')
+        .insert({
+          operation_id: firstOpId,
+          batch_id: batch.id,
+          flow_type: 'CLOSING',
+          user_id: user.id,
+          role_used: 'mesa',
+          decision: 'APPROVE',
+          signed_at: new Date().toISOString(),
+        });
+      if (sigError) throw new Error(sigError.message);
       toast.success('Enviado para assinatura');
       queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
       queryClient.invalidateQueries({ queryKey: ['signature-events'] });
