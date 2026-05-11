@@ -1138,53 +1138,59 @@ const ArmazensD24: React.FC = () => {
                               <div className="flex justify-end gap-1">
                                 {isDraft && (
                                   <>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        setBtEditingBatchId(batch.id);
-                                        setBtWarehouse(batch.warehouse_id);
-                                        setBtCommodity(batch.commodity);
-                                        setBtExchange(batch.exchange);
-                                        setBtVolume(String(batch.total_volume_sacks));
-                                        setBtStrategy(batch.allocation_strategy);
-                                        setBtProposals({
-                                          proposals: batch.allocation_snapshot ?? [],
-                                          total_volume_allocated_sacks: batch.total_volume_sacks,
-                                          strategy_used: batch.allocation_strategy,
-                                          warnings: [],
-                                        } as AllocateBatchResponse);
-                                        setBtWarnings([]);
-                                        setBtView('new');
-                                      }}
-                                    >
-                                      Editar
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      disabled={btSubmitting}
-                                      onClick={() => handleBtSendForSignature(batch)}
-                                    >
-                                      <Send className="h-3 w-3 mr-1" />
-                                      Enviar p/ Assinatura
-                                    </Button>
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      onClick={() => {
-                                        setBtProposals({
-                                          proposals: batch.allocation_snapshot ?? [],
-                                          total_volume_allocated_sacks: batch.total_volume_sacks,
-                                          strategy_used: batch.allocation_strategy,
-                                          warnings: [],
-                                          _batchId: batch.id,
-                                        } as AllocateBatchResponse & { _batchId: string });
-                                        setBtExecutionOpen(true);
-                                      }}
-                                    >
-                                      Executar
-                                    </Button>
+                                    {isAwaitingSend && (
+                                      <>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            setBtEditingBatchId(batch.id);
+                                            setBtWarehouse(batch.warehouse_id);
+                                            setBtCommodity(batch.commodity);
+                                            setBtExchange(batch.exchange);
+                                            setBtVolume(String(batch.total_volume_sacks));
+                                            setBtStrategy(batch.allocation_strategy);
+                                            setBtProposals({
+                                              proposals: batch.allocation_snapshot ?? [],
+                                              total_volume_allocated_sacks: batch.total_volume_sacks,
+                                              strategy_used: batch.allocation_strategy,
+                                              warnings: [],
+                                            } as AllocateBatchResponse);
+                                            setBtWarnings([]);
+                                            setBtView('new');
+                                          }}
+                                        >
+                                          Editar
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          disabled={btSubmitting}
+                                          onClick={() => handleBtSendForSignature(batch)}
+                                        >
+                                          <Send className="h-3 w-3 mr-1" />
+                                          Enviar p/ Assinatura
+                                        </Button>
+                                      </>
+                                    )}
+                                    {isPendingSignature && (
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => {
+                                          setBtProposals({
+                                            proposals: batch.allocation_snapshot ?? [],
+                                            total_volume_allocated_sacks: batch.total_volume_sacks,
+                                            strategy_used: batch.allocation_strategy,
+                                            warnings: [],
+                                            _batchId: batch.id,
+                                          } as AllocateBatchResponse & { _batchId: string });
+                                          setBtExecutionOpen(true);
+                                        }}
+                                      >
+                                        Executar
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="ghost"
                                       size="sm"
