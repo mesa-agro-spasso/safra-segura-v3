@@ -37,6 +37,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -639,6 +640,7 @@ const OperacoesD24: React.FC = () => {
     } catch { return {}; }
   });
   const [calculating, setCalculating] = useState(false);
+  const [confirmStaleOpen, setConfirmStaleOpen] = useState(false);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
   const [detailResult, setDetailResult] = useState<Record<string, unknown> | null>(null);
   const [chartByOperation, setChartByOperation] = useState(false);
@@ -1495,7 +1497,22 @@ const OperacoesD24: React.FC = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm">Operações Ativas — Inputs</CardTitle>
-                  <Button onClick={handleCalculate} disabled={calculating || activeOpsForMtm.length === 0} size="sm">
+                  <Button
+                    onClick={() => {
+                      const bH = lastMarketUpdate ? Math.floor((Date.now() - new Date(lastMarketUpdate).getTime()) / 3_600_000) : null;
+                      const fD = (() => {
+                        if (!lastFisicoRefDate) return null;
+                        const ref = new Date(lastFisicoRefDate + 'T00:00:00');
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        return Math.floor((today.getTime() - ref.getTime()) / 86_400_000);
+                      })();
+                      const isStale = bH == null || bH > 48 || fD == null || fD > 2;
+                      if (isStale) setConfirmStaleOpen(true);
+                      else handleCalculate();
+                    }}
+                    disabled={calculating || activeOpsForMtm.length === 0}
+                    size="sm"
+                  >
                     <Calculator className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
                     {calculating ? 'Calculando...' : 'Calcular MTM'}
                   </Button>
@@ -2224,6 +2241,23 @@ const OperacoesD24: React.FC = () => {
           })()}
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={confirmStaleOpen} onOpenChange={setConfirmStaleOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dados de mercado desatualizados</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os dados de Bolsa e/ou Físico estão com mais de 2 dias. O cálculo seguirá usando os últimos valores disponíveis. Deseja prosseguir?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setConfirmStaleOpen(false); handleCalculate(); }}>
+              Calcular mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── MTM Detail Dialog ── */}
       {detailResult && (() => {
