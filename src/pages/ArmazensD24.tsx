@@ -1178,6 +1178,10 @@ const ArmazensD24: React.FC = () => {
                                         variant="default"
                                         size="sm"
                                         onClick={() => {
+                                          // Ensure btD24Orders refetches for THIS batch's warehouse+commodity
+                                          setBtWarehouse(batch.warehouse_id);
+                                          setBtCommodity(batch.commodity);
+                                          setBtExchange(batch.exchange);
                                           setBtProposals({
                                             proposals: batch.allocation_snapshot ?? [],
                                             total_volume_allocated_sacks: batch.total_volume_sacks,
@@ -2000,10 +2004,25 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
   const pricesOk = batchInstruments.every(i => Number(prices[i]) > 0);
 
-  // Build preview rows for step 2 (pre-execution summary)
+  // FX (USD/BRL) for converting USD-denominated futures P&L to BRL
+  const fxRate = useMemo(() => {
+    const fx = marketData?.find((m: any) => m.ticker === 'USD/BRL');
+    return fx?.price != null ? Number(fx.price) : null;
+  }, [marketData]);
+
+  // Build preview rows for step 2 (pre-execution summary), including BRL P&L per leg
   const previewRows = useMemo(() => {
     if (!proposals) return [];
-    const rows: { display_code: string; instrument: string; direction: string; contracts: number; volume_units: number; price: number | '' }[] = [];
+    const rows: {
+      display_code: string;
+      instrument: string;
+      direction: string;
+      contracts: number;
+      volume_units: number;
+      price: number | '';
+      open_price: number | null;
+      pnl_brl: number | null;
+    }[] = [];
     for (const p of proposals.proposals) {
       const opOrders = openOrdersByOpId[p.operation_id] ?? [];
       const proporção = (Number(p.volume_to_close_sacks) || 0) / (p.current_volume_sacks || 1);
@@ -2011,18 +2030,55 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
       for (const o of opOrders) {
         if (seen.has(o.instrument_type)) continue;
         seen.add(o.instrument_type);
+        const contracts = Math.round((Number(o.contracts) * proporção) * 100) / 100;
+        const volume_units = Math.round((Number(o.volume_units) * proporção) * 100) / 100;
+        const closeDir = o.direction === 'buy' ? 'sell' : 'buy';
+        const closePrice = prices[o.instrument_type];
+        const openPrice = o.instrument_type === 'ndf'
+          ? (o.ndf_rate != null ? Number(o.ndf_rate) : null)
+          : (o.price != null ? Number(o.price) : null);
+
+        // P&L sign: profit when (close - open) * (open=buy ? +1 : -1) > 0
+        const sign = o.direction === 'buy' ? 1 : -1;
+        let pnl_brl: number | null = null;
+        if (openPrice != null && typeof closePrice === 'number' && closePrice > 0) {
+          if (o.instrument_type === 'futures') {
+            // CBOT (ZS/ZC/ZW/...) = 5000 bushels, USD/bushel; B3 corn = 450 sacks, BRL/sack
+            const isCBOT = /^Z[SCWLM]/.test(String(o.ticker ?? ''));
+            const contractSize = isCBOT ? 5000 : 450;
+            const pnlNative = sign * (closePrice - openPrice) * contractSize * contracts;
+            if (o.currency === 'USD') {
+              pnl_brl = fxRate != null ? pnlNative * fxRate : null;
+            } else {
+              pnl_brl = pnlNative;
+            }
+          } else if (o.instrument_type === 'ndf') {
+            // volume_units = notional USD; rate in BRL/USD
+            pnl_brl = sign * (closePrice - openPrice) * volume_units;
+          }
+        }
+
         rows.push({
           display_code: p.display_code,
           instrument: o.instrument_type,
-          direction: o.direction === 'buy' ? 'sell' : 'buy',
-          contracts: Math.round((Number(o.contracts) * proporção) * 100) / 100,
-          volume_units: Math.round((Number(o.volume_units) * proporção) * 100) / 100,
-          price: prices[o.instrument_type] ?? '',
+          direction: closeDir,
+          contracts,
+          volume_units,
+          price: closePrice ?? '',
+          open_price: openPrice,
+          pnl_brl,
         });
       }
     }
     return rows;
-  }, [proposals, openOrdersByOpId, prices]);
+  }, [proposals, openOrdersByOpId, prices, fxRate]);
+
+  const totalPnlBRL = useMemo(
+    () => previewRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0),
+    [previewRows],
+  );
+  const fmtBRL = (v: number) =>
+    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
 
   const handleExecute = async () => {
     if (!batch || !proposals || !userId) return;
@@ -2191,11 +2247,19 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                   )}
                 </div>
               ))}
-              <div className="pt-4 flex justify-end gap-2">
-                <Button variant="outline" onClick={onClose}>Cancelar</Button>
-                <Button disabled={!pricesOk} onClick={() => setStep(2)}>
-                  Revisar →
-                </Button>
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <div className="text-xs text-muted-foreground">
+                  Resultado estimado:{' '}
+                  <span className={`font-semibold ${totalPnlBRL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {fmtBRL(totalPnlBRL)}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={onClose}>Cancelar</Button>
+                  <Button disabled={!pricesOk} onClick={() => setStep(2)}>
+                    Revisar →
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -2217,7 +2281,9 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                             <TableHead>Direção</TableHead>
                             <TableHead className="text-right">Contratos</TableHead>
                             <TableHead className="text-right">Volume (sc)</TableHead>
-                            <TableHead className="text-right">Preço (USD/bushel)</TableHead>
+                            <TableHead className="text-right">Preço aberto</TableHead>
+                            <TableHead className="text-right">Preço fech.</TableHead>
+                            <TableHead className="text-right">Resultado (R$)</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2227,9 +2293,19 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                               <TableCell className="text-xs uppercase">{r.direction}</TableCell>
                               <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
                               <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{r.open_price == null ? '—' : r.open_price.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
                               <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
+                              <TableCell className={`text-right font-medium ${r.pnl_brl == null ? '' : r.pnl_brl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {r.pnl_brl == null ? '—' : fmtBRL(r.pnl_brl)}
+                              </TableCell>
                             </TableRow>
                           ))}
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-right text-xs font-semibold">Subtotal Futures</TableCell>
+                            <TableCell className={`text-right font-semibold ${futuresRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {fmtBRL(futuresRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0))}
+                            </TableCell>
+                          </TableRow>
                         </TableBody>
                       </Table>
                     </div>
@@ -2245,7 +2321,9 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                             <TableHead>Direção</TableHead>
                             <TableHead className="text-right">Contratos</TableHead>
                             <TableHead className="text-right">Notional (USD)</TableHead>
-                            <TableHead className="text-right">Taxa (R$/USD)</TableHead>
+                            <TableHead className="text-right">Taxa aberta</TableHead>
+                            <TableHead className="text-right">Taxa fech.</TableHead>
+                            <TableHead className="text-right">Resultado (R$)</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2255,9 +2333,19 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                               <TableCell className="text-xs uppercase">{r.direction}</TableCell>
                               <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
                               <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</TableCell>
+                              <TableCell className="text-right">{r.open_price == null ? '—' : r.open_price.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
                               <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
+                              <TableCell className={`text-right font-medium ${r.pnl_brl == null ? '' : r.pnl_brl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {r.pnl_brl == null ? '—' : fmtBRL(r.pnl_brl)}
+                              </TableCell>
                             </TableRow>
                           ))}
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-right text-xs font-semibold">Subtotal NDF</TableCell>
+                            <TableCell className={`text-right font-semibold ${ndfRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {fmtBRL(ndfRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0))}
+                            </TableCell>
+                          </TableRow>
                         </TableBody>
                       </Table>
                     </div>
@@ -2295,6 +2383,17 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                 </>
               );
             })()}
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-3">
+              <span className="text-sm font-semibold">Resultado total estimado</span>
+              <span className={`text-lg font-bold ${totalPnlBRL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {fmtBRL(totalPnlBRL)}
+              </span>
+            </div>
+            {fxRate == null && previewRows.some(r => r.instrument === 'futures') && (
+              <p className="text-xs text-muted-foreground">
+                Taxa USD/BRL não encontrada em market_data — resultado de futures USD não convertido.
+              </p>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep(1)} disabled={submitting}>← Voltar</Button>
               <Button variant="destructive" onClick={handleExecute} disabled={submitting}>
