@@ -10,6 +10,8 @@ import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePricingSnapshots } from '@/hooks/usePricingSnapshots';
+import { useProducers } from '@/hooks/useProducers';
+import { useUpdateOperationProducer } from '@/hooks/useUpdateOperationProducer';
 import { callApi } from '@/lib/api';
 import {
   buildHedgePlan,
