@@ -9,6 +9,7 @@ import Approvals from '@/pages/Approvals';
 import OperacoesD24 from '@/pages/OperacoesD24';
 import ArmazensD24 from '@/pages/ArmazensD24';
 import Market from '@/pages/Market';
+import Producers from '@/pages/Producers';
 import Settings from '@/pages/Settings';
 import AdminUsers from '@/pages/AdminUsers';
 import Financial from '@/pages/Financial';
@@ -22,6 +23,7 @@ const routes: KeepAliveRoute[] = [
   { path: '/operacoes-d24', element: <OperacoesD24 /> },
   { path: '/armazens-d24', element: <ArmazensD24 /> },
   { path: '/mercado', element: <Market /> },
+  { path: '/produtores', element: <Producers /> },
   { path: '/financeiro', element: <Financial /> },
   { path: '/configuracoes', element: <Settings /> },
   { path: '/perfil', element: <Profile /> },
