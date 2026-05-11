@@ -43,7 +43,7 @@ const Producers = () => {
   const { data: warehouses = [] } = useActiveArmazens();
   const { data: opCounts = {} } = useProducerOperationCounts();
   const del = useDeleteProducer();
-  const update = useUpdateProducer();
+  
 
   const [sortKey, setSortKey] = useState<SortKey>('full_name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
