@@ -173,6 +173,18 @@ export default function Approvals() {
   const pendingCols = usePersistedColumns('cols_approvals_pending', APPROVAL_COLUMNS);
   const signedCols = usePersistedColumns('cols_approvals_signed', APPROVAL_COLUMNS);
 
+  const [tab, setTab] = useState<'pending' | 'history'>('pending');
+  type SortDir = 'asc' | 'desc';
+  type SortState = { key: string; dir: SortDir } | null;
+  const [pendingSort, setPendingSort] = useState<SortState>(null);
+  const [signedSort, setSignedSort] = useState<SortState>(null);
+
+  const toggleSort = (current: SortState, key: string): SortState => {
+    if (!current || current.key !== key) return { key, dir: 'asc' };
+    if (current.dir === 'asc') return { key, dir: 'desc' };
+    return null;
+  };
+
   // 1. Roles do usuário logado
   const { data: userRoles = [] } = useQuery({
     queryKey: ['current-user-roles', user?.id],
