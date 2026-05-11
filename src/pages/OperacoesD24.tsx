@@ -625,6 +625,21 @@ const OperacoesD24: React.FC = () => {
       navigate(location.pathname, { replace: true, state: null });
     }
   }, [location.state, location.pathname, navigate]);
+
+  // Deep-link: ?op=<id> opens detail Sheet for that operation
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const opId = params.get('op');
+    if (opId && operations) {
+      const found = operations.find((o) => o.id === opId);
+      if (found) {
+        setSelectedOperation(found);
+        params.delete('op');
+        const qs = params.toString();
+        navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, { replace: true });
+      }
+    }
+  }, [location.search, location.pathname, operations, navigate]);
   const [editPlanOp, setEditPlanOp] = useState<OperationWithDetails | null>(null);
   const [registerExecutionOp, setRegisterExecutionOp] = useState<OperationWithDetails | null>(null);
   const [closingPlanOp, setClosingPlanOp] = useState<OperationWithDetails | null>(null);
