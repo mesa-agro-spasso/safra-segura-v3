@@ -1103,8 +1103,13 @@ const ArmazensD24: React.FC = () => {
                     <TableBody>
                       {btBatches.map((batch: any) => {
                         const isDraft = batch.status === 'DRAFT';
+                        const isSigned = btSignedBatchIds.has(batch.id);
+                        const isPendingSignature = isDraft && isSigned;
+                        const isAwaitingSend = isDraft && !isSigned;
                         const statusBadge = ({
-                          DRAFT: { label: 'Rascunho', className: 'border-yellow-500 text-yellow-500' },
+                          DRAFT: isSigned
+                            ? { label: 'Aguardando execução', className: 'border-blue-500 text-blue-500' }
+                            : { label: 'Rascunho', className: 'border-yellow-500 text-yellow-500' },
                           EXECUTED: { label: 'Executado', className: 'bg-green-600 text-white' },
                           CANCELLED: { label: 'Cancelado', className: '' },
                         } as Record<string, { label: string; className: string }>)[batch.status] ?? { label: batch.status, className: '' };
