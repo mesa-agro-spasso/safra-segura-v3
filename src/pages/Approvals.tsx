@@ -399,8 +399,9 @@ export default function Approvals() {
 
   const handleReject = async () => {
     if (!rejecting || !rejectReason.trim() || !user) return;
-    if (rejecting.flowType !== 'OPENING' || rejecting.batchId) {
-      toast.error('Apenas aberturas podem ser recusadas');
+    const isBatch = !!rejecting.batchId;
+    if (!isBatch && rejecting.flowType !== 'OPENING') {
+      toast.error('Apenas aberturas ou block trades podem ser recusados');
       return;
     }
     setSubmitting(true);
@@ -408,33 +409,46 @@ export default function Approvals() {
       const reason = rejectReason.trim();
       const nowIso = new Date().toISOString();
 
-      const { error: opError } = await (supabase as any)
-        .from('operations')
-        .update({
-          status: 'CANCELLED',
-          cancellation_reason: reason,
-          cancelled_at: nowIso,
-          cancelled_by: user.id,
-        } as never)
-        .eq('id', rejecting.operationId);
-      if (opError) throw opError;
+      if (isBatch) {
+        const { error: batchError } = await (supabase as any)
+          .from('warehouse_closing_batches')
+          .update({
+            status: 'CANCELLED',
+            cancellation_reason: reason,
+          })
+          .eq('id', rejecting.batchId);
+        if (batchError) throw batchError;
+      } else {
+        const { error: opError } = await (supabase as any)
+          .from('operations')
+          .update({
+            status: 'CANCELLED',
+            cancellation_reason: reason,
+            cancelled_at: nowIso,
+            cancelled_by: user.id,
+          } as never)
+          .eq('id', rejecting.operationId);
+        if (opError) throw opError;
+      }
 
       const { error: sigError } = await (supabase as any).from('signatures').insert({
         operation_id: rejecting.operationId,
+        batch_id: rejecting.batchId ?? null,
         user_id: user.id,
         role_used: rejecting.available[0],
-        flow_type: 'OPENING',
+        flow_type: rejecting.flowType,
         decision: 'REJECT',
         notes: reason,
         signed_at: nowIso,
       } as never);
       if (sigError) throw sigError;
 
-      toast.success('Operação recusada');
+      toast.success(isBatch ? 'Block trade recusado' : 'Operação recusada');
       queryClient.invalidateQueries({ queryKey: ['signature-events'] });
       queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
       queryClient.invalidateQueries({ queryKey: ['operations'] });
       queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
+      queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
       queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
       setRejecting(null);
     } catch (e: any) {
@@ -628,7 +642,7 @@ export default function Approvals() {
                         <Button size="sm" onClick={() => openSign(row)}>
                           Assinar
                         </Button>
-                        {row.flowType === 'OPENING' && !row.isBatch && (
+                        {(row.flowType === 'OPENING' || row.isBatch) && (
                           <Button size="sm" variant="destructive" onClick={() => openReject(row)}>
                             Recusar
                           </Button>
