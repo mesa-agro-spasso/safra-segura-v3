@@ -20,7 +20,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertCircle, Columns } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { AlertCircle, Columns, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
 
 // ───────────────────────── ColumnSelector (persisted in localStorage) ─────────────────────────
 
