@@ -19,7 +19,13 @@ const COMMODITY_LABEL: Record<string, string> = {
   corn: 'Milho',
 };
 
-export function ProducerOperationsList({ producerId }: { producerId: string }) {
+export function ProducerOperationsList({
+  producerId,
+  onNavigate,
+}: {
+  producerId: string;
+  onNavigate?: () => void;
+}) {
   const navigate = useNavigate();
   const { data, isLoading } = useProducerOperations(producerId);
 
@@ -36,6 +42,7 @@ export function ProducerOperationsList({ producerId }: { producerId: string }) {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            onNavigate?.();
             navigate(`/operacoes?op=${op.id}`);
           }}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/60 text-left text-sm transition-colors"
@@ -53,3 +60,4 @@ export function ProducerOperationsList({ producerId }: { producerId: string }) {
     </div>
   );
 }
+
