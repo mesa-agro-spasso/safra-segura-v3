@@ -375,8 +375,37 @@ export default function Approvals() {
       return true;
     });
 
-  const filteredPending = useMemo(() => applyFilters(pendingRows), [pendingRows, filterWarehouse, filterCommodity, filterPaymentFrom, filterPaymentTo]);
-  const filteredSigned = useMemo(() => applyFilters(signedRows), [signedRows, filterWarehouse, filterCommodity, filterPaymentFrom, filterPaymentTo]);
+  const sortRows = <T extends typeof allRows[number]>(list: T[], sort: SortState): T[] => {
+    if (!sort) return list;
+    const getValue = (r: T): string | number => {
+      switch (sort.key) {
+        case 'codigo': return r.displayCode ?? '';
+        case 'tipo': return r.isBatch ? 'Block Trade' : (r.flowType === 'CLOSING' ? 'Encerramento' : 'Abertura');
+        case 'status': return r.status ?? '';
+        case 'praca': return r.warehouse ?? '';
+        case 'commodity': return r.commodity ?? '';
+        case 'volume': return Number(r.volumeSacks ?? 0);
+        case 'valor': return Number(r.valueBRL ?? 0);
+        case 'pagamento': return r.paymentDate ?? '';
+        default: return '';
+      }
+    };
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...list].sort((a, b) => {
+      const va = getValue(a); const vb = getValue(b);
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb), 'pt-BR') * dir;
+    });
+  };
+
+  const filteredPending = useMemo(
+    () => sortRows(applyFilters(pendingRows), pendingSort),
+    [pendingRows, filterWarehouse, filterCommodity, filterPaymentFrom, filterPaymentTo, pendingSort],
+  );
+  const filteredSigned = useMemo(
+    () => sortRows(applyFilters(signedRows), signedSort),
+    [signedRows, filterWarehouse, filterCommodity, filterPaymentFrom, filterPaymentTo, signedSort],
+  );
 
   const clearFilters = () => {
     setFilterWarehouse('all');
