@@ -557,6 +557,18 @@ const ArmazensD24: React.FC = () => {
     },
   });
 
+  const { data: btSignedBatchIds = new Set<string>() } = useQuery({
+    queryKey: ['batch-signatures-set'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('signatures')
+        .select('batch_id')
+        .not('batch_id', 'is', null);
+      if (error) throw error;
+      return new Set<string>((data ?? []).map((r: any) => r.batch_id));
+    },
+  });
+
   const handleBtSaveDraft = async () => {
     if (!btProposals || !user?.id) return;
     setBtSubmitting(true);
