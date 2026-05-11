@@ -91,7 +91,8 @@ const ColumnSelector: React.FC<{
 const ARMAZEM_COLUMNS: Col[] = [
   { key: 'commodity', label: 'Commodity' },
   { key: 'op_ativas', label: 'Op. ativas' },
-  { key: 'volume', label: 'Volume (sc)' },
+  { key: 'volume_soja', label: 'Volume Soja (sc)' },
+  { key: 'volume_milho', label: 'Volume Milho (sc)' },
   { key: 'mtm_total', label: 'MTM Total' },
   { key: 'breakeven', label: 'Break-even' },
   { key: 'mtm_sc', label: 'MTM/sc' },
