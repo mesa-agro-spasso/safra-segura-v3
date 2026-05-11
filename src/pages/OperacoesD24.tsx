@@ -2242,6 +2242,23 @@ const OperacoesD24: React.FC = () => {
         </SheetContent>
       </Sheet>
 
+      <AlertDialog open={confirmStaleOpen} onOpenChange={setConfirmStaleOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dados de mercado desatualizados</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os dados de Bolsa e/ou Físico estão com mais de 2 dias. O cálculo seguirá usando os últimos valores disponíveis. Deseja prosseguir?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setConfirmStaleOpen(false); handleCalculate(); }}>
+              Calcular mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* ── MTM Detail Dialog ── */}
       {detailResult && (() => {
         const matched = (operations ?? []).find(
