@@ -1,68 +1,45 @@
-## Reestruturação da aba Mercado
+## Limpeza de dados — Alta Floresta (produção)
 
-Transformar `/mercado` em container com **subabas Bolsa / Físico**, tendo **Físico como padrão**.
+Apagar **somente** os registros associados ao armazém `alta_floresta`. Confresa e Matupá permanecem intactos.
 
-```text
-Mercado
-├── Físico    (NOVO — padrão)
-└── Bolsa     (conteúdo atual de Market.tsx, sem alterações)
-```
+### O que será removido
 
-### 1. Estrutura
+Levantamento direto na base de produção (`public`):
 
-- `src/pages/Market.tsx` vira wrapper com `<Tabs>` (default = Físico).
-- Conteúdo atual movido para `src/pages/market/MarketBolsa.tsx` (sem mudanças funcionais).
-- Nova página: `src/pages/market/MarketFisico.tsx`.
+| Tabela | Registros a remover | Critério |
+|---|---|---|
+| `operations` | **9** | `warehouse_id = 'alta_floresta'` |
+| `orders` | **22** | `operation_id` ∈ operações acima |
+| `mtm_snapshots` | **33** | `operation_id` ∈ operações acima |
+| `signatures` | **14** | `operation_id` ∈ operações acima |
+| `warehouse_closing_batches` | **2** | `warehouse_id = 'alta_floresta'` |
+| `pricing_snapshots` | **5** | apenas os 5 snapshots referenciados pelas operações de Alta Floresta — verifiquei que **nenhum** é usado por operações de outros armazéns |
 
-### 2. Aba Físico — tela principal
+Operações que serão apagadas (todas Alta Floresta, soja):
+- `ALT_SOJA_260429_001` (CANCELLED)
+- `ALT_SOJA_260429_002` (CLOSED)
+- `ALT_SOJA_260430_001` (CLOSED)
+- `ALT_SOJA_260505_001` (ACTIVE)
+- `ALT_SOJA_260506_001` / `_002` / `_003` (PARTIALLY_CLOSED)
+- `ALT_SOJA_260506_004` / `_005` (DRAFT)
 
-Tabela com **uma linha por (armazém ativo × commodity)** mostrando o preço físico mais recente:
+### Ordem da remoção (uma migration única, transacional)
 
-| Armazém | Commodity | Último preço (R$/sc) | Data ref. | Atualizado há | Badge |
-|---|---|---|---|---|---|
+1. `DELETE FROM signatures WHERE operation_id IN (... alta_floresta ops ...)`
+2. `DELETE FROM mtm_snapshots WHERE operation_id IN (...)`
+3. `DELETE FROM orders WHERE operation_id IN (...)`
+4. `DELETE FROM warehouse_closing_batches WHERE warehouse_id = 'alta_floresta'`
+5. `DELETE FROM operations WHERE warehouse_id = 'alta_floresta'`
+6. `DELETE FROM pricing_snapshots WHERE id IN (... 5 snapshots exclusivos ...)`
 
-- Armazéns com `active = true` e `type = 'ARMAZEM'` (`useActiveArmazens`).
-- Commodities: `soybean` e `corn` (CHECK constraint existente).
-- Badge freshness padrão Bolsa (`getHoursAgo`): verde ≤ 24h, amarelo ≤ 72h, vermelho > 72h, cinza "sem registro".
-- Linha clicável → abre modal de detalhe.
+Tudo em uma transação — se qualquer passo falhar, nada é apagado.
 
-### 3. Cabeçalho — botões de cadastro
+### O que **não** muda
 
-- **"Cadastrar preço"** — modal: armazém, commodity, data (default hoje), preço R$/sc, notas. Upsert único.
-- **"Cadastrar em massa"** — modal com grid editável de **todos os armazéns ativos × {soja, milho}**, data ajustável no topo (default hoje).
-  - **Pré-preenchido com o último preço conhecido** de cada célula (facilita pequenas atualizações).
-  - Salvar dispara upsert em lote para todas as células alteradas/preenchidas.
+- Armazém `alta_floresta` em `warehouses` (mantido — é cadastro mestre).
+- `physical_prices`, `historical_basis`, `market_data` de Alta Floresta (são dados de mercado, não operações).
+- Operações/ordens/snapshots de Matupá, Confresa e qualquer outro armazém.
 
-### 4. Modal de detalhe (clique na linha)
+### Confirmação
 
-- Cabeçalho: armazém + commodity.
-- **Gráfico de linha** (recharts) — `reference_date` × `price_brl_per_sack`, ordenado.
-- **Tabela histórica**: data, preço, autor, notas.
-- **Edição/exclusão de registros antigos disponível para usuários da mesa** (`useAuthorization` — login mesa). Outros usuários veem somente leitura.
-
-### 5. Persistência
-
-`public.physical_prices` já tem o necessário:
-- `UNIQUE (warehouse_id, commodity, reference_date)` ✅
-- `CHECK commodity IN ('soybean','corn')` ✅
-- `CHECK price_brl_per_sack > 0` ✅
-
-Sem migração de schema. Upsert:
-```ts
-supabase.from('physical_prices').upsert(payload, {
-  onConflict: 'warehouse_id,commodity,reference_date'
-})
-```
-Múltiplos registros no mesmo dia → sobrescreve, mantendo histórico em datas distintas.
-
-### 6. Hooks novos — `src/hooks/usePhysicalPrices.ts`
-
-- `useLatestPhysicalPrices()` — `DISTINCT ON (warehouse_id, commodity)` mais recente.
-- `usePhysicalPriceHistory(warehouse_id, commodity)` — série completa para modal/gráfico.
-- `useUpsertPhysicalPrice()` — mutation única.
-- `useUpsertPhysicalPricesBulk()` — mutation em lote.
-- `useDeletePhysicalPrice()` — exclusão pontual (gated por mesa).
-
-### 7. Roteamento
-
-Rota `/mercado` inalterada. Subaba sincronizada via `?tab=fisico|bolsa` (default `fisico`).
+Como é uma operação destrutiva em produção, vou usar a ferramenta de migration — você precisará aprová-la antes da execução. Quer que eu prossiga com esses 5 snapshots de pricing também removidos, ou prefere mantê-los como histórico mesmo sem operação associada?
