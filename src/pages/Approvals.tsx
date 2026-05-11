@@ -215,7 +215,9 @@ export default function Approvals() {
       for (const s of (sigs ?? []) as any[]) {
         const batchId = (s.batch_id ?? null) as string | null;
         const flowType = s.flow_type as 'OPENING' | 'CLOSING';
-        const key = `${s.operation_id}:${flowType}:${batchId ?? 'none'}`;
+        const key = batchId
+          ? `batch:${batchId}:${flowType}`
+          : `${s.operation_id}:${flowType}:none`;
         if (seen.has(key)) continue;
         seen.add(key);
         groups.push({ operationId: s.operation_id, flowType, batchId });
