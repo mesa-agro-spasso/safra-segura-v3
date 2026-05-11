@@ -1,4 +1,4 @@
-import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck, Warehouse, ClipboardList, Building2 } from 'lucide-react';
+import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck, Warehouse, ClipboardList, Building2, Sprout } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -41,6 +41,7 @@ const items = [
   { title: 'Armazéns',  url: '/armazens-d24',  icon: Building2 },
   { title: 'Financeiro', url: '/financeiro', icon: DollarSign },
   { title: 'Mercado', url: '/mercado', icon: BarChart3 },
+  { title: 'Produtores', url: '/produtores', icon: Sprout },
   { title: 'Configurações', url: '/configuracoes', icon: Settings },
 ];
 
