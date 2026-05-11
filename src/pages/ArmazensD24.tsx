@@ -4,6 +4,7 @@ import { useWarehouses, useActiveArmazens } from '@/hooks/useWarehouses';
 import { useOperationsWithDetails } from '@/hooks/useOperations';
 import { useMtmSnapshots } from '@/hooks/useMtmSnapshots';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
+import { useMarketData } from '@/hooks/useMarketData';
 import type { Warehouse, OperationWithDetails, MtmSnapshot } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1912,6 +1913,59 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     return Array.from(set);
   }, [openOrdersByOpId]);
 
+  // First ticker per instrument (representative for the batch)
+  const tickerByInstrument = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const orders of Object.values(openOrdersByOpId)) {
+      for (const o of orders) {
+        if (!map[o.instrument_type] && o.ticker) {
+          map[o.instrument_type] = o.ticker;
+        }
+      }
+    }
+    return map;
+  }, [openOrdersByOpId]);
+
+  const { data: marketData } = useMarketData();
+
+  // Suggested price per instrument from market_data
+  const suggestedPrices = useMemo(() => {
+    const out: Record<string, { value: number; ticker: string } | undefined> = {};
+    if (!marketData) return out;
+    for (const instrument of batchInstruments) {
+      const ticker = tickerByInstrument[instrument];
+      if (!ticker) continue;
+      const md = marketData.find((m: any) => m.ticker === ticker);
+      if (!md) continue;
+      if (instrument === 'futures' && md.price != null) {
+        out[instrument] = { value: Number(md.price), ticker };
+      } else if (instrument === 'ndf') {
+        const v = (md as any).ndf_override ?? (md as any).ndf_estimated ?? (md as any).ndf_spot;
+        if (v != null) out[instrument] = { value: Number(v), ticker };
+      }
+    }
+    return out;
+  }, [marketData, batchInstruments, tickerByInstrument]);
+
+  // Pre-fill empty price slots when suggestions become available
+  useEffect(() => {
+    if (!open) return;
+    setPrices(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const instrument of batchInstruments) {
+        const cur = next[instrument];
+        const isEmpty = cur === '' || cur == null;
+        const sug = suggestedPrices[instrument];
+        if (isEmpty && sug) {
+          next[instrument] = sug.value;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [open, batchInstruments, suggestedPrices]);
+
   const pricesOk = batchInstruments.every(i => Number(prices[i]) > 0);
 
   // Build preview rows for step 2 (pre-execution summary)
@@ -2098,6 +2152,11 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                     onChange={(e) => setPrices(prev => ({ ...prev, [instrument]: e.target.value === '' ? '' : parseFloat(e.target.value) }))}
                     className="h-9"
                   />
+                  {suggestedPrices[instrument] && (
+                    <p className="text-xs text-muted-foreground">
+                      Sugerido: {suggestedPrices[instrument]!.value.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} ({suggestedPrices[instrument]!.ticker})
+                    </p>
+                  )}
                 </div>
               ))}
               <div className="pt-4 flex justify-end gap-2">
