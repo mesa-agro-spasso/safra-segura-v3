@@ -970,8 +970,11 @@ const ArmazensD24: React.FC = () => {
                       {armazemCols.visible.has('op_ativas') && (
                         <TableCell className="text-right">{r.ops.length}</TableCell>
                       )}
-                      {armazemCols.visible.has('volume') && (
-                        <TableCell className="text-right">{fmtSc(r.volumeTotal)}</TableCell>
+                      {armazemCols.visible.has('volume_soja') && (
+                        <TableCell className="text-right">{fmtSc(r.volumeSoja)}</TableCell>
+                      )}
+                      {armazemCols.visible.has('volume_milho') && (
+                        <TableCell className="text-right">{fmtSc(r.volumeMilho)}</TableCell>
                       )}
                       {armazemCols.visible.has('mtm_total') && (
                         <TableCell className={`text-right ${r.mtmTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
