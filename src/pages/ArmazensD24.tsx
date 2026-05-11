@@ -2176,31 +2176,101 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Operação</TableHead>
-                  <TableHead>Instrumento</TableHead>
-                  <TableHead>Direção</TableHead>
-                  <TableHead className="text-right">Contratos</TableHead>
-                  <TableHead className="text-right">Volume (sc)</TableHead>
-                  <TableHead className="text-right">Preço</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {previewRows.map((r, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-mono text-xs">{r.display_code}</TableCell>
-                    <TableCell className="text-xs">{r.instrument}</TableCell>
-                    <TableCell className="text-xs uppercase">{r.direction}</TableCell>
-                    <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="space-y-6">
+            {(() => {
+              const futuresRows = previewRows.filter(r => r.instrument === 'futures');
+              const ndfRows = previewRows.filter(r => r.instrument === 'ndf');
+              const otherRows = previewRows.filter(r => r.instrument !== 'futures' && r.instrument !== 'ndf');
+              return (
+                <>
+                  {futuresRows.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold">Futures</h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Operação</TableHead>
+                            <TableHead>Direção</TableHead>
+                            <TableHead className="text-right">Contratos</TableHead>
+                            <TableHead className="text-right">Volume (sc)</TableHead>
+                            <TableHead className="text-right">Preço (USD/bushel)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {futuresRows.map((r, i) => (
+                            <TableRow key={`f-${i}`}>
+                              <TableCell className="font-mono text-xs">{r.display_code}</TableCell>
+                              <TableCell className="text-xs uppercase">{r.direction}</TableCell>
+                              <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  {ndfRows.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold">NDF</h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Operação</TableHead>
+                            <TableHead>Direção</TableHead>
+                            <TableHead className="text-right">Contratos</TableHead>
+                            <TableHead className="text-right">Notional (USD)</TableHead>
+                            <TableHead className="text-right">Taxa (R$/USD)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {ndfRows.map((r, i) => (
+                            <TableRow key={`n-${i}`}>
+                              <TableCell className="font-mono text-xs">{r.display_code}</TableCell>
+                              <TableCell className="text-xs uppercase">{r.direction}</TableCell>
+                              <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</TableCell>
+                              <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  {otherRows.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold">Outros</h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Operação</TableHead>
+                            <TableHead>Instrumento</TableHead>
+                            <TableHead>Direção</TableHead>
+                            <TableHead className="text-right">Contratos</TableHead>
+                            <TableHead className="text-right">Volume</TableHead>
+                            <TableHead className="text-right">Preço</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {otherRows.map((r, i) => (
+                            <TableRow key={`o-${i}`}>
+                              <TableCell className="font-mono text-xs">{r.display_code}</TableCell>
+                              <TableCell className="text-xs">{r.instrument}</TableCell>
+                              <TableCell className="text-xs uppercase">{r.direction}</TableCell>
+                              <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep(1)} disabled={submitting}>← Voltar</Button>
               <Button variant="destructive" onClick={handleExecute} disabled={submitting}>
