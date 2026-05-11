@@ -628,7 +628,7 @@ export default function Approvals() {
                         <Button size="sm" onClick={() => openSign(row)}>
                           Assinar
                         </Button>
-                        {row.flowType === 'OPENING' && !row.isBatch && (
+                        {(row.flowType === 'OPENING' || row.isBatch) && (
                           <Button size="sm" variant="destructive" onClick={() => openReject(row)}>
                             Recusar
                           </Button>
