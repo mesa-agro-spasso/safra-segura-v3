@@ -1857,6 +1857,31 @@ const OperacoesD24: React.FC = () => {
                     <Row label="Exchange">{opD24.exchange ?? '—'}</Row>
                     <Row label="Volume">{`${selectedOperation.volume_sacks.toLocaleString('pt-BR')} sc`}</Row>
                     <Row label="Criada em">{fmtDate(selectedOperation.created_at?.slice(0, 10))}</Row>
+                    <Row label="Produtor">
+                      <Select
+                        value={(selectedOperation as any).producer_id ?? '__none__'}
+                        onValueChange={(val) => {
+                          updateOpProducer.mutate(
+                            { operationId: selectedOperation.id, producerId: val === '__none__' ? null : val },
+                            {
+                              onSuccess: () => {
+                                toast.success('Produtor atualizado');
+                                setSelectedOperation({ ...selectedOperation, producer_id: val === '__none__' ? null : val } as any);
+                              },
+                              onError: (e: any) => toast.error(e?.message ?? 'Erro ao vincular produtor'),
+                            },
+                          );
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Sem produtor" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Sem produtor —</SelectItem>
+                          {producers.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.full_name ?? `(sem nome) ${p.id.slice(0, 6)}`}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Row>
                     {selectedOperation.notes && <Row label="Notas">{selectedOperation.notes}</Row>}
                   </div>
                 </Section>
