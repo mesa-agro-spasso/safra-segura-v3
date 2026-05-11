@@ -1247,7 +1247,24 @@ const ArmazensD24: React.FC = () => {
 
                 {/* Volume */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Volume a fechar (sacas)</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Volume a fechar (sacas)</Label>
+                    {btWarehouse && btCommodity && (() => {
+                      const available = (operations ?? [])
+                        .filter(o => o.warehouse_id === btWarehouse && o.commodity === btCommodity && ACTIVE_STATUSES.has(o.status))
+                        .reduce((s, o) => s + (o.volume_sacks ?? 0), 0);
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setBtVolume(String(available))}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          title="Clique para usar o total disponível"
+                        >
+                          Disponível: <span className="font-medium text-foreground">{available.toLocaleString('pt-BR')} sc</span>
+                        </button>
+                      );
+                    })()}
+                  </div>
                   <Input
                     type="number"
                     placeholder="Ex.: 5000"
