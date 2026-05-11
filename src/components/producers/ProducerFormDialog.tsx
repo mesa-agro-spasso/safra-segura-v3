@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { StarRating } from './StarRating';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
@@ -137,13 +138,28 @@ export function ProducerFormDialog({ open, onOpenChange, producer, onCreated }: 
             </div>
             <div className="space-y-2">
               <Label>Nota de crédito</Label>
-              <div className="flex items-center gap-3">
-                <StarRating value={form.credit_rating} onChange={(v) => setForm({ ...form, credit_rating: v })} size={22} />
-                {form.credit_rating !== null && (
-                  <button type="button" className="text-xs text-muted-foreground hover:underline" onClick={() => setForm({ ...form, credit_rating: null })}>
-                    limpar
-                  </button>
-                )}
+              <div className="space-y-3 rounded-md border p-3">
+                <StarRating value={form.credit_rating} readOnly size={22} />
+                <RadioGroup
+                  value={form.credit_rating === null ? 'none' : String(form.credit_rating)}
+                  onValueChange={(value) => setForm({
+                    ...form,
+                    credit_rating: value === 'none' ? null : Number(value),
+                  })}
+                  className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+                >
+                  {[
+                    { value: 'none', label: 'Sem nota' },
+                    { value: '1', label: '1 estrela' },
+                    { value: '2', label: '2 estrelas' },
+                    { value: '3', label: '3 estrelas' },
+                  ].map((option) => (
+                    <label key={option.value} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer">
+                      <RadioGroupItem value={option.value} id={`producer-credit-rating-${option.value}`} />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </RadioGroup>
               </div>
             </div>
             <div className="col-span-2 space-y-2">
