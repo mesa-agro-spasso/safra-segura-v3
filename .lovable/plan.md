@@ -1,45 +1,69 @@
-## Limpeza de dados — Alta Floresta (produção)
+## Objetivo
 
-Apagar **somente** os registros associados ao armazém `alta_floresta`. Confresa e Matupá permanecem intactos.
+Adicionar uma nova subaba **Histórico** em Mercado, com 3 abas internas: **Bolsa**, **Físico** e **Terceiros** (esta última só placeholder por enquanto).
 
-### O que será removido
+## Estrutura de navegação
 
-Levantamento direto na base de produção (`public`):
+```text
+Mercado
+├── Físico        (já existe)
+├── Bolsa         (já existe)
+└── Histórico     (nova)
+    ├── Bolsa     (implementada)
+    ├── Físico    (implementada)
+    └── Terceiros (placeholder "Em breve")
+```
 
-| Tabela | Registros a remover | Critério |
-|---|---|---|
-| `operations` | **9** | `warehouse_id = 'alta_floresta'` |
-| `orders` | **22** | `operation_id` ∈ operações acima |
-| `mtm_snapshots` | **33** | `operation_id` ∈ operações acima |
-| `signatures` | **14** | `operation_id` ∈ operações acima |
-| `warehouse_closing_batches` | **2** | `warehouse_id = 'alta_floresta'` |
-| `pricing_snapshots` | **5** | apenas os 5 snapshots referenciados pelas operações de Alta Floresta — verifiquei que **nenhum** é usado por operações de outros armazéns |
+URL via query param: `?tab=historico&sub=bolsa|fisico|terceiros`.
 
-Operações que serão apagadas (todas Alta Floresta, soja):
-- `ALT_SOJA_260429_001` (CANCELLED)
-- `ALT_SOJA_260429_002` (CLOSED)
-- `ALT_SOJA_260430_001` (CLOSED)
-- `ALT_SOJA_260505_001` (ACTIVE)
-- `ALT_SOJA_260506_001` / `_002` / `_003` (PARTIALLY_CLOSED)
-- `ALT_SOJA_260506_004` / `_005` (DRAFT)
+## Histórico → Bolsa
 
-### Ordem da remoção (uma migration única, transacional)
+Fonte: tabela `market_data_history` (já populada — soja/milho CBOT por ticker, e USD/BRL).
 
-1. `DELETE FROM signatures WHERE operation_id IN (... alta_floresta ops ...)`
-2. `DELETE FROM mtm_snapshots WHERE operation_id IN (...)`
-3. `DELETE FROM orders WHERE operation_id IN (...)`
-4. `DELETE FROM warehouse_closing_batches WHERE warehouse_id = 'alta_floresta'`
-5. `DELETE FROM operations WHERE warehouse_id = 'alta_floresta'`
-6. `DELETE FROM pricing_snapshots WHERE id IN (... 5 snapshots exclusivos ...)`
+Layout:
+- Seletor de **commodity** (Soja CBOT / Milho CBOT) no topo.
+- Seletor de **ticker** (dropdown) com os tickers disponíveis daquela commodity (ex.: ZSK26, ZSN26… para soja; ZCK26, ZCN26… para milho).
+- Filtro de período: últimos 30d / 90d / 1 ano / tudo.
+- **Gráfico** de linha (recharts via `ChartContainer`) com `reference_date` × `price`.
+- **Tabela** abaixo com colunas: Data, Preço, Moeda, Unidade, Vencimento, Fonte. Ordenada por data desc, paginada client-side (ou scroll com max-height).
 
-Tudo em uma transação — se qualquer passo falhar, nada é apagado.
+Sem cálculos no frontend — só leitura e renderização.
 
-### O que **não** muda
+## Histórico → Físico
 
-- Armazém `alta_floresta` em `warehouses` (mantido — é cadastro mestre).
-- `physical_prices`, `historical_basis`, `market_data` de Alta Floresta (são dados de mercado, não operações).
-- Operações/ordens/snapshots de Matupá, Confresa e qualquer outro armazém.
+Fonte: tabela `physical_prices` (todos os registros, não só o mais recente como em Físico principal).
 
-### Confirmação
+Layout:
+- Filtros opcionais no topo: **Commodity** (Soja/Milho/Todos) e **Praça/Armazém** (todos os ativos + "Todos"), ambos com default "Todos".
+- **Tabela única** com colunas: Data ref., Praça (display_name), Commodity, Preço (R$/sc), Cadastrado em, Notas. Ordenada por `reference_date` desc.
 
-Como é uma operação destrutiva em produção, vou usar a ferramenta de migration — você precisará aprová-la antes da execução. Quer que eu prossiga com esses 5 snapshots de pricing também removidos, ou prefere mantê-los como histórico mesmo sem operação associada?
+Sem gráfico nesta primeira versão (preços físicos têm pouca densidade temporal por enquanto).
+
+## Histórico → Terceiros
+
+Apenas card com mensagem "Em breve". Sem lógica.
+
+## Detalhes técnicos
+
+Arquivos a criar:
+- `src/pages/market/MarketHistorico.tsx` — wrapper com sub-Tabs (sub-tab vem de `?sub=`).
+- `src/pages/market/historico/HistoricoBolsa.tsx`
+- `src/pages/market/historico/HistoricoFisico.tsx`
+- `src/pages/market/historico/HistoricoTerceiros.tsx`
+- `src/hooks/useMarketHistory.ts` — `useMarketHistoryTickers(commodity)` e `useMarketHistory(ticker, sinceDays)`. Usa `supabase.from('market_data_history')`.
+- `src/hooks/usePhysicalPriceHistoryAll.ts` — query de todos os `physical_prices` com filtros opcionais (warehouse_id, commodity).
+
+Arquivos a editar:
+- `src/pages/Market.tsx` — adicionar terceira `TabsTrigger` "Histórico" + `TabsContent`. Manter compatibilidade com `?tab=fisico|bolsa`.
+
+Padrões mantidos:
+- Cores via tokens do design system, sem cores hardcoded.
+- Componentes shadcn (`Tabs`, `Card`, `Table`, `Select`, `ChartContainer`).
+- Sem cálculos financeiros no frontend (regra do projeto).
+- Cliente `supabase` do `@/integrations/supabase/client` (respeita ambiente staging/production automaticamente).
+
+## Fora de escopo
+- Aba Terceiros funcional.
+- Edição/exclusão de histórico.
+- Comparação entre tickers no mesmo gráfico.
+- Export CSV (pode ser adicionado depois se útil).
