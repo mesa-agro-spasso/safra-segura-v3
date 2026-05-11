@@ -177,14 +177,15 @@ const Producers = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8"></TableHead>
+                {TEXT_COLS.map((c) => (
+                  <TableHead key={c.key}><TextHeader k={c.key} label={c.label} /></TableHead>
+                ))}
                 <TableHead>
                   <button onClick={() => handleSort('operations_count')} className="hover:text-foreground flex items-center gap-1">
                     Operações <SortIcon k="operations_count" />
                   </button>
                 </TableHead>
-                {TEXT_COLS.map((c) => (
-                  <TableHead key={c.key}><TextHeader k={c.key} label={c.label} /></TableHead>
-                ))}
+
                 <TableHead>
                   <div className="flex items-center gap-1">
                     <button onClick={() => handleSort('warehouses')} className="hover:text-foreground flex items-center gap-1">
