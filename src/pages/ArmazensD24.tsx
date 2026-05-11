@@ -935,7 +935,8 @@ const ArmazensD24: React.FC = () => {
                     <TableHead>Armazém</TableHead>
                     {armazemCols.visible.has('commodity') && <TableHead>Commodity</TableHead>}
                     {armazemCols.visible.has('op_ativas') && <TableHead className="text-right">Op. ativas</TableHead>}
-                    {armazemCols.visible.has('volume') && <TableHead className="text-right">Volume (sc)</TableHead>}
+                    {armazemCols.visible.has('volume_soja') && <TableHead className="text-right">Volume Soja (sc)</TableHead>}
+                    {armazemCols.visible.has('volume_milho') && <TableHead className="text-right">Volume Milho (sc)</TableHead>}
                     {armazemCols.visible.has('mtm_total') && <TableHead className="text-right">MTM Total (R$)</TableHead>}
                     {armazemCols.visible.has('breakeven') && <TableHead className="text-right">Break-even médio</TableHead>}
                     {armazemCols.visible.has('mtm_sc') && <TableHead className="text-right">MTM/sc</TableHead>}
