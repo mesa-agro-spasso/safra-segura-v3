@@ -765,21 +765,45 @@ export type Database = {
       producers: {
         Row: {
           created_at: string
+          credit_rating: number | null
+          email: string | null
+          farm_address: string | null
+          full_name: string | null
           id: string
-          name: string
           notes: string | null
+          phone: string | null
+          responsible_name: string | null
+          tax_id: string | null
+          updated_at: string
+          warehouse_ids: string[] | null
         }
         Insert: {
           created_at?: string
+          credit_rating?: number | null
+          email?: string | null
+          farm_address?: string | null
+          full_name?: string | null
           id?: string
-          name: string
           notes?: string | null
+          phone?: string | null
+          responsible_name?: string | null
+          tax_id?: string | null
+          updated_at?: string
+          warehouse_ids?: string[] | null
         }
         Update: {
           created_at?: string
+          credit_rating?: number | null
+          email?: string | null
+          farm_address?: string | null
+          full_name?: string | null
           id?: string
-          name?: string
           notes?: string | null
+          phone?: string | null
+          responsible_name?: string | null
+          tax_id?: string | null
+          updated_at?: string
+          warehouse_ids?: string[] | null
         }
         Relationships: []
       }
