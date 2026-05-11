@@ -2004,10 +2004,25 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
   const pricesOk = batchInstruments.every(i => Number(prices[i]) > 0);
 
-  // Build preview rows for step 2 (pre-execution summary)
+  // FX (USD/BRL) for converting USD-denominated futures P&L to BRL
+  const fxRate = useMemo(() => {
+    const fx = marketData?.find((m: any) => m.ticker === 'USD/BRL');
+    return fx?.price != null ? Number(fx.price) : null;
+  }, [marketData]);
+
+  // Build preview rows for step 2 (pre-execution summary), including BRL P&L per leg
   const previewRows = useMemo(() => {
     if (!proposals) return [];
-    const rows: { display_code: string; instrument: string; direction: string; contracts: number; volume_units: number; price: number | '' }[] = [];
+    const rows: {
+      display_code: string;
+      instrument: string;
+      direction: string;
+      contracts: number;
+      volume_units: number;
+      price: number | '';
+      open_price: number | null;
+      pnl_brl: number | null;
+    }[] = [];
     for (const p of proposals.proposals) {
       const opOrders = openOrdersByOpId[p.operation_id] ?? [];
       const proporção = (Number(p.volume_to_close_sacks) || 0) / (p.current_volume_sacks || 1);
@@ -2015,18 +2030,55 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
       for (const o of opOrders) {
         if (seen.has(o.instrument_type)) continue;
         seen.add(o.instrument_type);
+        const contracts = Math.round((Number(o.contracts) * proporção) * 100) / 100;
+        const volume_units = Math.round((Number(o.volume_units) * proporção) * 100) / 100;
+        const closeDir = o.direction === 'buy' ? 'sell' : 'buy';
+        const closePrice = prices[o.instrument_type];
+        const openPrice = o.instrument_type === 'ndf'
+          ? (o.ndf_rate != null ? Number(o.ndf_rate) : null)
+          : (o.price != null ? Number(o.price) : null);
+
+        // P&L sign: profit when (close - open) * (open=buy ? +1 : -1) > 0
+        const sign = o.direction === 'buy' ? 1 : -1;
+        let pnl_brl: number | null = null;
+        if (openPrice != null && typeof closePrice === 'number' && closePrice > 0) {
+          if (o.instrument_type === 'futures') {
+            // CBOT (ZS/ZC/ZW/...) = 5000 bushels, USD/bushel; B3 corn = 450 sacks, BRL/sack
+            const isCBOT = /^Z[SCWLM]/.test(String(o.ticker ?? ''));
+            const contractSize = isCBOT ? 5000 : 450;
+            const pnlNative = sign * (closePrice - openPrice) * contractSize * contracts;
+            if (o.currency === 'USD') {
+              pnl_brl = fxRate != null ? pnlNative * fxRate : null;
+            } else {
+              pnl_brl = pnlNative;
+            }
+          } else if (o.instrument_type === 'ndf') {
+            // volume_units = notional USD; rate in BRL/USD
+            pnl_brl = sign * (closePrice - openPrice) * volume_units;
+          }
+        }
+
         rows.push({
           display_code: p.display_code,
           instrument: o.instrument_type,
-          direction: o.direction === 'buy' ? 'sell' : 'buy',
-          contracts: Math.round((Number(o.contracts) * proporção) * 100) / 100,
-          volume_units: Math.round((Number(o.volume_units) * proporção) * 100) / 100,
-          price: prices[o.instrument_type] ?? '',
+          direction: closeDir,
+          contracts,
+          volume_units,
+          price: closePrice ?? '',
+          open_price: openPrice,
+          pnl_brl,
         });
       }
     }
     return rows;
-  }, [proposals, openOrdersByOpId, prices]);
+  }, [proposals, openOrdersByOpId, prices, fxRate]);
+
+  const totalPnlBRL = useMemo(
+    () => previewRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0),
+    [previewRows],
+  );
+  const fmtBRL = (v: number) =>
+    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
 
   const handleExecute = async () => {
     if (!batch || !proposals || !userId) return;
