@@ -2247,11 +2247,19 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                   )}
                 </div>
               ))}
-              <div className="pt-4 flex justify-end gap-2">
-                <Button variant="outline" onClick={onClose}>Cancelar</Button>
-                <Button disabled={!pricesOk} onClick={() => setStep(2)}>
-                  Revisar →
-                </Button>
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <div className="text-xs text-muted-foreground">
+                  Resultado estimado:{' '}
+                  <span className={`font-semibold ${totalPnlBRL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {fmtBRL(totalPnlBRL)}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={onClose}>Cancelar</Button>
+                  <Button disabled={!pricesOk} onClick={() => setStep(2)}>
+                    Revisar →
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
