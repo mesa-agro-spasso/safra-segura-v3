@@ -2383,6 +2383,17 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                 </>
               );
             })()}
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-3">
+              <span className="text-sm font-semibold">Resultado total estimado</span>
+              <span className={`text-lg font-bold ${totalPnlBRL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {fmtBRL(totalPnlBRL)}
+              </span>
+            </div>
+            {fxRate == null && previewRows.some(r => r.instrument === 'futures') && (
+              <p className="text-xs text-muted-foreground">
+                Taxa USD/BRL não encontrada em market_data — resultado de futures USD não convertido.
+              </p>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep(1)} disabled={submitting}>← Voltar</Button>
               <Button variant="destructive" onClick={handleExecute} disabled={submitting}>
