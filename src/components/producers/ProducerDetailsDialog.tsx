@@ -64,7 +64,7 @@ export function ProducerDetailsDialog({ open, onOpenChange, producer, onEdit }: 
 
         <div>
           <div className="text-sm font-semibold mb-1">Operações</div>
-          <ProducerOperationsList producerId={producer.id} />
+          <ProducerOperationsList producerId={producer.id} onNavigate={() => onOpenChange(false)} />
         </div>
       </DialogContent>
     </Dialog>

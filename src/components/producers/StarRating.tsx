@@ -9,32 +9,31 @@ interface StarRatingProps {
 }
 
 export function StarRating({ value, onChange, readOnly = false, size = 16 }: StarRatingProps) {
-  const stars = [1, 2, 3];
+  const interactive = !readOnly && !!onChange;
   return (
-    <div className="inline-flex items-center gap-0.5">
-      {stars.map((n) => {
+    <div className="inline-flex items-center gap-1">
+      {[1, 2, 3].map((n) => {
         const filled = value !== null && n <= value;
         return (
           <button
             key={n}
             type="button"
-            disabled={readOnly}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (readOnly || !onChange) return;
-              // click same star twice clears
-              onChange(value === n ? null : n);
+            tabIndex={interactive ? 0 : -1}
+            onClick={() => {
+              if (!interactive) return;
+              onChange!(value === n ? null : n);
             }}
             className={cn(
-              'transition-colors',
-              !readOnly && 'cursor-pointer hover:scale-110',
-              readOnly && 'cursor-default',
+              'p-0.5 leading-none rounded transition-transform',
+              interactive && 'cursor-pointer hover:scale-125',
+              !interactive && 'cursor-default',
             )}
             aria-label={`${n} estrela${n > 1 ? 's' : ''}`}
           >
             <Star
               size={size}
               className={cn(
+                'transition-colors',
                 filled ? 'fill-primary text-primary' : 'text-muted-foreground',
               )}
             />
