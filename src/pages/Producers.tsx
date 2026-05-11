@@ -154,13 +154,7 @@ const Producers = () => {
     }
   };
 
-  const handleRatingChange = async (p: Producer, value: number | null) => {
-    try {
-      await update.mutateAsync({ id: p.id, credit_rating: value });
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Erro ao atualizar nota');
-    }
-  };
+
 
   return (
     <div className="space-y-6">
