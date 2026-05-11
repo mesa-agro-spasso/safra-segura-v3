@@ -404,10 +404,11 @@ const ArmazensD24: React.FC = () => {
   }, [btCommodity]);
 
   useEffect(() => {
+    if (btView !== 'new') return;
     setBtProposals(null);
     setBtWarnings([]);
     setBtExecutionBatch(null);
-  }, [btWarehouse, btCommodity]);
+  }, [btWarehouse, btCommodity, btView]);
 
   const executionSpread = pricingParameters?.[0]?.execution_spread_pct ?? 0.05;
 
