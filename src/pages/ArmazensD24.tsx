@@ -2152,6 +2152,11 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                     onChange={(e) => setPrices(prev => ({ ...prev, [instrument]: e.target.value === '' ? '' : parseFloat(e.target.value) }))}
                     className="h-9"
                   />
+                  {suggestedPrices[instrument] && (
+                    <p className="text-xs text-muted-foreground">
+                      Sugerido: {suggestedPrices[instrument]!.value.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} ({suggestedPrices[instrument]!.ticker})
+                    </p>
+                  )}
                 </div>
               ))}
               <div className="pt-4 flex justify-end gap-2">
