@@ -16,27 +16,26 @@ import {
 import {
   Plus, Pencil, Trash2, ChevronDown, ChevronUp, Filter, ArrowUpDown,
 } from 'lucide-react';
-import { useProducers, useDeleteProducer, useProducerOperationCounts } from '@/hooks/useProducers';
+import {
+  useProducers, useDeleteProducer, useProducerOperationCounts, useUpdateProducer,
+  type ProducerOpCount,
+} from '@/hooks/useProducers';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { ProducerFormDialog } from '@/components/producers/ProducerFormDialog';
 import { ProducerOperationsList } from '@/components/producers/ProducerOperationsList';
+import { ProducerDetailsDialog } from '@/components/producers/ProducerDetailsDialog';
 import { StarRating } from '@/components/producers/StarRating';
 import { toast } from 'sonner';
 import type { Producer } from '@/types';
 import { cn } from '@/lib/utils';
 
 type SortKey =
-  | 'full_name' | 'responsible_name' | 'tax_id' | 'phone' | 'email'
-  | 'farm_address' | 'warehouses' | 'credit_rating' | 'operations_count';
+  | 'full_name' | 'responsible_name' | 'warehouses' | 'credit_rating' | 'operations_count';
 type SortDir = 'asc' | 'desc';
 
 const TEXT_COLS: Array<{ key: SortKey; label: string; field: keyof Producer }> = [
   { key: 'full_name', label: 'Nome', field: 'full_name' },
   { key: 'responsible_name', label: 'Responsável', field: 'responsible_name' },
-  { key: 'tax_id', label: 'CPF/CNPJ', field: 'tax_id' },
-  { key: 'phone', label: 'Telefone', field: 'phone' },
-  { key: 'email', label: 'Email', field: 'email' },
-  { key: 'farm_address', label: 'Endereço', field: 'farm_address' },
 ];
 
 const Producers = () => {
@@ -44,6 +43,7 @@ const Producers = () => {
   const { data: warehouses = [] } = useActiveArmazens();
   const { data: opCounts = {} } = useProducerOperationCounts();
   const del = useDeleteProducer();
+  const update = useUpdateProducer();
 
   const [sortKey, setSortKey] = useState<SortKey>('full_name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -53,6 +53,7 @@ const Producers = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Producer | null>(null);
+  const [detailsOf, setDetailsOf] = useState<Producer | null>(null);
 
   const warehouseMap = useMemo(
     () => Object.fromEntries(warehouses.map((w) => [w.id, w.display_name])),
@@ -64,9 +65,10 @@ const Producers = () => {
     else { setSortKey(key); setSortDir('asc'); }
   };
 
+  const getCount = (id: string): ProducerOpCount => opCounts[id] ?? { active: 0, total: 0 };
+
   const filtered = useMemo(() => {
     return producers.filter((p) => {
-      // text filters
       for (const col of TEXT_COLS) {
         const f = textFilters[col.key];
         if (f && f.trim()) {
@@ -74,12 +76,10 @@ const Producers = () => {
           if (!val.toLowerCase().includes(f.toLowerCase())) return false;
         }
       }
-      // warehouse filter
       if (warehouseFilter.length > 0) {
         const ids = p.warehouse_ids ?? [];
         if (!warehouseFilter.some((w) => ids.includes(w))) return false;
       }
-      // rating filter
       if (ratingFilter.length > 0) {
         const r = p.credit_rating;
         const matches = ratingFilter.some((rf) => rf === 'none' ? r === null : r === rf);
@@ -98,15 +98,14 @@ const Producers = () => {
         av = (a.warehouse_ids ?? []).length;
         bv = (b.warehouse_ids ?? []).length;
       } else if (sortKey === 'operations_count') {
-        av = opCounts[a.id] ?? 0;
-        bv = opCounts[b.id] ?? 0;
+        av = getCount(a.id).total;
+        bv = getCount(b.id).total;
       } else if (sortKey === 'credit_rating') {
         av = a.credit_rating; bv = b.credit_rating;
       } else {
         av = (a[sortKey as keyof Producer] as string | null) ?? '';
         bv = (b[sortKey as keyof Producer] as string | null) ?? '';
       }
-      // nulls last
       const aNull = av === null || av === '' || av === undefined;
       const bNull = bv === null || bv === '' || bv === undefined;
       if (aNull && !bNull) return 1;
@@ -155,6 +154,14 @@ const Producers = () => {
     }
   };
 
+  const handleRatingChange = async (p: Producer, value: number | null) => {
+    try {
+      await update.mutateAsync({ id: p.id, credit_rating: value });
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Erro ao atualizar nota');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -170,6 +177,11 @@ const Producers = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8"></TableHead>
+                <TableHead>
+                  <button onClick={() => handleSort('operations_count')} className="hover:text-foreground flex items-center gap-1">
+                    Operações <SortIcon k="operations_count" />
+                  </button>
+                </TableHead>
                 {TEXT_COLS.map((c) => (
                   <TableHead key={c.key}><TextHeader k={c.key} label={c.label} /></TableHead>
                 ))}
@@ -242,46 +254,45 @@ const Producers = () => {
                     </Popover>
                   </div>
                 </TableHead>
-                <TableHead>
-                  <button onClick={() => handleSort('operations_count')} className="hover:text-foreground flex items-center gap-1">
-                    Operações <SortIcon k="operations_count" />
-                  </button>
-                </TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Carregando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Carregando…</TableCell></TableRow>
               )}
               {!isLoading && sorted.length === 0 && (
-                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   {producers.length === 0 ? 'Nenhum produtor cadastrado.' : 'Nenhum produtor corresponde aos filtros.'}
                 </TableCell></TableRow>
               )}
               {sorted.map((p) => {
                 const isOpen = expandedId === p.id;
-                const opCount = opCounts[p.id] ?? 0;
+                const c = getCount(p.id);
                 return (
                   <Collapsible key={p.id} open={isOpen} asChild>
                     <>
                       <TableRow
                         className="cursor-pointer"
-                        onClick={() => setExpandedId(isOpen ? null : p.id)}
+                        onClick={() => setDetailsOf(p)}
                       >
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <CollapsibleTrigger asChild>
-                            <button className="text-muted-foreground hover:text-foreground">
+                            <button
+                              className="text-muted-foreground hover:text-foreground"
+                              onClick={() => setExpandedId(isOpen ? null : p.id)}
+                            >
                               {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
                           </CollapsibleTrigger>
                         </TableCell>
+                        <TableCell>
+                          <Badge variant={c.active > 0 ? 'default' : 'secondary'} className="font-mono">
+                            {c.active}/{c.total}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="font-medium">{p.full_name ?? '—'}</TableCell>
                         <TableCell>{p.responsible_name ?? '—'}</TableCell>
-                        <TableCell className="font-mono text-xs">{p.tax_id ?? '—'}</TableCell>
-                        <TableCell>{p.phone ?? '—'}</TableCell>
-                        <TableCell>{p.email ?? '—'}</TableCell>
-                        <TableCell className="max-w-[220px] truncate" title={p.farm_address ?? ''}>{p.farm_address ?? '—'}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {(p.warehouse_ids ?? []).length === 0 && <span className="text-muted-foreground">—</span>}
@@ -292,9 +303,11 @@ const Producers = () => {
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell><StarRating value={p.credit_rating} readOnly /></TableCell>
-                        <TableCell>
-                          <Badge variant={opCount > 0 ? 'default' : 'secondary'}>{opCount}</Badge>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <StarRating
+                            value={p.credit_rating}
+                            onChange={(v) => handleRatingChange(p, v)}
+                          />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
@@ -309,8 +322,8 @@ const Producers = () => {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Excluir produtor?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    {opCount > 0
-                                      ? `Este produtor está vinculado a ${opCount} operação(ões). As operações continuarão existindo, mas perderão o vínculo.`
+                                    {c.total > 0
+                                      ? `Este produtor está vinculado a ${c.total} operação(ões). As operações continuarão existindo, mas perderão o vínculo.`
                                       : 'Esta ação não pode ser desfeita.'}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
@@ -325,7 +338,7 @@ const Producers = () => {
                       </TableRow>
                       <CollapsibleContent asChild>
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={11} className="p-0">
+                          <TableCell colSpan={7} className="p-0">
                             <ProducerOperationsList producerId={p.id} />
                           </TableCell>
                         </TableRow>
@@ -343,6 +356,12 @@ const Producers = () => {
         open={formOpen}
         onOpenChange={setFormOpen}
         producer={editing}
+      />
+      <ProducerDetailsDialog
+        open={!!detailsOf}
+        onOpenChange={(o) => { if (!o) setDetailsOf(null); }}
+        producer={detailsOf}
+        onEdit={(p) => { setDetailsOf(null); setEditing(p); setFormOpen(true); }}
       />
     </div>
   );

@@ -32,18 +32,26 @@ export function useProducerOperations(producerId: string | null) {
   });
 }
 
+const TERMINAL_STATUSES = new Set(['CLOSED', 'CANCELLED', 'CANCELADA', 'ENCERRADA']);
+
+export type ProducerOpCount = { active: number; total: number };
+
 export function useProducerOperationCounts() {
   return useQuery({
     queryKey: ['producer-operation-counts'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('operations')
-        .select('producer_id')
+        .select('producer_id, status')
         .not('producer_id', 'is', null);
       if (error) throw error;
-      const counts: Record<string, number> = {};
+      const counts: Record<string, ProducerOpCount> = {};
       (data ?? []).forEach((row: any) => {
-        if (row.producer_id) counts[row.producer_id] = (counts[row.producer_id] ?? 0) + 1;
+        if (!row.producer_id) return;
+        const c = counts[row.producer_id] ?? { active: 0, total: 0 };
+        c.total += 1;
+        if (!TERMINAL_STATUSES.has(row.status)) c.active += 1;
+        counts[row.producer_id] = c;
       });
       return counts;
     },
