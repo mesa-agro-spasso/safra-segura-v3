@@ -1992,6 +1992,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
       direction: string;
       contracts: number;
       volume_units: number;
+      notional_usd: number | null;
       price: number | '';
       open_price: number | null;
       pnl_brl: number | null;
@@ -1999,6 +2000,16 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     for (const p of proposals.proposals) {
       const opOrders = openOrdersByOpId[p.operation_id] ?? [];
       const proporção = (Number(p.volume_to_close_sacks) || 0) / (p.current_volume_sacks || 1);
+
+      // Total USD notional from futures legs in this operation (used to size NDF P&L)
+      const futuresUsdNotional = opOrders
+        .filter((o: any) => o.instrument_type === 'futures' && o.price != null)
+        .reduce((s: number, o: any) => {
+          const isCBOT = /^Z[SCWLM]/.test(String(o.ticker ?? ''));
+          const contractSize = isCBOT ? 5000 : 450;
+          return s + Number(o.price) * Number(o.contracts) * contractSize;
+        }, 0);
+
       const seen = new Set<string>();
       for (const o of opOrders) {
         if (seen.has(o.instrument_type)) continue;
@@ -2014,9 +2025,10 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         // P&L sign: profit when (close - open) * (open=buy ? +1 : -1) > 0
         const sign = o.direction === 'buy' ? 1 : -1;
         let pnl_brl: number | null = null;
+        let notional_usd: number | null = null;
+
         if (openPrice != null && typeof closePrice === 'number' && closePrice > 0) {
           if (o.instrument_type === 'futures') {
-            // CBOT (ZS/ZC/ZW/...) = 5000 bushels, USD/bushel; B3 corn = 450 sacks, BRL/sack
             const isCBOT = /^Z[SCWLM]/.test(String(o.ticker ?? ''));
             const contractSize = isCBOT ? 5000 : 450;
             const pnlNative = sign * (closePrice - openPrice) * contractSize * contracts;
@@ -2026,8 +2038,17 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
               pnl_brl = pnlNative;
             }
           } else if (o.instrument_type === 'ndf') {
-            // volume_units = notional USD; rate in BRL/USD
-            pnl_brl = sign * (closePrice - openPrice) * volume_units;
+            // For NDFs the stored `volume_units` is in sacks (currency=BRL) or USD (currency=USD).
+            // When sacks, derive USD notional from futures leg of the same operation, sized by close proportion.
+            if (o.currency === 'USD') {
+              notional_usd = volume_units;
+            } else if (futuresUsdNotional > 0) {
+              notional_usd = Math.round(futuresUsdNotional * proporção * 100) / 100;
+            }
+            if (notional_usd != null) {
+              // Rate is BRL/USD → result is already in BRL
+              pnl_brl = sign * (closePrice - openPrice) * notional_usd;
+            }
           }
         }
 
@@ -2037,6 +2058,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
           direction: closeDir,
           contracts,
           volume_units,
+          notional_usd,
           price: closePrice ?? '',
           open_price: openPrice,
           pnl_brl,
@@ -2045,6 +2067,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     }
     return rows;
   }, [proposals, openOrdersByOpId, prices, fxRate]);
+
 
   const totalPnlBRL = useMemo(
     () => previewRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0),
@@ -2305,7 +2328,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                               <TableCell className="font-mono text-xs">{r.display_code}</TableCell>
                               <TableCell className="text-xs uppercase">{r.direction}</TableCell>
                               <TableCell className="text-right">{r.contracts.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
-                              <TableCell className="text-right">{r.volume_units.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</TableCell>
+                              <TableCell className="text-right">{r.notional_usd == null ? '—' : r.notional_usd.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</TableCell>
                               <TableCell className="text-right">{r.open_price == null ? '—' : r.open_price.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
                               <TableCell className="text-right">{r.price === '' ? '—' : Number(r.price).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</TableCell>
                               <TableCell className={`text-right font-medium ${r.pnl_brl == null ? '' : r.pnl_brl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
