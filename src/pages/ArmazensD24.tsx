@@ -406,6 +406,7 @@ const ArmazensD24: React.FC = () => {
   useEffect(() => {
     setBtProposals(null);
     setBtWarnings([]);
+    setBtExecutionBatch(null);
   }, [btWarehouse, btCommodity]);
 
   const executionSpread = pricingParameters?.[0]?.execution_spread_pct ?? 0.05;
@@ -1059,7 +1060,7 @@ const ArmazensD24: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); setBtEditingBatchId(null); }}
+                  onClick={() => { setBtView('list'); setBtProposals(null); setBtWarnings([]); setBtEditingBatchId(null); setBtExecutionBatch(null); }}
                 >
                   ← Voltar
                 </Button>
@@ -1069,7 +1070,7 @@ const ArmazensD24: React.FC = () => {
               </h2>
             </div>
             {btView === 'list' && (
-              <Button onClick={() => setBtView('new')}>
+              <Button onClick={() => { setBtView('new'); setBtExecutionBatch(null); }}>
                 <Plus className="h-4 w-4 mr-1" />
                 Novo Batch
               </Button>
