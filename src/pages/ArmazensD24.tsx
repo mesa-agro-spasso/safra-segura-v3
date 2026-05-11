@@ -1412,6 +1412,22 @@ const ArmazensD24: React.FC = () => {
                       </TableBody>
                     </Table>
 
+                    {(() => {
+                      const totalMtm = btProposals.proposals.reduce((s, p) => {
+                        const edited = Number(btEditedVolumes[p.operation_id] ?? p.volume_to_close_sacks) || 0;
+                        const current = Number(p.current_volume_sacks) || 0;
+                        const mtm = p.mtm_at_allocation;
+                        if (mtm === null || mtm === undefined || current <= 0) return s;
+                        return s + (Number(mtm) * (edited / current));
+                      }, 0);
+                      return (
+                        <div className={`flex items-center justify-between text-xs font-medium px-1 ${totalMtm >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          <span>Resultado estimado (MTM a realizar)</span>
+                          <span>{fmtBrl(totalMtm)}</span>
+                        </div>
+                      );
+                    })()}
+
                     <div className={`flex items-center justify-between text-xs font-medium px-1 ${btVolumeOk ? 'text-green-500' : 'text-red-500'}`}>
                       <span>Total alocado</span>
                       <span>
