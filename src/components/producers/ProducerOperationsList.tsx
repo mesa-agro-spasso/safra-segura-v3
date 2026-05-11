@@ -43,7 +43,7 @@ export function ProducerOperationsList({
           onClick={(e) => {
             e.stopPropagation();
             onNavigate?.();
-            navigate(`/operacoes?op=${op.id}`);
+            navigate(`/operacoes-d24?op=${op.id}`);
           }}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/60 text-left text-sm transition-colors"
         >
