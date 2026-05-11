@@ -640,6 +640,7 @@ const OperacoesD24: React.FC = () => {
     } catch { return {}; }
   });
   const [calculating, setCalculating] = useState(false);
+  const [confirmStaleOpen, setConfirmStaleOpen] = useState(false);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
   const [detailResult, setDetailResult] = useState<Record<string, unknown> | null>(null);
   const [chartByOperation, setChartByOperation] = useState(false);
