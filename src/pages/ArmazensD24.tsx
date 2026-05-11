@@ -91,7 +91,8 @@ const ColumnSelector: React.FC<{
 const ARMAZEM_COLUMNS: Col[] = [
   { key: 'commodity', label: 'Commodity' },
   { key: 'op_ativas', label: 'Op. ativas' },
-  { key: 'volume', label: 'Volume (sc)' },
+  { key: 'volume_soja', label: 'Volume Soja (sc)' },
+  { key: 'volume_milho', label: 'Volume Milho (sc)' },
   { key: 'mtm_total', label: 'MTM Total' },
   { key: 'breakeven', label: 'Break-even' },
   { key: 'mtm_sc', label: 'MTM/sc' },
@@ -737,6 +738,8 @@ const ArmazensD24: React.FC = () => {
       );
       const commodities = Array.from(new Set(ops.map(o => o.commodity)));
       const volumeTotal = ops.reduce((acc, o) => acc + (o.volume_sacks ?? 0), 0);
+      const volumeSoja = ops.filter(o => o.commodity === 'soybean').reduce((acc, o) => acc + (o.volume_sacks ?? 0), 0);
+      const volumeMilho = ops.filter(o => o.commodity === 'corn').reduce((acc, o) => acc + (o.volume_sacks ?? 0), 0);
       const mtmTotal = ops.reduce((acc, o) => acc + (latestByOpId[o.id]?.mtm_total_brl ?? 0), 0);
 
       let beNum = 0;
@@ -801,6 +804,8 @@ const ArmazensD24: React.FC = () => {
         ops,
         commodities,
         volumeTotal,
+        volumeSoja,
+        volumeMilho,
         mtmTotal,
         breakevenMedio,
         mtmPerSackMedio,
@@ -930,7 +935,8 @@ const ArmazensD24: React.FC = () => {
                     <TableHead>Armazém</TableHead>
                     {armazemCols.visible.has('commodity') && <TableHead>Commodity</TableHead>}
                     {armazemCols.visible.has('op_ativas') && <TableHead className="text-right">Op. ativas</TableHead>}
-                    {armazemCols.visible.has('volume') && <TableHead className="text-right">Volume (sc)</TableHead>}
+                    {armazemCols.visible.has('volume_soja') && <TableHead className="text-right">Volume Soja (sc)</TableHead>}
+                    {armazemCols.visible.has('volume_milho') && <TableHead className="text-right">Volume Milho (sc)</TableHead>}
                     {armazemCols.visible.has('mtm_total') && <TableHead className="text-right">MTM Total (R$)</TableHead>}
                     {armazemCols.visible.has('breakeven') && <TableHead className="text-right">Break-even médio</TableHead>}
                     {armazemCols.visible.has('mtm_sc') && <TableHead className="text-right">MTM/sc</TableHead>}
@@ -964,8 +970,11 @@ const ArmazensD24: React.FC = () => {
                       {armazemCols.visible.has('op_ativas') && (
                         <TableCell className="text-right">{r.ops.length}</TableCell>
                       )}
-                      {armazemCols.visible.has('volume') && (
-                        <TableCell className="text-right">{fmtSc(r.volumeTotal)}</TableCell>
+                      {armazemCols.visible.has('volume_soja') && (
+                        <TableCell className="text-right">{fmtSc(r.volumeSoja)}</TableCell>
+                      )}
+                      {armazemCols.visible.has('volume_milho') && (
+                        <TableCell className="text-right">{fmtSc(r.volumeMilho)}</TableCell>
                       )}
                       {armazemCols.visible.has('mtm_total') && (
                         <TableCell className={`text-right ${r.mtmTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -1238,7 +1247,24 @@ const ArmazensD24: React.FC = () => {
 
                 {/* Volume */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Volume a fechar (sacas)</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Volume a fechar (sacas)</Label>
+                    {btWarehouse && btCommodity && (() => {
+                      const available = (operations ?? [])
+                        .filter(o => o.warehouse_id === btWarehouse && o.commodity === btCommodity && ACTIVE_STATUSES.has(o.status))
+                        .reduce((s, o) => s + (o.volume_sacks ?? 0), 0);
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setBtVolume(String(available))}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          title="Clique para usar o total disponível"
+                        >
+                          Disponível: <span className="font-medium text-foreground">{available.toLocaleString('pt-BR')} sc</span>
+                        </button>
+                      );
+                    })()}
+                  </div>
                   <Input
                     type="number"
                     placeholder="Ex.: 5000"
