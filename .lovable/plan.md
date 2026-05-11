@@ -1,81 +1,33 @@
-## Aba Produtores — cadastro completo + vínculo com operações
+# Plano: melhorias no gráfico de histórico de preço físico
 
-### 1. Schema (migration)
+Arquivo único: `src/components/market/PhysicalPriceHistoryDialog.tsx`
 
-**Expandir `producers`** (já tem `id`, `name`, `notes`, `created_at`):
-- Renomear `name` → `full_name` e tornar **nullable** (todos os campos são opcionais)
-- `responsible_name` text nullable
-- `tax_id` text nullable (CPF/CNPJ, só máscara visual)
-- `phone` text nullable
-- `email` text nullable
-- `farm_address` text nullable
-- `warehouse_ids` text[] nullable DEFAULT '{}' ← praças vinculadas (IDs de `warehouses.id`)
-- `credit_rating` smallint nullable, CHECK (credit_rating BETWEEN 1 AND 3)
-- `updated_at` timestamptz + trigger `update_updated_at_column`
-- Índice GIN em `warehouse_ids` para filtros
+## Mudanças
 
-Todos os campos do produtor são informativos e opcionais — sem NOT NULL além do `id`.
+### 1. Seletor de período
+Adicionar um grupo de botões (ToggleGroup) acima do gráfico com as opções:
+- `1m` — últimos 30 dias
+- `6m` — últimos 6 meses
+- `1a` — último 1 ano
+- `5a` — últimos 5 anos
+- `tudo` — todos os dados (default)
 
-**`operations.producer_id`** já existe — adicionar FK `REFERENCES producers(id) ON DELETE SET NULL` + índice.
+Estado local `period` (default `'tudo'`). Filtra o `history` por `reference_date >= hoje - período` para gerar o `chartData`.
+A tabela abaixo do gráfico continua mostrando todo o histórico (não é afetada pelo seletor) — mantém consistência com o comportamento atual de edição.
 
-Replicar no schema `staging`.
-
-### 2. Hooks (`src/hooks/`)
-- `useProducers.ts` — list/get/create/update/delete + `useProducerOperations(producerId)` (operações com `display_code`, status, volume, datas, warehouse).
-- `useUpdateOperationProducer.ts` — vincula/desvincula `producer_id` em operação existente.
-
-### 3. Página `src/pages/Producers.tsx` (substitui placeholder)
-
-Header com botão **"Novo produtor"** → `ProducerFormDialog`.
-
-Tabela colunas: Nome | Responsável | CPF/CNPJ | Telefone | Email | Endereço | Praças (badges) | Nota (estrelas) | Operações (contagem) | Ações.
-
-- Ordenação clicável em todas as colunas (ASC/DESC). Nulos vão para o final.
-- Filtros por coluna (popover na header):
-  - Texto contains (case-insensitive): Nome, Responsável, CPF/CNPJ, Telefone, Email, Endereço
-  - Multi-select Praças (lista `useActiveArmazens`, filtra se `warehouse_ids` contém algum selecionado)
-  - Nota: checkboxes 1/2/3/sem nota
-- Linha clicável → `Collapsible` com lista de operações vinculadas. Click numa operação → `navigate('/operacoes?op=<id>')`.
-- Células vazias mostradas como "—" para diferenciar de string vazia.
-
-### 4. Componentes (`src/components/producers/`)
-- **`ProducerFormDialog.tsx`** — todos os campos opcionais: Nome, Responsável, CPF/CNPJ (máscara), Telefone (máscara BR), Email, Endereço, Praças (multi-checkbox dos armazéns ativos), Nota (3 estrelas + "sem nota"), Notas. Sem validação obrigatória além de tipos básicos (email format se preenchido).
-- **`ProducerOperationsList.tsx`** — collapsible com operações + click handler.
-- **`StarRating.tsx`** — 1–3 estrelas, modos readonly/editável, suporta valor nulo.
-
-### 5. Vinculação tardia em Operações
-- `OperacoesD24.tsx`: nova coluna **"Produtor"** na tabela:
-  - Vinculado: nome do produtor (ou "—" se sem nome) com link para `/produtores`
-  - Não vinculado: botão "Vincular" → popover Combobox de produtores + atalho "+ Novo produtor"
-- Form de criação de operação: campo opcional Produtor (Combobox + criar inline).
-
-### 6. Deep-link `?op=<id>` em `/operacoes`
-- `OperacoesD24.tsx` lê `searchParams.get('op')`, abre `Sheet` com detalhes da operação, limpa o param ao fechar.
-
----
-
-### Arquivos novos
-```text
-supabase/migrations/<ts>_producers_expand.sql
-src/hooks/useProducers.ts
-src/hooks/useUpdateOperationProducer.ts
-src/components/producers/ProducerFormDialog.tsx
-src/components/producers/ProducerOperationsList.tsx
-src/components/producers/StarRating.tsx
-src/lib/masks.ts
+### 2. Eixo Y dinâmico
+Calcular `min` e `max` dos preços do `chartData` filtrado:
 ```
-
-### Arquivos editados
-```text
-src/pages/Producers.tsx           (substitui placeholder)
-src/pages/OperacoesD24.tsx        (coluna Produtor + deep-link ?op=)
-src/types/index.ts                (Producer com todos campos nullable)
+const prices = chartData.map(d => d.price);
+const min = Math.min(...prices);
+const max = Math.max(...prices);
+const yMin = min * 0.9;
+const yMax = max * 1.1;
 ```
+Passar `domain={[yMin, yMax]}` no `<YAxis>`. Formatar tick com 2 casas (`tickFormatter={(v) => v.toFixed(2)}`).
 
-### Notas
-- Sem cálculos financeiros, só CRUD/UI.
-- Todos os campos do produtor são **opcionais/informativos** — nada bloqueia o cadastro.
-- Ordenação/filtragem client-side (volume baixo).
-- Máscara CPF/CNPJ apenas visual (sem validação de dígito).
-- RLS: `ALL` para `authenticated` (consistente com o projeto).
-- `producer_id` em `operations` continua opcional para vinculação tardia.
+Edge case: se `chartData` estiver vazio após o filtro, exibir mensagem "Sem dados no período selecionado" no lugar do gráfico (tabela continua visível).
+
+## Sem mudanças
+- Hooks de dados, schema, tabela de edição, navegação — tudo intacto.
+- Apenas UI de visualização do gráfico.
