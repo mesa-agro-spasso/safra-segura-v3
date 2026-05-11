@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { StarRating } from './StarRating';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useCreateProducer, useUpdateProducer } from '@/hooks/useProducers';
@@ -92,14 +93,12 @@ export function ProducerFormDialog({ open, onOpenChange, producer, onCreated }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar produtor' : 'Novo produtor'}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Formulário de cadastro e edição de produtor, incluindo a nota de crédito.
-          </DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4 py-2 pr-1">
+        <ScrollArea className="flex-1 pr-4 -mr-4">
+          <div className="grid grid-cols-2 gap-4 py-2">
             <div className="col-span-2 space-y-2">
               <Label>Nome completo</Label>
               <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} placeholder="Nome do produtor ou empresa" />
@@ -165,7 +164,8 @@ export function ProducerFormDialog({ open, onOpenChange, producer, onCreated }: 
               <Label>Notas</Label>
               <Textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
-        </div>
+          </div>
+        </ScrollArea>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSave} disabled={create.isPending || update.isPending}>
