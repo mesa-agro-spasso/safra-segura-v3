@@ -17,7 +17,7 @@ import {
   Plus, Pencil, Trash2, ChevronDown, ChevronUp, Filter, ArrowUpDown,
 } from 'lucide-react';
 import {
-  useProducers, useDeleteProducer, useProducerOperationCounts, useUpdateProducer,
+  useProducers, useDeleteProducer, useProducerOperationCounts,
   type ProducerOpCount,
 } from '@/hooks/useProducers';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
