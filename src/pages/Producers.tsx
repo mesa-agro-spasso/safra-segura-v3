@@ -286,14 +286,13 @@ const Producers = () => {
                               {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
                           </CollapsibleTrigger>
-                        </TableCell>
+                        <TableCell className="font-medium">{p.full_name ?? '—'}</TableCell>
+                        <TableCell>{p.responsible_name ?? '—'}</TableCell>
                         <TableCell>
                           <Badge variant={c.active > 0 ? 'default' : 'secondary'} className="font-mono">
                             {c.active}/{c.total}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-medium">{p.full_name ?? '—'}</TableCell>
-                        <TableCell>{p.responsible_name ?? '—'}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {(p.warehouse_ids ?? []).length === 0 && <span className="text-muted-foreground">—</span>}
@@ -304,11 +303,9 @@ const Producers = () => {
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <StarRating
-                            value={p.credit_rating}
-                            onChange={(v) => handleRatingChange(p, v)}
-                          />
+                        <TableCell>
+                          <StarRating value={p.credit_rating} readOnly />
+
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
