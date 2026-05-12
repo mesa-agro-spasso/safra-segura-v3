@@ -2027,7 +2027,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     if (!proposals) return [];
     return proposals.proposals.map(p => {
       const op = operationsById[p.operation_id];
-      const orig = Number(op?.origination_price_brl ?? 0);
+      const orig = Number(op?.pricing_snapshots?.origination_price_brl ?? 0);
       const venda = Number(physicalPrices[p.operation_id]) || 0;
       const volume = Number(p.volume_to_close_sacks) || 0;
       const receita = venda * volume;
