@@ -2279,6 +2279,13 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
               <span className="text-lg">✓</span>
               <span className="font-medium">Batch executado com sucesso</span>
             </div>
+            {executedPhysicalAvg != null && executedPhysicalRevenue != null && (
+              <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm">
+                <span className="font-medium">Físico vendido</span> — preço médio{' '}
+                <span className="font-semibold">{fmtBRL(executedPhysicalAvg)}/sc</span>{' '}
+                · receita total <span className="font-semibold">{fmtBRL(executedPhysicalRevenue)}</span>
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -2303,27 +2310,56 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
           </div>
         ) : step === 1 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Volumes (read-only) */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Volumes do batch</h3>
+            {/* Volumes + physical price (4 cols) */}
+            <div className="space-y-2 md:col-span-2">
+              <h3 className="text-sm font-semibold">Volumes e preço físico</h3>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Código</TableHead>
                     <TableHead className="text-right">A fechar (sc)</TableHead>
+                    <TableHead className="text-right">Preço orig. (R$/sc)</TableHead>
+                    <TableHead className="text-right">Preço físico (R$/sc) *</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {proposals.proposals.map((p) => (
-                    <TableRow key={p.operation_id}>
-                      <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
-                      <TableCell className="text-right text-xs">
-                        {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {proposals.proposals.map((p) => {
+                    const op = operationsById[p.operation_id];
+                    const orig = Number(op?.pricing_snapshots?.origination_price_brl ?? 0);
+                    return (
+                      <TableRow key={p.operation_id}>
+                        <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                        <TableCell className="text-right text-xs">
+                          {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          {orig > 0 ? orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0,00"
+                            value={physicalPrices[p.operation_id] ?? ''}
+                            onChange={(e) => setPhysicalPrices(prev => ({
+                              ...prev,
+                              [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
+                            }))}
+                            className="h-8 w-28 ml-auto text-right"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
+              <p className="text-xs text-muted-foreground">
+                * Preço de venda do físico — obrigatório por operação.
+                {batch?.physical_sale_price_estimated_brl_per_sack != null && (
+                  <> Sugestão (ao salvar draft): R$ {Number(batch.physical_sale_price_estimated_brl_per_sack).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc.</>
+                )}
+              </p>
             </div>
 
             {/* Prices */}
