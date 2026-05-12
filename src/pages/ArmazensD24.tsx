@@ -2280,7 +2280,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className={`${step === 2 ? 'max-w-4xl' : 'max-w-2xl'} max-h-[90vh] overflow-y-auto`}>
         <DialogHeader>
           <DialogTitle>
             {executedSummary ? 'Execução Concluída' : step === 1 ? 'Ajustar Volumes e Preços' : 'Revisar Execução'}
