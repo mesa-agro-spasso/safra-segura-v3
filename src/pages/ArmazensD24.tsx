@@ -2044,6 +2044,29 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     return found?.price_brl_per_sack ?? null;
   }, [batch, latestPhysicalPrices]);
 
+  const totalPhysicalVolume = useMemo(
+    () => (proposals?.proposals ?? []).reduce((s, p) => s + (Number(p.volume_to_close_sacks) || 0), 0),
+    [proposals],
+  );
+
+  const weightedOriginationPrice = useMemo(() => {
+    if (!proposals) return null;
+    const acc = proposals.proposals.reduce(
+      (sum, p) => {
+        const op = operationsById[p.operation_id];
+        const orig = Number(op?.origination_price_brl ?? 0);
+        const volume = Number(p.volume_to_close_sacks) || 0;
+        if (orig > 0 && volume > 0) {
+          sum.total += orig * volume;
+          sum.volume += volume;
+        }
+        return sum;
+      },
+      { total: 0, volume: 0 },
+    );
+    return acc.volume > 0 ? acc.total / acc.volume : null;
+  }, [proposals, operationsById]);
+
   // Physical rows for review (margin vs origination, revenue)
   // TEMPORARY — physical P&L is calculated client-side for now.
   // Must be moved to backend engine in next refactor. Source data
@@ -2245,16 +2268,12 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
       // Atomic physical writes via RPC (physical_sales + operations + batch.physical_executed)
       const totalVol = proposals.proposals.reduce((s, p) => s + (Number(p.volume_to_close_sacks) || 0), 0);
-      const weightedPrice = totalVol > 0
-        ? proposals.proposals.reduce(
-            (s, p) => s + (Number(physicalPrices[p.operation_id]) || 0) * (Number(p.volume_to_close_sacks) || 0), 0
-          ) / totalVol
-        : 0;
+      const weightedPrice = totalVol > 0 ? Number(physicalPrice) || 0 : 0;
 
       const salesPayload = proposals.proposals.map(p => ({
         operation_id: p.operation_id,
         volume_sacks: Number(p.volume_to_close_sacks) || 0,
-        price_brl_per_sack: Number(physicalPrices[p.operation_id]) || 0,
+        price_brl_per_sack: Number(physicalPrice) || 0,
         current_volume_sacks: Number(p.current_volume_sacks) || 0,
       }));
 
@@ -2272,9 +2291,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         .eq('id', batch.id);
       if (batchError) throw new Error(batchError.message);
 
-      const totalRevenue = proposals.proposals.reduce(
-        (s, p) => s + (Number(physicalPrices[p.operation_id]) || 0) * (Number(p.volume_to_close_sacks) || 0), 0
-      );
+      const totalRevenue = (Number(physicalPrice) || 0) * totalVol;
       setExecutedPhysicalAvg(weightedPrice);
       setExecutedPhysicalRevenue(totalRevenue);
       setExecutedSummary(proposals.proposals.map(p => ({
