@@ -3676,12 +3676,22 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
                       <Label className="text-xs">Taxa NDF real (BRL/USD)</Label>
                       <Input type="number" step="0.0001" value={leg.ndf_rate}
                         onChange={e => updateLeg(i, { ndf_rate: e.target.value })} />
+                      {leg.ndf_rate_suggested && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Sugerido: {Number(leg.ndf_rate_suggested).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div>
                       <Label className="text-xs">Preço real ({priceLabel})</Label>
                       <Input type="number" step="0.01" value={leg.price}
                         onChange={e => updateLeg(i, { price: e.target.value })} />
+                      {leg.price_suggested && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Sugerido: {Number(leg.price_suggested).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} {leg.ticker && `(${leg.ticker})`}
+                        </p>
+                      )}
                     </div>
                   )}
                   <div>
@@ -3693,6 +3703,53 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
               </CardContent>
             </Card>
           ))}
+
+          {/* Físico — sempre presente */}
+          <Card className="border-primary/30">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline">físico</Badge>
+                <Badge variant="secondary">venda</Badge>
+                <Badge>BRL</Badge>
+                {origPrice > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    Preço orig.: R$ {origPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs">Volume (sc)</Label>
+                  <Input type="number" step="1" value={physicalVolume}
+                    onChange={e => setPhysicalVolume(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs">Preço físico (R$/sc) *</Label>
+                  <Input type="number" step="0.01" value={physicalPrice}
+                    onChange={e => setPhysicalPrice(e.target.value)} />
+                  {physicalRef && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Sugerido: R$ {Number(physicalRef.price_brl_per_sack).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc
+                      {' '}(praça em {new Date(physicalRef.reference_date).toLocaleDateString('pt-BR')})
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-xs">Obs.</Label>
+                  <Input value={physicalNotes}
+                    onChange={e => setPhysicalNotes(e.target.value)} />
+                </div>
+              </div>
+              {physicalMarginEst != null && (
+                <p className={`text-xs ${physicalMarginEst >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  Margem física estimada: {fmtBrl(physicalMarginEst)}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           <div>
             <Label className="text-xs">Texto de confirmação StoneX (colar na íntegra)</Label>
             <Textarea rows={4} value={stonexText}
@@ -3702,7 +3759,7 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={submitting}>Cancelar</Button>
-          <Button onClick={handleConfirm} disabled={submitting || legs.length === 0}>
+          <Button onClick={handleConfirm} disabled={submitting || !physicalValid}>
             {submitting ? 'Registrando...' : 'Confirmar Encerramento'}
           </Button>
         </DialogFooter>
