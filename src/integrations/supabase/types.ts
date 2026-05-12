@@ -311,6 +311,8 @@ export type Database = {
           notes: string | null
           origination_price_brl: number
           payment_date: string
+          physical_sale_price_brl_per_sack: number | null
+          physical_sale_registered_at: string | null
           pricing_snapshot_id: string | null
           producer_id: string | null
           sale_date: string
@@ -340,6 +342,8 @@ export type Database = {
           notes?: string | null
           origination_price_brl: number
           payment_date: string
+          physical_sale_price_brl_per_sack?: number | null
+          physical_sale_registered_at?: string | null
           pricing_snapshot_id?: string | null
           producer_id?: string | null
           sale_date: string
@@ -369,6 +373,8 @@ export type Database = {
           notes?: string | null
           origination_price_brl?: number
           payment_date?: string
+          physical_sale_price_brl_per_sack?: number | null
+          physical_sale_registered_at?: string | null
           pricing_snapshot_id?: string | null
           producer_id?: string | null
           sale_date?: string
@@ -564,6 +570,54 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      physical_sales: {
+        Row: {
+          batch_id: string
+          id: string
+          notes: string | null
+          operation_id: string
+          price_brl_per_sack: number
+          registered_at: string
+          registered_by: string | null
+          volume_sacks: number
+        }
+        Insert: {
+          batch_id: string
+          id?: string
+          notes?: string | null
+          operation_id: string
+          price_brl_per_sack: number
+          registered_at?: string
+          registered_by?: string | null
+          volume_sacks: number
+        }
+        Update: {
+          batch_id?: string
+          id?: string
+          notes?: string | null
+          operation_id?: string
+          price_brl_per_sack?: number
+          registered_at?: string
+          registered_by?: string | null
+          volume_sacks?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physical_sales_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_closing_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physical_sales_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "operations"
             referencedColumns: ["id"]
           },
         ]
@@ -970,6 +1024,8 @@ export type Database = {
           mtm_staleness_warning: string | null
           notes: string | null
           order_message: string | null
+          physical_sale_price_estimated_brl_per_sack: number | null
+          physical_sale_price_executed_brl_per_sack: number | null
           status: string
           total_volume_sacks: number
           warehouse_id: string
@@ -990,6 +1046,8 @@ export type Database = {
           mtm_staleness_warning?: string | null
           notes?: string | null
           order_message?: string | null
+          physical_sale_price_estimated_brl_per_sack?: number | null
+          physical_sale_price_executed_brl_per_sack?: number | null
           status?: string
           total_volume_sacks: number
           warehouse_id: string
@@ -1010,6 +1068,8 @@ export type Database = {
           mtm_staleness_warning?: string | null
           notes?: string | null
           order_message?: string | null
+          physical_sale_price_estimated_brl_per_sack?: number | null
+          physical_sale_price_executed_brl_per_sack?: number | null
           status?: string
           total_volume_sacks?: number
           warehouse_id?: string
@@ -1092,6 +1152,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      execute_block_trade_physical: {
+        Args: {
+          p_batch_id: string
+          p_sales: Json
+          p_user_id: string
+          p_weighted_price: number
+        }
+        Returns: undefined
+      }
       generate_hedge_order_display_code: {
         Args: {
           p_commodity: string

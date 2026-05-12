@@ -5,6 +5,7 @@ import { useOperationsWithDetails } from '@/hooks/useOperations';
 import { useMtmSnapshots } from '@/hooks/useMtmSnapshots';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { useMarketData } from '@/hooks/useMarketData';
+import { useLatestPhysicalPrices } from '@/hooks/usePhysicalPrices';
 import type { Warehouse, OperationWithDetails, MtmSnapshot } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -355,6 +356,13 @@ const ArmazensD24: React.FC = () => {
   const { data: operations = [] } = useOperationsWithDetails();
   const { data: snapshots = [] } = useMtmSnapshots();
   const { data: pricingParameters } = usePricingParameters();
+  const { data: latestPhysicalPrices = [] } = useLatestPhysicalPrices();
+
+  const operationsById = useMemo(() => {
+    const map: Record<string, OperationWithDetails> = {};
+    for (const op of (operations ?? [])) map[op.id] = op;
+    return map;
+  }, [operations]);
 
   const [tab, setTab] = useState<'posicao' | 'block_trade' | 'config'>('posicao');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
@@ -652,6 +660,11 @@ const ArmazensD24: React.FC = () => {
         ...confirmLines,
       ].join('\n');
 
+      const latestPhysical = latestPhysicalPrices.find(
+        p => p.warehouse_id === btWarehouse && p.commodity === btCommodity
+      );
+      const physicalEstimated = latestPhysical?.price_brl_per_sack ?? null;
+
       const payload: any = {
         warehouse_id: btWarehouse,
         commodity: btCommodity,
@@ -666,6 +679,7 @@ const ArmazensD24: React.FC = () => {
         status: 'DRAFT',
         order_message: orderMessage,
         confirmation_message: confirmationMessage,
+        physical_sale_price_estimated_brl_per_sack: physicalEstimated,
       };
       if (btEditingBatchId) {
         const { error } = await (supabase as any)
@@ -1751,6 +1765,8 @@ const ArmazensD24: React.FC = () => {
         proposals={btProposals}
         d24Orders={btD24Orders as any[]}
         userId={user?.id ?? null}
+        operationsById={operationsById}
+        latestPhysicalPrices={latestPhysicalPrices}
         onExecuted={() => {
           setBtExecutionOpen(false);
           setBtExecutionBatch(null);
@@ -1899,23 +1915,37 @@ interface BlockTradeExecutionModalProps {
   proposals: AllocateBatchResponse | null;
   d24Orders: any[];
   userId: string | null;
+  operationsById: Record<string, OperationWithDetails>;
+  latestPhysicalPrices: { warehouse_id: string; commodity: string; price_brl_per_sack: number }[];
   onExecuted: () => void;
 }
 
 const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
-  open, onClose, batch, proposals, d24Orders, userId, onExecuted,
+  open, onClose, batch, proposals, d24Orders, userId, operationsById, latestPhysicalPrices, onExecuted,
 }) => {
   const [step, setStep] = useState<1 | 2>(1);
   const [prices, setPrices] = useState<Record<string, number | ''>>({});
+  const [physicalPrices, setPhysicalPrices] = useState<Record<string, number | ''>>({});
   const [submitting, setSubmitting] = useState(false);
   const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
+  const [executedPhysicalAvg, setExecutedPhysicalAvg] = useState<number | null>(null);
+  const [executedPhysicalRevenue, setExecutedPhysicalRevenue] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setPrices({});
     setStep(1);
     setExecutedSummary(null);
-  }, [open]);
+    setExecutedPhysicalAvg(null);
+    setExecutedPhysicalRevenue(null);
+    // Initialize physical prices from batch's estimated value (or empty)
+    const init: Record<string, number | ''> = {};
+    const estimated = batch?.physical_sale_price_estimated_brl_per_sack;
+    for (const p of (proposals?.proposals ?? [])) {
+      init[p.operation_id] = estimated != null ? Number(estimated) : '';
+    }
+    setPhysicalPrices(init);
+  }, [open, batch, proposals]);
 
 
   const openOrdersByOpId = useMemo(() => {
@@ -1976,6 +2006,58 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   }, [open, batchInstruments, suggestedPrices]);
 
   const pricesOk = batchInstruments.every(i => Number(prices[i]) > 0);
+  const physicalOk = (proposals?.proposals ?? []).every(p => Number(physicalPrices[p.operation_id]) > 0);
+  const canReview = pricesOk && physicalOk;
+
+  // Market reference for the batch's warehouse + commodity (may be null for new warehouses)
+  const marketRefPrice = useMemo(() => {
+    if (!batch) return null;
+    const found = latestPhysicalPrices.find(
+      p => p.warehouse_id === batch.warehouse_id && p.commodity === batch.commodity
+    );
+    return found?.price_brl_per_sack ?? null;
+  }, [batch, latestPhysicalPrices]);
+
+  // Physical rows for review (margin vs origination, revenue)
+  // TEMPORARY — physical P&L is calculated client-side for now.
+  // Must be moved to backend engine in next refactor. Source data
+  // (origination_price_brl, physical_sale_price_brl_per_sack) is
+  // persisted in operations + physical_sales for reconstruction.
+  const physicalRows = useMemo(() => {
+    if (!proposals) return [];
+    return proposals.proposals.map(p => {
+      const op = operationsById[p.operation_id];
+      const orig = Number(op?.pricing_snapshots?.origination_price_brl ?? 0);
+      const venda = Number(physicalPrices[p.operation_id]) || 0;
+      const volume = Number(p.volume_to_close_sacks) || 0;
+      const receita = venda * volume;
+      const margem = (venda - orig) * volume;
+      const origDeviation = orig > 0 ? Math.abs((venda - orig) / orig) : 0;
+      const marketDeviation = marketRefPrice != null && marketRefPrice > 0
+        ? Math.abs((venda - marketRefPrice) / marketRefPrice)
+        : null;
+      return {
+        operation_id: p.operation_id,
+        display_code: p.display_code,
+        volume,
+        orig,
+        venda,
+        receita,
+        margem,
+        origDeviation,
+        marketDeviation,
+      };
+    });
+  }, [proposals, operationsById, physicalPrices, marketRefPrice]);
+
+  const totalPhysicalMargin = useMemo(
+    () => physicalRows.reduce((s, r) => s + r.margem, 0),
+    [physicalRows],
+  );
+  const totalPhysicalRevenue = useMemo(
+    () => physicalRows.reduce((s, r) => s + r.receita, 0),
+    [physicalRows],
+  );
 
   // FX (USD/BRL) for converting USD-denominated futures P&L to BRL
   const fxRate = useMemo(() => {
@@ -2069,10 +2151,11 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   }, [proposals, openOrdersByOpId, prices, fxRate]);
 
 
-  const totalPnlBRL = useMemo(
+  const totalPnlDerivativesBRL = useMemo(
     () => previewRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0),
     [previewRows],
   );
+  const totalPnlBRL = totalPnlDerivativesBRL + totalPhysicalMargin;
   const fmtBRL = (v: number) =>
     v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
 
@@ -2131,12 +2214,40 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         }
       }
 
+      // Atomic physical writes via RPC (physical_sales + operations + batch.physical_executed)
+      const totalVol = proposals.proposals.reduce((s, p) => s + (Number(p.volume_to_close_sacks) || 0), 0);
+      const weightedPrice = totalVol > 0
+        ? proposals.proposals.reduce(
+            (s, p) => s + (Number(physicalPrices[p.operation_id]) || 0) * (Number(p.volume_to_close_sacks) || 0), 0
+          ) / totalVol
+        : 0;
+
+      const salesPayload = proposals.proposals.map(p => ({
+        operation_id: p.operation_id,
+        volume_sacks: Number(p.volume_to_close_sacks) || 0,
+        price_brl_per_sack: Number(physicalPrices[p.operation_id]) || 0,
+        current_volume_sacks: Number(p.current_volume_sacks) || 0,
+      }));
+
+      const { error: rpcError } = await (supabase as any).rpc('execute_block_trade_physical', {
+        p_batch_id: batch.id,
+        p_user_id: userId,
+        p_sales: salesPayload,
+        p_weighted_price: weightedPrice,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+
       const { error: batchError } = await (supabase as any)
         .from('warehouse_closing_batches')
         .update({ status: 'EXECUTED', generated_orders_count: totalOrdersInserted })
         .eq('id', batch.id);
       if (batchError) throw new Error(batchError.message);
 
+      const totalRevenue = proposals.proposals.reduce(
+        (s, p) => s + (Number(physicalPrices[p.operation_id]) || 0) * (Number(p.volume_to_close_sacks) || 0), 0
+      );
+      setExecutedPhysicalAvg(weightedPrice);
+      setExecutedPhysicalRevenue(totalRevenue);
       setExecutedSummary(proposals.proposals.map(p => ({
         display_code: p.display_code,
         volume_closed: Number(p.volume_to_close_sacks) || 0,
@@ -2168,6 +2279,13 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
               <span className="text-lg">✓</span>
               <span className="font-medium">Batch executado com sucesso</span>
             </div>
+            {executedPhysicalAvg != null && executedPhysicalRevenue != null && (
+              <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm">
+                <span className="font-medium">Físico vendido</span> — preço médio{' '}
+                <span className="font-semibold">{fmtBRL(executedPhysicalAvg)}/sc</span>{' '}
+                · receita total <span className="font-semibold">{fmtBRL(executedPhysicalRevenue)}</span>
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -2192,27 +2310,56 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
           </div>
         ) : step === 1 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Volumes (read-only) */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Volumes do batch</h3>
+            {/* Volumes + physical price (4 cols) */}
+            <div className="space-y-2 md:col-span-2">
+              <h3 className="text-sm font-semibold">Volumes e preço físico</h3>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Código</TableHead>
                     <TableHead className="text-right">A fechar (sc)</TableHead>
+                    <TableHead className="text-right">Preço orig. (R$/sc)</TableHead>
+                    <TableHead className="text-right">Preço físico (R$/sc) *</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {proposals.proposals.map((p) => (
-                    <TableRow key={p.operation_id}>
-                      <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
-                      <TableCell className="text-right text-xs">
-                        {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {proposals.proposals.map((p) => {
+                    const op = operationsById[p.operation_id];
+                    const orig = Number(op?.pricing_snapshots?.origination_price_brl ?? 0);
+                    return (
+                      <TableRow key={p.operation_id}>
+                        <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                        <TableCell className="text-right text-xs">
+                          {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          {orig > 0 ? orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0,00"
+                            value={physicalPrices[p.operation_id] ?? ''}
+                            onChange={(e) => setPhysicalPrices(prev => ({
+                              ...prev,
+                              [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
+                            }))}
+                            className="h-8 w-28 ml-auto text-right"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
+              <p className="text-xs text-muted-foreground">
+                * Preço de venda do físico — obrigatório por operação.
+                {batch?.physical_sale_price_estimated_brl_per_sack != null && (
+                  <> Sugestão (ao salvar draft): R$ {Number(batch.physical_sale_price_estimated_brl_per_sack).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc.</>
+                )}
+              </p>
             </div>
 
             {/* Prices */}
@@ -2252,7 +2399,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={onClose}>Cancelar</Button>
-                  <Button disabled={!pricesOk} onClick={() => setStep(2)}>
+                  <Button disabled={!canReview} onClick={() => setStep(2)}>
                     Revisar →
                   </Button>
                 </div>
@@ -2344,6 +2491,62 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                           </TableRow>
                         </TableBody>
                       </Table>
+                    </div>
+                  )}
+
+                  {physicalRows.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold">Físico</h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Operação</TableHead>
+                            <TableHead className="text-right">Volume (sc)</TableHead>
+                            <TableHead className="text-right">Preço orig.</TableHead>
+                            <TableHead className="text-right">Preço venda</TableHead>
+                            <TableHead className="text-right">Receita (R$)</TableHead>
+                            <TableHead className="text-right">Margem física (R$)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {physicalRows.map((r, i) => (
+                            <TableRow key={`ph-${i}`}>
+                              <TableCell className="font-mono text-xs">{r.display_code}</TableCell>
+                              <TableCell className="text-right">{r.volume.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{r.orig > 0 ? r.orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</TableCell>
+                              <TableCell className="text-right">{r.venda.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{fmtBRL(r.receita)}</TableCell>
+                              <TableCell className={`text-right font-medium ${r.margem >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {fmtBRL(r.margem)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-right text-xs font-semibold">Subtotal Físico</TableCell>
+                            <TableCell className="text-right text-xs font-semibold">{fmtBRL(totalPhysicalRevenue)}</TableCell>
+                            <TableCell className={`text-right font-semibold ${totalPhysicalMargin >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {fmtBRL(totalPhysicalMargin)}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                      {/* Guardrails */}
+                      {physicalRows.filter(r => r.origDeviation > 0.30).map(r => (
+                        <p key={`warn-orig-${r.operation_id}`} className="text-xs text-amber-500">
+                          ⚠ {r.display_code}: margem física fora do padrão (variação &gt; 30% sobre originação).
+                        </p>
+                      ))}
+                      {marketRefPrice != null
+                        ? physicalRows.filter(r => r.marketDeviation != null && r.marketDeviation > 0.10).map(r => (
+                            <p key={`warn-mkt-${r.operation_id}`} className="text-xs text-amber-500">
+                              ⚠ {r.display_code}: preço diverge mais de 10% do mercado da praça (ref. R$ {marketRefPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc).
+                            </p>
+                          ))
+                        : (
+                          <p className="text-xs text-blue-400">
+                            ℹ Sem preço de mercado de referência para esta praça/commodity — guardrail de divergência de mercado desabilitado.
+                          </p>
+                        )}
                     </div>
                   )}
 
