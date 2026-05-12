@@ -1938,14 +1938,29 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     setExecutedSummary(null);
     setExecutedPhysicalAvg(null);
     setExecutedPhysicalRevenue(null);
-    // Initialize physical prices from batch's estimated value (or empty)
+    // Pre-fill physical price per operation with cascade fallback:
+    //   1) batch.physical_sale_price_estimated (set when draft was saved)
+    //   2) latest physical_prices for the warehouse+commodity (most recent reference)
+    //   3) operation.origination_price_brl (last-resort sane default)
     const init: Record<string, number | ''> = {};
     const estimated = batch?.physical_sale_price_estimated_brl_per_sack;
+    const ref = batch
+      ? latestPhysicalPrices.find(
+          (p) => p.warehouse_id === batch.warehouse_id && p.commodity === batch.commodity,
+        )?.price_brl_per_sack ?? null
+      : null;
     for (const p of (proposals?.proposals ?? [])) {
-      init[p.operation_id] = estimated != null ? Number(estimated) : '';
+      const op = operationsById[p.operation_id];
+      const orig = Number(op?.origination_price_brl ?? 0);
+      const fallback = estimated != null
+        ? Number(estimated)
+        : ref != null
+          ? Number(ref)
+          : orig > 0 ? orig : '';
+      init[p.operation_id] = fallback;
     }
     setPhysicalPrices(init);
-  }, [open, batch, proposals]);
+  }, [open, batch, proposals, latestPhysicalPrices, operationsById]);
 
 
   const openOrdersByOpId = useMemo(() => {
