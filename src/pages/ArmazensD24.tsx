@@ -2006,6 +2006,58 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   }, [open, batchInstruments, suggestedPrices]);
 
   const pricesOk = batchInstruments.every(i => Number(prices[i]) > 0);
+  const physicalOk = (proposals?.proposals ?? []).every(p => Number(physicalPrices[p.operation_id]) > 0);
+  const canReview = pricesOk && physicalOk;
+
+  // Market reference for the batch's warehouse + commodity (may be null for new warehouses)
+  const marketRefPrice = useMemo(() => {
+    if (!batch) return null;
+    const found = latestPhysicalPrices.find(
+      p => p.warehouse_id === batch.warehouse_id && p.commodity === batch.commodity
+    );
+    return found?.price_brl_per_sack ?? null;
+  }, [batch, latestPhysicalPrices]);
+
+  // Physical rows for review (margin vs origination, revenue)
+  // TEMPORARY — physical P&L is calculated client-side for now.
+  // Must be moved to backend engine in next refactor. Source data
+  // (origination_price_brl, physical_sale_price_brl_per_sack) is
+  // persisted in operations + physical_sales for reconstruction.
+  const physicalRows = useMemo(() => {
+    if (!proposals) return [];
+    return proposals.proposals.map(p => {
+      const op = operationsById[p.operation_id];
+      const orig = Number(op?.origination_price_brl ?? 0);
+      const venda = Number(physicalPrices[p.operation_id]) || 0;
+      const volume = Number(p.volume_to_close_sacks) || 0;
+      const receita = venda * volume;
+      const margem = (venda - orig) * volume;
+      const origDeviation = orig > 0 ? Math.abs((venda - orig) / orig) : 0;
+      const marketDeviation = marketRefPrice != null && marketRefPrice > 0
+        ? Math.abs((venda - marketRefPrice) / marketRefPrice)
+        : null;
+      return {
+        operation_id: p.operation_id,
+        display_code: p.display_code,
+        volume,
+        orig,
+        venda,
+        receita,
+        margem,
+        origDeviation,
+        marketDeviation,
+      };
+    });
+  }, [proposals, operationsById, physicalPrices, marketRefPrice]);
+
+  const totalPhysicalMargin = useMemo(
+    () => physicalRows.reduce((s, r) => s + r.margem, 0),
+    [physicalRows],
+  );
+  const totalPhysicalRevenue = useMemo(
+    () => physicalRows.reduce((s, r) => s + r.receita, 0),
+    [physicalRows],
+  );
 
   // FX (USD/BRL) for converting USD-denominated futures P&L to BRL
   const fxRate = useMemo(() => {
