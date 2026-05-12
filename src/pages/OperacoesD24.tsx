@@ -3535,8 +3535,19 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
 
   const priceLabel = exchange === 'b3' ? 'BRL/sc' : 'USD/bushel';
 
+  const physicalVolNum = parseFloat(physicalVolume);
+  const physicalPriceNum = parseFloat(physicalPrice);
+  const physicalValid = physicalVolNum > 0 && physicalPriceNum > 0;
+  const physicalMarginEst = physicalValid && origPrice > 0
+    ? (physicalPriceNum - origPrice) * physicalVolNum
+    : null;
+
   const handleConfirm = async () => {
     if (!operation || !userId) return;
+    if (!physicalValid) {
+      toast.error('Informe volume e preço do físico');
+      return;
+    }
     setSubmitting(true);
     try {
       for (const leg of legs) {
@@ -3570,6 +3581,23 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
           .insert(payload as never);
         if (error) throw new Error(error.message);
       }
+
+      // Atomic physical write via shared RPC (single-op list).
+      const currentVol = Number(opD24?.volume_sacks ?? 0)
+        - Number(opD24?.fully_closed_volume_sacks ?? 0);
+      const { error: rpcError } = await (supabase as any).rpc('execute_block_trade_physical', {
+        p_batch_id: null,
+        p_user_id: userId,
+        p_sales: [{
+          operation_id: operation.id,
+          volume_sacks: physicalVolNum,
+          price_brl_per_sack: physicalPriceNum,
+          current_volume_sacks: currentVol > 0 ? currentVol : Number(opD24?.volume_sacks ?? 0),
+        }],
+        p_weighted_price: physicalPriceNum,
+      });
+      if (rpcError) throw new Error('Físico: ' + rpcError.message);
+
       await supabase
         .from('operations' as any)
         .update({ closing_plan: null } as never)
