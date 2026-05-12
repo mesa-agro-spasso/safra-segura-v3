@@ -356,6 +356,13 @@ const ArmazensD24: React.FC = () => {
   const { data: operations = [] } = useOperationsWithDetails();
   const { data: snapshots = [] } = useMtmSnapshots();
   const { data: pricingParameters } = usePricingParameters();
+  const { data: latestPhysicalPrices = [] } = useLatestPhysicalPrices();
+
+  const operationsById = useMemo(() => {
+    const map: Record<string, OperationWithDetails> = {};
+    for (const op of (operations ?? [])) map[op.id] = op;
+    return map;
+  }, [operations]);
 
   const [tab, setTab] = useState<'posicao' | 'block_trade' | 'config'>('posicao');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
