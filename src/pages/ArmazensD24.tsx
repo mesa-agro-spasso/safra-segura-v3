@@ -2400,6 +2400,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={onClose}>Cancelar</Button>
                   <Button disabled={!canReview} onClick={() => setStep(2)}>
+                    Revisar →
                   </Button>
                 </div>
               </div>
