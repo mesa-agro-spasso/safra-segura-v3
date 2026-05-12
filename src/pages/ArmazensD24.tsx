@@ -1926,7 +1926,10 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   const [step, setStep] = useState<1 | 2>(1);
   const [prices, setPrices] = useState<Record<string, number | ''>>({});
   const [physicalPrice, setPhysicalPrice] = useState<number | ''>('');
-  const [isEditingPhysical, setIsEditingPhysical] = useState(false);
+  // Per-operation overrides for physical price (rare — used in <0.1% of cases).
+  // When unset for an op, the batch-level `physicalPrice` is used.
+  const [physicalOverrides, setPhysicalOverrides] = useState<Record<string, number>>({});
+  const [editingOverrideOpId, setEditingOverrideOpId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
   const [executedPhysicalAvg, setExecutedPhysicalAvg] = useState<number | null>(null);
