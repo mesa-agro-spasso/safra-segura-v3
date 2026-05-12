@@ -5,6 +5,7 @@ import { useOperationsWithDetails } from '@/hooks/useOperations';
 import { useMtmSnapshots } from '@/hooks/useMtmSnapshots';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { useMarketData } from '@/hooks/useMarketData';
+import { useLatestPhysicalPrices } from '@/hooks/usePhysicalPrices';
 import type { Warehouse, OperationWithDetails, MtmSnapshot } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
