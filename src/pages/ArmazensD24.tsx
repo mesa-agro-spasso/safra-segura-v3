@@ -660,6 +660,11 @@ const ArmazensD24: React.FC = () => {
         ...confirmLines,
       ].join('\n');
 
+      const latestPhysical = latestPhysicalPrices.find(
+        p => p.warehouse_id === btWarehouse && p.commodity === btCommodity
+      );
+      const physicalEstimated = latestPhysical?.price_brl_per_sack ?? null;
+
       const payload: any = {
         warehouse_id: btWarehouse,
         commodity: btCommodity,
@@ -674,6 +679,7 @@ const ArmazensD24: React.FC = () => {
         status: 'DRAFT',
         order_message: orderMessage,
         confirmation_message: confirmationMessage,
+        physical_sale_price_estimated_brl_per_sack: physicalEstimated,
       };
       if (btEditingBatchId) {
         const { error } = await (supabase as any)
