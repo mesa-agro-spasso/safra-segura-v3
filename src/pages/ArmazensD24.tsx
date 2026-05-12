@@ -22,7 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle, List, Plus, Send, X, ChevronRight, Copy } from 'lucide-react';
+import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle, List, Plus, Send, X, ChevronRight, Copy, Pencil, Check } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
