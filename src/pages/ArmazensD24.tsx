@@ -2327,100 +2327,131 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
             </Button>
           </div>
         ) : step === 1 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Volumes + physical price (4 cols) */}
-            <div className="space-y-2 md:col-span-2">
-              <h3 className="text-sm font-semibold">Volumes e preço físico</h3>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead className="text-right">A fechar (sc)</TableHead>
-                    <TableHead className="text-right">Preço orig. (R$/sc)</TableHead>
-                    <TableHead className="text-right">Preço físico (R$/sc) *</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {proposals.proposals.map((p) => {
-                    const op = operationsById[p.operation_id];
-                    const orig = Number(op?.origination_price_brl ?? 0);
-                    return (
-                      <TableRow key={p.operation_id}>
-                        <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
-                        <TableCell className="text-right text-xs">
-                          {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
-                        </TableCell>
-                        <TableCell className="text-right text-xs">
-                          {orig > 0 ? orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0,00"
-                            value={physicalPrices[p.operation_id] ?? ''}
-                            onChange={(e) => setPhysicalPrices(prev => ({
-                              ...prev,
-                              [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
-                            }))}
-                            className="h-8 w-28 ml-auto text-right"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              <p className="text-xs text-muted-foreground">
-                * Preço de venda do físico — obrigatório por operação.
-                {batch?.physical_sale_price_estimated_brl_per_sack != null && (
-                  <> Sugestão (ao salvar draft): R$ {Number(batch.physical_sale_price_estimated_brl_per_sack).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc.</>
-                )}
-              </p>
-            </div>
+          <div className="space-y-4">
+            {batchInstruments.length === 0 && (
+              <p className="text-xs text-muted-foreground">Nenhum instrumento encontrado nas operações do batch.</p>
+            )}
 
-            {/* Prices */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold">Preço por instrumento</h3>
-              {batchInstruments.length === 0 && (
-                <p className="text-xs text-muted-foreground">Nenhum instrumento encontrado nas operações do batch.</p>
-              )}
-              {batchInstruments.map(instrument => (
-                <div key={instrument} className="space-y-1.5">
-                  <Label className="text-xs">
-                    Preço — {instrument === 'futures' ? 'Futures (USD/bushel)'
-                      : instrument === 'ndf' ? 'NDF (R$/USD)'
-                      : `${instrument} (premium)`}
-                  </Label>
-                  <Input
-                    type="number"
-                    step="0.0001"
-                    placeholder="Preço real executado"
-                    value={prices[instrument] ?? ''}
-                    onChange={(e) => setPrices(prev => ({ ...prev, [instrument]: e.target.value === '' ? '' : parseFloat(e.target.value) }))}
-                    className="h-9"
-                  />
-                  {suggestedPrices[instrument] && (
-                    <p className="text-xs text-muted-foreground">
-                      Sugerido: {suggestedPrices[instrument]!.value.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} ({suggestedPrices[instrument]!.ticker})
-                    </p>
+            {/* Um card por instrumento (preço único do batch) */}
+            {batchInstruments.map(instrument => {
+              const isNdf = instrument === 'ndf';
+              const ticker = tickerByInstrument[instrument];
+              const sug = suggestedPrices[instrument];
+              const label = isNdf ? 'Taxa NDF (R$/USD)'
+                : instrument === 'futures' ? 'Preço (USD/bushel)'
+                : `${instrument} (premium)`;
+              return (
+                <Card key={instrument}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline">{instrument}</Badge>
+                      <Badge variant="secondary">sell (fechamento)</Badge>
+                      <Badge>{isNdf ? 'BRL' : 'USD'}</Badge>
+                      {ticker && <span className="font-mono text-xs text-muted-foreground">{ticker}</span>}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div>
+                      <Label className="text-xs">{label}</Label>
+                      <Input
+                        type="number"
+                        step="0.0001"
+                        placeholder="Preço real executado"
+                        value={prices[instrument] ?? ''}
+                        onChange={(e) => setPrices(prev => ({ ...prev, [instrument]: e.target.value === '' ? '' : parseFloat(e.target.value) }))}
+                        className="h-9"
+                      />
+                      {sug && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Sugerido: {sug.value.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} ({sug.ticker})
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+
+            {/* Card único para físico — preço por operação */}
+            <Card className="border-primary/30">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline">físico</Badge>
+                  <Badge variant="secondary">venda</Badge>
+                  <Badge>BRL</Badge>
+                  {marketRefPrice != null && (
+                    <span className="text-xs text-muted-foreground">
+                      Mercado da praça: R$ {marketRefPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc
+                    </span>
                   )}
                 </div>
-              ))}
-              <div className="pt-4 flex items-center justify-between gap-3">
-                <div className="text-xs text-muted-foreground">
-                  Resultado estimado:{' '}
-                  <span className={`font-semibold ${totalPnlBRL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {fmtBRL(totalPnlBRL)}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={onClose}>Cancelar</Button>
-                  <Button disabled={!canReview} onClick={() => setStep(2)}>
-                    Revisar →
-                  </Button>
-                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead className="text-right">A fechar (sc)</TableHead>
+                      <TableHead className="text-right">Preço orig. (R$/sc)</TableHead>
+                      <TableHead className="text-right">Preço físico (R$/sc) *</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {proposals.proposals.map((p) => {
+                      const op = operationsById[p.operation_id];
+                      const orig = Number(op?.origination_price_brl ?? 0);
+                      return (
+                        <TableRow key={p.operation_id}>
+                          <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
+                          <TableCell className="text-right text-xs">
+                            {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
+                          </TableCell>
+                          <TableCell className="text-right text-xs">
+                            {orig > 0 ? orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0,00"
+                              value={physicalPrices[p.operation_id] ?? ''}
+                              onChange={(e) => setPhysicalPrices(prev => ({
+                                ...prev,
+                                [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
+                              }))}
+                              className="h-8 w-28 ml-auto text-right"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <p className="text-[11px] text-muted-foreground">
+                  * Preço de venda do físico — obrigatório por operação. Pré-preenchido com{' '}
+                  {batch?.physical_sale_price_estimated_brl_per_sack != null
+                    ? <>estimativa do batch (R$ {Number(batch.physical_sale_price_estimated_brl_per_sack).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc)</>
+                    : marketRefPrice != null
+                      ? <>último preço da praça (R$ {marketRefPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc)</>
+                      : <>preço de originação (fallback)</>}
+                  .
+                </p>
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <div className="text-xs text-muted-foreground">
+                Resultado estimado:{' '}
+                <span className={`font-semibold ${totalPnlBRL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {fmtBRL(totalPnlBRL)}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={onClose}>Cancelar</Button>
+                <Button disabled={!canReview} onClick={() => setStep(2)}>
+                  Revisar →
+                </Button>
               </div>
             </div>
           </div>
