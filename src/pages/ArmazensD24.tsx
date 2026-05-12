@@ -1765,6 +1765,8 @@ const ArmazensD24: React.FC = () => {
         proposals={btProposals}
         d24Orders={btD24Orders as any[]}
         userId={user?.id ?? null}
+        operationsById={operationsById}
+        latestPhysicalPrices={latestPhysicalPrices}
         onExecuted={() => {
           setBtExecutionOpen(false);
           setBtExecutionBatch(null);
