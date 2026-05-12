@@ -22,7 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle, List, Plus, Send, X, ChevronRight, Copy } from 'lucide-react';
+import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle, List, Plus, Send, X, ChevronRight, Copy, Pencil, Check } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -1926,6 +1926,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   const [step, setStep] = useState<1 | 2>(1);
   const [prices, setPrices] = useState<Record<string, number | ''>>({});
   const [physicalPrices, setPhysicalPrices] = useState<Record<string, number | ''>>({});
+  const [editingPhysical, setEditingPhysical] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
   const [executedPhysicalAvg, setExecutedPhysicalAvg] = useState<number | null>(null);
@@ -1935,6 +1936,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     if (!open) return;
     setPrices({});
     setStep(1);
+    setEditingPhysical(new Set());
     setExecutedSummary(null);
     setExecutedPhysicalAvg(null);
     setExecutedPhysicalRevenue(null);
@@ -2387,47 +2389,67 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead className="text-right">A fechar (sc)</TableHead>
-                      <TableHead className="text-right">Preço orig. (R$/sc)</TableHead>
-                      <TableHead className="text-right">Preço físico (R$/sc) *</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {proposals.proposals.map((p) => {
-                      const op = operationsById[p.operation_id];
-                      const orig = Number(op?.origination_price_brl ?? 0);
-                      return (
-                        <TableRow key={p.operation_id}>
-                          <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
-                          <TableCell className="text-right text-xs">
-                            {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
-                          </TableCell>
-                          <TableCell className="text-right text-xs">
-                            {orig > 0 ? orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="0,00"
-                              value={physicalPrices[p.operation_id] ?? ''}
-                              onChange={(e) => setPhysicalPrices(prev => ({
-                                ...prev,
-                                [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
-                              }))}
-                              className="h-8 w-28 ml-auto text-right"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <div className="space-y-1.5">
+                  {proposals.proposals.map((p) => {
+                    const op = operationsById[p.operation_id];
+                    const orig = Number(op?.origination_price_brl ?? 0);
+                    const isEditing = editingPhysical.has(p.operation_id);
+                    const value = physicalPrices[p.operation_id];
+                    const numericValue = typeof value === 'number' ? value : (value === '' ? null : parseFloat(value as any));
+                    const toggleEdit = () => {
+                      setEditingPhysical(prev => {
+                        const next = new Set(prev);
+                        if (next.has(p.operation_id)) next.delete(p.operation_id);
+                        else next.add(p.operation_id);
+                        return next;
+                      });
+                    };
+                    return (
+                      <div key={p.operation_id} className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                        <span className="font-mono text-xs flex-1 truncate">{p.display_code}</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} sc
+                        </span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          orig. {orig > 0 ? `R$ ${orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isEditing ? (
+                            <>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0,00"
+                                value={value ?? ''}
+                                onChange={(e) => setPhysicalPrices(prev => ({
+                                  ...prev,
+                                  [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
+                                }))}
+                                autoFocus
+                                className="h-7 w-24 text-right text-xs"
+                              />
+                              <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={toggleEdit}>
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <span className={`text-sm font-medium tabular-nums w-24 text-right ${numericValue && numericValue > 0 ? '' : 'text-muted-foreground'}`}>
+                                {numericValue && numericValue > 0
+                                  ? `R$ ${numericValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  : '—'}
+                              </span>
+                              <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={toggleEdit}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
                 <p className="text-[11px] text-muted-foreground">
                   * Preço de venda do físico — obrigatório por operação. Pré-preenchido com{' '}
                   {batch?.physical_sale_price_estimated_brl_per_sack != null
