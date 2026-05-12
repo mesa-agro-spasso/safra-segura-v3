@@ -3435,6 +3435,19 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
   const closingPlan = opD24?.closing_plan;
   const exchange = (opD24?.exchange ?? 'cbot').toLowerCase();
   const CONTRACT_SIZE = exchange === 'b3' ? 450 : 5000;
+  const commodity = opD24?.commodity as string | undefined;
+  const warehouseId = opD24?.warehouse_id as string | undefined;
+  const origPrice = Number(opD24?.origination_price_brl ?? 0);
+
+  const { data: marketData } = useMarketData();
+  const { data: latestPhysical = [] } = useLatestPhysicalPrices();
+
+  const physicalRef = useMemo(() => {
+    if (!warehouseId || !commodity) return null;
+    return latestPhysical.find(
+      (p) => p.warehouse_id === warehouseId && p.commodity === commodity,
+    ) ?? null;
+  }, [latestPhysical, warehouseId, commodity]);
 
   const openOrders = useMemo(() =>
     (d24Orders ?? []).filter((o: any) =>
@@ -3449,7 +3462,9 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
     ticker: string;
     contracts: string;
     price: string;
+    price_suggested?: string;
     ndf_rate: string;
+    ndf_rate_suggested?: string;
     ndf_maturity: string;
     option_type: string;
     strike: string;
@@ -3458,6 +3473,9 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
   };
 
   const [legs, setLegs] = useState<ClosingLeg[]>([]);
+  const [physicalVolume, setPhysicalVolume] = useState<string>('');
+  const [physicalPrice, setPhysicalPrice] = useState<string>('');
+  const [physicalNotes, setPhysicalNotes] = useState<string>('');
   const [stonexText, setStonexText] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -3468,24 +3486,48 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
     if (newId === prevIdRef.current) return;
     prevIdRef.current = newId;
 
-    const initial: ClosingLeg[] = openOrders.map((o: any) => ({
-      order_id: o.id,
-      instrument_type: o.instrument_type,
-      direction: o.direction === 'sell' ? 'buy' : 'sell',
-      currency: o.currency,
-      ticker: o.ticker ?? '',
-      contracts: String(o.contracts ?? ''),
-      price: '',
-      ndf_rate: '',
-      ndf_maturity: o.ndf_maturity ?? '',
-      option_type: o.option_type ?? 'call',
-      strike: o.strike != null ? String(o.strike) : '',
-      expiration_date: o.expiration_date ?? '',
-      notes: '',
-    }));
+    // Pre-fill derivatives prices from market_data per leg ticker.
+    const initial: ClosingLeg[] = openOrders.map((o: any) => {
+      const md = marketData?.find((m: any) => m.ticker === o.ticker);
+      let priceSug = '';
+      let ndfSug = '';
+      if (o.instrument_type === 'futures' && md?.price != null) {
+        priceSug = String(md.price);
+      } else if (o.instrument_type === 'ndf') {
+        const ndfVal = md?.ndf_override ?? md?.ndf_estimated ?? md?.ndf_spot;
+        if (ndfVal != null) ndfSug = String(ndfVal);
+        else {
+          const fx = marketData?.find((m: any) => m.ticker === 'USD/BRL');
+          if (fx?.price != null) ndfSug = String(fx.price);
+        }
+      }
+      return {
+        order_id: o.id,
+        instrument_type: o.instrument_type,
+        direction: o.direction === 'sell' ? 'buy' : 'sell',
+        currency: o.currency,
+        ticker: o.ticker ?? '',
+        contracts: String(o.contracts ?? ''),
+        price: priceSug,
+        price_suggested: priceSug || undefined,
+        ndf_rate: ndfSug,
+        ndf_rate_suggested: ndfSug || undefined,
+        ndf_maturity: o.ndf_maturity ?? '',
+        option_type: o.option_type ?? 'call',
+        strike: o.strike != null ? String(o.strike) : '',
+        expiration_date: o.expiration_date ?? '',
+        notes: '',
+      };
+    });
     setLegs(initial);
+
+    // Physical leg pre-fill
+    const planVol = closingPlan?.volume_sacks ?? opD24?.volume_sacks ?? '';
+    setPhysicalVolume(planVol === '' ? '' : String(planVol));
+    setPhysicalPrice(physicalRef ? String(physicalRef.price_brl_per_sack) : '');
+    setPhysicalNotes('');
     setStonexText('');
-  }, [operation, openOrders]);
+  }, [operation, openOrders, marketData, physicalRef, closingPlan, opD24]);
 
   const updateLeg = (i: number, patch: Partial<ClosingLeg>) => {
     setLegs(prev => prev.map((l, j) => j === i ? { ...l, ...patch } : l));
@@ -3493,8 +3535,19 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
 
   const priceLabel = exchange === 'b3' ? 'BRL/sc' : 'USD/bushel';
 
+  const physicalVolNum = parseFloat(physicalVolume);
+  const physicalPriceNum = parseFloat(physicalPrice);
+  const physicalValid = physicalVolNum > 0 && physicalPriceNum > 0;
+  const physicalMarginEst = physicalValid && origPrice > 0
+    ? (physicalPriceNum - origPrice) * physicalVolNum
+    : null;
+
   const handleConfirm = async () => {
     if (!operation || !userId) return;
+    if (!physicalValid) {
+      toast.error('Informe volume e preço do físico');
+      return;
+    }
     setSubmitting(true);
     try {
       for (const leg of legs) {
@@ -3528,6 +3581,23 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
           .insert(payload as never);
         if (error) throw new Error(error.message);
       }
+
+      // Atomic physical write via shared RPC (single-op list).
+      const currentVol = Number(opD24?.volume_sacks ?? 0)
+        - Number(opD24?.fully_closed_volume_sacks ?? 0);
+      const { error: rpcError } = await (supabase as any).rpc('execute_block_trade_physical', {
+        p_batch_id: null,
+        p_user_id: userId,
+        p_sales: [{
+          operation_id: operation.id,
+          volume_sacks: physicalVolNum,
+          price_brl_per_sack: physicalPriceNum,
+          current_volume_sacks: currentVol > 0 ? currentVol : Number(opD24?.volume_sacks ?? 0),
+        }],
+        p_weighted_price: physicalPriceNum,
+      });
+      if (rpcError) throw new Error('Físico: ' + rpcError.message);
+
       await supabase
         .from('operations' as any)
         .update({ closing_plan: null } as never)
