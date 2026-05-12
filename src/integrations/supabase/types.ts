@@ -576,7 +576,7 @@ export type Database = {
       }
       physical_sales: {
         Row: {
-          batch_id: string
+          batch_id: string | null
           id: string
           notes: string | null
           operation_id: string
@@ -586,7 +586,7 @@ export type Database = {
           volume_sacks: number
         }
         Insert: {
-          batch_id: string
+          batch_id?: string | null
           id?: string
           notes?: string | null
           operation_id: string
@@ -596,7 +596,7 @@ export type Database = {
           volume_sacks: number
         }
         Update: {
-          batch_id?: string
+          batch_id?: string | null
           id?: string
           notes?: string | null
           operation_id?: string
