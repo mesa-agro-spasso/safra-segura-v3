@@ -1925,8 +1925,8 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 }) => {
   const [step, setStep] = useState<1 | 2>(1);
   const [prices, setPrices] = useState<Record<string, number | ''>>({});
-  const [physicalPrices, setPhysicalPrices] = useState<Record<string, number | ''>>({});
-  const [editingPhysical, setEditingPhysical] = useState<Set<string>>(new Set());
+  const [physicalPrice, setPhysicalPrice] = useState<number | ''>('');
+  const [isEditingPhysical, setIsEditingPhysical] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
   const [executedPhysicalAvg, setExecutedPhysicalAvg] = useState<number | null>(null);
@@ -1936,32 +1936,41 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     if (!open) return;
     setPrices({});
     setStep(1);
-    setEditingPhysical(new Set());
+    setIsEditingPhysical(false);
     setExecutedSummary(null);
     setExecutedPhysicalAvg(null);
     setExecutedPhysicalRevenue(null);
-    // Pre-fill physical price per operation with cascade fallback:
+    // Pre-fill physical price for the whole batch with cascade fallback:
     //   1) batch.physical_sale_price_estimated (set when draft was saved)
     //   2) latest physical_prices for the warehouse+commodity (most recent reference)
-    //   3) operation.origination_price_brl (last-resort sane default)
-    const init: Record<string, number | ''> = {};
+    //   3) weighted avg of operation.origination_price_brl (last-resort sane default)
     const estimated = batch?.physical_sale_price_estimated_brl_per_sack;
     const ref = batch
       ? latestPhysicalPrices.find(
           (p) => p.warehouse_id === batch.warehouse_id && p.commodity === batch.commodity,
         )?.price_brl_per_sack ?? null
       : null;
-    for (const p of (proposals?.proposals ?? [])) {
-      const op = operationsById[p.operation_id];
-      const orig = Number(op?.origination_price_brl ?? 0);
-      const fallback = estimated != null
-        ? Number(estimated)
-        : ref != null
-          ? Number(ref)
-          : orig > 0 ? orig : '';
-      init[p.operation_id] = fallback;
-    }
-    setPhysicalPrices(init);
+    const weightedOrigination = (proposals?.proposals ?? []).reduce(
+      (acc, p) => {
+        const op = operationsById[p.operation_id];
+        const orig = Number(op?.origination_price_brl ?? 0);
+        const volume = Number(p.volume_to_close_sacks) || 0;
+        if (orig > 0 && volume > 0) {
+          acc.total += orig * volume;
+          acc.volume += volume;
+        }
+        return acc;
+      },
+      { total: 0, volume: 0 },
+    );
+    const fallback = estimated != null
+      ? Number(estimated)
+      : ref != null
+        ? Number(ref)
+        : weightedOrigination.volume > 0
+          ? weightedOrigination.total / weightedOrigination.volume
+          : '';
+    setPhysicalPrice(fallback);
   }, [open, batch, proposals, latestPhysicalPrices, operationsById]);
 
 
@@ -2023,7 +2032,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   }, [open, batchInstruments, suggestedPrices]);
 
   const pricesOk = batchInstruments.every(i => Number(prices[i]) > 0);
-  const physicalOk = (proposals?.proposals ?? []).every(p => Number(physicalPrices[p.operation_id]) > 0);
+  const physicalOk = Number(physicalPrice) > 0;
   const canReview = pricesOk && physicalOk;
 
   // Market reference for the batch's warehouse + commodity (may be null for new warehouses)
@@ -2034,6 +2043,29 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     );
     return found?.price_brl_per_sack ?? null;
   }, [batch, latestPhysicalPrices]);
+
+  const totalPhysicalVolume = useMemo(
+    () => (proposals?.proposals ?? []).reduce((s, p) => s + (Number(p.volume_to_close_sacks) || 0), 0),
+    [proposals],
+  );
+
+  const weightedOriginationPrice = useMemo(() => {
+    if (!proposals) return null;
+    const acc = proposals.proposals.reduce(
+      (sum, p) => {
+        const op = operationsById[p.operation_id];
+        const orig = Number(op?.origination_price_brl ?? 0);
+        const volume = Number(p.volume_to_close_sacks) || 0;
+        if (orig > 0 && volume > 0) {
+          sum.total += orig * volume;
+          sum.volume += volume;
+        }
+        return sum;
+      },
+      { total: 0, volume: 0 },
+    );
+    return acc.volume > 0 ? acc.total / acc.volume : null;
+  }, [proposals, operationsById]);
 
   // Physical rows for review (margin vs origination, revenue)
   // TEMPORARY — physical P&L is calculated client-side for now.
@@ -2048,7 +2080,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
       // produtor é propriedade intrínseca da operação). pricing_snapshots tem
       // uma cópia coincidente, mas é fotografia de mercado, não a fonte de verdade.
       const orig = Number(op?.origination_price_brl ?? 0);
-      const venda = Number(physicalPrices[p.operation_id]) || 0;
+      const venda = Number(physicalPrice) || 0;
       const volume = Number(p.volume_to_close_sacks) || 0;
       const receita = venda * volume;
       const margem = (venda - orig) * volume;
@@ -2068,7 +2100,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         marketDeviation,
       };
     });
-  }, [proposals, operationsById, physicalPrices, marketRefPrice]);
+  }, [proposals, operationsById, physicalPrice, marketRefPrice]);
 
   const totalPhysicalMargin = useMemo(
     () => physicalRows.reduce((s, r) => s + r.margem, 0),
@@ -2236,16 +2268,12 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
       // Atomic physical writes via RPC (physical_sales + operations + batch.physical_executed)
       const totalVol = proposals.proposals.reduce((s, p) => s + (Number(p.volume_to_close_sacks) || 0), 0);
-      const weightedPrice = totalVol > 0
-        ? proposals.proposals.reduce(
-            (s, p) => s + (Number(physicalPrices[p.operation_id]) || 0) * (Number(p.volume_to_close_sacks) || 0), 0
-          ) / totalVol
-        : 0;
+      const weightedPrice = totalVol > 0 ? Number(physicalPrice) || 0 : 0;
 
       const salesPayload = proposals.proposals.map(p => ({
         operation_id: p.operation_id,
         volume_sacks: Number(p.volume_to_close_sacks) || 0,
-        price_brl_per_sack: Number(physicalPrices[p.operation_id]) || 0,
+        price_brl_per_sack: Number(physicalPrice) || 0,
         current_volume_sacks: Number(p.current_volume_sacks) || 0,
       }));
 
@@ -2263,9 +2291,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         .eq('id', batch.id);
       if (batchError) throw new Error(batchError.message);
 
-      const totalRevenue = proposals.proposals.reduce(
-        (s, p) => s + (Number(physicalPrices[p.operation_id]) || 0) * (Number(p.volume_to_close_sacks) || 0), 0
-      );
+      const totalRevenue = (Number(physicalPrice) || 0) * totalVol;
       setExecutedPhysicalAvg(weightedPrice);
       setExecutedPhysicalRevenue(totalRevenue);
       setExecutedSummary(proposals.proposals.map(p => ({
@@ -2374,7 +2400,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
               );
             })}
 
-            {/* Card único para físico — preço por operação */}
+            {/* Card único para físico — mesma lógica das demais legs, com preço único do batch */}
             <Card className="border-primary/30">
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2389,69 +2415,56 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                <div className="space-y-1.5">
-                  {proposals.proposals.map((p) => {
-                    const op = operationsById[p.operation_id];
-                    const orig = Number(op?.origination_price_brl ?? 0);
-                    const isEditing = editingPhysical.has(p.operation_id);
-                    const value = physicalPrices[p.operation_id];
-                    const numericValue = typeof value === 'number' ? value : (value === '' ? null : parseFloat(value as any));
-                    const toggleEdit = () => {
-                      setEditingPhysical(prev => {
-                        const next = new Set(prev);
-                        if (next.has(p.operation_id)) next.delete(p.operation_id);
-                        else next.add(p.operation_id);
-                        return next;
-                      });
-                    };
-                    return (
-                      <div key={p.operation_id} className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-                        <span className="font-mono text-xs flex-1 truncate">{p.display_code}</span>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} sc
-                        </span>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          orig. {orig > 0 ? `R$ ${orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          {isEditing ? (
-                            <>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0,00"
-                                value={value ?? ''}
-                                onChange={(e) => setPhysicalPrices(prev => ({
-                                  ...prev,
-                                  [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
-                                }))}
-                                autoFocus
-                                className="h-7 w-24 text-right text-xs"
-                              />
-                              <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={toggleEdit}>
-                                <Check className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <span className={`text-sm font-medium tabular-nums w-24 text-right ${numericValue && numericValue > 0 ? '' : 'text-muted-foreground'}`}>
-                                {numericValue && numericValue > 0
-                                  ? `R$ ${numericValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                  : '—'}
-                              </span>
-                              <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={toggleEdit}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          )}
+                <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Volume total</p>
+                    <p className="text-sm font-medium tabular-nums">
+                      {totalPhysicalVolume.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} sc
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Originação média ponderada</p>
+                    <p className="text-sm font-medium tabular-nums">
+                      {weightedOriginationPrice != null
+                        ? `R$ ${weightedOriginationPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className="flex items-end gap-1.5 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                    <div className="min-w-[132px]">
+                      <Label className="text-xs">Preço físico (R$/sc)</Label>
+                      {isEditingPhysical ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={physicalPrice}
+                          onChange={(e) => setPhysicalPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                          autoFocus
+                          className="mt-1 h-8 text-right text-sm"
+                        />
+                      ) : (
+                        <div className={`mt-1 h-8 rounded-md border border-input bg-background px-3 text-sm font-medium leading-8 text-right tabular-nums ${Number(physicalPrice) > 0 ? '' : 'text-muted-foreground'}`}>
+                          {Number(physicalPrice) > 0
+                            ? `R$ ${Number(physicalPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '—'}
                         </div>
-                      </div>
-                    );
-                  })}
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => setIsEditingPhysical(prev => !prev)}
+                    >
+                      {isEditingPhysical ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  * Preço de venda do físico — obrigatório por operação. Pré-preenchido com{' '}
+                  * Preço de venda do físico — único para o batch, como nas outras legs. Pré-preenchido com{' '}
                   {batch?.physical_sale_price_estimated_brl_per_sack != null
                     ? <>estimativa do batch (R$ {Number(batch.physical_sale_price_estimated_brl_per_sack).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc)</>
                     : marketRefPrice != null
