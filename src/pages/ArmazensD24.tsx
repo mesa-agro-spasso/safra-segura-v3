@@ -1936,6 +1936,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     if (!open) return;
     setPrices({});
     setStep(1);
+    setEditingPhysical(new Set());
     setExecutedSummary(null);
     setExecutedPhysicalAvg(null);
     setExecutedPhysicalRevenue(null);
