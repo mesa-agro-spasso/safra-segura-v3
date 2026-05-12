@@ -2084,7 +2084,8 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
       // produtor é propriedade intrínseca da operação). pricing_snapshots tem
       // uma cópia coincidente, mas é fotografia de mercado, não a fonte de verdade.
       const orig = Number(op?.origination_price_brl ?? 0);
-      const venda = Number(physicalPrice) || 0;
+      const override = physicalOverrides[p.operation_id];
+      const venda = override != null ? override : (Number(physicalPrice) || 0);
       const volume = Number(p.volume_to_close_sacks) || 0;
       const receita = venda * volume;
       const margem = (venda - orig) * volume;
