@@ -2434,50 +2434,131 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                         : '—'}
                     </p>
                   </div>
-                  <div className="flex items-end gap-1.5 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-                    <div className="min-w-[132px]">
-                      <Label className="text-xs">Preço físico (R$/sc)</Label>
-                      {isEditingPhysical ? (
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0,00"
-                          value={physicalPrice}
-                          onChange={(e) => setPhysicalPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                          autoFocus
-                          className="mt-1 h-8 text-right text-sm"
-                        />
-                      ) : (
-                        <div className={`mt-1 h-8 rounded-md border border-input bg-background px-3 text-sm font-medium leading-8 text-right tabular-nums ${Number(physicalPrice) > 0 ? '' : 'text-muted-foreground'}`}>
-                          {Number(physicalPrice) > 0
-                            ? `R$ ${Number(physicalPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : '—'}
-                        </div>
-                      )}
-                    </div>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={() => setIsEditingPhysical(prev => !prev)}
-                    >
-                      {isEditingPhysical ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                    </Button>
+                  <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                    <Label className="text-xs">Preço físico (R$/sc)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={physicalPrice}
+                      onChange={(e) => setPhysicalPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                      className="mt-1 h-8 text-right text-sm"
+                    />
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  * Preço de venda do físico — único para o batch, como nas outras legs. Pré-preenchido com{' '}
+                  * Preço de venda do físico — único para o batch, aplicado a todas as operações. Pré-preenchido com{' '}
                   {batch?.physical_sale_price_estimated_brl_per_sack != null
                     ? <>estimativa do batch (R$ {Number(batch.physical_sale_price_estimated_brl_per_sack).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc)</>
                     : marketRefPrice != null
                       ? <>último preço da praça (R$ {marketRefPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc)</>
                       : <>preço de originação (fallback)</>}
-                  .
+                  . Use o lápis no resumo abaixo para sobrescrever uma operação específica (raro).
                 </p>
               </CardContent>
             </Card>
+
+            {/* Resumo por operação — permite override individual do preço físico */}
+            {proposals.proposals.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <h3 className="text-sm font-semibold">Resumo por operação</h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    Cada operação herda o preço físico do batch. Clique no lápis para sobrescrever individualmente.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1.5">
+                    {proposals.proposals.map((p) => {
+                      const op = operationsById[p.operation_id];
+                      const orig = Number(op?.origination_price_brl ?? 0);
+                      const volume = Number(p.volume_to_close_sacks) || 0;
+                      const override = physicalOverrides[p.operation_id];
+                      const effective = override != null ? override : (Number(physicalPrice) || 0);
+                      const isOverridden = override != null;
+                      const isEditing = editingOverrideOpId === p.operation_id;
+                      return (
+                        <div
+                          key={p.operation_id}
+                          className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-xs"
+                        >
+                          <span className="truncate font-mono text-[11px]">{p.display_code}</span>
+                          <span className="text-right tabular-nums">
+                            {volume.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} sc
+                          </span>
+                          <span className="text-right tabular-nums text-muted-foreground">
+                            {orig > 0 ? `R$ ${orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                          </span>
+                          {isEditing ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              autoFocus
+                              defaultValue={effective || ''}
+                              onBlur={(e) => {
+                                const v = e.target.value === '' ? NaN : parseFloat(e.target.value);
+                                setPhysicalOverrides(prev => {
+                                  const next = { ...prev };
+                                  if (!isFinite(v) || v <= 0) {
+                                    delete next[p.operation_id];
+                                  } else {
+                                    next[p.operation_id] = v;
+                                  }
+                                  return next;
+                                });
+                                setEditingOverrideOpId(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                if (e.key === 'Escape') setEditingOverrideOpId(null);
+                              }}
+                              className="h-7 text-right text-xs"
+                            />
+                          ) : (
+                            <span className={`text-right tabular-nums font-medium ${isOverridden ? 'text-primary' : ''}`}>
+                              {effective > 0
+                                ? `R$ ${effective.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : '—'}
+                              {isOverridden && <span className="ml-1 text-[10px] uppercase text-primary/80">(override)</span>}
+                            </span>
+                          )}
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => setEditingOverrideOpId(isEditing ? null : p.operation_id)}
+                              title={isEditing ? 'Confirmar' : 'Sobrescrever preço físico desta operação'}
+                            >
+                              {isEditing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                            </Button>
+                            {isOverridden && !isEditing && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-muted-foreground"
+                                onClick={() => setPhysicalOverrides(prev => {
+                                  const next = { ...prev };
+                                  delete next[p.operation_id];
+                                  return next;
+                                })}
+                                title="Remover override (voltar ao preço do batch)"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="flex items-center justify-between gap-3 pt-2">
               <div className="text-xs text-muted-foreground">
