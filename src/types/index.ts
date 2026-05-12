@@ -206,6 +206,7 @@ export interface OperationWithDetails {
   volume_sacks: number;
   status: string;
   pricing_snapshot_id: string | null;
+  origination_price_brl: number;
   notes: string | null;
   parent_operation_id: string | null;
   created_by: string | null;

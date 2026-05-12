@@ -2027,7 +2027,10 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     if (!proposals) return [];
     return proposals.proposals.map(p => {
       const op = operationsById[p.operation_id];
-      const orig = Number(op?.pricing_snapshots?.origination_price_brl ?? 0);
+      // Read origination price from operations (canonical source — preço pago ao
+      // produtor é propriedade intrínseca da operação). pricing_snapshots tem
+      // uma cópia coincidente, mas é fotografia de mercado, não a fonte de verdade.
+      const orig = Number(op?.origination_price_brl ?? 0);
       const venda = Number(physicalPrices[p.operation_id]) || 0;
       const volume = Number(p.volume_to_close_sacks) || 0;
       const receita = venda * volume;
@@ -2325,7 +2328,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                 <TableBody>
                   {proposals.proposals.map((p) => {
                     const op = operationsById[p.operation_id];
-                    const orig = Number(op?.pricing_snapshots?.origination_price_brl ?? 0);
+                    const orig = Number(op?.origination_price_brl ?? 0);
                     return (
                       <TableRow key={p.operation_id}>
                         <TableCell className="font-mono text-xs">{p.display_code}</TableCell>
