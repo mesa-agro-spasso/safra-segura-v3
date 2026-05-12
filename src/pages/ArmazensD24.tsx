@@ -2151,10 +2151,11 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   }, [proposals, openOrdersByOpId, prices, fxRate]);
 
 
-  const totalPnlBRL = useMemo(
+  const totalPnlDerivativesBRL = useMemo(
     () => previewRows.reduce((s, r) => s + (r.pnl_brl ?? 0), 0),
     [previewRows],
   );
+  const totalPnlBRL = totalPnlDerivativesBRL + totalPhysicalMargin;
   const fmtBRL = (v: number) =>
     v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
 
