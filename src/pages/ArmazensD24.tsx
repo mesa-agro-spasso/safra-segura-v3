@@ -2105,7 +2105,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         marketDeviation,
       };
     });
-  }, [proposals, operationsById, physicalPrice, marketRefPrice]);
+  }, [proposals, operationsById, physicalPrice, physicalOverrides, marketRefPrice]);
 
   const totalPhysicalMargin = useMemo(
     () => physicalRows.reduce((s, r) => s + r.margem, 0),
