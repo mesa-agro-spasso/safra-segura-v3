@@ -2214,12 +2214,40 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         }
       }
 
+      // Atomic physical writes via RPC (physical_sales + operations + batch.physical_executed)
+      const totalVol = proposals.proposals.reduce((s, p) => s + (Number(p.volume_to_close_sacks) || 0), 0);
+      const weightedPrice = totalVol > 0
+        ? proposals.proposals.reduce(
+            (s, p) => s + (Number(physicalPrices[p.operation_id]) || 0) * (Number(p.volume_to_close_sacks) || 0), 0
+          ) / totalVol
+        : 0;
+
+      const salesPayload = proposals.proposals.map(p => ({
+        operation_id: p.operation_id,
+        volume_sacks: Number(p.volume_to_close_sacks) || 0,
+        price_brl_per_sack: Number(physicalPrices[p.operation_id]) || 0,
+        current_volume_sacks: Number(p.current_volume_sacks) || 0,
+      }));
+
+      const { error: rpcError } = await (supabase as any).rpc('execute_block_trade_physical', {
+        p_batch_id: batch.id,
+        p_user_id: userId,
+        p_sales: salesPayload,
+        p_weighted_price: weightedPrice,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+
       const { error: batchError } = await (supabase as any)
         .from('warehouse_closing_batches')
         .update({ status: 'EXECUTED', generated_orders_count: totalOrdersInserted })
         .eq('id', batch.id);
       if (batchError) throw new Error(batchError.message);
 
+      const totalRevenue = proposals.proposals.reduce(
+        (s, p) => s + (Number(physicalPrices[p.operation_id]) || 0) * (Number(p.volume_to_close_sacks) || 0), 0
+      );
+      setExecutedPhysicalAvg(weightedPrice);
+      setExecutedPhysicalRevenue(totalRevenue);
       setExecutedSummary(proposals.proposals.map(p => ({
         display_code: p.display_code,
         volume_closed: Number(p.volume_to_close_sacks) || 0,
