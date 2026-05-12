@@ -2494,6 +2494,62 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                     </div>
                   )}
 
+                  {physicalRows.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold">Físico</h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Operação</TableHead>
+                            <TableHead className="text-right">Volume (sc)</TableHead>
+                            <TableHead className="text-right">Preço orig.</TableHead>
+                            <TableHead className="text-right">Preço venda</TableHead>
+                            <TableHead className="text-right">Receita (R$)</TableHead>
+                            <TableHead className="text-right">Margem física (R$)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {physicalRows.map((r, i) => (
+                            <TableRow key={`ph-${i}`}>
+                              <TableCell className="font-mono text-xs">{r.display_code}</TableCell>
+                              <TableCell className="text-right">{r.volume.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{r.orig > 0 ? r.orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</TableCell>
+                              <TableCell className="text-right">{r.venda.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{fmtBRL(r.receita)}</TableCell>
+                              <TableCell className={`text-right font-medium ${r.margem >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {fmtBRL(r.margem)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-right text-xs font-semibold">Subtotal Físico</TableCell>
+                            <TableCell className="text-right text-xs font-semibold">{fmtBRL(totalPhysicalRevenue)}</TableCell>
+                            <TableCell className={`text-right font-semibold ${totalPhysicalMargin >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {fmtBRL(totalPhysicalMargin)}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                      {/* Guardrails */}
+                      {physicalRows.filter(r => r.origDeviation > 0.30).map(r => (
+                        <p key={`warn-orig-${r.operation_id}`} className="text-xs text-amber-500">
+                          ⚠ {r.display_code}: margem física fora do padrão (variação &gt; 30% sobre originação).
+                        </p>
+                      ))}
+                      {marketRefPrice != null
+                        ? physicalRows.filter(r => r.marketDeviation != null && r.marketDeviation > 0.10).map(r => (
+                            <p key={`warn-mkt-${r.operation_id}`} className="text-xs text-amber-500">
+                              ⚠ {r.display_code}: preço diverge mais de 10% do mercado da praça (ref. R$ {marketRefPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc).
+                            </p>
+                          ))
+                        : (
+                          <p className="text-xs text-blue-400">
+                            ℹ Sem preço de mercado de referência para esta praça/commodity — guardrail de divergência de mercado desabilitado.
+                          </p>
+                        )}
+                    </div>
+                  )}
+
                   {otherRows.length > 0 && (
                     <div className="space-y-2">
                       <h3 className="text-sm font-semibold">Outros</h3>
