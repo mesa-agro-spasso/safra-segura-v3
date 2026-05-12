@@ -1925,8 +1925,8 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 }) => {
   const [step, setStep] = useState<1 | 2>(1);
   const [prices, setPrices] = useState<Record<string, number | ''>>({});
-  const [physicalPrices, setPhysicalPrices] = useState<Record<string, number | ''>>({});
-  const [editingPhysical, setEditingPhysical] = useState<Set<string>>(new Set());
+  const [physicalPrice, setPhysicalPrice] = useState<number | ''>('');
+  const [isEditingPhysical, setIsEditingPhysical] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
   const [executedPhysicalAvg, setExecutedPhysicalAvg] = useState<number | null>(null);
@@ -1936,32 +1936,41 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
     if (!open) return;
     setPrices({});
     setStep(1);
-    setEditingPhysical(new Set());
+    setIsEditingPhysical(false);
     setExecutedSummary(null);
     setExecutedPhysicalAvg(null);
     setExecutedPhysicalRevenue(null);
-    // Pre-fill physical price per operation with cascade fallback:
+    // Pre-fill physical price for the whole batch with cascade fallback:
     //   1) batch.physical_sale_price_estimated (set when draft was saved)
     //   2) latest physical_prices for the warehouse+commodity (most recent reference)
-    //   3) operation.origination_price_brl (last-resort sane default)
-    const init: Record<string, number | ''> = {};
+    //   3) weighted avg of operation.origination_price_brl (last-resort sane default)
     const estimated = batch?.physical_sale_price_estimated_brl_per_sack;
     const ref = batch
       ? latestPhysicalPrices.find(
           (p) => p.warehouse_id === batch.warehouse_id && p.commodity === batch.commodity,
         )?.price_brl_per_sack ?? null
       : null;
-    for (const p of (proposals?.proposals ?? [])) {
-      const op = operationsById[p.operation_id];
-      const orig = Number(op?.origination_price_brl ?? 0);
-      const fallback = estimated != null
-        ? Number(estimated)
-        : ref != null
-          ? Number(ref)
-          : orig > 0 ? orig : '';
-      init[p.operation_id] = fallback;
-    }
-    setPhysicalPrices(init);
+    const weightedOrigination = (proposals?.proposals ?? []).reduce(
+      (acc, p) => {
+        const op = operationsById[p.operation_id];
+        const orig = Number(op?.origination_price_brl ?? 0);
+        const volume = Number(p.volume_to_close_sacks) || 0;
+        if (orig > 0 && volume > 0) {
+          acc.total += orig * volume;
+          acc.volume += volume;
+        }
+        return acc;
+      },
+      { total: 0, volume: 0 },
+    );
+    const fallback = estimated != null
+      ? Number(estimated)
+      : ref != null
+        ? Number(ref)
+        : weightedOrigination.volume > 0
+          ? weightedOrigination.total / weightedOrigination.volume
+          : '';
+    setPhysicalPrice(fallback);
   }, [open, batch, proposals, latestPhysicalPrices, operationsById]);
 
 
@@ -2023,7 +2032,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   }, [open, batchInstruments, suggestedPrices]);
 
   const pricesOk = batchInstruments.every(i => Number(prices[i]) > 0);
-  const physicalOk = (proposals?.proposals ?? []).every(p => Number(physicalPrices[p.operation_id]) > 0);
+  const physicalOk = Number(physicalPrice) > 0;
   const canReview = pricesOk && physicalOk;
 
   // Market reference for the batch's warehouse + commodity (may be null for new warehouses)
@@ -2048,7 +2057,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
       // produtor é propriedade intrínseca da operação). pricing_snapshots tem
       // uma cópia coincidente, mas é fotografia de mercado, não a fonte de verdade.
       const orig = Number(op?.origination_price_brl ?? 0);
-      const venda = Number(physicalPrices[p.operation_id]) || 0;
+      const venda = Number(physicalPrice) || 0;
       const volume = Number(p.volume_to_close_sacks) || 0;
       const receita = venda * volume;
       const margem = (venda - orig) * volume;
@@ -2068,7 +2077,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         marketDeviation,
       };
     });
-  }, [proposals, operationsById, physicalPrices, marketRefPrice]);
+  }, [proposals, operationsById, physicalPrice, marketRefPrice]);
 
   const totalPhysicalMargin = useMemo(
     () => physicalRows.reduce((s, r) => s + r.margem, 0),
