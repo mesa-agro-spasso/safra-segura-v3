@@ -2400,7 +2400,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
               );
             })}
 
-            {/* Card único para físico — preço por operação */}
+            {/* Card único para físico — mesma lógica das demais legs, com preço único do batch */}
             <Card className="border-primary/30">
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2415,69 +2415,56 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                <div className="space-y-1.5">
-                  {proposals.proposals.map((p) => {
-                    const op = operationsById[p.operation_id];
-                    const orig = Number(op?.origination_price_brl ?? 0);
-                    const isEditing = editingPhysical.has(p.operation_id);
-                    const value = physicalPrices[p.operation_id];
-                    const numericValue = typeof value === 'number' ? value : (value === '' ? null : parseFloat(value as any));
-                    const toggleEdit = () => {
-                      setEditingPhysical(prev => {
-                        const next = new Set(prev);
-                        if (next.has(p.operation_id)) next.delete(p.operation_id);
-                        else next.add(p.operation_id);
-                        return next;
-                      });
-                    };
-                    return (
-                      <div key={p.operation_id} className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-                        <span className="font-mono text-xs flex-1 truncate">{p.display_code}</span>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {Number(p.volume_to_close_sacks).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} sc
-                        </span>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          orig. {orig > 0 ? `R$ ${orig.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          {isEditing ? (
-                            <>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0,00"
-                                value={value ?? ''}
-                                onChange={(e) => setPhysicalPrices(prev => ({
-                                  ...prev,
-                                  [p.operation_id]: e.target.value === '' ? '' : parseFloat(e.target.value),
-                                }))}
-                                autoFocus
-                                className="h-7 w-24 text-right text-xs"
-                              />
-                              <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={toggleEdit}>
-                                <Check className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <span className={`text-sm font-medium tabular-nums w-24 text-right ${numericValue && numericValue > 0 ? '' : 'text-muted-foreground'}`}>
-                                {numericValue && numericValue > 0
-                                  ? `R$ ${numericValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                  : '—'}
-                              </span>
-                              <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={toggleEdit}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          )}
+                <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Volume total</p>
+                    <p className="text-sm font-medium tabular-nums">
+                      {totalPhysicalVolume.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} sc
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Originação média ponderada</p>
+                    <p className="text-sm font-medium tabular-nums">
+                      {weightedOriginationPrice != null
+                        ? `R$ ${weightedOriginationPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className="flex items-end gap-1.5 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                    <div className="min-w-[132px]">
+                      <Label className="text-xs">Preço físico (R$/sc)</Label>
+                      {isEditingPhysical ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={physicalPrice}
+                          onChange={(e) => setPhysicalPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                          autoFocus
+                          className="mt-1 h-8 text-right text-sm"
+                        />
+                      ) : (
+                        <div className={`mt-1 h-8 rounded-md border border-input bg-background px-3 text-sm font-medium leading-8 text-right tabular-nums ${Number(physicalPrice) > 0 ? '' : 'text-muted-foreground'}`}>
+                          {Number(physicalPrice) > 0
+                            ? `R$ ${Number(physicalPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '—'}
                         </div>
-                      </div>
-                    );
-                  })}
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => setIsEditingPhysical(prev => !prev)}
+                    >
+                      {isEditingPhysical ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  * Preço de venda do físico — obrigatório por operação. Pré-preenchido com{' '}
+                  * Preço de venda do físico — único para o batch, como nas outras legs. Pré-preenchido com{' '}
                   {batch?.physical_sale_price_estimated_brl_per_sack != null
                     ? <>estimativa do batch (R$ {Number(batch.physical_sale_price_estimated_brl_per_sack).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/sc)</>
                     : marketRefPrice != null
