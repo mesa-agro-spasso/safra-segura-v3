@@ -1915,23 +1915,37 @@ interface BlockTradeExecutionModalProps {
   proposals: AllocateBatchResponse | null;
   d24Orders: any[];
   userId: string | null;
+  operationsById: Record<string, OperationWithDetails>;
+  latestPhysicalPrices: { warehouse_id: string; commodity: string; price_brl_per_sack: number }[];
   onExecuted: () => void;
 }
 
 const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
-  open, onClose, batch, proposals, d24Orders, userId, onExecuted,
+  open, onClose, batch, proposals, d24Orders, userId, operationsById, latestPhysicalPrices, onExecuted,
 }) => {
   const [step, setStep] = useState<1 | 2>(1);
   const [prices, setPrices] = useState<Record<string, number | ''>>({});
+  const [physicalPrices, setPhysicalPrices] = useState<Record<string, number | ''>>({});
   const [submitting, setSubmitting] = useState(false);
   const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
+  const [executedPhysicalAvg, setExecutedPhysicalAvg] = useState<number | null>(null);
+  const [executedPhysicalRevenue, setExecutedPhysicalRevenue] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setPrices({});
     setStep(1);
     setExecutedSummary(null);
-  }, [open]);
+    setExecutedPhysicalAvg(null);
+    setExecutedPhysicalRevenue(null);
+    // Initialize physical prices from batch's estimated value (or empty)
+    const init: Record<string, number | ''> = {};
+    const estimated = batch?.physical_sale_price_estimated_brl_per_sack;
+    for (const p of (proposals?.proposals ?? [])) {
+      init[p.operation_id] = estimated != null ? Number(estimated) : '';
+    }
+    setPhysicalPrices(init);
+  }, [open, batch, proposals]);
 
 
   const openOrdersByOpId = useMemo(() => {
