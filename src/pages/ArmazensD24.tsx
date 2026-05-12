@@ -1926,6 +1926,7 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
   const [step, setStep] = useState<1 | 2>(1);
   const [prices, setPrices] = useState<Record<string, number | ''>>({});
   const [physicalPrices, setPhysicalPrices] = useState<Record<string, number | ''>>({});
+  const [editingPhysical, setEditingPhysical] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [executedSummary, setExecutedSummary] = useState<{ display_code: string; volume_closed: number }[] | null>(null);
   const [executedPhysicalAvg, setExecutedPhysicalAvg] = useState<number | null>(null);
