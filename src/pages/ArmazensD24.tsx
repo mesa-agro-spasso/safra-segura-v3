@@ -2273,14 +2273,19 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
 
       // Atomic physical writes via RPC (physical_sales + operations + batch.physical_executed)
       const totalVol = proposals.proposals.reduce((s, p) => s + (Number(p.volume_to_close_sacks) || 0), 0);
-      const weightedPrice = totalVol > 0 ? Number(physicalPrice) || 0 : 0;
+      const salesPayload = proposals.proposals.map(p => {
+        const override = physicalOverrides[p.operation_id];
+        const effective = override != null ? override : (Number(physicalPrice) || 0);
+        return {
+          operation_id: p.operation_id,
+          volume_sacks: Number(p.volume_to_close_sacks) || 0,
+          price_brl_per_sack: effective,
+          current_volume_sacks: Number(p.current_volume_sacks) || 0,
+        };
+      });
 
-      const salesPayload = proposals.proposals.map(p => ({
-        operation_id: p.operation_id,
-        volume_sacks: Number(p.volume_to_close_sacks) || 0,
-        price_brl_per_sack: Number(physicalPrice) || 0,
-        current_volume_sacks: Number(p.current_volume_sacks) || 0,
-      }));
+      const totalRevenue = salesPayload.reduce((s, x) => s + x.price_brl_per_sack * x.volume_sacks, 0);
+      const weightedPrice = totalVol > 0 ? totalRevenue / totalVol : 0;
 
       const { error: rpcError } = await (supabase as any).rpc('execute_block_trade_physical', {
         p_batch_id: batch.id,
@@ -2296,7 +2301,6 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         .eq('id', batch.id);
       if (batchError) throw new Error(batchError.message);
 
-      const totalRevenue = (Number(physicalPrice) || 0) * totalVol;
       setExecutedPhysicalAvg(weightedPrice);
       setExecutedPhysicalRevenue(totalRevenue);
       setExecutedSummary(proposals.proposals.map(p => ({
