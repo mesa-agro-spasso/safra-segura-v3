@@ -3,6 +3,7 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { KeepAliveOutlet, KeepAliveRoute } from '@/components/KeepAliveOutlet';
 import { AdminRoute } from '@/components/AdminRoute';
 import { useMesaEnv } from '@/contexts/MesaEnvContext';
+import { FEATURES } from '@/config/features';
 import PricingTable from '@/pages/PricingTable';
 import OrdensD24 from '@/pages/OrdensD24';
 import Approvals from '@/pages/Approvals';
