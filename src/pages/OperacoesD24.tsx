@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import { useOperations, useOperationsWithDetails } from '@/hooks/useOperations';
 import { useHedgeOrders } from '@/hooks/useHedgeOrders';
 import { useMtmSnapshots, useSaveMtmSnapshot } from '@/hooks/useMtmSnapshots';
