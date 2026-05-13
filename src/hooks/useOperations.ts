@@ -27,6 +27,9 @@ export function useCreateOperation() {
         .select()
         .single();
       if (error) throw error;
+      void logActivity('operation.create', 'operation', (data as any)?.id, {
+        commodity: op.commodity, warehouse_id: op.warehouse_id, volume_sacks: op.volume_sacks,
+      });
       return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['operations'] }),
