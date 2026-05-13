@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -184,6 +185,7 @@ const AdminUsers = () => {
         toast.error('Erro ao atualizar usuário: ' + error.message);
         return false;
       }
+      void logActivity('user_profile.update', 'user_profile', id, { fields: Object.keys(updates) });
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro desconhecido';
@@ -202,6 +204,7 @@ const AdminUsers = () => {
       toast.error('Erro ao atualizar função: ' + error.message);
       return;
     }
+    void logActivity('user_roles.update', 'user', userId, { roles: newRoles });
     setRolesMap((prev) => ({ ...prev, [userId]: newRoles }));
     toast.success('Função atualizada');
   };

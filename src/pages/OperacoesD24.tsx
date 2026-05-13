@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import { useOperations, useOperationsWithDetails } from '@/hooks/useOperations';
 import { useHedgeOrders } from '@/hooks/useHedgeOrders';
 import { useMtmSnapshots, useSaveMtmSnapshot } from '@/hooks/useMtmSnapshots';
@@ -861,6 +862,7 @@ const OperacoesD24: React.FC = () => {
         })
         .eq('id', op.id);
       if (error) throw new Error(error.message ?? JSON.stringify(error));
+      void logActivity('operation.cancel', 'operation', op.id, { reason: 'Cancelado pela mesa' });
       toast.success('Operação cancelada');
       queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
       queryClient.invalidateQueries({ queryKey: ['operations'] });
@@ -3602,6 +3604,9 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
         .from('operations' as any)
         .update({ closing_plan: null } as never)
         .eq('id', operation.id);
+      void logActivity('operation.close', 'operation', operation.id, {
+        physical_volume_sacks: physicalVolNum, physical_price_brl_per_sack: physicalPriceNum,
+      });
       toast.success('Encerramento registrado');
       onClosed();
     } catch (e) {

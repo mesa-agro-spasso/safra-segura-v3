@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { ChevronDown, ExternalLink, MapPin, Columns, Calculator, AlertTriangle, List, Plus, Send, X, ChevronRight, Copy, Pencil, Check } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { AllocateBatchResponse } from '@/types/d24';
@@ -752,6 +753,7 @@ const ArmazensD24: React.FC = () => {
         })
         .eq('id', btCancelTarget.id);
       if (error) throw new Error(error.message);
+      void logActivity('block_trade.cancel', 'warehouse_closing_batch', btCancelTarget.id, { reason: btCancelReason.trim() });
       toast.success('Batch cancelado');
       queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
       setBtCancelTarget(null);
@@ -2300,6 +2302,9 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         .update({ status: 'EXECUTED', generated_orders_count: totalOrdersInserted })
         .eq('id', batch.id);
       if (batchError) throw new Error(batchError.message);
+      void logActivity('block_trade.execute', 'warehouse_closing_batch', batch.id, {
+        total_volume_sacks: totalVol, weighted_price: weightedPrice, orders: totalOrdersInserted,
+      });
 
       setExecutedPhysicalAvg(weightedPrice);
       setExecutedPhysicalRevenue(totalRevenue);

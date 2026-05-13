@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import type { Producer, ProducerOperation } from '@/types';
 
 export function useProducers() {
@@ -68,6 +69,7 @@ export function useCreateProducer() {
         .select()
         .single();
       if (error) throw error;
+      void logActivity('producer.create', 'producer', (data as any)?.id, { full_name: payload.full_name });
       return data as unknown as Producer;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['producers'] }),
@@ -83,6 +85,7 @@ export function useUpdateProducer() {
         .update(payload as never)
         .eq('id', id);
       if (error) throw error;
+      void logActivity('producer.update', 'producer', id, { fields: Object.keys(payload) });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['producers'] }),
   });
@@ -94,6 +97,7 @@ export function useDeleteProducer() {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('producers').delete().eq('id', id);
       if (error) throw error;
+      void logActivity('producer.delete', 'producer', id);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['producers'] });

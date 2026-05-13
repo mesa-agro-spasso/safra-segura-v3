@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import type { PricingCombination } from '@/types';
 
 export function usePricingCombinations(activeOnly = false) {
@@ -27,6 +28,9 @@ export function useUpsertPricingCombination() {
         .from('pricing_combinations')
         .upsert(combo as never, { onConflict: 'id' });
       if (error) throw error;
+      void logActivity('pricing_combination.upsert', 'pricing_combination', (combo as any).id ?? null, {
+        warehouse_id: combo.warehouse_id, commodity: combo.commodity, ticker: (combo as any).ticker,
+      });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pricing_combinations'] }),
   });
@@ -41,6 +45,7 @@ export function useDeletePricingCombination() {
         .delete()
         .eq('id', id);
       if (error) throw error;
+      void logActivity('pricing_combination.delete', 'pricing_combination', id);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pricing_combinations'] }),
   });
@@ -55,6 +60,7 @@ export function useTogglePricingCombinationActive() {
         .update({ active } as never)
         .eq('id', id);
       if (error) throw error;
+      void logActivity('pricing_combination.toggle', 'pricing_combination', id, { active });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pricing_combinations'] }),
   });

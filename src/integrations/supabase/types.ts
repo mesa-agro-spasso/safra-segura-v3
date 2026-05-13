@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          details: Json
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          occurred_at: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          details?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          occurred_at?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          details?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          occurred_at?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       approval_policies: {
         Row: {
           created_at: string | null

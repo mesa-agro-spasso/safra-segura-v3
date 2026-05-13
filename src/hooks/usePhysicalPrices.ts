@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 
 export interface PhysicalPrice {
   id: string;
@@ -79,6 +80,10 @@ export function useUpsertPhysicalPrice() {
           { onConflict: 'warehouse_id,commodity,reference_date' },
         );
       if (error) throw error;
+      void logActivity('physical_price.upsert', 'physical_price', null, {
+        warehouse_id: input.warehouse_id, commodity: input.commodity,
+        reference_date: input.reference_date, price_brl_per_sack: input.price_brl_per_sack,
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['physical_prices'] }),
   });
@@ -99,6 +104,7 @@ export function useUpsertPhysicalPricesBulk() {
         .from('physical_prices')
         .upsert(payload, { onConflict: 'warehouse_id,commodity,reference_date' });
       if (error) throw error;
+      void logActivity('physical_price.bulk_upsert', 'physical_price', null, { count: items.length });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['physical_prices'] }),
   });
@@ -110,6 +116,7 @@ export function useDeletePhysicalPrice() {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('physical_prices').delete().eq('id', id);
       if (error) throw error;
+      void logActivity('physical_price.delete', 'physical_price', id);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['physical_prices'] }),
   });

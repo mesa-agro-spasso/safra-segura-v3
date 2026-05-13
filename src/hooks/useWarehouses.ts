@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import type { Warehouse } from '@/types';
 
 export function useWarehouses(activeOnly = false) {
@@ -39,6 +40,7 @@ export function useUpsertWarehouse() {
         .from('warehouses')
         .upsert(warehouse as never, { onConflict: 'id' });
       if (error) throw error;
+      void logActivity('warehouse.update', 'warehouse', warehouse.id, { fields: Object.keys(warehouse) });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses'] }),
   });

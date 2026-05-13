@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import type { PricingParameter } from '@/types';
 
 export function usePricingParameters() {
@@ -37,6 +38,7 @@ export function useUpdatePricingParameter() {
         .update(update)
         .eq('id', id);
       if (error) throw error;
+      void logActivity('pricing_parameters.update', 'pricing_parameters', id, update);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pricing_parameters'] }),
   });

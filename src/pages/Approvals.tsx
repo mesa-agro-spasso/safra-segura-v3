@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -487,6 +488,8 @@ export default function Approvals() {
       } as never);
       if (sigError) throw sigError;
 
+      void logActivity('approval.reject', isBatch ? 'warehouse_closing_batch' : 'operation',
+        rejecting.batchId ?? rejecting.operationId, { reason, flow_type: rejecting.flowType });
       toast.success(isBatch ? 'Block trade recusado' : 'Operação recusada');
       queryClient.invalidateQueries({ queryKey: ['signature-events'] });
       queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
@@ -517,6 +520,9 @@ export default function Approvals() {
         signed_at: new Date().toISOString(),
       } as never);
       if (insertError) throw insertError;
+
+      void logActivity('approval.sign', signing.batchId ? 'warehouse_closing_batch' : 'operation',
+        signing.batchId ?? signing.operationId, { role: selectedRole, flow_type: signing.flowType });
 
       const newCollected = [...signing.collected, selectedRole];
       if (allSigned(signing.required, newCollected)) {
