@@ -7,6 +7,7 @@ import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
 import { supabase } from '@/integrations/supabase/client';
 import { useMesaEnv } from '@/contexts/MesaEnvContext';
+import { FEATURES } from '@/config/features';
 import logoLight from '/logo-spasso.png';
 import logoDark from '/logo-spasso-dark.png';
 import iconCollapsed from '/icon-48x48.png';
@@ -39,9 +40,9 @@ const items = [
   { title: 'Operações', url: '/operacoes-d24', icon: ClipboardList },
   { title: 'Ordens',    url: '/ordens-d24',    icon: FileText },
   { title: 'Armazéns',  url: '/armazens-d24',  icon: Building2 },
-  { title: 'Financeiro', url: '/financeiro', icon: DollarSign },
+  ...(FEATURES.FINANCIAL_CALENDAR ? [{ title: 'Financeiro', url: '/financeiro', icon: DollarSign }] : []),
   { title: 'Mercado', url: '/mercado', icon: BarChart3 },
-  { title: 'Produtores', url: '/produtores', icon: Sprout },
+  ...(FEATURES.PRODUCERS ? [{ title: 'Produtores', url: '/produtores', icon: Sprout }] : []),
   { title: 'Configurações', url: '/configuracoes', icon: Settings },
 ];
 

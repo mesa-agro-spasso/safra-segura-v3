@@ -3,6 +3,7 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { KeepAliveOutlet, KeepAliveRoute } from '@/components/KeepAliveOutlet';
 import { AdminRoute } from '@/components/AdminRoute';
 import { useMesaEnv } from '@/contexts/MesaEnvContext';
+import { FEATURES } from '@/config/features';
 import PricingTable from '@/pages/PricingTable';
 import OrdensD24 from '@/pages/OrdensD24';
 import Approvals from '@/pages/Approvals';
@@ -23,8 +24,8 @@ const routes: KeepAliveRoute[] = [
   { path: '/operacoes-d24', element: <OperacoesD24 /> },
   { path: '/armazens-d24', element: <ArmazensD24 /> },
   { path: '/mercado', element: <Market /> },
-  { path: '/produtores', element: <Producers /> },
-  { path: '/financeiro', element: <Financial /> },
+  ...(FEATURES.PRODUCERS ? [{ path: '/produtores', element: <Producers /> }] : []),
+  ...(FEATURES.FINANCIAL_CALENDAR ? [{ path: '/financeiro', element: <Financial /> }] : []),
   { path: '/configuracoes', element: <Settings /> },
   { path: '/perfil', element: <Profile /> },
   { path: '/admin/usuarios', element: <AdminRoute><AdminUsers /></AdminRoute> },
