@@ -862,6 +862,7 @@ const OperacoesD24: React.FC = () => {
         })
         .eq('id', op.id);
       if (error) throw new Error(error.message ?? JSON.stringify(error));
+      void logActivity('operation.cancel', 'operation', op.id, { reason: 'Cancelado pela mesa' });
       toast.success('Operação cancelada');
       queryClient.invalidateQueries({ queryKey: ['operations_with_details'] });
       queryClient.invalidateQueries({ queryKey: ['operations'] });
