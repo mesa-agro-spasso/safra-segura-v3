@@ -185,6 +185,7 @@ const AdminUsers = () => {
         toast.error('Erro ao atualizar usuário: ' + error.message);
         return false;
       }
+      void logActivity('user_profile.update', 'user_profile', id, { fields: Object.keys(updates) });
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro desconhecido';
