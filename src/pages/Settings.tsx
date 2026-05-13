@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { FEATURES } from '@/config/features';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -1010,22 +1012,50 @@ function AlcadasTab() {
   );
 }
 
-const Settings = () => (
-  <div className="space-y-4">
-    <h2 className="text-xl font-bold">Configurações</h2>
-    <Tabs defaultValue="warehouses">
-      <TabsList>
-        <TabsTrigger value="warehouses">Armazéns</TabsTrigger>
-        <TabsTrigger value="combinations">Combinações</TabsTrigger>
-        <TabsTrigger value="parameters">Parâmetros</TabsTrigger>
-        <TabsTrigger value="alcadas">Alçadas</TabsTrigger>
-      </TabsList>
-      <TabsContent value="warehouses"><WarehousesTab /></TabsContent>
-      <TabsContent value="combinations"><CombinationsTab /></TabsContent>
-      <TabsContent value="parameters"><ParametersTab /></TabsContent>
-      <TabsContent value="alcadas"><AlcadasTab /></TabsContent>
-    </Tabs>
-  </div>
-);
+type SettingsTab = 'warehouses' | 'combinations' | 'parameters' | 'alcadas';
+
+const Settings = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const visibleTabs: SettingsTab[] = [
+    'warehouses',
+    'combinations',
+    'parameters',
+    ...(FEATURES.AUTHORIZATION_TIERS ? (['alcadas'] as const) : []),
+  ];
+  const defaultTab: SettingsTab = visibleTabs[0];
+
+  const tabParam = searchParams.get('tab') as SettingsTab | null;
+  const tab: SettingsTab =
+    tabParam && visibleTabs.includes(tabParam) ? tabParam : defaultTab;
+
+  const setTab = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', v);
+    setSearchParams(next, { replace: true });
+  };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold">Configurações</h2>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="warehouses">Armazéns</TabsTrigger>
+          <TabsTrigger value="combinations">Combinações</TabsTrigger>
+          <TabsTrigger value="parameters">Parâmetros</TabsTrigger>
+          {visibleTabs.includes('alcadas') && (
+            <TabsTrigger value="alcadas">Alçadas</TabsTrigger>
+          )}
+        </TabsList>
+        <TabsContent value="warehouses"><WarehousesTab /></TabsContent>
+        <TabsContent value="combinations"><CombinationsTab /></TabsContent>
+        <TabsContent value="parameters"><ParametersTab /></TabsContent>
+        {visibleTabs.includes('alcadas') && (
+          <TabsContent value="alcadas"><AlcadasTab /></TabsContent>
+        )}
+      </Tabs>
+    </div>
+  );
+};
 
 export default Settings;

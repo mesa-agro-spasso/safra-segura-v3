@@ -11,6 +11,7 @@ export const FEATURES = {
   PRODUCERS: import.meta.env.VITE_FEATURE_PRODUCERS === 'true',
   MARKET_PHYSICAL: import.meta.env.VITE_FEATURE_MARKET_PHYSICAL === 'true',
   MARKET_HISTORICAL: import.meta.env.VITE_FEATURE_MARKET_HISTORICAL === 'true',
+  AUTHORIZATION_TIERS: import.meta.env.VITE_FEATURE_AUTHORIZATION_TIERS === 'true',
 } as const;
 
 export type FeatureFlag = keyof typeof FEATURES;
