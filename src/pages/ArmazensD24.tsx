@@ -753,6 +753,7 @@ const ArmazensD24: React.FC = () => {
         })
         .eq('id', btCancelTarget.id);
       if (error) throw new Error(error.message);
+      void logActivity('block_trade.cancel', 'warehouse_closing_batch', btCancelTarget.id, { reason: btCancelReason.trim() });
       toast.success('Batch cancelado');
       queryClient.invalidateQueries({ queryKey: ['warehouse-closing-batches'] });
       setBtCancelTarget(null);
