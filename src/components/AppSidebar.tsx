@@ -40,9 +40,9 @@ const items = [
   { title: 'Operações', url: '/operacoes-d24', icon: ClipboardList },
   { title: 'Ordens',    url: '/ordens-d24',    icon: FileText },
   { title: 'Armazéns',  url: '/armazens-d24',  icon: Building2 },
-  { title: 'Financeiro', url: '/financeiro', icon: DollarSign },
+  ...(FEATURES.FINANCIAL_CALENDAR ? [{ title: 'Financeiro', url: '/financeiro', icon: DollarSign }] : []),
   { title: 'Mercado', url: '/mercado', icon: BarChart3 },
-  { title: 'Produtores', url: '/produtores', icon: Sprout },
+  ...(FEATURES.PRODUCERS ? [{ title: 'Produtores', url: '/produtores', icon: Sprout }] : []),
   { title: 'Configurações', url: '/configuracoes', icon: Settings },
 ];
 
