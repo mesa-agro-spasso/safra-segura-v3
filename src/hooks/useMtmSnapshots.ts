@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import type { MtmSnapshot } from '@/types';
 
 export function useMtmSnapshots(operationId?: string) {
@@ -26,6 +27,7 @@ export function useSaveMtmSnapshot() {
         .from('mtm_snapshots')
         .insert(snapshot as never);
       if (error) throw error;
+      void logActivity('mtm_snapshot.create', 'operation', (snapshot as any).operation_id);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['mtm_snapshots'] }),
   });
