@@ -38,6 +38,9 @@ export function useUpsertMarketData() {
           { onConflict: 'ticker' }
         );
       if (error) throw error;
+      void logActivity('market_data.update', 'market_data', item.ticker, {
+        commodity: item.commodity, price: item.price, exchange_rate: item.exchange_rate, source: item.source,
+      });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['market_data'] }),
   });
