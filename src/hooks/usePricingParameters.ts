@@ -38,6 +38,7 @@ export function useUpdatePricingParameter() {
         .update(update)
         .eq('id', id);
       if (error) throw error;
+      void logActivity('pricing_parameters.update', 'pricing_parameters', id, update);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pricing_parameters'] }),
   });
