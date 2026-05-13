@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import type { HedgeOrder } from '@/types';
 
 export function useHedgeOrders(filters?: { commodity?: string; status?: string }) {
@@ -29,6 +30,9 @@ export function useCreateHedgeOrder() {
         .select()
         .single();
       if (error) throw error;
+      void logActivity('hedge_order.create', 'hedge_order', (data as any)?.id, {
+        operation_id: (order as any).operation_id, commodity: (order as any).commodity,
+      });
       return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hedge_orders'] }),
@@ -44,6 +48,10 @@ export function useUpdateHedgeOrder() {
         .update(updates as never)
         .eq('id', id);
       if (error) throw error;
+      void logActivity('hedge_order.update', 'hedge_order', id, {
+        status: (updates as any).status,
+        fields: Object.keys(updates),
+      });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hedge_orders'] }),
   });
