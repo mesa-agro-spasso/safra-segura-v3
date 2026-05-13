@@ -125,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    void logActivity('auth.login', 'user', null, { email });
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
@@ -134,9 +135,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       options: { data: { full_name: fullName } },
     });
     if (error) throw error;
+    void logActivity('auth.signup', 'user', null, { email, full_name: fullName });
   };
 
   const signOut = async () => {
+    void logActivity('auth.logout', 'user', user?.id ?? null);
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
