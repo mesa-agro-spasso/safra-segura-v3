@@ -1,49 +1,107 @@
-## Goal
-Add a feature-flag system to hide (not delete) four areas for this contractual delivery: Financial Calendar, Producers tab, and Market sub-tabs Físico/Histórico. All flags default to `false`. Restoration = flip env var to `true`.
+# Activity Log para Auditoria
 
-## Phase A — Setup
+Sistema simples de captura e armazenamento de eventos. Sem UI, consulta via SQL no Supabase.
 
-1. **Create `src/config/features.ts`** — single source of truth, readonly. The `=== 'true'` comparison is intentional: missing/undefined vars resolve to `false` (safe-hide default).
-   ```ts
-   export const FEATURES = {
-     FINANCIAL_CALENDAR: import.meta.env.VITE_FEATURE_FINANCIAL_CALENDAR === 'true',
-     PRODUCERS: import.meta.env.VITE_FEATURE_PRODUCERS === 'true',
-     MARKET_PHYSICAL: import.meta.env.VITE_FEATURE_MARKET_PHYSICAL === 'true',
-     MARKET_HISTORICAL: import.meta.env.VITE_FEATURE_MARKET_HISTORICAL === 'true',
-   } as const;
-   ```
-2. **Update `.env`** — append the 4 vars set to `false`. Create **`.env.example`** with the same 4 vars (also `false`) for documentation.
-3. No file/import deletions anywhere. All flag reads go exclusively through this module.
+## 1. Migration — `public.activity_log`
 
-## Phase B — Hide Financial Calendar
+```sql
+CREATE TABLE public.activity_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  user_email text,
+  action text NOT NULL,
+  entity_type text,
+  entity_id text,
+  details jsonb NOT NULL DEFAULT '{}'::jsonb
+);
 
-- `src/components/AppSidebar.tsx`: filter the `Financeiro` item with `FEATURES.FINANCIAL_CALENDAR`.
-- `src/components/AppLayout.tsx`: filter the `/financeiro` entry out of the `routes` array when the flag is off — direct URL access falls through to the existing `<NotFound />` fallback.
-- Grep for any cross-links pointing to `/financeiro` and wrap with the flag.
+ALTER TABLE public.activity_log ENABLE ROW LEVEL SECURITY;
 
-## Phase C — Hide Producers
+-- Authenticated podem inserir os próprios logs
+CREATE POLICY "users insert own activity"
+  ON public.activity_log FOR INSERT TO authenticated
+  WITH CHECK (user_id = auth.uid());
 
-- `src/components/AppSidebar.tsx`: filter the `Produtores` item with `FEATURES.PRODUCERS`.
-- `src/components/AppLayout.tsx`: filter the `/produtores` route the same way → falls to `<NotFound />`.
-- Grep for cross-links (e.g. "Ver produtor" inside operation details) and wrap with the flag.
-- The producer **autocomplete inside operation forms keeps working** — it queries Supabase via `useProducers`, with no coupling to the page route.
+-- Sem policies de SELECT/UPDATE/DELETE → consulta apenas via service_role / SQL editor
+CREATE INDEX idx_activity_log_occurred_at ON public.activity_log (occurred_at DESC);
+CREATE INDEX idx_activity_log_user_id ON public.activity_log (user_id);
+```
 
-## Phase D — Hide Market sub-tabs Físico & Histórico
+## 2. Utilitário — `src/lib/activityLog.ts`
 
-Edit `src/pages/Market.tsx`:
-- Build the visible-tabs list from flags: `Bolsa` always; `Físico` only if `FEATURES.MARKET_PHYSICAL`; `Histórico` only if `FEATURES.MARKET_HISTORICAL`.
-- Coerce `?tab=` param: if it points to a hidden tab, fall back to the first visible (`bolsa` in this delivery).
-- If only one tab is visible, hide the entire `<TabsList>` but still render `<Tabs value="bolsa">` with the matching `<TabsContent value="bolsa">` so Radix has a valid controlled value with content in the tree (avoids uncontrolled-state warnings).
-- Hidden tabs' `<TabsContent>` are simply not rendered; their page components and imports stay intact.
+```ts
+import { supabase } from '@/integrations/supabase/client';
 
-## Out of scope
-- No backend, Supabase schema, RLS, or edge function changes.
-- No business logic changes; no file deletions; no import removals.
+export async function logActivity(
+  action: string,
+  entityType?: string,
+  entityId?: string | null,
+  details?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return; // só loga autenticado (RLS exige)
+    await supabase.from('activity_log').insert({
+      user_id: user.id,
+      user_email: user.email ?? null,
+      action,
+      entity_type: entityType ?? null,
+      entity_id: entityId ?? null,
+      details: details ?? {},
+    });
+  } catch (err) {
+    console.warn('[activityLog] failed', err);
+  }
+}
+```
 
-## Files touched
-- **New:** `src/config/features.ts`, `.env.example`
-- **Edited:** `.env`, `src/components/AppSidebar.tsx`, `src/components/AppLayout.tsx`, `src/pages/Market.tsx`
-- **Possibly edited** (only if grep finds them): components with cross-links to `/produtores` or `/financeiro`.
+Fire-and-forget: chamadores invocam sem `await` (ou com `void`); função nunca lança.
 
-## Deployment note (will be flagged in delivery message)
-The local `.env` does NOT propagate to production builds. After merge, the four `VITE_FEATURE_*` vars must also be set to `false` in the **Lovable Cloud project settings** (and in **Vercel** if the app is also deployed there). The task isn't truly complete until those platform-level env vars are confirmed.
+## 3. Pontos de instrumentação
+
+Adicionar `void logActivity(...)` no `onSuccess` (ou final do `mutationFn`) das mutations existentes. Convenção `action`: `<entity>.<verb>` em snake_case.
+
+**Auth (`AuthContext.tsx`)**
+- `signIn` → `auth.login`
+- `signOut` → `auth.logout` (chamar antes do signOut)
+- `signUp` → `auth.signup`
+
+**Operações (`useOperations.ts`)**
+- create → `operation.create` (entity_id = id retornado)
+- update / cancel / close handlers existentes → `operation.update`, `operation.cancel`, `operation.close`
+
+**Ordens / Hedge (`useHedgeOrders.ts`)**
+- create → `hedge_order.create`
+- update → `hedge_order.update` (incluir status nos details quando cancelled/executed)
+
+**Produtores (`useProducers.ts`)**
+- create / update / delete → `producer.create | update | delete`
+
+**Armazéns (`useWarehouses.ts`)**
+- update → `warehouse.update`
+
+**Configurações**
+- `usePricingParameters` update → `pricing_parameters.update`
+- `usePricingCombinations` upsert/delete/toggle → `pricing_combination.upsert | delete | toggle`
+
+**Mercado / FX**
+- `useMarketData` upsert → `market_data.update` (ticker nos details)
+- `usePhysicalPrices` upsert/bulk/delete → `physical_price.upsert | bulk_upsert | delete`
+
+**Tabela de preços**
+- `usePricingSnapshots` create → `pricing_snapshot.publish` (count nos details)
+
+**Outros existentes**
+- `useUpdateOperationProducer` → `operation.update_producer`
+- `useMtmSnapshots` create → `mtm_snapshot.create`
+- Block trade execution (`blockTradeExecution.ts`) → `block_trade.execute`
+
+Pular qualquer item acima que, na verificação durante implementação, não exista. Não criar mutations novas.
+
+## Fora de escopo
+
+- Nenhuma página, rota, sidebar, componente visual.
+- Sem mudança em lógica de negócio.
+- Sem backend Python.
+- GETs, navegação e UI pura não são logados.
