@@ -82,7 +82,7 @@ export function AppSidebar() {
           {isStaging && (
             <div className={`flex justify-center ${collapsed ? 'pb-2' : 'pb-2 px-3'}`}>
               <Badge variant="destructive" className={collapsed ? 'h-5 px-1 text-[9px]' : 'w-full justify-center text-[10px] font-bold tracking-wider bg-yellow-500 text-black hover:bg-yellow-500'}>
-                {collapsed ? 'S' : 'STAGING'}
+                {collapsed ? 'T' : 'TESTE'}
               </Badge>
             </div>
           )}
@@ -161,7 +161,7 @@ export function AppSidebar() {
         {!collapsed && isAdmin() && (
           <div className="mb-2 flex items-center justify-between rounded-md border border-sidebar-border/50 px-2 py-1.5">
             <span className="text-[11px] text-sidebar-foreground/70">
-              Ambiente: <span className={isStaging ? 'font-bold text-yellow-500' : 'font-medium'}>{isStaging ? 'Staging' : 'Produção'}</span>
+              Ambiente: <span className={isStaging ? 'font-bold text-yellow-500' : 'font-medium'}>{isStaging ? 'Teste' : 'Produção'}</span>
             </span>
             <Switch checked={isStaging} onCheckedChange={toggle} aria-label="Alternar ambiente" />
           </div>
