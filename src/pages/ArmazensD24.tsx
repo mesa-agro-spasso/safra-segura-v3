@@ -2302,6 +2302,9 @@ const BlockTradeExecutionModal: React.FC<BlockTradeExecutionModalProps> = ({
         .update({ status: 'EXECUTED', generated_orders_count: totalOrdersInserted })
         .eq('id', batch.id);
       if (batchError) throw new Error(batchError.message);
+      void logActivity('block_trade.execute', 'warehouse_closing_batch', batch.id, {
+        total_volume_sacks: totalVol, weighted_price: weightedPrice, orders: totalOrdersInserted,
+      });
 
       setExecutedPhysicalAvg(weightedPrice);
       setExecutedPhysicalRevenue(totalRevenue);
