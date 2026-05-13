@@ -40,7 +40,7 @@ export function AppLayout() {
         <div className="flex-1 flex flex-col">
           {isStaging && (
             <div className="bg-yellow-500 text-black text-center text-xs font-bold py-1 tracking-wider">
-              ⚠️ AMBIENTE DE STAGING — dados fictícios, alterações não afetam produção
+              ⚠️ AMBIENTE DE TESTE — dados fictícios, alterações não afetam produção
             </div>
           )}
           <header className="h-12 flex items-center border-b border-border px-4">

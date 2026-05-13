@@ -49,7 +49,7 @@ const PendingApproval = () => {
                 variant="outline"
                 className="border-yellow-500 text-yellow-600"
               >
-                Sair do modo Staging
+                Sair do modo Teste
               </Button>
             )}
             <Button onClick={handleSignOut} variant="ghost" className="text-muted-foreground">
