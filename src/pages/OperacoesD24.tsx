@@ -3604,6 +3604,9 @@ const RegisterClosingModal: React.FC<RegisterClosingModalProps> = ({
         .from('operations' as any)
         .update({ closing_plan: null } as never)
         .eq('id', operation.id);
+      void logActivity('operation.close', 'operation', operation.id, {
+        physical_volume_sacks: physicalVolNum, physical_price_brl_per_sack: physicalPriceNum,
+      });
       toast.success('Encerramento registrado');
       onClosed();
     } catch (e) {
