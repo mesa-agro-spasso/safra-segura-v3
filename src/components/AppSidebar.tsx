@@ -7,6 +7,7 @@ import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
 import { supabase } from '@/integrations/supabase/client';
 import { useMesaEnv } from '@/contexts/MesaEnvContext';
+import { FEATURES } from '@/config/features';
 import logoLight from '/logo-spasso.png';
 import logoDark from '/logo-spasso-dark.png';
 import iconCollapsed from '/icon-48x48.png';
