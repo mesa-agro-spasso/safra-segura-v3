@@ -488,6 +488,8 @@ export default function Approvals() {
       } as never);
       if (sigError) throw sigError;
 
+      void logActivity('approval.reject', isBatch ? 'warehouse_closing_batch' : 'operation',
+        rejecting.batchId ?? rejecting.operationId, { reason, flow_type: rejecting.flowType });
       toast.success(isBatch ? 'Block trade recusado' : 'Operação recusada');
       queryClient.invalidateQueries({ queryKey: ['signature-events'] });
       queryClient.invalidateQueries({ queryKey: ['pending-signatures'] });
