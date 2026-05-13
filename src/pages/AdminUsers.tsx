@@ -204,6 +204,7 @@ const AdminUsers = () => {
       toast.error('Erro ao atualizar função: ' + error.message);
       return;
     }
+    void logActivity('user_roles.update', 'user', userId, { roles: newRoles });
     setRolesMap((prev) => ({ ...prev, [userId]: newRoles }));
     toast.success('Função atualizada');
   };
