@@ -521,6 +521,9 @@ export default function Approvals() {
       } as never);
       if (insertError) throw insertError;
 
+      void logActivity('approval.sign', signing.batchId ? 'warehouse_closing_batch' : 'operation',
+        signing.batchId ?? signing.operationId, { role: selectedRole, flow_type: signing.flowType });
+
       const newCollected = [...signing.collected, selectedRole];
       if (allSigned(signing.required, newCollected)) {
         toast.success('Todas as assinaturas coletadas — pode ser executada');
