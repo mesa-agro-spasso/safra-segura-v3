@@ -459,7 +459,7 @@ const MarketBolsa = () => {
                 </div>
               </CardHeader>
               <CardContent className="flex items-center gap-4">
-                <span className="text-2xl font-bold">R$ {fxRow.price!.toFixed(4)}</span>
+                <span className="text-2xl font-bold">{fxRow.price != null ? `R$ ${fxRow.price.toFixed(4)}` : '-'}</span>
                 <span className={`text-xs ${getHoursAgo(fxRow.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
                   {getHoursAgo(fxRow.updated_at)}h atrás · {fxRow.source}
                 </span>
@@ -500,7 +500,7 @@ const MarketBolsa = () => {
                       <TableRow key={row.ticker}>
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
-                        <TableCell className="text-right">{row.price!.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{row.price != null ? row.price.toFixed(2) : '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spot?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_estimated?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spread?.toFixed(4) ?? '-'}</TableCell>
@@ -545,7 +545,7 @@ const MarketBolsa = () => {
                       <TableRow key={row.ticker}>
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
-                        <TableCell className="text-right">{row.price!.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{row.price != null ? row.price.toFixed(2) : '-'}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
                           {getHoursAgo(row.updated_at)}h · {row.source}
                         </TableCell>
