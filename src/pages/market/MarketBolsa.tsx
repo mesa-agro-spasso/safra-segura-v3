@@ -500,7 +500,7 @@ const MarketBolsa = () => {
                       <TableRow key={row.ticker}>
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
-                        <TableCell className="text-right">{row.price!.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{row.price != null ? row.price.toFixed(2) : '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spot?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_estimated?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spread?.toFixed(4) ?? '-'}</TableCell>
