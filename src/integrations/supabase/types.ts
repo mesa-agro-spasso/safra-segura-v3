@@ -669,13 +669,15 @@ export type Database = {
           id: string
           interest_rate: number | null
           is_spot: boolean
+          origination_price_net_brl: number | null
           payment_date: string | null
+          pricing_method: string
           reception_cost: number | null
           sale_date: string
           shrinkage_rate_monthly: number | null
           storage_cost: number | null
           storage_cost_type: string | null
-          target_basis: number
+          target_basis: number | null
           ticker: string
           updated_at: string
           warehouse_id: string
@@ -693,13 +695,15 @@ export type Database = {
           id?: string
           interest_rate?: number | null
           is_spot?: boolean
+          origination_price_net_brl?: number | null
           payment_date?: string | null
+          pricing_method?: string
           reception_cost?: number | null
           sale_date: string
           shrinkage_rate_monthly?: number | null
           storage_cost?: number | null
           storage_cost_type?: string | null
-          target_basis: number
+          target_basis?: number | null
           ticker: string
           updated_at?: string
           warehouse_id: string
@@ -717,13 +721,15 @@ export type Database = {
           id?: string
           interest_rate?: number | null
           is_spot?: boolean
+          origination_price_net_brl?: number | null
           payment_date?: string | null
+          pricing_method?: string
           reception_cost?: number | null
           sale_date?: string
           shrinkage_rate_monthly?: number | null
           storage_cost?: number | null
           storage_cost_type?: string | null
-          target_basis?: number
+          target_basis?: number | null
           ticker?: string
           updated_at?: string
           warehouse_id?: string
