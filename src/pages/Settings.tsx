@@ -25,6 +25,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { usePricingParameters, useUpdatePricingParameter } from '@/hooks/usePricingParameters';
+import { callApi } from '@/lib/api';
 import type { Warehouse, PricingCombination, PricingParameter } from '@/types';
 
 const emptyWarehouse: Partial<Warehouse> & { id: string } = {
@@ -367,7 +368,10 @@ function WarehousesTab() {
 const emptyCombination: Partial<PricingCombination> = {
   warehouse_id: '', commodity: 'soybean', benchmark: 'cbot', ticker: '', exp_date: null,
   sale_date: '', payment_date: null, is_spot: false, grain_reception_date: null,
-  target_basis: 0, additional_discount_brl: 0, active: true,
+  pricing_method: 'LONG_BASIS',
+  target_basis: 0,
+  origination_price_net_brl: null,
+  additional_discount_brl: 0, active: true,
   interest_rate: null, storage_cost: null, storage_cost_type: null, reception_cost: null,
   brokerage_per_contract: null, desk_cost_pct: null, shrinkage_rate_monthly: null,
 };
@@ -396,6 +400,7 @@ function CombinationsTab() {
   const { data: combinations, isLoading } = usePricingCombinations();
   const { data: warehouses } = useActiveArmazens();
   const { data: marketData } = useMarketData();
+  const { data: pricingParameters } = usePricingParameters();
   const upsert = useUpsertPricingCombination();
   const toggleActive = useTogglePricingCombinationActive();
   const deleteCombination = useDeletePricingCombination();
@@ -403,6 +408,13 @@ function CombinationsTab() {
   const [open, setOpen] = useState(false);
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [costsOpen, setCostsOpen] = useState(false);
+  const [calculating, setCalculating] = useState(false);
+  const [calcResult, setCalcResult] = useState<{
+    target_basis_brl: number;
+    breakeven_basis_brl: number;
+    purchased_basis_brl: number;
+    origination_price_brl: number;
+  } | null>(null);
 
   const warehouseMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -415,13 +427,139 @@ function CombinationsTab() {
     return showActiveOnly ? combinations.filter((c) => c.active) : combinations;
   }, [combinations, showActiveOnly]);
 
+  const handleCalculate = async () => {
+    if (!editing) return;
+    if (editing.pricing_method !== 'TARGET_PRICE') return;
+    if (!editing.warehouse_id || !editing.ticker || !editing.sale_date) {
+      toast.error('Preencha armazém, ticker e data de venda primeiro');
+      return;
+    }
+    if (editing.origination_price_net_brl == null) {
+      toast.error('Preencha o preço de originação');
+      return;
+    }
+    const warehouse = warehouses?.find((w) => w.id === editing.warehouse_id);
+    if (!warehouse) { toast.error('Armazém não encontrado'); return; }
+    const market = marketData?.find((m) => m.ticker === editing.ticker);
+    if (!market) { toast.error(`Ticker ${editing.ticker} não encontrado em market_data`); return; }
+
+    const expDate = editing.exp_date ?? market.exp_date ?? null;
+    if (!expDate) { toast.error('exp_date ausente — defina no formulário ou em market_data'); return; }
+
+    let paymentDate: string;
+    if (editing.is_spot) {
+      const d = new Date();
+      const day = d.getDay();
+      const daysUntilTuesday = day === 2 ? 7 : (2 - day + 7) % 7 || 7;
+      d.setDate(d.getDate() + daysUntilTuesday);
+      paymentDate = format(d, 'yyyy-MM-dd');
+    } else {
+      if (!editing.payment_date) { toast.error('Data de pagamento ausente'); return; }
+      paymentDate = editing.payment_date;
+    }
+    const grainReceptionDate = editing.grain_reception_date ?? paymentDate;
+
+    const spotRate = marketData?.find((m) => m.ticker === 'USD/BRL')?.price ?? null;
+    let exchangeRate: number | null = null;
+    if (editing.commodity === 'soybean') {
+      exchangeRate = market.ndf_estimated ?? spotRate;
+    } else if (editing.commodity === 'corn' && editing.benchmark === 'cbot') {
+      exchangeRate = spotRate;
+    }
+
+    const inheritCost = (
+      comboField: keyof PricingCombination,
+      warehouseField: keyof Warehouse,
+    ) => {
+      const val = editing[comboField];
+      if (val != null) return val;
+      return (warehouse[warehouseField] as number | string | null) ?? null;
+    };
+
+    const sigmaMap: Record<string, number> = {};
+    pricingParameters?.forEach((p) => { sigmaMap[p.id] = p.sigma; });
+
+    const payload = [{
+      warehouse_id: editing.warehouse_id,
+      display_name: warehouse.display_name,
+      commodity: editing.commodity,
+      benchmark: editing.benchmark,
+      ticker: editing.ticker,
+      exp_date: expDate,
+      payment_date: paymentDate,
+      sale_date: editing.sale_date,
+      grain_reception_date: grainReceptionDate,
+      pricing_method: 'TARGET_PRICE',
+      origination_price_net_brl: editing.origination_price_net_brl,
+      futures_price: market.price,
+      exchange_rate: exchangeRate,
+      additional_discount_brl: 0,
+      interest_rate: inheritCost('interest_rate', 'interest_rate'),
+      storage_cost: inheritCost('storage_cost', 'storage_cost'),
+      storage_cost_type: inheritCost('storage_cost_type', 'storage_cost_type'),
+      reception_cost: inheritCost('reception_cost', 'reception_cost'),
+      brokerage_per_contract: editing.brokerage_per_contract != null
+        ? editing.brokerage_per_contract
+        : editing.benchmark === 'b3'
+          ? warehouse.brokerage_per_contract_b3 ?? null
+          : warehouse.brokerage_per_contract_cbot ?? null,
+      desk_cost_pct: inheritCost('desk_cost_pct', 'desk_cost_pct'),
+      shrinkage_rate_monthly: inheritCost('shrinkage_rate_monthly', 'shrinkage_rate_monthly'),
+      sigma: editing.commodity === 'soybean'
+        ? (sigmaMap['soybean_cbot'] ?? 0.35)
+        : (sigmaMap['corn_b3'] ?? 0.17),
+    }];
+
+    setCalculating(true);
+    try {
+      const result = await callApi<{ results: Array<Record<string, unknown>> }>(
+        '/pricing/table',
+        { combinations: payload },
+      );
+      const r = result?.results?.[0];
+      if (!r) { toast.error('API retornou resposta vazia'); return; }
+      setCalcResult({
+        target_basis_brl: Number(r.target_basis_brl),
+        breakeven_basis_brl: Number(r.breakeven_basis_brl),
+        purchased_basis_brl: Number(r.purchased_basis_brl),
+        origination_price_brl: Number(r.origination_price_brl),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao calcular';
+      toast.error(`Erro: ${msg}`);
+    } finally {
+      setCalculating(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!editing?.warehouse_id || !editing?.ticker || !editing?.sale_date) {
       toast.error('Armazém, ticker e data de venda são obrigatórios'); return;
     }
+    const method = editing.pricing_method ?? 'LONG_BASIS';
+    if (method === 'LONG_BASIS') {
+      if (editing.target_basis == null) {
+        toast.error('Target Basis é obrigatório para Long Basis'); return;
+      }
+    } else {
+      if (editing.origination_price_net_brl == null) {
+        toast.error('Preço de originação é obrigatório para Target Price'); return;
+      }
+      if (editing.additional_discount_brl && editing.additional_discount_brl !== 0) {
+        toast.error('Target Price não permite desconto adicional'); return;
+      }
+    }
+    const payload: Partial<PricingCombination> = {
+      ...editing,
+      pricing_method: method,
+      target_basis: method === 'LONG_BASIS' ? editing.target_basis ?? null : null,
+      origination_price_net_brl: method === 'TARGET_PRICE' ? editing.origination_price_net_brl ?? null : null,
+      additional_discount_brl: method === 'TARGET_PRICE' ? 0 : (editing.additional_discount_brl ?? 0),
+    };
     try {
-      await upsert.mutateAsync(editing);
-      toast.success('Combinação salva'); setOpen(false); setEditing(null);
+      await upsert.mutateAsync(payload);
+      toast.success('Combinação salva');
+      setOpen(false); setEditing(null); setCalcResult(null);
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Erro ao salvar'); }
   };
 
@@ -443,9 +581,9 @@ function CombinationsTab() {
           <Switch checked={showActiveOnly} onCheckedChange={setShowActiveOnly} />
           <Label className="text-xs">Apenas ativos</Label>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setCostsOpen(false); }}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setCostsOpen(false); setCalcResult(null); } }}>
           <DialogTrigger asChild>
-            <Button onClick={() => { setEditing({ ...emptyCombination }); setCostsOpen(false); }}>
+            <Button onClick={() => { setEditing({ ...emptyCombination }); setCostsOpen(false); setCalcResult(null); }}>
               <Plus className="mr-2 h-4 w-4" /> Nova Combinação
             </Button>
           </DialogTrigger>
@@ -453,6 +591,29 @@ function CombinationsTab() {
             <DialogHeader><DialogTitle>{editing?.id ? 'Editar Combinação' : 'Nova Combinação'}</DialogTitle></DialogHeader>
             {editing && (
               <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Método de Precificação</Label>
+                  <Select
+                    value={editing.pricing_method ?? 'LONG_BASIS'}
+                    onValueChange={(v) => {
+                      const method = v as 'LONG_BASIS' | 'TARGET_PRICE';
+                      setEditing({
+                        ...editing,
+                        pricing_method: method,
+                        target_basis: method === 'LONG_BASIS' ? (editing.target_basis ?? 0) : null,
+                        origination_price_net_brl: method === 'TARGET_PRICE' ? (editing.origination_price_net_brl ?? null) : null,
+                        additional_discount_brl: method === 'TARGET_PRICE' ? 0 : (editing.additional_discount_brl ?? 0),
+                      });
+                      setCalcResult(null);
+                    }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LONG_BASIS">Long Basis (Basis → Preço)</SelectItem>
+                      <SelectItem value="TARGET_PRICE">Target Price (Preço → Basis)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Armazém</Label>
@@ -524,10 +685,70 @@ function CombinationsTab() {
                   <DateField label="Data de pagamento" value={editing.payment_date ?? null} onChange={(v) => setEditing({ ...editing, payment_date: v })} />
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  {numField('Target Basis', 'target_basis', '0')}
-                  {numField('Desconto adicional (BRL)', 'additional_discount_brl', '0')}
-                </div>
+                {(editing.pricing_method ?? 'LONG_BASIS') === 'LONG_BASIS' ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {numField('Target Basis (R$/sc)', 'target_basis', '0')}
+                    {numField('Desconto adicional (R$/sc)', 'additional_discount_brl', '0')}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Preço de Originação Net (R$/sc)</Label>
+                    <Input
+                      type="number" step="any" placeholder="ex: 109.11"
+                      value={editing.origination_price_net_brl ?? ''}
+                      onChange={(e) => {
+                        setEditing({
+                          ...editing,
+                          origination_price_net_brl: e.target.value === '' ? null : Number(e.target.value),
+                        });
+                        setCalcResult(null);
+                      }}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Valor que será pago ao produtor. O sistema calculará o basis.
+                    </p>
+                  </div>
+                )}
+
+                {editing.pricing_method === 'TARGET_PRICE' && (
+                  <div className="border rounded-md p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Pré-cálculo do basis
+                      </p>
+                      <Button size="sm" variant="outline" onClick={handleCalculate} disabled={calculating}>
+                        {calculating ? 'Calculando...' : 'Calcular'}
+                      </Button>
+                    </div>
+                    {calcResult ? (
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Preço ao produtor:</span>
+                          <span className="font-mono">R$ {calcResult.origination_price_brl.toFixed(4)}/sc</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Target basis:</span>
+                          <span className="font-mono">R$ {calcResult.target_basis_brl.toFixed(4)}/sc</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Breakeven basis:</span>
+                          <span className="font-mono">R$ {calcResult.breakeven_basis_brl.toFixed(4)}/sc</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Purchased basis:</span>
+                          <span className="font-mono">R$ {calcResult.purchased_basis_brl.toFixed(4)}/sc</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground pt-1">
+                          Confira os valores antes de salvar. Se o basis sair muito fora do esperado, ajuste o preço de originação.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground">
+                        Clique em "Calcular" para ver o basis resultante antes de salvar.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <Collapsible open={costsOpen} onOpenChange={setCostsOpen}>
                   <CollapsibleTrigger asChild>
@@ -587,7 +808,7 @@ function CombinationsTab() {
                   <TableRow>
                     <TableHead>Armazém</TableHead><TableHead>Commodity</TableHead><TableHead>Ticker</TableHead>
                     <TableHead>Benchmark</TableHead><TableHead>Venda</TableHead><TableHead>Pagamento</TableHead>
-                    <TableHead>Basis</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
+                    <TableHead>Método</TableHead><TableHead>Input</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -599,7 +820,16 @@ function CombinationsTab() {
                       <TableCell>{c.benchmark}</TableCell>
                       <TableCell>{c.sale_date}</TableCell>
                       <TableCell>{c.is_spot ? '📍 Spot' : c.payment_date ?? '-'}</TableCell>
-                      <TableCell>{c.target_basis}</TableCell>
+                      <TableCell>
+                        <span className="text-xs">
+                          {c.pricing_method === 'TARGET_PRICE' ? 'Target Price' : 'Long Basis'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {c.pricing_method === 'TARGET_PRICE'
+                          ? `R$ ${(c.origination_price_net_brl ?? 0).toFixed(2)}`
+                          : (c.target_basis != null ? c.target_basis.toFixed(2) : '-')}
+                      </TableCell>
                       <TableCell>
                         <Switch
                           checked={c.active}
@@ -608,7 +838,7 @@ function CombinationsTab() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); }}>
+                          <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); setCalcResult(null); }}>
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
@@ -647,7 +877,7 @@ function CombinationsTab() {
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma combinação {showActiveOnly ? 'ativa ' : ''}cadastrada</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhuma combinação {showActiveOnly ? 'ativa ' : ''}cadastrada</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

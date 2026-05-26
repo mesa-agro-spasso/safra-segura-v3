@@ -149,7 +149,9 @@ export interface PricingCombination {
   payment_date: string | null;
   is_spot: boolean;
   grain_reception_date: string | null;
-  target_basis: number;
+  pricing_method: 'LONG_BASIS' | 'TARGET_PRICE';
+  target_basis: number | null;
+  origination_price_net_brl: number | null;
   interest_rate: number | null;
   storage_cost: number | null;
   storage_cost_type: string | null;
