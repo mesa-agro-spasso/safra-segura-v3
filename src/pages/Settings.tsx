@@ -662,10 +662,70 @@ function CombinationsTab() {
                   <DateField label="Data de pagamento" value={editing.payment_date ?? null} onChange={(v) => setEditing({ ...editing, payment_date: v })} />
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  {numField('Target Basis', 'target_basis', '0')}
-                  {numField('Desconto adicional (BRL)', 'additional_discount_brl', '0')}
-                </div>
+                {(editing.pricing_method ?? 'LONG_BASIS') === 'LONG_BASIS' ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {numField('Target Basis (R$/sc)', 'target_basis', '0')}
+                    {numField('Desconto adicional (R$/sc)', 'additional_discount_brl', '0')}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Preço de Originação Net (R$/sc)</Label>
+                    <Input
+                      type="number" step="any" placeholder="ex: 109.11"
+                      value={editing.origination_price_net_brl ?? ''}
+                      onChange={(e) => {
+                        setEditing({
+                          ...editing,
+                          origination_price_net_brl: e.target.value === '' ? null : Number(e.target.value),
+                        });
+                        setCalcResult(null);
+                      }}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Valor que será pago ao produtor. O sistema calculará o basis.
+                    </p>
+                  </div>
+                )}
+
+                {editing.pricing_method === 'TARGET_PRICE' && (
+                  <div className="border rounded-md p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Pré-cálculo do basis
+                      </p>
+                      <Button size="sm" variant="outline" onClick={handleCalculate} disabled={calculating}>
+                        {calculating ? 'Calculando...' : 'Calcular'}
+                      </Button>
+                    </div>
+                    {calcResult ? (
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Preço ao produtor:</span>
+                          <span className="font-mono">R$ {calcResult.origination_price_brl.toFixed(4)}/sc</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Target basis:</span>
+                          <span className="font-mono">R$ {calcResult.target_basis_brl.toFixed(4)}/sc</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Breakeven basis:</span>
+                          <span className="font-mono">R$ {calcResult.breakeven_basis_brl.toFixed(4)}/sc</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Purchased basis:</span>
+                          <span className="font-mono">R$ {calcResult.purchased_basis_brl.toFixed(4)}/sc</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground pt-1">
+                          Confira os valores antes de salvar. Se o basis sair muito fora do esperado, ajuste o preço de originação.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground">
+                        Clique em "Calcular" para ver o basis resultante antes de salvar.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <Collapsible open={costsOpen} onOpenChange={setCostsOpen}>
                   <CollapsibleTrigger asChild>
