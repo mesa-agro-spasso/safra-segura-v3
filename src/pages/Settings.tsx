@@ -591,6 +591,29 @@ function CombinationsTab() {
             <DialogHeader><DialogTitle>{editing?.id ? 'Editar Combinação' : 'Nova Combinação'}</DialogTitle></DialogHeader>
             {editing && (
               <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Método de Precificação</Label>
+                  <Select
+                    value={editing.pricing_method ?? 'LONG_BASIS'}
+                    onValueChange={(v) => {
+                      const method = v as 'LONG_BASIS' | 'TARGET_PRICE';
+                      setEditing({
+                        ...editing,
+                        pricing_method: method,
+                        target_basis: method === 'LONG_BASIS' ? (editing.target_basis ?? 0) : null,
+                        origination_price_net_brl: method === 'TARGET_PRICE' ? (editing.origination_price_net_brl ?? null) : null,
+                        additional_discount_brl: method === 'TARGET_PRICE' ? 0 : (editing.additional_discount_brl ?? 0),
+                      });
+                      setCalcResult(null);
+                    }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LONG_BASIS">Long Basis (Basis → Preço)</SelectItem>
+                      <SelectItem value="TARGET_PRICE">Target Price (Preço → Basis)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Armazém</Label>
