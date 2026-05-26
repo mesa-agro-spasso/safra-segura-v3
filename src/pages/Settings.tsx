@@ -377,21 +377,10 @@ const emptyCombination: Partial<PricingCombination> = {
 };
 
 function DateField({ label, value, onChange }: { label: string; value: string | null; onChange: (v: string | null) => void }) {
-  const date = value ? new Date(value + 'T12:00:00') : undefined;
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className={cn('w-full justify-start text-left font-normal text-sm', !date && 'text-muted-foreground')}>
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {date ? format(date, 'dd/MM/yyyy') : 'Selecione'}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar mode="single" selected={date} onSelect={(d) => onChange(d ? format(d, 'yyyy-MM-dd') : null)} initialFocus className="p-3 pointer-events-auto" />
-        </PopoverContent>
-      </Popover>
+      <DateInput value={value} onChange={(v) => onChange(v || null)} />
     </div>
   );
 }
