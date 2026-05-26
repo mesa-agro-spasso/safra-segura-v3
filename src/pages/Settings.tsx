@@ -581,9 +581,9 @@ function CombinationsTab() {
           <Switch checked={showActiveOnly} onCheckedChange={setShowActiveOnly} />
           <Label className="text-xs">Apenas ativos</Label>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setCostsOpen(false); }}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setCostsOpen(false); setCalcResult(null); } }}>
           <DialogTrigger asChild>
-            <Button onClick={() => { setEditing({ ...emptyCombination }); setCostsOpen(false); }}>
+            <Button onClick={() => { setEditing({ ...emptyCombination }); setCostsOpen(false); setCalcResult(null); }}>
               <Plus className="mr-2 h-4 w-4" /> Nova Combinação
             </Button>
           </DialogTrigger>
