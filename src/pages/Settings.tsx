@@ -838,7 +838,7 @@ function CombinationsTab() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); }}>
+                          <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); setCalcResult(null); }}>
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
