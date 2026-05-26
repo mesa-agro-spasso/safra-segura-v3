@@ -400,6 +400,7 @@ function CombinationsTab() {
   const { data: combinations, isLoading } = usePricingCombinations();
   const { data: warehouses } = useActiveArmazens();
   const { data: marketData } = useMarketData();
+  const { data: pricingParameters } = usePricingParameters();
   const upsert = useUpsertPricingCombination();
   const toggleActive = useTogglePricingCombinationActive();
   const deleteCombination = useDeletePricingCombination();
@@ -407,6 +408,13 @@ function CombinationsTab() {
   const [open, setOpen] = useState(false);
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [costsOpen, setCostsOpen] = useState(false);
+  const [calculating, setCalculating] = useState(false);
+  const [calcResult, setCalcResult] = useState<{
+    target_basis_brl: number;
+    breakeven_basis_brl: number;
+    purchased_basis_brl: number;
+    origination_price_brl: number;
+  } | null>(null);
 
   const warehouseMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -419,13 +427,139 @@ function CombinationsTab() {
     return showActiveOnly ? combinations.filter((c) => c.active) : combinations;
   }, [combinations, showActiveOnly]);
 
+  const handleCalculate = async () => {
+    if (!editing) return;
+    if (editing.pricing_method !== 'TARGET_PRICE') return;
+    if (!editing.warehouse_id || !editing.ticker || !editing.sale_date) {
+      toast.error('Preencha armazém, ticker e data de venda primeiro');
+      return;
+    }
+    if (editing.origination_price_net_brl == null) {
+      toast.error('Preencha o preço de originação');
+      return;
+    }
+    const warehouse = warehouses?.find((w) => w.id === editing.warehouse_id);
+    if (!warehouse) { toast.error('Armazém não encontrado'); return; }
+    const market = marketData?.find((m) => m.ticker === editing.ticker);
+    if (!market) { toast.error(`Ticker ${editing.ticker} não encontrado em market_data`); return; }
+
+    const expDate = editing.exp_date ?? market.exp_date ?? null;
+    if (!expDate) { toast.error('exp_date ausente — defina no formulário ou em market_data'); return; }
+
+    let paymentDate: string;
+    if (editing.is_spot) {
+      const d = new Date();
+      const day = d.getDay();
+      const daysUntilTuesday = day === 2 ? 7 : (2 - day + 7) % 7 || 7;
+      d.setDate(d.getDate() + daysUntilTuesday);
+      paymentDate = format(d, 'yyyy-MM-dd');
+    } else {
+      if (!editing.payment_date) { toast.error('Data de pagamento ausente'); return; }
+      paymentDate = editing.payment_date;
+    }
+    const grainReceptionDate = editing.grain_reception_date ?? paymentDate;
+
+    const spotRate = marketData?.find((m) => m.ticker === 'USD/BRL')?.price ?? null;
+    let exchangeRate: number | null = null;
+    if (editing.commodity === 'soybean') {
+      exchangeRate = market.ndf_estimated ?? spotRate;
+    } else if (editing.commodity === 'corn' && editing.benchmark === 'cbot') {
+      exchangeRate = spotRate;
+    }
+
+    const inheritCost = (
+      comboField: keyof PricingCombination,
+      warehouseField: keyof Warehouse,
+    ) => {
+      const val = editing[comboField];
+      if (val != null) return val;
+      return (warehouse[warehouseField] as number | string | null) ?? null;
+    };
+
+    const sigmaMap: Record<string, number> = {};
+    pricingParameters?.forEach((p) => { sigmaMap[p.id] = p.sigma; });
+
+    const payload = [{
+      warehouse_id: editing.warehouse_id,
+      display_name: warehouse.display_name,
+      commodity: editing.commodity,
+      benchmark: editing.benchmark,
+      ticker: editing.ticker,
+      exp_date: expDate,
+      payment_date: paymentDate,
+      sale_date: editing.sale_date,
+      grain_reception_date: grainReceptionDate,
+      pricing_method: 'TARGET_PRICE',
+      origination_price_net_brl: editing.origination_price_net_brl,
+      futures_price: market.price,
+      exchange_rate: exchangeRate,
+      additional_discount_brl: 0,
+      interest_rate: inheritCost('interest_rate', 'interest_rate'),
+      storage_cost: inheritCost('storage_cost', 'storage_cost'),
+      storage_cost_type: inheritCost('storage_cost_type', 'storage_cost_type'),
+      reception_cost: inheritCost('reception_cost', 'reception_cost'),
+      brokerage_per_contract: editing.brokerage_per_contract != null
+        ? editing.brokerage_per_contract
+        : editing.benchmark === 'b3'
+          ? warehouse.brokerage_per_contract_b3 ?? null
+          : warehouse.brokerage_per_contract_cbot ?? null,
+      desk_cost_pct: inheritCost('desk_cost_pct', 'desk_cost_pct'),
+      shrinkage_rate_monthly: inheritCost('shrinkage_rate_monthly', 'shrinkage_rate_monthly'),
+      sigma: editing.commodity === 'soybean'
+        ? (sigmaMap['soybean_cbot'] ?? 0.35)
+        : (sigmaMap['corn_b3'] ?? 0.17),
+    }];
+
+    setCalculating(true);
+    try {
+      const result = await callApi<{ results: Array<Record<string, unknown>> }>(
+        '/pricing/table',
+        { combinations: payload },
+      );
+      const r = result?.results?.[0];
+      if (!r) { toast.error('API retornou resposta vazia'); return; }
+      setCalcResult({
+        target_basis_brl: Number(r.target_basis_brl),
+        breakeven_basis_brl: Number(r.breakeven_basis_brl),
+        purchased_basis_brl: Number(r.purchased_basis_brl),
+        origination_price_brl: Number(r.origination_price_brl),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao calcular';
+      toast.error(`Erro: ${msg}`);
+    } finally {
+      setCalculating(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!editing?.warehouse_id || !editing?.ticker || !editing?.sale_date) {
       toast.error('Armazém, ticker e data de venda são obrigatórios'); return;
     }
+    const method = editing.pricing_method ?? 'LONG_BASIS';
+    if (method === 'LONG_BASIS') {
+      if (editing.target_basis == null) {
+        toast.error('Target Basis é obrigatório para Long Basis'); return;
+      }
+    } else {
+      if (editing.origination_price_net_brl == null) {
+        toast.error('Preço de originação é obrigatório para Target Price'); return;
+      }
+      if (editing.additional_discount_brl && editing.additional_discount_brl !== 0) {
+        toast.error('Target Price não permite desconto adicional'); return;
+      }
+    }
+    const payload: Partial<PricingCombination> = {
+      ...editing,
+      pricing_method: method,
+      target_basis: method === 'LONG_BASIS' ? editing.target_basis ?? null : null,
+      origination_price_net_brl: method === 'TARGET_PRICE' ? editing.origination_price_net_brl ?? null : null,
+      additional_discount_brl: method === 'TARGET_PRICE' ? 0 : (editing.additional_discount_brl ?? 0),
+    };
     try {
-      await upsert.mutateAsync(editing);
-      toast.success('Combinação salva'); setOpen(false); setEditing(null);
+      await upsert.mutateAsync(payload);
+      toast.success('Combinação salva');
+      setOpen(false); setEditing(null); setCalcResult(null);
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Erro ao salvar'); }
   };
 
