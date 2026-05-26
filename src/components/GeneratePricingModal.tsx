@@ -167,7 +167,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       }
       // corn + b3: não envia exchange_rate (null)
 
-      payload.push({
+      const pricingMethod = combo.pricing_method ?? 'LONG_BASIS';
+
+      const baseCombo: Record<string, unknown> = {
         warehouse_id: combo.warehouse_id,
         display_name: warehouse.display_name,
         commodity: combo.commodity,
@@ -177,10 +179,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         payment_date: paymentDate,
         sale_date: combo.sale_date,
         grain_reception_date: grainReceptionDate,
-        target_basis: combo.target_basis,
+        pricing_method: pricingMethod,
         futures_price: market.price,
         exchange_rate: exchangeRate,
-        additional_discount_brl: combo.additional_discount_brl,
         interest_rate: inheritCost('interest_rate', 'interest_rate'),
         storage_cost: inheritCost('storage_cost', 'storage_cost'),
         storage_cost_type: inheritCost('storage_cost_type', 'storage_cost_type'),
@@ -195,7 +196,32 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         sigma: combo.commodity === 'soybean'
           ? (sigmaMap['soybean_cbot'] ?? 0.35)
           : (sigmaMap['corn_b3'] ?? 0.17),
-      });
+      };
+
+      if (pricingMethod === 'LONG_BASIS') {
+        if (combo.target_basis == null) {
+          toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} (Long Basis) sem target_basis — pulando`);
+          continue;
+        }
+        payload.push({
+          ...baseCombo,
+          target_basis: combo.target_basis,
+          additional_discount_brl: combo.additional_discount_brl,
+        });
+      } else if (pricingMethod === 'TARGET_PRICE') {
+        if (combo.origination_price_net_brl == null) {
+          toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} (Target Price) sem origination_price_net_brl — pulando`);
+          continue;
+        }
+        payload.push({
+          ...baseCombo,
+          origination_price_net_brl: combo.origination_price_net_brl,
+          additional_discount_brl: 0,
+        });
+      } else {
+        toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} com pricing_method desconhecido '${pricingMethod}' — pulando`);
+        continue;
+      }
     }
 
     if (payload.length === 0) {
@@ -229,10 +255,12 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             origination_price_brl: r.origination_price_brl ?? 0,
             additional_discount_brl: r.additional_discount_brl ?? orig.additional_discount_brl ?? 0,
             inputs_json: {
+              pricing_method: orig.pricing_method,
               futures_price: orig.futures_price,
               exchange_rate: orig.exchange_rate ?? null,
               exp_date: orig.exp_date ?? null,
-              target_basis: orig.target_basis,
+              target_basis: orig.target_basis ?? null,
+              origination_price_net_brl: orig.origination_price_net_brl ?? null,
               interest_rate: orig.interest_rate,
               storage_cost: orig.storage_cost,
               storage_cost_type: orig.storage_cost_type,
