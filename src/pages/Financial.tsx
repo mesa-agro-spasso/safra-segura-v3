@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -344,7 +345,7 @@ export default function Financial() {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Data de pagamento realizado *</label>
-              <Input type="date" value={realizedDate} onChange={(e) => setRealizedDate(e.target.value)} required />
+              <DateInput value={realizedDate} onChange={setRealizedDate} required />
             </div>
             <div>
               <label className="text-sm font-medium">Observações</label>

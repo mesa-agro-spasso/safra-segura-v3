@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { DateInput } from '@/components/ui/date-input';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import {
   useLatestPhysicalPrices,
@@ -85,7 +86,7 @@ export function PhysicalPriceBulkDialog({ open, onOpenChange }: Props) {
           <div className="flex items-end gap-3">
             <div>
               <Label>Data de referência</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
+              <DateInput value={date} onChange={setDate} className="w-44" />
             </div>
             <p className="text-xs text-muted-foreground pb-2">
               Pré-preenchido com o último preço conhecido. Edite, deixe em branco para pular.

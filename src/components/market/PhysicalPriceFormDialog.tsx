@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DateInput } from '@/components/ui/date-input';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useUpsertPhysicalPrice } from '@/hooks/usePhysicalPrices';
 import { toast } from 'sonner';
@@ -82,7 +83,7 @@ export function PhysicalPriceFormDialog({
           </div>
           <div>
             <Label>Data de referência</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput value={date} onChange={setDate} />
           </div>
           <div>
             <Label>Preço (R$/saca)</Label>

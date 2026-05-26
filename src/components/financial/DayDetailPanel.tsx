@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -144,7 +145,7 @@ export default function DayDetailPanel({ open, onClose, date, events }: DayDetai
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Data de pagamento realizado *</label>
-              <Input type="date" value={realizedDate} onChange={(e) => setRealizedDate(e.target.value)} required />
+              <DateInput value={realizedDate} onChange={setRealizedDate} required />
             </div>
             <div>
               <label className="text-sm font-medium">Observações</label>

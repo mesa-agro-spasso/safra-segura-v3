@@ -33,6 +33,7 @@ import type { OperationWithDetails, HedgeOrder, PricingSnapshot } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -331,8 +332,8 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
               </div>
               <div>
                 <Label className="text-xs">Maturidade</Label>
-                <Input className="h-8" type="date" value={leg.ndf_maturity}
-                  onChange={(e) => setEditLegs(prev => prev.map((l, j) => j === i ? { ...l, ndf_maturity: e.target.value } : l))} />
+                <DateInput className="h-8" value={leg.ndf_maturity}
+                  onChange={(v) => setEditLegs(prev => prev.map((l, j) => j === i ? { ...l, ndf_maturity: v } : l))} />
               </div>
             </>)}
 
@@ -365,8 +366,8 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
               </div>
               <div>
                 <Label className="text-xs">Vencimento</Label>
-                <Input className="h-8" type="date" value={leg.expiration_date}
-                  onChange={(e) => setEditLegs(prev => prev.map((l, j) => j === i ? { ...l, expiration_date: e.target.value } : l))} />
+                <DateInput className="h-8" value={leg.expiration_date}
+                  onChange={(v) => setEditLegs(prev => prev.map((l, j) => j === i ? { ...l, expiration_date: v } : l))} />
               </div>
             </>)}
 
@@ -2788,19 +2789,19 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Trade date</Label>
-            <Input type="date" value={tradeDate} onChange={e => setTradeDate(e.target.value)} />
+            <DateInput value={tradeDate} onChange={setTradeDate} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Pagamento</Label>
-            <Input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} />
+            <DateInput value={paymentDate} onChange={setPaymentDate} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Recepção</Label>
-            <Input type="date" value={receptionDate} onChange={e => setReceptionDate(e.target.value)} />
+            <DateInput value={receptionDate} onChange={setReceptionDate} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Saída</Label>
-            <Input type="date" value={saleDate} onChange={e => setSaleDate(e.target.value)} />
+            <DateInput value={saleDate} onChange={setSaleDate} />
           </div>
           <div className="col-span-2 space-y-1">
             <Label className="text-xs">Notas</Label>
@@ -2901,8 +2902,8 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
                           </div>
                           <div>
                             <Label className="text-xs">Maturidade</Label>
-                            <Input className="h-8" type="date" value={leg.ndf_maturity ?? ''}
-                              onChange={(e) => updateLeg({ ndf_maturity: e.target.value || undefined })} />
+                            <DateInput className="h-8" value={leg.ndf_maturity ?? ''}
+                              onChange={(v) => updateLeg({ ndf_maturity: v || undefined })} />
                           </div>
                         </>)}
                         {isOption && (<>
@@ -2929,8 +2930,8 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
                           </div>
                           <div>
                             <Label className="text-xs">Vencimento</Label>
-                            <Input className="h-8" type="date" value={leg.expiration_date ?? ''}
-                              onChange={(e) => updateLeg({ expiration_date: e.target.value || undefined })} />
+                            <DateInput className="h-8" value={leg.expiration_date ?? ''}
+                              onChange={(v) => updateLeg({ expiration_date: v || undefined })} />
                           </div>
                         </>)}
                       </div>

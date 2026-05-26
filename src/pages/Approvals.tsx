@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -593,11 +594,11 @@ export default function Approvals() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Pagamento (de)</Label>
-              <Input type="date" value={filterPaymentFrom} onChange={(e) => setFilterPaymentFrom(e.target.value)} />
+              <DateInput value={filterPaymentFrom} onChange={setFilterPaymentFrom} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Pagamento (até)</Label>
-              <Input type="date" value={filterPaymentTo} onChange={(e) => setFilterPaymentTo(e.target.value)} />
+              <DateInput value={filterPaymentTo} onChange={setFilterPaymentTo} />
             </div>
             <Button variant="outline" onClick={clearFilters}>Limpar</Button>
           </div>
