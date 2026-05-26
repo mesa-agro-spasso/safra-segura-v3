@@ -820,7 +820,16 @@ function CombinationsTab() {
                       <TableCell>{c.benchmark}</TableCell>
                       <TableCell>{c.sale_date}</TableCell>
                       <TableCell>{c.is_spot ? '📍 Spot' : c.payment_date ?? '-'}</TableCell>
-                      <TableCell>{c.target_basis}</TableCell>
+                      <TableCell>
+                        <span className="text-xs">
+                          {c.pricing_method === 'TARGET_PRICE' ? 'Target Price' : 'Long Basis'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {c.pricing_method === 'TARGET_PRICE'
+                          ? `R$ ${(c.origination_price_net_brl ?? 0).toFixed(2)}`
+                          : (c.target_basis != null ? c.target_basis.toFixed(2) : '-')}
+                      </TableCell>
                       <TableCell>
                         <Switch
                           checked={c.active}
