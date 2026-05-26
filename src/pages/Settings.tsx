@@ -808,7 +808,7 @@ function CombinationsTab() {
                   <TableRow>
                     <TableHead>Armazém</TableHead><TableHead>Commodity</TableHead><TableHead>Ticker</TableHead>
                     <TableHead>Benchmark</TableHead><TableHead>Venda</TableHead><TableHead>Pagamento</TableHead>
-                    <TableHead>Basis</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
+                    <TableHead>Método</TableHead><TableHead>Input</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
