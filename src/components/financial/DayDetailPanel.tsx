@@ -144,7 +144,7 @@ export default function DayDetailPanel({ open, onClose, date, events }: DayDetai
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Data de pagamento realizado *</label>
-              <Input type="date" value={realizedDate} onChange={(e) => setRealizedDate(e.target.value)} required />
+              <DateInput value={realizedDate} onChange={setRealizedDate} required />
             </div>
             <div>
               <label className="text-sm font-medium">Observações</label>

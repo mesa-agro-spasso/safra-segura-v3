@@ -593,11 +593,11 @@ export default function Approvals() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Pagamento (de)</Label>
-              <Input type="date" value={filterPaymentFrom} onChange={(e) => setFilterPaymentFrom(e.target.value)} />
+              <DateInput value={filterPaymentFrom} onChange={setFilterPaymentFrom} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Pagamento (até)</Label>
-              <Input type="date" value={filterPaymentTo} onChange={(e) => setFilterPaymentTo(e.target.value)} />
+              <DateInput value={filterPaymentTo} onChange={setFilterPaymentTo} />
             </div>
             <Button variant="outline" onClick={clearFilters}>Limpar</Button>
           </div>
