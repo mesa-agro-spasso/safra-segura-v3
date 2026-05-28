@@ -51,7 +51,7 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { signOut, user, profile } = useAuth();
   const { isAdmin } = useAuthorization();
-  const { isStaging, toggle } = useMesaEnv();
+  const { isStaging, isPending, toggle } = useMesaEnv();
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
   const { data: userRoles = [] } = useQuery({
     queryKey: ['sidebar-user-roles', user?.id],
