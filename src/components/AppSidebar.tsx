@@ -158,7 +158,7 @@ export function AppSidebar() {
             )}
           </div>
         )}
-        {!collapsed && isAdmin() && (
+        {!collapsed && isAdmin() && !isPending && (
           <div className="mb-2 flex items-center justify-between rounded-md border border-sidebar-border/50 px-2 py-1.5">
             <span className="text-[11px] text-sidebar-foreground/70">
               Ambiente: <span className={isStaging ? 'font-bold text-yellow-500' : 'font-medium'}>{isStaging ? 'Teste' : 'Produção'}</span>
