@@ -2939,24 +2939,40 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
                         </div>
                         <div>
                           <Label className="text-xs">{isNdf ? 'Volume USD' : 'Contratos'}</Label>
-                          <Input className="h-8" inputMode="decimal" value={String(qtyValue ?? '')}
+                          <Input className="h-8" inputMode="decimal"
+                            value={legDrafts[`${i}-qty`] ?? (qtyValue !== '' && qtyValue != null ? String(qtyValue) : '')}
                             onChange={(e) => {
-                              const num = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                              const raw = e.target.value;
+                              setLegDraft(`${i}-qty`, raw);
+                              const parsed = parseDecimal(raw);
+                              const num = raw === '' ? undefined : (Number.isFinite(parsed) ? parsed : undefined);
                               updateLeg(isNdf ? { volume_units: num, contracts: num } : { contracts: num });
                             }} />
                         </div>
                         {!isNdf && !isOption && (
                           <div>
                             <Label className="text-xs">Preço estimado</Label>
-                            <Input className="h-8" inputMode="decimal" value={leg.price_estimated != null ? String(leg.price_estimated) : ''}
-                              onChange={(e) => updateLeg({ price_estimated: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                            <Input className="h-8" inputMode="decimal"
+                              value={legDrafts[`${i}-price`] ?? (leg.price_estimated != null ? String(leg.price_estimated) : '')}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                setLegDraft(`${i}-price`, raw);
+                                const parsed = parseDecimal(raw);
+                                updateLeg({ price_estimated: raw === '' ? undefined : (Number.isFinite(parsed) ? parsed : undefined) });
+                              }} />
                           </div>
                         )}
                         {isNdf && (<>
                           <div>
                             <Label className="text-xs">Taxa NDF (BRL/USD)</Label>
-                            <Input className="h-8" inputMode="decimal" value={leg.ndf_rate != null ? String(leg.ndf_rate) : ''}
-                              onChange={(e) => updateLeg({ ndf_rate: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                            <Input className="h-8" inputMode="decimal"
+                              value={legDrafts[`${i}-ndf`] ?? (leg.ndf_rate != null ? String(leg.ndf_rate) : '')}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                setLegDraft(`${i}-ndf`, raw);
+                                const parsed = parseDecimal(raw);
+                                updateLeg({ ndf_rate: raw === '' ? undefined : (Number.isFinite(parsed) ? parsed : undefined) });
+                              }} />
                           </div>
                           <div>
                             <Label className="text-xs">Maturidade</Label>
