@@ -18,22 +18,16 @@ export type EnvChangeReason =
 const ADMIN_TOGGLE_LS_KEY = 'mesa_env';
 
 let current: EnvState = 'pending';
-let initialized = false;
 const listeners = new Set<(env: EnvState, reason: EnvChangeReason) => void>();
 
 export const getCurrentEnv = (): EnvState => current;
 
 export const setCurrentEnv = (next: EnvState, reason: EnvChangeReason): void => {
-  const changed = next !== current;
+  if (next === current) return;
   current = next;
-  if (!initialized) {
-    // First call after boot is the "initialization" — silent, no listeners.
-    initialized = true;
-    return;
-  }
-  if (changed) {
-    listeners.forEach((fn) => fn(next, reason));
-  }
+  // Notify on every real transition. The reason (not a flag) is what gates
+  // side effects like the admin-toggle reload in MesaEnvContext.
+  listeners.forEach((fn) => fn(next, reason));
 };
 
 export const onEnvChange = (
