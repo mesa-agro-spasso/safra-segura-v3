@@ -132,6 +132,7 @@ export interface UserProfile {
   access_level: 'limited' | 'full';
   is_admin: boolean;
   theme: 'dark' | 'light';
+  forced_env: 'staging' | null;
   created_at: string;
   updated_at: string;
   approved_at: string | null;
