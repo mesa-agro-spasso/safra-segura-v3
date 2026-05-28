@@ -1658,30 +1658,52 @@ const OperacoesD24: React.FC = () => {
             <p className="text-center text-muted-foreground py-12">Calcule o MTM primeiro para ver o resumo.</p>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-xs text-muted-foreground">Operações Ativas</p>
-                    <p className="text-2xl font-bold">{displayResults?.length ?? 0}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-xs text-muted-foreground">Resultado Total</p>
-                    <p className={`text-2xl font-bold ${summary.totalGeral >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      R$ {summary.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-xs text-muted-foreground">Resultado por Saca</p>
-                    <p className={`text-2xl font-bold ${summary.totalPerSack >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      R$ {summary.totalPerSack.toFixed(2)}/sc
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+              {(() => {
+                const sections: { key: 'soybean' | 'corn'; label: string }[] = [
+                  { key: 'soybean', label: 'Soja' },
+                  { key: 'corn', label: 'Milho' },
+                ];
+                const renderCards = (b: { count: number; totalGeral: number; totalPerSack: number }) => (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Operações Ativas</p>
+                        <p className="text-2xl font-bold">{b.count}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Resultado Total</p>
+                        <p className={`text-2xl font-bold ${b.totalGeral >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          R$ {b.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Resultado por Saca</p>
+                        <p className={`text-2xl font-bold ${b.totalPerSack >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          R$ {b.totalPerSack.toFixed(2)}/sc
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+                return (
+                  <div className="space-y-4">
+                    {sections.map(s => (
+                      <div key={s.key} className="space-y-2">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{s.label}</h3>
+                        {renderCards(summary.byCommodity[s.key])}
+                      </div>
+                    ))}
+                    <div className="space-y-2 pt-2 border-t">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide">Total Consolidado</h3>
+                      {renderCards({ count: displayResults?.length ?? 0, totalGeral: summary.totalGeral, totalPerSack: summary.totalPerSack })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <Card className="mt-4">
                 <CardHeader>
