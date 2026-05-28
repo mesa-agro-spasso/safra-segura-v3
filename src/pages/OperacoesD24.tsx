@@ -2662,6 +2662,7 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
       setVolume(''); setTradeDate(new Date().toISOString().slice(0, 10));
       setNotes('');
       setPlanResp(null);
+      setLegDrafts({});
     }
     prevOpenRef.current = open;
   }, [open, prefillSnapshotId, pricingSnapshots]);
