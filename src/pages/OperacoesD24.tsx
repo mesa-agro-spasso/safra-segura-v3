@@ -2636,6 +2636,10 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
   const [planResp, setPlanResp] = useState<BuildHedgePlanResponse | null>(null);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Raw text buffers for numeric leg fields — preserve comma/partial typing.
+  const [legDrafts, setLegDrafts] = useState<Record<string, string>>({});
+  const setLegDraft = (key: string, value: string) =>
+    setLegDrafts(prev => ({ ...prev, [key]: value }));
 
   // Reset only on open transition (false → true), not on every re-render
   const prevOpenRef = React.useRef(false);
