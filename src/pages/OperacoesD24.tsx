@@ -1068,15 +1068,39 @@ const OperacoesD24: React.FC = () => {
   // ── Summary
   const summary = useMemo(() => {
     if (!displayResults?.length) return null;
-    const totalFisico = displayResults.reduce((s, r) => s + ((r.mtm_physical_brl as number) ?? 0), 0);
-    const totalFuturos = displayResults.reduce((s, r) => s + ((r.mtm_futures_brl as number) ?? 0), 0);
-    const totalNdf = displayResults.reduce((s, r) => s + ((r.mtm_ndf_brl as number) ?? 0), 0);
-    const totalOpcao = displayResults.reduce((s, r) => s + ((r.mtm_option_brl as number) ?? 0), 0);
-    const totalGeral = displayResults.reduce((s, r) => s + ((r.mtm_total_brl as number) ?? 0), 0);
-    const totalVolume = displayResults.reduce((s, r) => s + ((r.volume_sacks as number) ?? 0), 0);
-    const totalPerSack = totalVolume > 0 ? totalGeral / totalVolume : 0;
-    return { totalFisico, totalFuturos, totalNdf, totalOpcao, totalGeral, totalVolume, totalPerSack };
-  }, [displayResults]);
+    const opCommodity = new Map<string, string>();
+    for (const op of (operations ?? [])) opCommodity.set(op.id, (op as any).commodity);
+
+    const makeBucket = () => ({
+      count: 0,
+      totalFisico: 0, totalFuturos: 0, totalNdf: 0, totalOpcao: 0,
+      totalGeral: 0, totalVolume: 0, totalPerSack: 0,
+    });
+    const all = makeBucket();
+    const byCommodity: Record<'soybean' | 'corn', ReturnType<typeof makeBucket>> = {
+      soybean: makeBucket(), corn: makeBucket(),
+    };
+    for (const r of displayResults) {
+      const c = opCommodity.get(r.operation_id as string);
+      const bucket = c === 'soybean' ? byCommodity.soybean : c === 'corn' ? byCommodity.corn : null;
+      const add = (b: ReturnType<typeof makeBucket>) => {
+        b.count += 1;
+        b.totalFisico += (r.mtm_physical_brl as number) ?? 0;
+        b.totalFuturos += (r.mtm_futures_brl as number) ?? 0;
+        b.totalNdf += (r.mtm_ndf_brl as number) ?? 0;
+        b.totalOpcao += (r.mtm_option_brl as number) ?? 0;
+        b.totalGeral += (r.mtm_total_brl as number) ?? 0;
+        b.totalVolume += (r.volume_sacks as number) ?? 0;
+      };
+      add(all);
+      if (bucket) add(bucket);
+    }
+    for (const b of [all, byCommodity.soybean, byCommodity.corn]) {
+      b.totalPerSack = b.totalVolume > 0 ? b.totalGeral / b.totalVolume : 0;
+    }
+    return { ...all, byCommodity };
+  }, [displayResults, operations]);
+
 
   const chartDataConsolidated = useMemo(() => {
     if (!summary) return [];
