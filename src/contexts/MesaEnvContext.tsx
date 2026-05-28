@@ -26,7 +26,10 @@ export function MesaEnvProvider({ children }: { children: ReactNode }) {
   const [env, setEnvState] = useState<EnvState>(getCurrentEnv());
 
   useEffect(() => {
-    // Subscribe to env transitions emitted by envState.
+    // Catch-up: if the env ref already transitioned between module load and
+    // this subscribe, mirror it now. The real fix is the listener firing on
+    // 'profile-resolved' — this is defense in depth.
+    setEnvState(getCurrentEnv());
     const unsubscribe = onEnvChange((next, reason) => {
       setEnvState(next);
       // Admin toggle: full reload to wipe React Query cache + any in-flight
