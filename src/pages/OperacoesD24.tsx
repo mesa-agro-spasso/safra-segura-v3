@@ -144,7 +144,7 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
   };
 
   const buildLegPayload = (l: EditableLeg) => {
-    const qty = l.contracts ? parseFloat(l.contracts) : undefined;
+    const qty = l.contracts ? parseDecimal(l.contracts) : undefined;
     return {
       instrument_type: l.instrument_type,
       direction: l.direction,
@@ -152,12 +152,12 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
       ticker: l.ticker || undefined,
       contracts: qty,
       volume_units: l.instrument_type === 'ndf' ? qty : undefined,
-      price_estimated: l.price_estimated ? parseFloat(l.price_estimated) : undefined,
-      ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
+      price_estimated: l.price_estimated ? parseDecimal(l.price_estimated) : undefined,
+      ndf_rate: l.ndf_rate ? parseDecimal(l.ndf_rate) : undefined,
       ndf_maturity: l.ndf_maturity || undefined,
       option_type: l.instrument_type === 'option' ? l.option_type : undefined,
-      strike: l.strike ? parseFloat(l.strike) : undefined,
-      premium: l.premium ? parseFloat(l.premium) : undefined,
+      strike: l.strike ? parseDecimal(l.strike) : undefined,
+      premium: l.premium ? parseDecimal(l.premium) : undefined,
       expiration_date: l.expiration_date || undefined,
       is_counterparty_insurance: l.is_counterparty_insurance,
       notes: l.notes || undefined,
