@@ -55,6 +55,13 @@ import { toast } from 'sonner';
 
 // ───────────────────────── helpers (replicated, no cross-page imports) ─────────────────────────
 
+// Accept "." and "," as decimal separators (pt-BR users frequently type comma).
+const parseDecimal = (s: string | number | null | undefined): number => {
+  if (s == null || s === '') return NaN;
+  if (typeof s === 'number') return s;
+  return parseFloat(String(s).replace(',', '.'));
+};
+
 type EditableLeg = {
   instrument_type: 'futures' | 'ndf' | 'option';
   direction: 'buy' | 'sell';
@@ -137,7 +144,7 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
   };
 
   const buildLegPayload = (l: EditableLeg) => {
-    const qty = l.contracts ? parseFloat(l.contracts) : undefined;
+    const qty = l.contracts ? parseDecimal(l.contracts) : undefined;
     return {
       instrument_type: l.instrument_type,
       direction: l.direction,
@@ -145,12 +152,12 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
       ticker: l.ticker || undefined,
       contracts: qty,
       volume_units: l.instrument_type === 'ndf' ? qty : undefined,
-      price_estimated: l.price_estimated ? parseFloat(l.price_estimated) : undefined,
-      ndf_rate: l.ndf_rate ? parseFloat(l.ndf_rate) : undefined,
+      price_estimated: l.price_estimated ? parseDecimal(l.price_estimated) : undefined,
+      ndf_rate: l.ndf_rate ? parseDecimal(l.ndf_rate) : undefined,
       ndf_maturity: l.ndf_maturity || undefined,
       option_type: l.instrument_type === 'option' ? l.option_type : undefined,
-      strike: l.strike ? parseFloat(l.strike) : undefined,
-      premium: l.premium ? parseFloat(l.premium) : undefined,
+      strike: l.strike ? parseDecimal(l.strike) : undefined,
+      premium: l.premium ? parseDecimal(l.premium) : undefined,
       expiration_date: l.expiration_date || undefined,
       is_counterparty_insurance: l.is_counterparty_insurance,
       notes: l.notes || undefined,
@@ -172,15 +179,15 @@ export const HedgePlanEditor: React.FC<HedgePlanEditorProps> = ({ operation, opD
       direction: l.direction,
       currency: l.currency,
       ticker: l.ticker || undefined,
-      contracts: l.contracts ? parseFloat(l.contracts) : undefined,
+      contracts: l.contracts ? parseDecimal(l.contracts) : undefined,
       price: !['ndf'].includes(l.instrument_type) && l.price_estimated
-        ? parseFloat(l.price_estimated) : undefined,
+        ? parseDecimal(l.price_estimated) : undefined,
       ndf_rate: l.instrument_type === 'ndf' && l.ndf_rate
-        ? parseFloat(l.ndf_rate) : undefined,
+        ? parseDecimal(l.ndf_rate) : undefined,
       ndf_maturity: l.ndf_maturity || undefined,
       option_type: l.instrument_type === 'option' ? l.option_type : undefined,
-      strike: l.strike ? parseFloat(l.strike) : undefined,
-      premium: l.premium ? parseFloat(l.premium) : undefined,
+      strike: l.strike ? parseDecimal(l.strike) : undefined,
+      premium: l.premium ? parseDecimal(l.premium) : undefined,
       expiration_date: l.expiration_date || undefined,
       is_counterparty_insurance: l.is_counterparty_insurance,
       notes: l.notes || undefined,
@@ -2629,6 +2636,10 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
   const [planResp, setPlanResp] = useState<BuildHedgePlanResponse | null>(null);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Raw text buffers for numeric leg fields — preserve comma/partial typing.
+  const [legDrafts, setLegDrafts] = useState<Record<string, string>>({});
+  const setLegDraft = (key: string, value: string) =>
+    setLegDrafts(prev => ({ ...prev, [key]: value }));
 
   // Reset only on open transition (false → true), not on every re-render
   const prevOpenRef = React.useRef(false);
@@ -2651,6 +2662,7 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
       setVolume(''); setTradeDate(new Date().toISOString().slice(0, 10));
       setNotes('');
       setPlanResp(null);
+      setLegDrafts({});
     }
     prevOpenRef.current = open;
   }, [open, prefillSnapshotId, pricingSnapshots]);
@@ -2927,24 +2939,40 @@ const NewOperationModal: React.FC<NewOpModalProps> = ({ open, onClose, warehouse
                         </div>
                         <div>
                           <Label className="text-xs">{isNdf ? 'Volume USD' : 'Contratos'}</Label>
-                          <Input className="h-8" inputMode="decimal" value={String(qtyValue ?? '')}
+                          <Input className="h-8" inputMode="decimal"
+                            value={legDrafts[`${i}-qty`] ?? (qtyValue !== '' && qtyValue != null ? String(qtyValue) : '')}
                             onChange={(e) => {
-                              const num = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                              const raw = e.target.value;
+                              setLegDraft(`${i}-qty`, raw);
+                              const parsed = parseDecimal(raw);
+                              const num = raw === '' ? undefined : (Number.isFinite(parsed) ? parsed : undefined);
                               updateLeg(isNdf ? { volume_units: num, contracts: num } : { contracts: num });
                             }} />
                         </div>
                         {!isNdf && !isOption && (
                           <div>
                             <Label className="text-xs">Preço estimado</Label>
-                            <Input className="h-8" inputMode="decimal" value={leg.price_estimated != null ? String(leg.price_estimated) : ''}
-                              onChange={(e) => updateLeg({ price_estimated: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                            <Input className="h-8" inputMode="decimal"
+                              value={legDrafts[`${i}-price`] ?? (leg.price_estimated != null ? String(leg.price_estimated) : '')}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                setLegDraft(`${i}-price`, raw);
+                                const parsed = parseDecimal(raw);
+                                updateLeg({ price_estimated: raw === '' ? undefined : (Number.isFinite(parsed) ? parsed : undefined) });
+                              }} />
                           </div>
                         )}
                         {isNdf && (<>
                           <div>
                             <Label className="text-xs">Taxa NDF (BRL/USD)</Label>
-                            <Input className="h-8" inputMode="decimal" value={leg.ndf_rate != null ? String(leg.ndf_rate) : ''}
-                              onChange={(e) => updateLeg({ ndf_rate: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                            <Input className="h-8" inputMode="decimal"
+                              value={legDrafts[`${i}-ndf`] ?? (leg.ndf_rate != null ? String(leg.ndf_rate) : '')}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                setLegDraft(`${i}-ndf`, raw);
+                                const parsed = parseDecimal(raw);
+                                updateLeg({ ndf_rate: raw === '' ? undefined : (Number.isFinite(parsed) ? parsed : undefined) });
+                              }} />
                           </div>
                           <div>
                             <Label className="text-xs">Maturidade</Label>
