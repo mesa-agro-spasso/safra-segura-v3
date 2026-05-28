@@ -55,6 +55,13 @@ import { toast } from 'sonner';
 
 // ───────────────────────── helpers (replicated, no cross-page imports) ─────────────────────────
 
+// Accept "." and "," as decimal separators (pt-BR users frequently type comma).
+const parseDecimal = (s: string | number | null | undefined): number => {
+  if (s == null || s === '') return NaN;
+  if (typeof s === 'number') return s;
+  return parseFloat(String(s).replace(',', '.'));
+};
+
 type EditableLeg = {
   instrument_type: 'futures' | 'ndf' | 'option';
   direction: 'buy' | 'sell';
