@@ -976,6 +976,7 @@ export type Database = {
           approved_by: string | null
           created_at: string
           email: string
+          forced_env: string | null
           full_name: string | null
           id: string
           is_admin: boolean
@@ -989,6 +990,7 @@ export type Database = {
           approved_by?: string | null
           created_at?: string
           email: string
+          forced_env?: string | null
           full_name?: string | null
           id: string
           is_admin?: boolean
@@ -1002,6 +1004,7 @@ export type Database = {
           approved_by?: string | null
           created_at?: string
           email?: string
+          forced_env?: string | null
           full_name?: string | null
           id?: string
           is_admin?: boolean
