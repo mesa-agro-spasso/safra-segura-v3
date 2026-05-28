@@ -915,11 +915,13 @@ const ArmazensD24: React.FC = () => {
 
           {/* Resumo consolidado */}
           {(() => {
-            const totalVolume = filteredRows.reduce((s, r) => s + r.volumeTotal, 0);
+            const totalVolumeSoja = filteredRows.reduce((s, r) => s + r.volumeSoja, 0);
+            const totalVolumeMilho = filteredRows.reduce((s, r) => s + r.volumeMilho, 0);
             const totalMtm = filteredRows.reduce((s, r) => s + r.mtmTotal, 0);
+            const totalVolume = totalVolumeSoja + totalVolumeMilho;
             const mtmPerSackGeral = totalVolume > 0 ? totalMtm / totalVolume : 0;
             return (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <Card>
                   <CardContent className="pt-4 pb-4">
                     <p className="text-xs text-muted-foreground">Armazéns Ativos</p>
@@ -928,8 +930,14 @@ const ArmazensD24: React.FC = () => {
                 </Card>
                 <Card>
                   <CardContent className="pt-4 pb-4">
-                    <p className="text-xs text-muted-foreground">Volume Total</p>
-                    <p className="text-2xl font-bold">{totalVolume.toLocaleString('pt-BR')} <span className="text-sm text-muted-foreground">sc</span></p>
+                    <p className="text-xs text-muted-foreground">Volume Soja</p>
+                    <p className="text-2xl font-bold">{totalVolumeSoja.toLocaleString('pt-BR')} <span className="text-sm text-muted-foreground">sc</span></p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground">Volume Milho</p>
+                    <p className="text-2xl font-bold">{totalVolumeMilho.toLocaleString('pt-BR')} <span className="text-sm text-muted-foreground">sc</span></p>
                   </CardContent>
                 </Card>
                 <Card>

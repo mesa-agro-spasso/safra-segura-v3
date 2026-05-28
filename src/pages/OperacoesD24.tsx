@@ -1068,15 +1068,39 @@ const OperacoesD24: React.FC = () => {
   // ── Summary
   const summary = useMemo(() => {
     if (!displayResults?.length) return null;
-    const totalFisico = displayResults.reduce((s, r) => s + ((r.mtm_physical_brl as number) ?? 0), 0);
-    const totalFuturos = displayResults.reduce((s, r) => s + ((r.mtm_futures_brl as number) ?? 0), 0);
-    const totalNdf = displayResults.reduce((s, r) => s + ((r.mtm_ndf_brl as number) ?? 0), 0);
-    const totalOpcao = displayResults.reduce((s, r) => s + ((r.mtm_option_brl as number) ?? 0), 0);
-    const totalGeral = displayResults.reduce((s, r) => s + ((r.mtm_total_brl as number) ?? 0), 0);
-    const totalVolume = displayResults.reduce((s, r) => s + ((r.volume_sacks as number) ?? 0), 0);
-    const totalPerSack = totalVolume > 0 ? totalGeral / totalVolume : 0;
-    return { totalFisico, totalFuturos, totalNdf, totalOpcao, totalGeral, totalVolume, totalPerSack };
-  }, [displayResults]);
+    const opCommodity = new Map<string, string>();
+    for (const op of (operations ?? [])) opCommodity.set(op.id, (op as any).commodity);
+
+    const makeBucket = () => ({
+      count: 0,
+      totalFisico: 0, totalFuturos: 0, totalNdf: 0, totalOpcao: 0,
+      totalGeral: 0, totalVolume: 0, totalPerSack: 0,
+    });
+    const all = makeBucket();
+    const byCommodity: Record<'soybean' | 'corn', ReturnType<typeof makeBucket>> = {
+      soybean: makeBucket(), corn: makeBucket(),
+    };
+    for (const r of displayResults) {
+      const c = opCommodity.get(r.operation_id as string);
+      const bucket = c === 'soybean' ? byCommodity.soybean : c === 'corn' ? byCommodity.corn : null;
+      const add = (b: ReturnType<typeof makeBucket>) => {
+        b.count += 1;
+        b.totalFisico += (r.mtm_physical_brl as number) ?? 0;
+        b.totalFuturos += (r.mtm_futures_brl as number) ?? 0;
+        b.totalNdf += (r.mtm_ndf_brl as number) ?? 0;
+        b.totalOpcao += (r.mtm_option_brl as number) ?? 0;
+        b.totalGeral += (r.mtm_total_brl as number) ?? 0;
+        b.totalVolume += (r.volume_sacks as number) ?? 0;
+      };
+      add(all);
+      if (bucket) add(bucket);
+    }
+    for (const b of [all, byCommodity.soybean, byCommodity.corn]) {
+      b.totalPerSack = b.totalVolume > 0 ? b.totalGeral / b.totalVolume : 0;
+    }
+    return { ...all, byCommodity };
+  }, [displayResults, operations]);
+
 
   const chartDataConsolidated = useMemo(() => {
     if (!summary) return [];
@@ -1634,30 +1658,52 @@ const OperacoesD24: React.FC = () => {
             <p className="text-center text-muted-foreground py-12">Calcule o MTM primeiro para ver o resumo.</p>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-xs text-muted-foreground">Operações Ativas</p>
-                    <p className="text-2xl font-bold">{displayResults?.length ?? 0}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-xs text-muted-foreground">Resultado Total</p>
-                    <p className={`text-2xl font-bold ${summary.totalGeral >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      R$ {summary.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-xs text-muted-foreground">Resultado por Saca</p>
-                    <p className={`text-2xl font-bold ${summary.totalPerSack >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      R$ {summary.totalPerSack.toFixed(2)}/sc
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+              {(() => {
+                const sections: { key: 'soybean' | 'corn'; label: string }[] = [
+                  { key: 'soybean', label: 'Soja' },
+                  { key: 'corn', label: 'Milho' },
+                ];
+                const renderCards = (b: { count: number; totalGeral: number; totalPerSack: number }) => (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Operações Ativas</p>
+                        <p className="text-2xl font-bold">{b.count}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Resultado Total</p>
+                        <p className={`text-2xl font-bold ${b.totalGeral >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          R$ {b.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Resultado por Saca</p>
+                        <p className={`text-2xl font-bold ${b.totalPerSack >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          R$ {b.totalPerSack.toFixed(2)}/sc
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+                return (
+                  <div className="space-y-4">
+                    {sections.map(s => (
+                      <div key={s.key} className="space-y-2">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{s.label}</h3>
+                        {renderCards(summary.byCommodity[s.key])}
+                      </div>
+                    ))}
+                    <div className="space-y-2 pt-2 border-t">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide">Total Consolidado</h3>
+                      {renderCards({ count: displayResults?.length ?? 0, totalGeral: summary.totalGeral, totalPerSack: summary.totalPerSack })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <Card className="mt-4">
                 <CardHeader>
