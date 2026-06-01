@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { helpSections } from '@/data/helpContent';
 import { renderBlock } from '@/components/help/renderBlock';
 import { cn } from '@/lib/utils';
@@ -45,21 +44,17 @@ export function HelpDrawer() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Abrir ajuda"
-              className="h-8 w-8"
-            >
-              <HelpCircle className="h-4 w-4" />
-            </Button>
-          </SheetTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Ajuda</TooltipContent>
-      </Tooltip>
+      <SheetTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="Abrir ajuda"
+          className="gap-1.5 text-xs font-medium"
+        >
+          <HelpCircle className="h-4 w-4" />
+          <span className="hidden sm:inline">Ajuda</span>
+        </Button>
+      </SheetTrigger>
       <SheetContent
         side="right"
         className="w-[480px] sm:max-w-[480px] p-0 flex flex-col"
