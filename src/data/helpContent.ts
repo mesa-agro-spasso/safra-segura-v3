@@ -1,0 +1,252 @@
+export type HelpBlock =
+  | { type: 'p'; text: string }
+  | { type: 'callout'; text: string }
+  | { type: 'table'; headers: string[]; rows: string[][] }
+  | { type: 'list'; items: string[] }
+  | { type: 'h3'; text: string };
+
+export interface HelpSection {
+  id: string;
+  title: string;
+  route: string | null;
+  blocks: HelpBlock[];
+}
+
+export const helpSections: HelpSection[] = [
+  {
+    id: 'acesso',
+    title: '1. Acesso',
+    route: null,
+    blocks: [
+      { type: 'p', text: 'Informe seu e-mail e senha e clique em Entrar.' },
+      { type: 'h3', text: 'Cadastrar conta' },
+      { type: 'p', text: 'Clique na aba Cadastrar, preencha nome, e-mail e senha. Após o cadastro, seu acesso ficará pendente de aprovação por um administrador.' },
+      { type: 'h3', text: 'Recuperar senha' },
+      { type: 'p', text: 'Clique em Esqueci minha senha e siga as instruções enviadas por e-mail.' },
+    ],
+  },
+  {
+    id: 'tabela-de-precos',
+    title: '2. Tabela de Preços',
+    route: '/',
+    blocks: [
+      { type: 'p', text: 'A Tabela de Preços exibe o preço de originação calculado para cada combinação de praça, commodity e vencimento, com base nos dados de mercado atuais.' },
+      { type: 'callout', text: '→ Os preços exibidos aqui são gerados pelas combinações ativas. Para alterar praças, tickers ou datas de referência, acesse Configurações > Combinações.' },
+      { type: 'p', text: 'Alertas de desatualização: se os dados de mercado estiverem desatualizados, o sistema exibe um aviso no topo. Clique em Atualizar Mercado antes de gerar a tabela. Os dados de mercado são gerenciados em Mercado > Bolsa.' },
+      { type: 'p', text: 'Gerar Tabela: recalcula os preços com os dados de mercado atuais. O timestamp da última geração é exibido abaixo do título.' },
+      { type: 'p', text: 'Filtros: filtre por praça e commodity. Exportar: exporta a tabela em Excel, PDF ou PNG.' },
+      { type: 'table', headers: ['Coluna', 'Descrição'], rows: [
+        ['Praça', 'Armazém de referência'],
+        ['Commodity', 'Soja ou Milho'],
+        ['Ticker', 'Contrato futuro de referência (ex: ZSK27, CCMF27)'],
+        ['Recepção', 'Data estimada de recepção do grão'],
+        ['Pagamento', 'Data de pagamento ao produtor'],
+        ['Venda', 'Data de venda prevista'],
+        ['Basis Alvo', 'Diferencial entre preço físico local e futuro de referência (R$/sc)'],
+        ['Futuros (BRL)', 'Cotação do contrato futuro convertida para BRL/sc'],
+        ['Câmbio', 'Taxa de câmbio USD/BRL utilizada no cálculo'],
+        ['Preço Originação', 'Preço calculado para originação — o valor que pode ser ofertado ao produtor'],
+      ]},
+    ],
+  },
+  {
+    id: 'operacoes',
+    title: '3. Operações',
+    route: '/operacoes-d24',
+    blocks: [
+      { type: 'p', text: 'Registro e acompanhamento das operações de hedge contratadas.' },
+      { type: 'h3', text: 'Aba Operações' },
+      { type: 'p', text: 'Lista todas as operações com filtros por status, praça e commodity.' },
+      { type: 'table', headers: ['Status', 'Significado', 'Ações disponíveis'], rows: [
+        ['Rascunho', 'Criada, ainda não submetida', 'Editar Plano · Enviar p/ Assinatura · Cancelar'],
+        ['Ativa', 'Aprovada e em vigor', 'Encerrar'],
+        ['Encerrada', 'Finalizada', '—'],
+      ]},
+      { type: 'callout', text: '→ Ao clicar em Enviar p/ Assinatura, a operação passa a aparecer em Aprovações > Pendentes para os signatários correspondentes.' },
+      { type: 'p', text: 'Nova Operação: abre o fluxo de criação. Preencha praça, commodity, volume, preço e datas conforme acordado com o produtor.' },
+      { type: 'p', text: 'Exportar: exporta a lista em CSV. Badges de atualização: indicam quando o MTM e os dados de mercado foram calculados pela última vez.' },
+      { type: 'h3', text: 'Aba MTM' },
+      { type: 'p', text: 'Exibe o resultado financeiro atual de cada operação com base nas cotações de mercado vigentes. O MTM representa o ganho ou perda não realizado da posição de hedge. Clicar em uma linha abre o detalhe completo.' },
+      { type: 'callout', text: '→ Os parâmetros que influenciam o cálculo do MTM — lucro alvo e spread de execução — são configurados em Configurações > Parâmetros.' },
+      { type: 'h3', text: 'Aba Resumo' },
+      { type: 'p', text: 'Visão consolidada da carteira: volumes totais, MTM agregado e distribuição por praça e commodity.' },
+    ],
+  },
+  {
+    id: 'ordens',
+    title: '4. Ordens',
+    route: '/ordens-d24',
+    blocks: [
+      { type: 'p', text: 'Registro das ordens de hedge que compõem as operações — contratos futuros, NDFs e opções.' },
+      { type: 'callout', text: '→ Cada ordem está vinculada a uma operação. Para ver as ordens de uma operação específica, clique na linha da operação em Operações.' },
+      { type: 'table', headers: ['Coluna', 'Descrição'], rows: [
+        ['Instrumento', 'Tipo do instrumento (futures, ndf ou option)'],
+        ['Direção', 'sell (venda) ou buy (compra)'],
+        ['Ticker', 'Código do contrato (ex: ZSQ26, USD/BRL)'],
+        ['Contratos', 'Número de contratos (futures/option) ou volume nocional (NDF)'],
+        ['Preço/Taxa', 'Preço de execução (futures/option) ou taxa de câmbio travada (NDF)'],
+        ['Volume (sc)', 'Volume equivalente em sacas'],
+        ['Encerramento', 'Data de encerramento, se aplicável'],
+        ['Data', 'Data de execução da ordem'],
+      ]},
+      { type: 'h3', text: 'Tipos de instrumento' },
+      { type: 'table', headers: ['Instrumento', 'Descrição'], rows: [
+        ['futures', 'Contrato futuro (B3 ou CBOT)'],
+        ['ndf', 'Non-Deliverable Forward — contrato de câmbio a termo sem entrega física'],
+        ['option', 'Opção sobre futuro — call ou put'],
+      ]},
+      { type: 'p', text: 'Nova Ordem: cria uma ordem de hedge avulsa. Fechar ordem: registra o encerramento de uma ordem aberta. Filtros: por praça, operação ou instrumento.' },
+    ],
+  },
+  {
+    id: 'armazens',
+    title: '5. Armazéns',
+    route: '/armazens-d24',
+    blocks: [
+      { type: 'p', text: 'Visão consolidada da posição física e financeira por armazém.' },
+      { type: 'h3', text: 'Aba Posição' },
+      { type: 'p', text: 'KPIs gerais no topo: armazéns ativos, volume total de soja e milho, MTM total, MTM por saca.' },
+      { type: 'table', headers: ['Coluna', 'Descrição'], rows: [
+        ['Op. ativas', 'Operações ativas vinculadas ao armazém'],
+        ['MTM Total', 'Resultado financeiro atual das operações do armazém'],
+        ['Break-even médio', 'Preço físico médio necessário para cobrir o custo da posição'],
+        ['MTM/sc', 'MTM por saca'],
+        ['Físico Alvo', 'Preço físico necessário para atingir o lucro alvo configurado'],
+        ['Próx. venc.', 'Vencimento da operação mais próxima'],
+        ['Status mix', 'Indica a presença de operações em diferentes status'],
+      ]},
+      { type: 'callout', text: '→ O Físico Alvo é calculado com base no lucro alvo definido em Configurações > Parâmetros.' },
+      { type: 'p', text: 'Clicar em uma linha abre o detalhe do armazém.' },
+      { type: 'h3', text: 'Aba Block Trade' },
+      { type: 'p', text: 'Registro e execução de vendas físicas em lote.' },
+      { type: 'callout', text: '→ Executar um block trade encerra parcialmente ou totalmente as operações ativas do armazém correspondente em Operações.' },
+      { type: 'p', text: 'Estratégias de alocação:' },
+      { type: 'list', items: [
+        'MAX_PROFIT: aloca o volume para maximizar o resultado financeiro',
+        'MAX_LOSS: aloca o volume priorizando as operações com pior resultado',
+        'PROPORTIONAL: distribui o volume proporcionalmente entre as operações ativas',
+      ]},
+      { type: 'p', text: 'Após criar um batch, é possível ajustar manualmente quantas sacas serão encerradas em cada operação antes de executar.' },
+      { type: 'p', text: 'Novo Batch: cria um novo lote de venda física. Executar: confirma e processa o batch. Esta ação é irreversível. Clicar em um batch finalizado abre o detalhe.' },
+      { type: 'h3', text: 'Aba Configuração' },
+      { type: 'callout', text: '→ Para criar ou editar armazéns, acesse Configurações > Armazéns.' },
+    ],
+  },
+  {
+    id: 'mercado',
+    title: '6. Mercado',
+    route: '/mercado',
+    blocks: [
+      { type: 'p', text: 'Gestão dos dados de mercado utilizados nos cálculos do sistema.' },
+      { type: 'h3', text: 'Aba Físico' },
+      { type: 'p', text: 'Exibe o último preço físico registrado por armazém e commodity. O badge colorido indica há quantos dias o preço foi atualizado.' },
+      { type: 'callout', text: '→ Os preços físicos registrados aqui alimentam os cálculos de posição exibidos em Armazéns > Posição.' },
+      { type: 'p', text: 'Cadastrar preço: registra um preço para um armazém e commodity específicos. Cadastrar em massa: registra vários preços de uma só vez.' },
+      { type: 'h3', text: 'Aba Bolsa' },
+      { type: 'p', text: 'Exibe câmbio USD/BRL e contratos futuros de Soja CBOT e Milho B3.' },
+      { type: 'callout', text: '→ Os dados desta tela são usados diretamente na geração da Tabela de Preços e no cálculo do MTM em Operações. Mantenha-os atualizados antes de gerar a tabela.' },
+      { type: 'table', headers: ['Coluna', 'Descrição'], rows: [
+        ['Ticker', 'Código do contrato'],
+        ['Vencimento', 'Data de vencimento do contrato'],
+        ['Preço (USD/bu)', 'Cotação do futuro em dólares por bushel'],
+        ['Spot', 'Taxa de câmbio spot atual'],
+        ['NDF Estimado', 'Taxa de câmbio a termo estimada para o vencimento'],
+        ['Spread', 'Diferencial entre NDF estimado e spot'],
+        ['Atualizado', 'Tempo desde a última atualização e fonte (api = automático · manual = inserido manualmente)'],
+      ]},
+      { type: 'callout', text: '→ A quantidade de vencimentos exibidos por mercado é configurável em Configurações > Parâmetros.' },
+      { type: 'list', items: [
+        'Atualizar Mercados: atualiza futuros e câmbio via API',
+        'Atualizar Tudo: atualiza todos os dados de mercado do sistema',
+        '↺ (individual): atualiza apenas aquele contrato ou o câmbio',
+        '✎ (edição manual): insere um valor manualmente quando a API não está disponível',
+      ]},
+    ],
+  },
+  {
+    id: 'configuracoes',
+    title: '7. Configurações',
+    route: '/configuracoes',
+    blocks: [
+      { type: 'p', text: 'Parâmetros estruturais do sistema.' },
+      { type: 'h3', text: 'Armazéns' },
+      { type: 'p', text: 'Cadastro dos armazéns operacionais com nome, abreviação, cidade, estado, tipo e status.' },
+      { type: 'callout', text: '→ Os armazéns cadastrados aqui ficam disponíveis em Operações, Ordens, Armazéns e nos filtros de toda a plataforma.' },
+      { type: 'p', text: 'Novo Armazém: cria um novo registro. ✎: edita os dados de um armazém existente.' },
+      { type: 'h3', text: 'Combinações' },
+      { type: 'p', text: 'Uma combinação define os parâmetros de precificação para uma praça: commodity, contrato futuro de referência (ticker), benchmark (CBOT ou B3), datas de venda e pagamento, método e o preço-alvo (input).' },
+      { type: 'callout', text: '→ A Tabela de Preços é gerada com base nas combinações ativas. Para alterar um preço exibido na tabela, edite a combinação correspondente aqui.' },
+      { type: 'p', text: 'Nova Combinação: cria uma nova combinação. Toggle ativo/inativo: inclui ou exclui da geração da tabela. ✎: edita os parâmetros. 🗑: remove a combinação.' },
+      { type: 'h3', text: 'Parâmetros' },
+      { type: 'table', headers: ['Parâmetro', 'Descrição'], rows: [
+        ['Volatilidade Implícita (sigma)', 'Utilizada no modelo Black-76 para precificação teórica de opções. Valor decimal — ex: 0.25 = 25%. Configurável separadamente para Milho B3 e Soja CBOT.'],
+        ['Lucro Alvo por Saca', 'Lucro desejado por saca (R$/sc). Usado na aba MTM para calcular o Físico Alvo — o preço necessário para atingir esse resultado. Visível em Armazéns > Posição e Operações > MTM.'],
+        ['Spread de Execução', 'Folga aplicada ao break-even e ao físico alvo para compensar o deslizamento na execução das ordens. Valor decimal — ex: 0.05 = 5%.'],
+        ['Quantidade de contratos por mercado', 'Define quantos vencimentos (tickers) são buscados e exibidos nas tabelas de Soja CBOT, Milho CBOT e Milho B3 em Mercado > Bolsa.'],
+      ]},
+    ],
+  },
+  {
+    id: 'aprovacoes',
+    title: '8. Aprovações',
+    route: '/aprovacoes',
+    blocks: [
+      { type: 'p', text: 'Fluxo de governança para operações que requerem múltiplas assinaturas antes de se tornarem ativas.' },
+      { type: 'callout', text: '→ As operações chegam aqui após o clique em Enviar p/ Assinatura na tela de Operações. As funções que precisam assinar são definidas em Administração.' },
+      { type: 'h3', text: 'Aba Pendentes' },
+      { type: 'p', text: 'Operações que aguardam sua assinatura. Clique em uma linha para abrir o detalhe e assinar.' },
+      { type: 'h3', text: 'Aba Histórico' },
+      { type: 'p', text: 'Operações que você já assinou, com o registro completo das assinaturas coletadas.' },
+      { type: 'p', text: 'Assinaturas: dependendo da operação e do volume, diferentes funções precisam assinar — Mesa, Comercial N1, Presidência, Financeiro N1 e/ou Financeiro N2. As assinaturas coletadas são exibidas como badges coloridos na linha da operação.' },
+      { type: 'p', text: 'Filtros: por praça, commodity e período de pagamento.' },
+    ],
+  },
+  {
+    id: 'administracao',
+    title: '9. Administração',
+    route: '/admin/usuarios',
+    blocks: [
+      { type: 'p', text: 'Gestão de usuários do sistema. Visível apenas para administradores.' },
+      { type: 'table', headers: ['Nível de acesso', 'Descrição'], rows: [
+        ['Full', 'Acesso completo ao sistema'],
+        ['Limited', 'Acesso restrito conforme a função atribuída'],
+      ]},
+      { type: 'p', text: 'Funções: Mesa, Comercial N1, Financeiro N1, Financeiro N2, Presidência. A função determina quais telas e ações estão disponíveis e quais aprovações o usuário pode assinar.' },
+      { type: 'callout', text: '→ As funções definidas aqui determinam quem aparece como signatário em Aprovações.' },
+      { type: 'p', text: 'Desativar: revoga o acesso do usuário sem excluí-lo do sistema.' },
+    ],
+  },
+  {
+    id: 'perfil',
+    title: '10. Meu Perfil',
+    route: '/perfil',
+    blocks: [
+      { type: 'p', text: 'Acesse clicando no seu nome no menu lateral esquerdo.' },
+      { type: 'p', text: 'Informações pessoais: nome completo e e-mail. O nome aparece em ordens, aprovações e logs.' },
+      { type: 'p', text: 'Preferências: alterne entre tema claro e escuro.' },
+    ],
+  },
+  {
+    id: 'glossario',
+    title: 'Glossário',
+    route: null,
+    blocks: [
+      { type: 'table', headers: ['Termo', 'Definição'], rows: [
+        ['Basis', 'Diferencial entre o preço físico local e o contrato futuro de referência (R$/sc). Reflete custos logísticos, prêmios regionais e condições locais de oferta e demanda.'],
+        ['Benchmark', 'Bolsa de referência para precificação — CBOT para soja, B3 para milho.'],
+        ['Break-even', 'Preço físico mínimo necessário para cobrir integralmente o custo da posição de hedge.'],
+        ['Combinação', 'Conjunto de parâmetros que define como uma praça é precificada: commodity, ticker, benchmark, datas e método.'],
+        ['MTM (Mark-to-Market)', 'Valor de mercado atual da posição de hedge calculado com as cotações vigentes. Representa o ganho ou perda não realizado.'],
+        ['NDF (Non-Deliverable Forward)', 'Contrato de câmbio a termo sem entrega física. Usado para travar a taxa de câmbio em operações de soja precificadas em dólar.'],
+        ['NDF Estimado', 'Taxa de câmbio a termo calculada pelo sistema para o vencimento do contrato, com base no diferencial de juros entre Brasil e EUA.'],
+        ['Opção', 'Contrato que dá o direito (sem obrigação) de comprar ou vender um futuro a um preço determinado. Usado como instrumento de hedge com proteção assimétrica.'],
+        ['Preço Originação', 'Preço calculado pelo sistema que pode ser ofertado ao produtor, considerando futuros, câmbio, basis e custos.'],
+        ['Praça', 'Armazém ou região geográfica de referência da operação.'],
+        ['Sigma (σ)', 'Volatilidade implícita utilizada no modelo Black-76 para precificação teórica de opções.'],
+        ['Spread de Execução', 'Folga adicionada ao break-even e ao físico alvo para compensar o deslizamento esperado na execução das ordens no mercado.'],
+        ['Spread (Mercado)', 'Diferencial entre a taxa NDF estimada e a taxa spot atual.'],
+        ['Ticker', 'Código do contrato futuro de referência. Ex: ZSK27 = Soja CBOT maio/2027; CCMF27 = Milho B3 janeiro/2027.'],
+      ]},
+    ],
+  },
+];

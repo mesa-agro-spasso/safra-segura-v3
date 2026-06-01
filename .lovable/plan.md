@@ -1,63 +1,62 @@
-# Reativar aba "Físico" em Mercado
+# Sistema de Ajuda In-App
 
-## O que muda
+Implementar conteúdo de ajuda navegável em dois pontos de entrada: página dedicada `/ajuda` e drawer contextual acionado por um botão `?` no topbar, presente em todas as telas autenticadas.
 
-A aba **Físico** (e potencialmente **Histórico**) já está totalmente implementada — só está oculta por feature flag. Toda a infra existe:
+## Arquivos a criar
 
-- Páginas: `src/pages/market/MarketFisico.tsx`, `MarketHistorico.tsx` e subpáginas em `historico/`
-- Componentes: `PhysicalPriceFormDialog`, `PhysicalPriceBulkDialog`, `PhysicalPriceHistoryDialog`
-- Hooks: `usePhysicalPrices`, `usePhysicalPriceHistoryAll`
-- Tabelas no Supabase: `physical_prices` e `warehouses` (verificado, existem)
-- Tabs em `src/pages/Market.tsx` já consultam `FEATURES.MARKET_PHYSICAL`
+### 1. `src/data/helpContent.ts`
+Conteúdo estruturado em `HelpSection[]` com tipos `HelpBlock` (`p`, `h3`, `callout`, `table`, `list`). Todo o conteúdo das 11 seções (Acesso, Tabela de Preços, Operações, Ordens, Armazéns, Mercado, Configurações, Aprovações, Administração, Perfil, Glossário) conforme o texto fornecido. Cada seção carrega `id`, `title`, `route` e `blocks`.
 
-A única mudança necessária é flipar a flag em `.env`:
+### 2. `src/pages/Ajuda.tsx`
+Layout de duas colunas dentro do `AppLayout` existente:
+- **Sidebar esquerda** (sticky, ~220px): lista numerada com âncoras para `#${section.id}`. Item ativo destacado via `IntersectionObserver` conforme a coluna direita rola.
+- **Coluna direita** (scrollable): renderiza todas as seções em sequência, cada uma com `id={section.id}` para suportar ancoragem.
+- Renderizador de blocos compartilhado (`renderBlock`) reaproveitado pelo drawer:
+  - `p` → `<p class="text-sm leading-relaxed text-foreground/80">`
+  - `h3` → `<h3 class="text-base font-semibold mt-6 mb-2">`
+  - `callout` → `<div class="border-l-2 border-primary bg-muted/40 px-4 py-2 my-3 text-sm">`
+  - `table` → componente `Table` do shadcn com header em `bg-muted/50` e células `border`
+  - `list` → `<ul class="list-disc pl-5 space-y-1 text-sm">`
 
+### 3. `src/components/HelpDrawer.tsx`
+- `Sheet` (shadcn) lado direito, `className="w-[480px] sm:max-w-[480px]"`.
+- Trigger: `Button` ghost icon com `HelpCircle` (lucide-react) + `Tooltip "Ajuda"`.
+- Ao abrir: lê `useLocation().pathname`, mapeia para `section.id` via dicionário e faz `scrollIntoView({behavior:'smooth'})` dentro do `ScrollArea` (com `setTimeout(…, 50)` para garantir mount).
+- Topo do drawer: barra de pills clicáveis com todos os títulos para navegação interna rápida.
+- Conteúdo: extrai a função `renderBlock` para módulo compartilhado (`src/components/help/renderBlock.tsx`) consumida tanto por `Ajuda.tsx` quanto pelo drawer (evita duplicação).
+- Rodapé: link "Ver manual completo →" que navega para `/ajuda` e fecha o drawer.
+
+### Mapa de rotas → seção (drawer)
 ```
-VITE_FEATURE_MARKET_PHYSICAL=true
+/             → tabela-de-precos
+/operacoes-d24 → operacoes
+/ordens-d24    → ordens
+/armazens-d24  → armazens
+/mercado       → mercado
+/configuracoes → configuracoes
+/aprovacoes    → aprovacoes
+/admin/usuarios → administracao
+/perfil        → perfil
+outras         → topo
 ```
+(Observação: o prompt original usava `/operacoes`, `/ordens`, `/armazens`, `/administracao`. As rotas reais do projeto são `*-d24` e `/admin/usuarios` — vou usar as rotas reais.)
 
-(decisão pendente: ativar também `VITE_FEATURE_MARKET_HISTORICAL`?)
+## Arquivos a editar
 
-Como `import.meta.env.*` é inlined em build-time pelo Vite, o dev server reinicia e o preview já mostra as abas.
+### `src/components/AppLayout.tsx`
+- Adicionar a rota `{ path: '/ajuda', element: <Ajuda /> }` em `routes`.
+- Importar e renderizar `<HelpDrawer />` no `header`, alinhado à direita (`ml-auto`).
+- Esconder o trigger quando `useLocation().pathname === '/ajuda'` (evita ajuda-sobre-ajuda).
 
-## Arquivos tocados
+## Detalhes técnicos
 
-- `.env` — uma linha (duas se incluir histórico)
-- `.env.example` — espelhar para documentação
+- **Scroll spy** (`Ajuda.tsx`): `IntersectionObserver` com `rootMargin: '-40% 0px -55% 0px'` para marcar a seção visível.
+- **Âncoras dentro do drawer**: usar `ref` por seção em vez de `getElementById` (drawer pode coexistir com a página `/ajuda` que teria IDs iguais).
+- **Sem mudanças de lógica de negócio**: apenas conteúdo estático e UI.
+- **Tokens semânticos**: `border-primary`, `bg-muted/40`, `text-foreground/80` — nada de cores hardcoded.
+- **Acessibilidade**: `aria-label="Abrir ajuda"` no trigger; `SheetTitle` para o drawer.
 
-Nenhuma alteração de código TS, hooks, schema ou RLS.
-
-## Implicações e riscos
-
-**Onde pode quebrar:**
-
-1. **RLS de `physical_prices` / `warehouses`** — se as policies não permitirem `select`/`insert` para o role autenticado padrão, a aba abre mas mostra vazio ou dá erro silencioso. Precisa validar logado como usuário comum (não só admin).
-2. **`useActiveArmazens`** — `MarketFisico` lista armazéns ativos. Se não houver nenhum cadastrado, a tabela fica vazia (não quebra, mas parece bug).
-3. **Sem registros em `physical_prices`** — o `MarketFisico` exibe "-" e badge "sem registro"; o `BulkDialog` pré-preenche vazio. Tudo OK, só visual.
-4. **`MarketBolsa` continua sendo default** quando nenhuma tab está na URL; isso muda — `fisico` passa a ser a primeira da lista e vira o default. Quem tinha bookmark em `/mercado` sem `?tab=` cai em Físico em vez de Bolsa. Se isso for ruim, ajustar a ordem em `Market.tsx` para manter `bolsa` como default.
-5. **Bundle size** — os componentes já são importados (não há code-splitting por flag aqui), então o JS final não cresce; é só desbloqueio de UI.
-6. **Histórico (se ativado junto)** — `HistoricoFisico`/`HistoricoTerceiros` dependem de tabelas que valem a pena verificar antes (ex.: `physical_price_history`, dados de terceiros). Se faltar dado, abre vazio.
-
-## Validação manual após o flip
-
-1. Reload do preview, ir em **/mercado** → ver as abas Físico / Bolsa (e Histórico se aplicável).
-2. Logar como usuário não-admin → confirmar que a aba abre sem erro de RLS.
-3. Abrir "Cadastrar preço" e "Cadastrar em massa" → salvar um preço e ver aparecer na tabela.
-4. Conferir que **Bolsa** continua funcionando exatamente como antes.
-
-## Crítica sincera
-
-**Pontos fortes**
-- Mudança mínima (1 linha), 100% reversível.
-- Código já existia, foi exercitado antes, tem hooks e componentes maduros.
-- Zero risco para Bolsa, Operações, Pricing — escopo isolado.
-
-**Pontos fracos**
-- Não temos teste automatizado cobrindo Físico; validação é manual.
-- Muda o default de `/mercado` (Físico vira primeira tab). Se o time está acostumado a cair em Bolsa, vai estranhar.
-- O memory do projeto diz "B3 corn manual, alerts 24h" — refere-se a `market_data`, não a `physical_prices`. Vale confirmar que não há regra de negócio adicional sobre físico que ficou em backlog.
-
-**Pontos de atenção**
-- Confirmar RLS de `physical_prices` permite leitura/escrita para os usuários esperados antes de anunciar a feature.
-- Decidir explicitamente se Histórico entra junto ou fica para depois (recomendo deixar para depois — menos superfície de teste).
-- Se houver dados de teste/staging vs produção, garantir que o `.env` certo está sendo modificado (parece haver só um `.env` no repo, mas a flag é build-time, então o deploy precisa rebuildar com a flag ligada).
+## Fora de escopo
+- Busca dentro da ajuda.
+- Internacionalização (conteúdo é PT-BR fixo).
+- Persistência da última seção visitada.
