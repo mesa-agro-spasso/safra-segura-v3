@@ -37,6 +37,8 @@ const routes: KeepAliveRoute[] = [
 
 export function AppLayout() {
   const { isStaging } = useMesaEnv();
+  const { pathname } = useLocation();
+  const showHelp = pathname !== '/ajuda';
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -50,6 +52,11 @@ export function AppLayout() {
           <header className="h-12 flex items-center border-b border-border px-4">
             <SidebarTrigger className="mr-4" />
             <h1 className="text-sm font-semibold text-foreground/80">Mesa Integrada de Hedge</h1>
+            {showHelp && (
+              <div className="ml-auto">
+                <HelpDrawer />
+              </div>
+            )}
           </header>
           <main className="flex-1 p-6 overflow-auto">
             <KeepAliveOutlet routes={routes} fallback={<NotFound />} />
