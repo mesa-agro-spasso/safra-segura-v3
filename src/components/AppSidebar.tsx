@@ -1,4 +1,4 @@
-import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck, Warehouse, ClipboardList, Building2, Sprout } from 'lucide-react';
+import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck, Warehouse, ClipboardList, Building2, Sprout, HelpCircle } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
