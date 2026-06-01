@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { helpSections } from '@/data/helpContent';
 import { renderBlock } from '@/components/help/renderBlock';
 import { cn } from '@/lib/utils';
