@@ -1,5 +1,7 @@
+import { useLocation } from 'react-router-dom';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
+import { HelpDrawer } from '@/components/HelpDrawer';
 import { KeepAliveOutlet, KeepAliveRoute } from '@/components/KeepAliveOutlet';
 import { AdminRoute } from '@/components/AdminRoute';
 import { useMesaEnv } from '@/contexts/MesaEnvContext';
@@ -15,10 +17,12 @@ import Settings from '@/pages/Settings';
 import AdminUsers from '@/pages/AdminUsers';
 import Financial from '@/pages/Financial';
 import Profile from '@/pages/Profile';
+import Ajuda from '@/pages/Ajuda';
 import NotFound from '@/pages/NotFound';
 
 const routes: KeepAliveRoute[] = [
   { path: '/', element: <PricingTable />, end: true },
+  { path: '/ajuda', element: <Ajuda /> },
   { path: '/ordens-d24', element: <OrdensD24 /> },
   { path: '/aprovacoes', element: <Approvals /> },
   { path: '/operacoes-d24', element: <OperacoesD24 /> },
