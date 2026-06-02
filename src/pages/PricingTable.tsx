@@ -514,6 +514,28 @@ const PricingTable = () => {
                 </>
               )}
 
+              {(() => {
+                const applied = insuranceMap?.[detailSnap.id];
+                if (!applied) return null;
+                const sourceLabel = applied.premium_source === 'theoretical' ? 'Teórico' : 'Manual';
+                return (
+                  <>
+                    <Separator />
+                    <h4 className="font-semibold text-sm">Seguro aplicado</h4>
+                    <DetailRow label="Status" value={applied.enabled ? 'Ativo' : 'Desativado'} />
+                    <DetailRow label="Prêmio usado" value={`R$ ${Number(applied.premium_brl).toFixed(2)}`} />
+                    <DetailRow label="Cobertura" value={`${(Number(applied.coverage_pct) * 100).toFixed(1)}%`} />
+                    <DetailRow label="Custo seguro" value={`R$ ${Number(applied.insurance_cost_brl).toFixed(2)}`} />
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Preço ajustado</span>
+                      <span className="font-bold text-primary">R$ {Number(applied.adjusted_price_brl).toFixed(2)}</span>
+                    </div>
+                    <DetailRow label="Fonte" value={sourceLabel} />
+                  </>
+                );
+              })()}
+
+
               <Separator />
               <div className="flex justify-end pt-2">
                 <Button
