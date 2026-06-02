@@ -796,8 +796,8 @@ function CombinationsTab() {
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-3 pt-2">
                     <div className="grid grid-cols-2 gap-3">
-                      {numField('Taxa de juros', 'interest_rate')}
-                      {numField('Custo armazenagem', 'storage_cost')}
+                      {numField('Taxa de juros', 'interest_rate', undefined, true)}
+                      {numField('Custo armazenagem', 'storage_cost', undefined, true)}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
@@ -811,13 +811,13 @@ function CombinationsTab() {
                           </SelectContent>
                         </Select>
                       </div>
-                      {numField('Custo recepção', 'reception_cost')}
+                      {numField('Custo recepção', 'reception_cost', undefined, true)}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      {numField('Corretagem/contrato', 'brokerage_per_contract')}
-                      {numField('Custo mesa (%)', 'desk_cost_pct')}
+                      {numField('Corretagem/contrato', 'brokerage_per_contract', undefined, true)}
+                      {numField('Custo mesa (%)', 'desk_cost_pct', undefined, true)}
                     </div>
-                    {numField('Quebra mensal (%)', 'shrinkage_rate_monthly')}
+                    {numField('Quebra mensal (%)', 'shrinkage_rate_monthly', undefined, true)}
                   </CollapsibleContent>
                 </Collapsible>
 
