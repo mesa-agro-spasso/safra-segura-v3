@@ -12,9 +12,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, AlertTriangle, Download, Filter } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Download, Filter, Shield } from 'lucide-react';
 import { GeneratePricingModal } from '@/components/GeneratePricingModal';
 import { ExportPricingModal } from '@/components/ExportPricingModal';
+import { InsuranceLayerModal } from '@/components/InsuranceLayerModal';
+import { useInsuranceSnapshots } from '@/hooks/useInsuranceSnapshots';
 
 const B3_CORN_TICKERS = ['CCMF27', 'CCMK27'];
 
