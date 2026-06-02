@@ -199,6 +199,10 @@ const PricingTable = () => {
               <Download className="mr-2 h-4 w-4" />
               Exportar
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setInsuranceOpen(true)} disabled={loading || allRows.length === 0}>
+              <Shield className="mr-2 h-4 w-4" />
+              Aplicar Seguro
+            </Button>
             <Button onClick={() => setModalOpen(true)} disabled={loading}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Gerar Tabela
