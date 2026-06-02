@@ -392,6 +392,20 @@ const PricingTable = () => {
                             </TooltipContent>
                           </Tooltip>
                         </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {(() => {
+                            const ins = insuranceMap?.[snap.id];
+                            if (!ins || !ins.enabled) return <span className="text-muted-foreground">—</span>;
+                            return (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span className="font-semibold">R$ {Number(ins.adjusted_price_brl).toFixed(2)}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                  {Math.round(Number(ins.coverage_pct) * 100)}%
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
