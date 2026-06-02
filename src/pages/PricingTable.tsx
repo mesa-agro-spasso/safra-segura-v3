@@ -38,6 +38,7 @@ const PricingTable = () => {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [insuranceOpen, setInsuranceOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
   const [detailSnap, setDetailSnap] = useState<any>(null);
   const [filterCommodity, setFilterCommodity] = useState<string[]>([]);
