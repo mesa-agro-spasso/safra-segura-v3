@@ -86,6 +86,9 @@ const PricingTable = () => {
     });
   }, [snapshots, warehouseMap]);
 
+  const insuranceSnapshotIds = useMemo(() => allRows.map((r) => r.id), [allRows]);
+  const { data: insuranceMap } = useInsuranceSnapshots(insuranceSnapshotIds);
+
   const rows = useMemo(() => {
     return allRows.filter((s) => {
       if (filterCommodity.length > 0 && !filterCommodity.includes(s.commodity)) return false;
