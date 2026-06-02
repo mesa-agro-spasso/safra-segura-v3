@@ -553,16 +553,63 @@ function CombinationsTab() {
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Erro ao salvar'); }
   };
 
-  const numField = (label: string, key: keyof PricingCombination, placeholder = 'Herdar do armazém') => (
-    <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
-      <Input
-        type="number" step="any" placeholder={placeholder}
-        value={editing?.[key] != null ? String(editing[key]) : ''}
-        onChange={(e) => setEditing({ ...editing!, [key]: e.target.value === '' ? null : Number(e.target.value) })}
-      />
-    </div>
-  );
+  const selectedWarehouse = warehouses?.find((w) => w.id === editing?.warehouse_id) ?? null;
+
+  const inheritedValueFor = (key: keyof PricingCombination): number | null => {
+    if (!selectedWarehouse) return null;
+    if (key === 'brokerage_per_contract') {
+      const v = editing?.benchmark === 'b3'
+        ? selectedWarehouse.brokerage_per_contract_b3
+        : selectedWarehouse.brokerage_per_contract_cbot;
+      return v ?? null;
+    }
+    const v = selectedWarehouse[key as keyof Warehouse];
+    return typeof v === 'number' ? v : null;
+  };
+
+  const numField = (
+    label: string,
+    key: keyof PricingCombination,
+    placeholder = 'Herdar do armazém',
+    inheritable = false,
+  ) => {
+    const override = editing?.[key];
+    const isOverridden = override != null;
+    const inherited = inheritable ? inheritedValueFor(key) : null;
+    const showsInherited = inheritable && !isOverridden && inherited != null;
+    const displayValue = isOverridden
+      ? String(override)
+      : showsInherited
+        ? String(inherited)
+        : '';
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">{label}</Label>
+          {inheritable && isOverridden && (
+            <button
+              type="button"
+              className="text-[10px] text-primary hover:underline"
+              onClick={() => setEditing({ ...editing!, [key]: null })}
+            >
+              voltar a herdar
+            </button>
+          )}
+        </div>
+        <Input
+          type="number"
+          step="any"
+          placeholder={placeholder}
+          className={cn(showsInherited && 'text-muted-foreground italic')}
+          value={displayValue}
+          onChange={(e) => setEditing({ ...editing!, [key]: e.target.value === '' ? null : Number(e.target.value) })}
+        />
+        {showsInherited && (
+          <p className="text-[10px] text-muted-foreground">Herdado do armazém</p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -749,8 +796,8 @@ function CombinationsTab() {
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-3 pt-2">
                     <div className="grid grid-cols-2 gap-3">
-                      {numField('Taxa de juros', 'interest_rate')}
-                      {numField('Custo armazenagem', 'storage_cost')}
+                      {numField('Taxa de juros', 'interest_rate', undefined, true)}
+                      {numField('Custo armazenagem', 'storage_cost', undefined, true)}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
@@ -764,13 +811,13 @@ function CombinationsTab() {
                           </SelectContent>
                         </Select>
                       </div>
-                      {numField('Custo recepção', 'reception_cost')}
+                      {numField('Custo recepção', 'reception_cost', undefined, true)}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      {numField('Corretagem/contrato', 'brokerage_per_contract')}
-                      {numField('Custo mesa (%)', 'desk_cost_pct')}
+                      {numField('Corretagem/contrato', 'brokerage_per_contract', undefined, true)}
+                      {numField('Custo mesa (%)', 'desk_cost_pct', undefined, true)}
                     </div>
-                    {numField('Quebra mensal (%)', 'shrinkage_rate_monthly')}
+                    {numField('Quebra mensal (%)', 'shrinkage_rate_monthly', undefined, true)}
                   </CollapsibleContent>
                 </Collapsible>
 
