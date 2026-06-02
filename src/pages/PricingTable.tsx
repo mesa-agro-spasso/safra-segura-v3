@@ -555,6 +555,7 @@ const PricingTable = () => {
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
       <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} />
+      <InsuranceLayerModal open={insuranceOpen} onOpenChange={setInsuranceOpen} rows={allRows as any} warehouseMap={warehouseMap} />
     </div>
   );
 };
