@@ -145,6 +145,60 @@ export type Database = {
           },
         ]
       }
+      insurance_snapshots: {
+        Row: {
+          adjusted_price_brl: number
+          coverage_pct: number
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          id: string
+          insurance_cost_brl: number
+          premium_brl: number
+          premium_source: string
+          pricing_snapshot_id: string
+        }
+        Insert: {
+          adjusted_price_brl: number
+          coverage_pct: number
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          insurance_cost_brl: number
+          premium_brl: number
+          premium_source?: string
+          pricing_snapshot_id: string
+        }
+        Update: {
+          adjusted_price_brl?: number
+          coverage_pct?: number
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          insurance_cost_brl?: number
+          premium_brl?: number
+          premium_source?: string
+          pricing_snapshot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurance_snapshots_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "insurance_snapshots_pricing_snapshot_id_fkey"
+            columns: ["pricing_snapshot_id"]
+            isOneToOne: true
+            referencedRelation: "pricing_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_data: {
         Row: {
           commodity: string
