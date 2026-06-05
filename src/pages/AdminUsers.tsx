@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { logActivity } from '@/lib/activityLog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMesaEnv } from '@/contexts/MesaEnvContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { UserProfile } from '@/types';
+import ActivityLogTab from '@/components/admin/ActivityLogTab';
 
 const statusLabels: Record<string, string> = {
   pending: 'Pendente',
@@ -130,7 +133,7 @@ const RolesEditor = ({ userId, roles, canEdit, onSave }: RolesEditorProps) => {
   );
 };
 
-const AdminUsers = () => {
+const UsersTab = () => {
   const { user, profile } = useAuth();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [rolesMap, setRolesMap] = useState<Record<string, string[]>>({});
@@ -268,10 +271,10 @@ const AdminUsers = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Administração de Usuários</h2>
-        <p className="text-sm text-muted-foreground">Gerencie acessos e permissões do sistema.</p>
-      </div>
+      <p className="text-sm text-muted-foreground">Gerencie acessos e permissões do sistema.</p>
+
+
+
 
       <div className="flex gap-4 items-center">
         <Input
@@ -393,6 +396,31 @@ const AdminUsers = () => {
           </TableBody>
         </Table>
       </div>
+    </div>
+  );
+};
+
+const AdminUsers = () => {
+  const { env } = useMesaEnv();
+  const showRegistros = env === 'production';
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold tracking-tight">Administração</h2>
+      <Tabs defaultValue="usuarios">
+        <TabsList>
+          <TabsTrigger value="usuarios">Usuários</TabsTrigger>
+          {showRegistros && <TabsTrigger value="registros">Registros</TabsTrigger>}
+        </TabsList>
+        <TabsContent value="usuarios" className="mt-4">
+          <UsersTab />
+        </TabsContent>
+        {showRegistros && (
+          <TabsContent value="registros" className="mt-4">
+            <ActivityLogTab />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 };
