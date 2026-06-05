@@ -21,6 +21,7 @@ export type Database = {
           entity_id: string | null
           entity_type: string | null
           id: string
+          is_staging: boolean
           occurred_at: string
           user_email: string | null
           user_id: string | null
@@ -31,6 +32,7 @@ export type Database = {
           entity_id?: string | null
           entity_type?: string | null
           id?: string
+          is_staging?: boolean
           occurred_at?: string
           user_email?: string | null
           user_id?: string | null
@@ -41,6 +43,7 @@ export type Database = {
           entity_id?: string | null
           entity_type?: string | null
           id?: string
+          is_staging?: boolean
           occurred_at?: string
           user_email?: string | null
           user_id?: string | null
