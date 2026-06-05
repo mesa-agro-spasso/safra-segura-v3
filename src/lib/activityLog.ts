@@ -1,6 +1,7 @@
 // Fire-and-forget audit logging. Never throws, never blocks user flow.
 // Queries are read-only via SQL editor in Supabase (no UI in app).
 import { supabase } from '@/integrations/supabase/client';
+import { getCurrentEnv } from '@/lib/envState';
 
 export async function logActivity(
   action: string,
@@ -18,6 +19,7 @@ export async function logActivity(
       entity_type: entityType ?? null,
       entity_id: entityId ?? null,
       details: details ?? {},
+      is_staging: getCurrentEnv() === 'staging',
     });
   } catch (err) {
     console.warn('[activityLog] failed', err);
