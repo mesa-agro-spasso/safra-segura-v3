@@ -271,8 +271,9 @@ const UsersTab = () => {
 
   return (
     <div className="space-y-6">
-      <div>
       <p className="text-sm text-muted-foreground">Gerencie acessos e permissões do sistema.</p>
+
+
 
 
       <div className="flex gap-4 items-center">
