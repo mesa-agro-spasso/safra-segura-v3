@@ -133,7 +133,7 @@ const RolesEditor = ({ userId, roles, canEdit, onSave }: RolesEditorProps) => {
   );
 };
 
-const AdminUsers = () => {
+const UsersTab = () => {
   const { user, profile } = useAuth();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [rolesMap, setRolesMap] = useState<Record<string, string[]>>({});
