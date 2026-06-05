@@ -400,4 +400,32 @@ const UsersTab = () => {
   );
 };
 
+const AdminUsers = () => {
+  const { env } = useMesaEnv();
+  const showRegistros = env === 'production';
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold tracking-tight">Administração</h2>
+      <Tabs defaultValue="usuarios">
+        <TabsList>
+          <TabsTrigger value="usuarios">Usuários</TabsTrigger>
+          {showRegistros && <TabsTrigger value="registros">Registros</TabsTrigger>}
+        </TabsList>
+        <TabsContent value="usuarios" className="mt-4">
+          <UsersTab />
+        </TabsContent>
+        {showRegistros && (
+          <TabsContent value="registros" className="mt-4">
+            <ActivityLogTab />
+          </TabsContent>
+        )}
+      </Tabs>
+    </div>
+  );
+};
+
+export default AdminUsers;
+
+
 export default AdminUsers;
