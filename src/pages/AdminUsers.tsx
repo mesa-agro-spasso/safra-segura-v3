@@ -272,9 +272,8 @@ const UsersTab = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Administração de Usuários</h2>
-        <p className="text-sm text-muted-foreground">Gerencie acessos e permissões do sistema.</p>
-      </div>
+      <p className="text-sm text-muted-foreground">Gerencie acessos e permissões do sistema.</p>
+
 
       <div className="flex gap-4 items-center">
         <Input
