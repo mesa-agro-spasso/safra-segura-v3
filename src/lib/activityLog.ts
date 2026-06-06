@@ -21,7 +21,7 @@ export async function logActivity(
   options?: LogOptions,
 ): Promise<void> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await supabasePublic.auth.getUser();
     if (!user) return; // RLS requires authenticated user
     const isStaging = options?.isStaging ?? (getCurrentEnv() === 'staging');
     await supabase.from('activity_log' as any).insert({
