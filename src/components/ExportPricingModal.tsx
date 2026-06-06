@@ -174,16 +174,16 @@ function getDateStr() {
   return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
 }
 
-async function exportXlsx(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
+async function exportXlsx(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
   const sep = ';';
   const header = cols.map((c) => c.label).join(sep);
-  const body = rows.map((r) => cols.map((c) => c.getValue(r, wm).replace(/;/g, ',')).join(sep));
+  const body = rows.map((r) => cols.map((c) => c.getValue(r, wm, im).replace(/;/g, ',')).join(sep));
   const csv = '\uFEFF' + [header, ...body].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   downloadBlob(blob, `tabela_precos_${getDateStr()}.csv`);
 }
 
-async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
+async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
   const now = new Date();
   const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
