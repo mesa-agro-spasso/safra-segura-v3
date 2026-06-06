@@ -343,7 +343,7 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
       if (originationCol && cols.some((c) => c.key === originationKey)) {
         priceHighlight = `<div style="display:flex;justify-content:space-between;align-items:center;padding:22px 32px;background:#f0fdf4;">
           <span style="font-size:22px;color:#16a34a;font-weight:600;">${originationCol.label}</span>
-          <span style="font-size:32px;color:#16a34a;font-weight:800;">${originationCol.getValue(row, wm)}</span>
+          <span style="font-size:32px;color:#16a34a;font-weight:800;">${originationCol.getValue(row, wm, im)}</span>
         </div>`;
       }
 
