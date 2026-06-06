@@ -7,12 +7,15 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import { Download } from 'lucide-react';
 import type { PricingSnapshot } from '@/types';
+import type { InsuranceSnapshotRow } from '@/hooks/useInsuranceSnapshots';
+
+export type InsuranceMap = Record<string, InsuranceSnapshotRow>;
 
 export interface ExportColumn {
   key: string;
   label: string;
   defaultOn: boolean;
-  getValue: (snap: PricingSnapshot, warehouseMap: Record<string, string>) => string;
+  getValue: (snap: PricingSnapshot, warehouseMap: Record<string, string>, insuranceMap?: InsuranceMap) => string;
 }
 
 const ALL_COLUMNS: ExportColumn[] = [
@@ -26,6 +29,11 @@ const ALL_COLUMNS: ExportColumn[] = [
   { key: 'futures_price_brl', label: 'Futuros (BRL)', defaultOn: true, getValue: (s) => `R$ ${s.futures_price_brl.toFixed(2)}` },
   { key: 'exchange_rate', label: 'Câmbio', defaultOn: true, getValue: (s) => s.exchange_rate?.toFixed(4) ?? '-' },
   { key: 'origination_price_brl', label: 'Preço Originação', defaultOn: true, getValue: (s) => `R$ ${s.origination_price_brl.toFixed(2)}` },
+  { key: 'insurance_adjusted_price_brl', label: 'Preço c/ Seguro', defaultOn: false, getValue: (s, _wm, im) => {
+    const ins = im?.[s.id];
+    if (!ins || !ins.enabled) return '-';
+    return `R$ ${Number(ins.adjusted_price_brl).toFixed(2)}`;
+  } },
   { key: 'additional_discount_brl', label: 'Desconto', defaultOn: false, getValue: (s) => `R$ ${s.additional_discount_brl.toFixed(2)}` },
   { key: 'trade_date', label: 'Trade Date', defaultOn: false, getValue: (s) => fmtDate(s.trade_date) },
   { key: 'benchmark', label: 'Benchmark', defaultOn: false, getValue: (s) => s.benchmark?.toUpperCase() ?? '-' },
@@ -42,9 +50,10 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   rows: PricingSnapshot[];
   warehouseMap: Record<string, string>;
+  insuranceMap?: InsuranceMap;
 }
 
-export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap }: Props) {
+export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, insuranceMap }: Props) {
   const [selectedCols, setSelectedCols] = useState<Set<string>>(
     new Set(ALL_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key))
   );
@@ -69,11 +78,11 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap }: P
     setExporting(true);
     try {
       if (format === 'xlsx') {
-        await exportXlsx(cols, rows, warehouseMap);
+        await exportXlsx(cols, rows, warehouseMap, insuranceMap);
       } else if (format === 'pdf') {
-        await exportPdf(cols, rows, warehouseMap);
+        await exportPdf(cols, rows, warehouseMap, insuranceMap);
       } else if (format === 'mobile') {
-        await exportMobilePng(cols, rows, warehouseMap);
+        await exportMobilePng(cols, rows, warehouseMap, insuranceMap);
       }
       toast.success('Exportação concluída');
       onOpenChange(false);
@@ -165,16 +174,16 @@ function getDateStr() {
   return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
 }
 
-async function exportXlsx(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
+async function exportXlsx(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
   const sep = ';';
   const header = cols.map((c) => c.label).join(sep);
-  const body = rows.map((r) => cols.map((c) => c.getValue(r, wm).replace(/;/g, ',')).join(sep));
+  const body = rows.map((r) => cols.map((c) => c.getValue(r, wm, im).replace(/;/g, ',')).join(sep));
   const csv = '\uFEFF' + [header, ...body].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   downloadBlob(blob, `tabela_precos_${getDateStr()}.csv`);
 }
 
-async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
+async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
   const now = new Date();
   const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -200,7 +209,7 @@ async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Reco
 
     const headerRow = cols.map((c) => `<th>${c.label}</th>`).join('');
     const bodyRows = cRows.map((r, i) => {
-      const cells = cols.map((c) => `<td>${c.getValue(r, wm)}</td>`).join('');
+      const cells = cols.map((c) => `<td>${c.getValue(r, wm, im)}</td>`).join('');
       return `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">${cells}</tr>`;
     }).join('');
 
@@ -274,7 +283,7 @@ async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Reco
   setTimeout(() => { win.print(); }, 500);
 }
 
-async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
+async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
   const now = new Date();
   const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -309,7 +318,7 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
     for (const row of cRows) {
       // Build fields, treating warehouse as card title and origination price as highlight
       const warehouseCol = cols.find((c) => c.key === warehouseKey);
-      const warehouseName = warehouseCol ? warehouseCol.getValue(row, wm) : '';
+      const warehouseName = warehouseCol ? warehouseCol.getValue(row, wm, im) : '';
       const otherCols = cols.filter((c) => c.key !== warehouseKey && c.key !== originationKey);
       const originationCol = cols.find((c) => c.key === originationKey);
 
@@ -325,7 +334,7 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
       const fields = otherCols.map((c) =>
         `<div style="display:flex;justify-content:space-between;align-items:center;padding:18px 32px;border-bottom:1px solid #f0f0f0;">
           <span style="font-size:22px;color:#666;font-weight:500;">${c.label}</span>
-          <span style="font-size:28px;color:#111;font-weight:700;">${c.getValue(row, wm)}</span>
+          <span style="font-size:28px;color:#111;font-weight:700;">${c.getValue(row, wm, im)}</span>
         </div>`
       ).join('');
 
@@ -334,7 +343,7 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
       if (originationCol && cols.some((c) => c.key === originationKey)) {
         priceHighlight = `<div style="display:flex;justify-content:space-between;align-items:center;padding:22px 32px;background:#f0fdf4;">
           <span style="font-size:22px;color:#16a34a;font-weight:600;">${originationCol.label}</span>
-          <span style="font-size:32px;color:#16a34a;font-weight:800;">${originationCol.getValue(row, wm)}</span>
+          <span style="font-size:32px;color:#16a34a;font-weight:800;">${originationCol.getValue(row, wm, im)}</span>
         </div>`;
       }
 
