@@ -78,11 +78,11 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, ins
     setExporting(true);
     try {
       if (format === 'xlsx') {
-        await exportXlsx(cols, rows, warehouseMap);
+        await exportXlsx(cols, rows, warehouseMap, insuranceMap);
       } else if (format === 'pdf') {
-        await exportPdf(cols, rows, warehouseMap);
+        await exportPdf(cols, rows, warehouseMap, insuranceMap);
       } else if (format === 'mobile') {
-        await exportMobilePng(cols, rows, warehouseMap);
+        await exportMobilePng(cols, rows, warehouseMap, insuranceMap);
       }
       toast.success('Exportação concluída');
       onOpenChange(false);
