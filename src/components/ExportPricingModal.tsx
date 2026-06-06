@@ -283,7 +283,7 @@ async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Reco
   setTimeout(() => { win.print(); }, 500);
 }
 
-async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>) {
+async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
   const now = new Date();
   const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
