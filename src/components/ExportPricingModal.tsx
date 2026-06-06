@@ -50,9 +50,10 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   rows: PricingSnapshot[];
   warehouseMap: Record<string, string>;
+  insuranceMap?: InsuranceMap;
 }
 
-export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap }: Props) {
+export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, insuranceMap }: Props) {
   const [selectedCols, setSelectedCols] = useState<Set<string>>(
     new Set(ALL_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key))
   );
