@@ -24,7 +24,7 @@ export async function logActivity(
     const { data: { user } } = await supabasePublic.auth.getUser();
     if (!user) return; // RLS requires authenticated user
     const isStaging = options?.isStaging ?? (getCurrentEnv() === 'staging');
-    await supabase.from('activity_log' as any).insert({
+    await supabasePublic.from('activity_log' as any).insert({
       user_id: user.id,
       user_email: user.email ?? null,
       action,
