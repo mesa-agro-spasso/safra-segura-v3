@@ -156,7 +156,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    void logActivity('auth.login', 'user', null, { email });
+    // Resolve staging stamp from the freshly-authenticated user's profile,
+    // not from getCurrentEnv() — at this point the env ref is still the
+    // pre-login value (production) and would mis-stamp staging users.
+    let isStaging: boolean | undefined;
+    try {
+      const { data: { user: authedUser } } = await supabase.auth.getUser();
+      if (authedUser) {
+        const { data: prof } = await supabasePublic
+          .from('user_profiles')
+          .select('forced_env')
+          .eq('id', authedUser.id)
+          .maybeSingle();
+        isStaging = (prof as { forced_env?: string | null } | null)?.forced_env === 'staging';
+      }
+    } catch {
+      // fall back to default (undefined → getCurrentEnv())
+    }
+    void logActivity('auth.login', 'user', null, { email }, { isStaging });
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
