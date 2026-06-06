@@ -7,12 +7,15 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import { Download } from 'lucide-react';
 import type { PricingSnapshot } from '@/types';
+import type { InsuranceSnapshotRow } from '@/hooks/useInsuranceSnapshots';
+
+export type InsuranceMap = Record<string, InsuranceSnapshotRow>;
 
 export interface ExportColumn {
   key: string;
   label: string;
   defaultOn: boolean;
-  getValue: (snap: PricingSnapshot, warehouseMap: Record<string, string>) => string;
+  getValue: (snap: PricingSnapshot, warehouseMap: Record<string, string>, insuranceMap?: InsuranceMap) => string;
 }
 
 const ALL_COLUMNS: ExportColumn[] = [
@@ -26,6 +29,11 @@ const ALL_COLUMNS: ExportColumn[] = [
   { key: 'futures_price_brl', label: 'Futuros (BRL)', defaultOn: true, getValue: (s) => `R$ ${s.futures_price_brl.toFixed(2)}` },
   { key: 'exchange_rate', label: 'Câmbio', defaultOn: true, getValue: (s) => s.exchange_rate?.toFixed(4) ?? '-' },
   { key: 'origination_price_brl', label: 'Preço Originação', defaultOn: true, getValue: (s) => `R$ ${s.origination_price_brl.toFixed(2)}` },
+  { key: 'insurance_adjusted_price_brl', label: 'Preço c/ Seguro', defaultOn: false, getValue: (s, _wm, im) => {
+    const ins = im?.[s.id];
+    if (!ins || !ins.enabled) return '-';
+    return `R$ ${Number(ins.adjusted_price_brl).toFixed(2)}`;
+  } },
   { key: 'additional_discount_brl', label: 'Desconto', defaultOn: false, getValue: (s) => `R$ ${s.additional_discount_brl.toFixed(2)}` },
   { key: 'trade_date', label: 'Trade Date', defaultOn: false, getValue: (s) => fmtDate(s.trade_date) },
   { key: 'benchmark', label: 'Benchmark', defaultOn: false, getValue: (s) => s.benchmark?.toUpperCase() ?? '-' },
