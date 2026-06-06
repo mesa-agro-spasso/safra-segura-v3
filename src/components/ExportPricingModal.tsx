@@ -334,7 +334,7 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
       const fields = otherCols.map((c) =>
         `<div style="display:flex;justify-content:space-between;align-items:center;padding:18px 32px;border-bottom:1px solid #f0f0f0;">
           <span style="font-size:22px;color:#666;font-weight:500;">${c.label}</span>
-          <span style="font-size:28px;color:#111;font-weight:700;">${c.getValue(row, wm)}</span>
+          <span style="font-size:28px;color:#111;font-weight:700;">${c.getValue(row, wm, im)}</span>
         </div>`
       ).join('');
 
