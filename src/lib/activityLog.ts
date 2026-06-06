@@ -1,6 +1,6 @@
 // Fire-and-forget audit logging. Never throws, never blocks user flow.
 // Queries are read-only via SQL editor in Supabase (no UI in app).
-import { supabase } from '@/integrations/supabase/client';
+import { supabasePublic } from '@/integrations/supabase/client';
 import { getCurrentEnv } from '@/lib/envState';
 
 interface LogOptions {
@@ -21,10 +21,10 @@ export async function logActivity(
   options?: LogOptions,
 ): Promise<void> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await supabasePublic.auth.getUser();
     if (!user) return; // RLS requires authenticated user
     const isStaging = options?.isStaging ?? (getCurrentEnv() === 'staging');
-    await supabase.from('activity_log' as any).insert({
+    await supabasePublic.from('activity_log' as any).insert({
       user_id: user.id,
       user_email: user.email ?? null,
       action,
