@@ -1,6 +1,6 @@
 // Fire-and-forget audit logging. Never throws, never blocks user flow.
 // Queries are read-only via SQL editor in Supabase (no UI in app).
-import { supabase } from '@/integrations/supabase/client';
+import { supabasePublic } from '@/integrations/supabase/client';
 import { getCurrentEnv } from '@/lib/envState';
 
 interface LogOptions {
