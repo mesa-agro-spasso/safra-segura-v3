@@ -209,7 +209,7 @@ async function exportPdf(cols: ExportColumn[], rows: PricingSnapshot[], wm: Reco
 
     const headerRow = cols.map((c) => `<th>${c.label}</th>`).join('');
     const bodyRows = cRows.map((r, i) => {
-      const cells = cols.map((c) => `<td>${c.getValue(r, wm)}</td>`).join('');
+      const cells = cols.map((c) => `<td>${c.getValue(r, wm, im)}</td>`).join('');
       return `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">${cells}</tr>`;
     }).join('');
 
