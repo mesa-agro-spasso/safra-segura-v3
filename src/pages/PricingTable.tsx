@@ -72,6 +72,14 @@ const PricingTable = () => {
     return map;
   }, [warehouses]);
 
+  const warehouseInterestMap = useMemo(() => {
+    const map: Record<string, { rate: number | null; period: string | null }> = {};
+    warehouses?.forEach((w) => {
+      map[w.id] = { rate: (w as any).interest_rate ?? null, period: (w as any).interest_rate_period ?? null };
+    });
+    return map;
+  }, [warehouses]);
+
   // Get latest batch of snapshots, sorted and filtered
   const allRows = useMemo(() => {
     if (!snapshots?.length) return [];
