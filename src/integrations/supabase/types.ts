@@ -151,36 +151,51 @@ export type Database = {
       insurance_snapshots: {
         Row: {
           adjusted_price_brl: number
+          carry_cost_brl: number
+          carry_enabled: boolean
+          carry_interest_rate: number | null
+          carry_interest_rate_period: string | null
           coverage_pct: number
           created_at: string
           created_by: string | null
           enabled: boolean
           id: string
           insurance_cost_brl: number
+          payment_receipt_date: string | null
           premium_brl: number
           premium_source: string
           pricing_snapshot_id: string
         }
         Insert: {
           adjusted_price_brl: number
+          carry_cost_brl?: number
+          carry_enabled?: boolean
+          carry_interest_rate?: number | null
+          carry_interest_rate_period?: string | null
           coverage_pct: number
           created_at?: string
           created_by?: string | null
           enabled?: boolean
           id?: string
           insurance_cost_brl: number
+          payment_receipt_date?: string | null
           premium_brl: number
           premium_source?: string
           pricing_snapshot_id: string
         }
         Update: {
           adjusted_price_brl?: number
+          carry_cost_brl?: number
+          carry_enabled?: boolean
+          carry_interest_rate?: number | null
+          carry_interest_rate_period?: string | null
           coverage_pct?: number
           created_at?: string
           created_by?: string | null
           enabled?: boolean
           id?: string
           insurance_cost_brl?: number
+          payment_receipt_date?: string | null
           premium_brl?: number
           premium_source?: string
           pricing_snapshot_id?: string
