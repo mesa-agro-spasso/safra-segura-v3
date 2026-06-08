@@ -1,83 +1,98 @@
-## Escopo
-Adicionar sub-aba "Registros" em Administração (apenas em produção) e timbrar `is_staging` nas escritas do `activity_log`. Migração SQL já está aplicada — não tocar.
+# Plano — Carrego financeiro do prêmio no Modal de Seguro
 
-## 1) `src/lib/activityLog.ts`
-Único ponto de insert em `activity_log`. Importar `getCurrentEnv` de `@/lib/envState` e adicionar ao payload:
+## Objetivo
+Adicionar suporte ao carrego financeiro no `InsuranceLayerModal`, repassando 5 novos campos ao endpoint `POST /pricing/insurance-layer` (já no whitelist do api-proxy) e persistindo o que vier no `insurance_snapshots`. Zero cálculo financeiro no front (P07) — o front só seleciona a fonte, repassa e exibe.
+
+## Arquivos afetados
+- `src/components/InsuranceLayerModal.tsx` — UI + payload + persistência mapeada.
+- `src/pages/PricingTable.tsx` — passar campos extras de snapshot (`trade_date`, `payment_date`, `grain_reception_date`, `inputs_json`) e o `warehouseInterestMap` (taxa + período) para o modal.
+- `src/hooks/useInsuranceSnapshots.ts` — adicionar `carry_*` ao tipo `InsuranceSnapshotRow` (sem mudar lógica de upsert; já é genérico).
+
+## Origem dos novos campos (por linha)
+| Campo no request | Fonte |
+|---|---|
+| `carry_enabled` | toggle no modal, default ON. Só habilitado se `enabled` (seguro) ON. |
+| `interest_rate` | `snapshot.inputs_json.interest_rate`; se null → `warehouse.interest_rate`. **Repassar em %, sem dividir por 100.** |
+| `interest_rate_period` | `warehouse.interest_rate_period` (buscar pelo `snapshot.warehouse_id`); se null → `'monthly'`. |
+| `trade_date` | `snapshot.trade_date` (início do carrego). |
+| `payment_receipt_date` | input de data no modal (fim do carrego). Default = `snapshot.grain_reception_date` ?? `snapshot.payment_date`. |
+
+Se taxa indisponível (inputs_json e warehouse ambos null) → toggle de carrego desabilitado com aviso curto.
+
+## Mudanças no `InsuranceLayerModal.tsx`
+
+### Tipos
+- Expandir `Row` para incluir `trade_date`, `payment_date`, `grain_reception_date`, `inputs_json`.
+- Nova prop `warehouseInterestMap?: Record<string, { rate: number | null; period: string | null }>`.
+- Estender `RowState` com `carryEnabled: boolean` e `paymentReceiptDateStr: string` (YYYY-MM-DD).
+- Estender `InsuranceResult` com `carry_enabled`, `carry_cost_brl`, `total_insurance_cost_brl`.
+
+### Init state (no `useEffect` quando abre)
+Para cada linha calcular:
+- `effectiveRate` = `inputs_json.interest_rate ?? warehouseInterestMap[wid]?.rate ?? null`
+- `effectivePeriod` = `warehouseInterestMap[wid]?.period ?? 'monthly'`
+- `carryAvailable` = `effectiveRate != null`
+- `carryEnabled` = inicia em `true` se disponível e (nada salvo ainda OR existing.carry_enabled), senão `false`
+- `paymentReceiptDateStr` = `existing.payment_receipt_date ?? grain_reception_date ?? payment_date ?? ''`
+
+Quando carregar `existing` com `carry_interest_rate` salvo, preservar (mas o request sempre re-resolve a partir da fonte atual — mantemos a regra "front só seleciona a fonte").
+
+### UI (dentro do bloco por-linha e do header global)
+- Abaixo da grid de seguro existente, novo bloco global:
+  - `Switch` "Aplicar carrego financeiro do prêmio" (default ON), controla um aplicar-em-todas; quando desligado globalmente desliga `carryEnabled` em todas as linhas.
+- Por linha (expand): adicionar 2 colunas extras:
+  - Toggle carrego (disabled se `!s.enabled` ou `!carryAvailable`; tooltip "Taxa indisponível" quando aplicável).
+  - Input `type="date"` "Data recebimento" — visível só quando carrego ligado, pré-preenchido com default.
+- Mostrar resumo por linha (após Apply ou usando existing): `carry_cost_brl`, `insurance_cost_brl`, `total_insurance_cost_brl`, `adjusted_price_brl`.
+
+### `handleApply` (payload)
+Para cada item, além dos campos atuais:
 ```ts
-is_staging: getCurrentEnv() === 'staging',
+{
+  ...campos atuais,
+  carry_enabled: carryEffective,
+  interest_rate: effectiveRate,          // em %, como está
+  interest_rate_period: effectivePeriod, // 'monthly' | 'yearly'
+  trade_date: r.trade_date,
+  payment_receipt_date: s.paymentReceiptDateStr,
+}
 ```
+Onde `carryEffective = s.enabled && s.carryEnabled && carryAvailable`.
 
-## 2) `src/pages/AdminUsers.tsx` → shell com Tabs
-- Extrair todo o JSX/lógica atual num componente interno `UsersTab` (sem mudar nada).
-- Novo `AdminUsers` retorna:
-  ```tsx
-  const { env } = useMesaEnv();
-  const showRegistros = env === 'production';
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Administração</h2>
-      </div>
-      <Tabs defaultValue="usuarios">
-        <TabsList>
-          <TabsTrigger value="usuarios">Usuários</TabsTrigger>
-          {showRegistros && <TabsTrigger value="registros">Registros</TabsTrigger>}
-        </TabsList>
-        <TabsContent value="usuarios"><UsersTab /></TabsContent>
-        {showRegistros && <TabsContent value="registros"><ActivityLogTab /></TabsContent>}
-      </Tabs>
-    </div>
-  );
-  ```
-- O título "Administração de Usuários" interno do `UsersTab` é removido (já temos o título global).
+Validação client-side antes do POST: se `carryEffective`, exigir `effectiveRate`, `trade_date` e `payment_receipt_date` não-vazios — caso contrário toast e abortar (o backend rejeita 422, mas validamos para UX).
 
-## 3) `src/components/admin/ActivityLogTab.tsx` (novo)
+### Persistência (`upsertRows`)
+Adicionar ao registro upsertado:
+- `carry_enabled: result.carry_enabled`
+- `payment_receipt_date: s.paymentReceiptDateStr || null`
+- `carry_cost_brl: result.carry_cost_brl`
+- `carry_interest_rate: effectiveRate`         // valor em % enviado
+- `carry_interest_rate_period: effectivePeriod`
 
-### Estado de filtros server-side
-- `startDate` / `endDate` (ISO via `DateInput`), default últimos 7 dias.
-- `userEmail`, `action`, `entityType`, `entityId` (strings).
-- `detailsQuery` (string) — tentativa server-side, fallback client.
-- `showStaging` (boolean, default `false`) via `Switch`.
-- Estado "aplicado" separado do estado dos inputs (botões "Aplicar"/"Limpar"); a query usa o estado aplicado.
+`insurance_cost_brl` e `adjusted_price_brl` continuam vindo do response (já são gravados hoje). `adjusted_price_brl` no response agora é `base − total_insurance_cost_brl` — basta gravar o que o backend devolve.
 
-### Query (React Query)
-```ts
-useQuery({
-  queryKey: ['activity_log', applied],
-  queryFn: async () => {
-    let q = supabase.from('activity_log').select('*')
-      .gte('occurred_at', `${applied.start}T00:00:00`)
-      .lte('occurred_at', `${applied.end}T23:59:59`)
-      .order('occurred_at', { ascending: false })
-      .limit(1000);
-    if (!applied.showStaging) q = q.eq('is_staging', false);
-    if (applied.userEmail)  q = q.ilike('user_email', `%${applied.userEmail}%`);
-    if (applied.action)     q = q.ilike('action', `%${applied.action}%`);
-    if (applied.entityType) q = q.ilike('entity_type', `%${applied.entityType}%`);
-    if (applied.entityId)   q = q.ilike('entity_id', `%${applied.entityId}%`);
-    if (applied.detailsQuery) {
-      // Tentativa server-side; se PostgREST rejeitar o cast, cair em fallback client.
-      const tryQ = q.filter('details::text', 'ilike', `%${applied.detailsQuery}%`);
-      const r = await tryQ;
-      if (!r.error) return { rows: r.data, detailsServerOk: true };
-      // fallback: refaz sem o filtro server-side
-    }
-    const r = await q;
-    if (r.error) throw r.error;
-    return { rows: r.data, detailsServerOk: false };
-  },
-});
-```
-Quando `detailsServerOk === false` e há `detailsQuery` aplicado, aplicar filtro client-side adicional em `JSON.stringify(row.details)`.
+## Mudanças em `PricingTable.tsx`
+- No render do `InsuranceLayerModal`, repassar:
+  - linhas com `trade_date`, `payment_date`, `grain_reception_date`, `inputs_json` (já estão em `allRows` — só ajustar o cast).
+  - `warehouseInterestMap` construído a partir do hook de warehouses existente: `{ [id]: { rate: w.interest_rate, period: w.interest_rate_period } }`.
 
-### UI
-- Bloco de filtros (grid `md:grid-cols-3 lg:grid-cols-4 gap-3`): DateInput início, DateInput fim, inputs texto, Switch "Mostrar staging", botões Aplicar/Limpar.
-- Tabela com colunas: **Quando** (`format(occurred_at, 'dd/MM/yyyy HH:mm:ss')`), **Usuário**, **Ação**, **Tipo entidade**, **ID entidade** (mono, truncado com `title` completo), **Detalhes** (`<pre>` truncado em ~120 chars; clique abre `Popover` com JSON completo formatado).
-- Em cada `TableHead`, um `Input` pequeno (h-7) para refino client-side sobre o resultado já carregado (cada coluna filtra independentemente, AND entre elas).
-- Rodapé: `Mostrando X de Y` e se `Y === 1000` aviso `"Limite de 1000 atingido — refine os filtros (especialmente datas)."`.
+## Mudanças em `useInsuranceSnapshots.ts`
+- Adicionar a `InsuranceSnapshotRow`:
+  - `carry_enabled?: boolean | null`
+  - `carry_cost_brl?: number | null`
+  - `carry_interest_rate?: number | null`
+  - `carry_interest_rate_period?: string | null`
+  - `payment_receipt_date?: string | null`
 
-### Linha staging
-Quando `showStaging` ligado, adicionar badge "STAGING" amarelo na coluna Quando para linhas com `is_staging === true`.
+(As colunas já existem no banco — confirmado em `types.ts` linhas 156–191. Nenhuma migração SQL.)
 
-## Não-mexer
-Sidebar, rotas, `useAuthorization`, migrações SQL, qualquer outro insert (não há outro insert em `activity_log` além de `logActivity`).
+## O que NÃO será feito
+- Sem alterações em Edge Functions / endpoint.
+- Sem cálculo financeiro no front (taxas, períodos, datas só são repassados).
+- Sem migração SQL.
+- Não alterar formato do `coverage_pct` (continua `% / 100` no request, como hoje).
+
+## Verificação pós-implementação
+- Abrir modal: toggle carrego visível e ON por default; campo data visível quando ON.
+- Linha sem taxa disponível → toggle de carrego desabilitado com aviso.
+- Apply: request inclui os 5 campos novos; response com `carry_cost_brl` e `total_insurance_cost_brl` exibido; upsert em `insurance_snapshots` grava os 5 novos campos.

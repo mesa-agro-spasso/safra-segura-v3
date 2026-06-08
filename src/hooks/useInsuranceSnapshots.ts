@@ -13,6 +13,11 @@ export interface InsuranceSnapshotRow {
   premium_source: string;
   created_at: string;
   created_by: string | null;
+  carry_enabled?: boolean | null;
+  carry_cost_brl?: number | null;
+  carry_interest_rate?: number | null;
+  carry_interest_rate_period?: string | null;
+  payment_receipt_date?: string | null;
 }
 
 export function useInsuranceSnapshots(snapshotIds: string[]) {
