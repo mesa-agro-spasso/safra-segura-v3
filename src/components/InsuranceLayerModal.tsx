@@ -52,6 +52,20 @@ interface InsuranceResult {
   total_insurance_cost_brl?: number;
 }
 
+// Normalize any date input (ISO timestamp, Date, or YYYY-MM-DD) to YYYY-MM-DD
+const toIsoDate = (v: unknown): string => {
+  if (!v) return '';
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return '';
+    return v.toISOString().slice(0, 10);
+  }
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+};
+
 export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {}, warehouseInterestMap = {} }: Props) {
   const { user } = useAuth();
   const snapshotIds = useMemo(() => rows.map((r) => r.id), [rows]);
@@ -62,6 +76,7 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
   const [globalPremiumMilho, setGlobalPremiumMilho] = useState('');
   const [globalCoverage, setGlobalCoverage] = useState('25');
   const [globalCarryEnabled, setGlobalCarryEnabled] = useState(true);
+  const [globalReceiptDateStr, setGlobalReceiptDateStr] = useState('');
   const [perRow, setPerRow] = useState<Record<string, RowState>>({});
   const [perRowExpanded, setPerRowExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -76,21 +91,26 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
     return { rate, period, available: rate != null };
   };
 
+  const defaultReceiptFor = (r: Row): string =>
+    toIsoDate(r.grain_reception_date) || toIsoDate(r.payment_date) || '';
+
   // Initialize state per row when modal opens or existing data loads
   useEffect(() => {
     if (!open) return;
     const next: Record<string, RowState> = {};
+    let firstDate = '';
     rows.forEach((r) => {
       const ex = existing?.[r.id];
       const { available } = resolveCarrySource(r);
-      const defaultReceipt = r.grain_reception_date ?? r.payment_date ?? '';
+      const defaultReceipt = defaultReceiptFor(r);
+      if (!firstDate && defaultReceipt) firstDate = defaultReceipt;
       if (ex) {
         next[r.id] = {
           enabled: ex.enabled,
           premiumStr: String(ex.premium_brl ?? ''),
           coverageStr: String((ex.coverage_pct ?? 0) * 100),
           carryEnabled: available && (ex.carry_enabled ?? true),
-          paymentReceiptDateStr: (ex.payment_receipt_date as string) ?? defaultReceipt,
+          paymentReceiptDateStr: toIsoDate(ex.payment_receipt_date as string) || defaultReceipt,
         };
       } else {
         const atmPremium = r.insurance_json?.atm?.premium_brl;
@@ -104,6 +124,7 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
       }
     });
     setPerRow(next);
+    setGlobalReceiptDateStr(firstDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, existing, rows]);
 
@@ -146,6 +167,18 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
         if (!next[r.id]) return;
         const { available } = resolveCarrySource(r);
         next[r.id] = { ...next[r.id], carryEnabled: value && available };
+      });
+      return next;
+    });
+  };
+
+  const applyGlobalReceiptDate = (value: string) => {
+    setGlobalReceiptDateStr(value);
+    if (!value) return;
+    setPerRow((prev) => {
+      const next = { ...prev };
+      rows.forEach((r) => {
+        if (next[r.id]) next[r.id] = { ...next[r.id], paymentReceiptDateStr: value };
       });
       return next;
     });
