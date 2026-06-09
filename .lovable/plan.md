@@ -1,98 +1,50 @@
-# Plano — Carrego financeiro do prêmio no Modal de Seguro
+## Bug diagnosis
 
-## Objetivo
-Adicionar suporte ao carrego financeiro no `InsuranceLayerModal`, repassando 5 novos campos ao endpoint `POST /pricing/insurance-layer` (já no whitelist do api-proxy) e persistindo o que vier no `insurance_snapshots`. Zero cálculo financeiro no front (P07) — o front só seleciona a fonte, repassa e exibe.
+O modal hoje envia `payment_receipt_date: s.paymentReceiptDateStr || null`. O default por linha é `r.grain_reception_date ?? r.payment_date ?? ''`, mas existem dois caminhos pelos quais a data sai vazia / inválida e gera o 422 no backend:
 
-## Arquivos afetados
-- `src/components/InsuranceLayerModal.tsx` — UI + payload + persistência mapeada.
-- `src/pages/PricingTable.tsx` — passar campos extras de snapshot (`trade_date`, `payment_date`, `grain_reception_date`, `inputs_json`) e o `warehouseInterestMap` (taxa + período) para o modal.
-- `src/hooks/useInsuranceSnapshots.ts` — adicionar `carry_*` ao tipo `InsuranceSnapshotRow` (sem mudar lógica de upsert; já é genérico).
+- Snapshot sem `grain_reception_date` nem `payment_date` → string vazia → atualmente a validação local mostra toast e bloqueia (sem 422), mas a UX é ruim e o carrego acaba "silenciosamente" não sendo aplicado.
+- Quando `payment_date`/`grain_reception_date` vêm como timestamp ISO completo, a string truthy passa pela guarda local e o backend rejeita por formato (422 sem mensagem clara).
 
-## Origem dos novos campos (por linha)
-| Campo no request | Fonte |
-|---|---|
-| `carry_enabled` | toggle no modal, default ON. Só habilitado se `enabled` (seguro) ON. |
-| `interest_rate` | `snapshot.inputs_json.interest_rate`; se null → `warehouse.interest_rate`. **Repassar em %, sem dividir por 100.** |
-| `interest_rate_period` | `warehouse.interest_rate_period` (buscar pelo `snapshot.warehouse_id`); se null → `'monthly'`. |
-| `trade_date` | `snapshot.trade_date` (início do carrego). |
-| `payment_receipt_date` | input de data no modal (fim do carrego). Default = `snapshot.grain_reception_date` ?? `snapshot.payment_date`. |
+Além disso o front mostra "Seguro aplicado / Ativo" no detalhe mesmo quando o POST falhou (display otimista vindo do cache anterior), mascarando o erro.
 
-Se taxa indisponível (inputs_json e warehouse ambos null) → toggle de carrego desabilitado com aviso curto.
+## Mudanças
 
-## Mudanças no `InsuranceLayerModal.tsx`
+### 1) `src/components/InsuranceLayerModal.tsx` — parar o 422
 
-### Tipos
-- Expandir `Row` para incluir `trade_date`, `payment_date`, `grain_reception_date`, `inputs_json`.
-- Nova prop `warehouseInterestMap?: Record<string, { rate: number | null; period: string | null }>`.
-- Estender `RowState` com `carryEnabled: boolean` e `paymentReceiptDateStr: string` (YYYY-MM-DD).
-- Estender `InsuranceResult` com `carry_enabled`, `carry_cost_brl`, `total_insurance_cost_brl`.
+- Normalizar datas: helper `toIsoDate(v)` que aceita string/ISO/Date e devolve `YYYY-MM-DD` (ou `''`). Aplicar em `trade_date`, `grain_reception_date`, `payment_date`, `payment_receipt_date` ao inicializar e ao montar o payload.
+- Default automático de `paymentReceiptDateStr` permanece `grain_reception_date ?? payment_date`, agora normalizado.
+- No `handleApply`, montar item com regra do backend:
+  - Se rate disponível **e** `carryEnabled` **e** `enabled` → `carry_enabled: true` e enviar **todos** os campos obrigatórios não-nulos: `interest_rate` (em %, como vem), `interest_rate_period` (`warehouse.period ?? 'monthly'`), `trade_date`, `payment_receipt_date`.
+  - Se faltar `payment_receipt_date` mas o carrego está pedido: usar o default automaticamente (não exigir clique do usuário). Só bloquear com toast se realmente não houver nenhuma fonte (`grain_reception_date`, `payment_date` e input global todos vazios).
+  - Se rate indisponível → forçar `carry_enabled: false` e omitir/null nos demais campos de carrego (backend não exige).
+- Garantir que, mesmo com carry off, ainda enviamos `trade_date` quando existe (não atrapalha).
 
-### Init state (no `useEffect` quando abre)
-Para cada linha calcular:
-- `effectiveRate` = `inputs_json.interest_rate ?? warehouseInterestMap[wid]?.rate ?? null`
-- `effectivePeriod` = `warehouseInterestMap[wid]?.period ?? 'monthly'`
-- `carryAvailable` = `effectiveRate != null`
-- `carryEnabled` = inicia em `true` se disponível e (nada salvo ainda OR existing.carry_enabled), senão `false`
-- `paymentReceiptDateStr` = `existing.payment_receipt_date ?? grain_reception_date ?? payment_date ?? ''`
+### 2) Persistência — `upsertRows`
 
-Quando carregar `existing` com `carry_interest_rate` salvo, preservar (mas o request sempre re-resolve a partir da fonte atual — mantemos a regra "front só seleciona a fonte").
+- Já chama `useInsuranceSnapshots` mutation. Ajustar para gravar somente do response:
+  - `carry_enabled: result.carry_enabled ?? false`
+  - `carry_cost_brl: result.carry_cost_brl ?? 0`
+  - `carry_interest_rate: meta.rate` (= o `interest_rate` enviado em %)
+  - `carry_interest_rate_period: meta.period`
+  - `payment_receipt_date: meta.carryEffective ? s.paymentReceiptDateStr : null`
+- Aceite: linha gravada tem `carry_enabled=true` e `carry_cost_brl > 0` após aplicar com carrego.
 
-### UI (dentro do bloco por-linha e do header global)
-- Abaixo da grid de seguro existente, novo bloco global:
-  - `Switch` "Aplicar carrego financeiro do prêmio" (default ON), controla um aplicar-em-todas; quando desligado globalmente desliga `carryEnabled` em todas as linhas.
-- Por linha (expand): adicionar 2 colunas extras:
-  - Toggle carrego (disabled se `!s.enabled` ou `!carryAvailable`; tooltip "Taxa indisponível" quando aplicável).
-  - Input `type="date"` "Data recebimento" — visível só quando carrego ligado, pré-preenchido com default.
-- Mostrar resumo por linha (após Apply ou usando existing): `carry_cost_brl`, `insurance_cost_brl`, `total_insurance_cost_brl`, `adjusted_price_brl`.
+### 3) Data editável no nível global
 
-### `handleApply` (payload)
-Para cada item, além dos campos atuais:
-```ts
-{
-  ...campos atuais,
-  carry_enabled: carryEffective,
-  interest_rate: effectiveRate,          // em %, como está
-  interest_rate_period: effectivePeriod, // 'monthly' | 'yearly'
-  trade_date: r.trade_date,
-  payment_receipt_date: s.paymentReceiptDateStr,
-}
-```
-Onde `carryEffective = s.enabled && s.carryEnabled && carryAvailable`.
+- Novo campo "Data de recebimento (fim do carrego)" no bloco global (ao lado do switch de carrego), `type="date"`.
+- Estado `globalReceiptDateStr`. Ao alterar, faz fan-out para todas as linhas (mesma lógica de `applyGlobalCoverage`).
+- Override por linha já existe na seção "Ajustar por linha" — mantido.
+- Inicialização do default global: primeira data não-vazia entre os defaults das linhas.
 
-Validação client-side antes do POST: se `carryEffective`, exigir `effectiveRate`, `trade_date` e `payment_receipt_date` não-vazios — caso contrário toast e abortar (o backend rejeita 422, mas validamos para UX).
+### 4) Rótulos e fim do display otimista
 
-### Persistência (`upsertRows`)
-Adicionar ao registro upsertado:
-- `carry_enabled: result.carry_enabled`
-- `payment_receipt_date: s.paymentReceiptDateStr || null`
-- `carry_cost_brl: result.carry_cost_brl`
-- `carry_interest_rate: effectiveRate`         // valor em % enviado
-- `carry_interest_rate_period: effectivePeriod`
+- `src/components/InsuranceLayerModal.tsx` — no resumo por linha (já existe `Seguro / Carrego / Total / Ajustado`), exibir `Carrego` e `Total` somente quando `result.carry_enabled`; caso contrário só `Seguro` e `Ajustado`. Sem mudança de cálculo.
+- `src/pages/PricingTable.tsx` — painel "Seguro aplicado":
+  - Não renderizar o bloco se a aplicação falhou. Critério: `applied.enabled === true` e `applied.adjusted_price_brl != null`. Se um POST anterior falhou, o cache não muda — manter a leitura do DB como hoje, mas só mostrar quando `enabled=true`.
+  - Quando `applied.carry_enabled`: acrescentar `DetailRow "Carrego" = R$ carry_cost_brl` e `DetailRow "Custo total" = R$ (insurance_cost_brl + carry_cost_brl)` — vindo do DB, sem recalcular (a soma é display, não cálculo financeiro). Manter "Custo seguro" como `insurance_cost_brl`.
+  - Trocar "Ativo" por "Aplicado" para evitar ambiguidade com a aplicação otimista.
 
-`insurance_cost_brl` e `adjusted_price_brl` continuam vindo do response (já são gravados hoje). `adjusted_price_brl` no response agora é `base − total_insurance_cost_brl` — basta gravar o que o backend devolve.
+## Escopo / não-mexer
 
-## Mudanças em `PricingTable.tsx`
-- No render do `InsuranceLayerModal`, repassar:
-  - linhas com `trade_date`, `payment_date`, `grain_reception_date`, `inputs_json` (já estão em `allRows` — só ajustar o cast).
-  - `warehouseInterestMap` construído a partir do hook de warehouses existente: `{ [id]: { rate: w.interest_rate, period: w.interest_rate_period } }`.
-
-## Mudanças em `useInsuranceSnapshots.ts`
-- Adicionar a `InsuranceSnapshotRow`:
-  - `carry_enabled?: boolean | null`
-  - `carry_cost_brl?: number | null`
-  - `carry_interest_rate?: number | null`
-  - `carry_interest_rate_period?: string | null`
-  - `payment_receipt_date?: string | null`
-
-(As colunas já existem no banco — confirmado em `types.ts` linhas 156–191. Nenhuma migração SQL.)
-
-## O que NÃO será feito
-- Sem alterações em Edge Functions / endpoint.
-- Sem cálculo financeiro no front (taxas, períodos, datas só são repassados).
-- Sem migração SQL.
-- Não alterar formato do `coverage_pct` (continua `% / 100` no request, como hoje).
-
-## Verificação pós-implementação
-- Abrir modal: toggle carrego visível e ON por default; campo data visível quando ON.
-- Linha sem taxa disponível → toggle de carrego desabilitado com aviso.
-- Apply: request inclui os 5 campos novos; response com `carry_cost_brl` e `total_insurance_cost_brl` exibido; upsert em `insurance_snapshots` grava os 5 novos campos.
+- Sem alterações em Edge Functions, endpoint `/pricing/insurance-layer`, SQL, RLS, ou no `useInsuranceSnapshots` (schema já comporta todos os campos).
+- Nenhum cálculo financeiro novo no front (P07). A soma "Custo total" exibida no detalhe é apenas exibição de dois valores já calculados pelo backend.
