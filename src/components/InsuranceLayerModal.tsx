@@ -320,14 +320,26 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-md border border-border/50 px-3 py-2">
-            <div>
-              <Label className="text-sm">Aplicar carrego financeiro do prêmio</Label>
-              <p className="text-[11px] text-muted-foreground">
-                Capitaliza o prêmio entre a data de trade e a de recebimento.
-              </p>
+          <div className="rounded-md border border-border/50 px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm">Aplicar carrego financeiro do prêmio</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Capitaliza o prêmio entre a data de trade e a de recebimento.
+                </p>
+              </div>
+              <Switch checked={globalCarryEnabled} onCheckedChange={applyGlobalCarry} />
             </div>
-            <Switch checked={globalCarryEnabled} onCheckedChange={applyGlobalCarry} />
+            <div className="space-y-1">
+              <Label className="text-xs">Data de recebimento (fim do carrego)</Label>
+              <Input
+                type="date"
+                value={globalReceiptDateStr}
+                disabled={!globalCarryEnabled}
+                onChange={(e) => applyGlobalReceiptDate(e.target.value)}
+                className="h-8 text-xs max-w-[200px]"
+              />
+            </div>
           </div>
 
           <Collapsible open={perRowExpanded} onOpenChange={setPerRowExpanded}>
