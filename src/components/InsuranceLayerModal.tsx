@@ -191,7 +191,7 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
     }
     setSubmitting(true);
     try {
-      type ItemMeta = { rate: number | null; period: string; carryEffective: boolean };
+      type ItemMeta = { rate: number | null; period: string; carryEffective: boolean; receiptDate: string };
       const meta: Record<string, ItemMeta> = {};
       const items: any[] = [];
 
@@ -199,29 +199,36 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
         const s = perRow[r.id];
         if (!s) continue;
         const { rate, period, available } = resolveCarrySource(r);
-        const carryEffective = s.enabled && s.carryEnabled && available;
+        const tradeDate = toIsoDate(r.trade_date);
+        // Auto-fill the receipt date: user input → row default (grain_reception/payment) → global
+        const receiptDate =
+          toIsoDate(s.paymentReceiptDateStr) ||
+          defaultReceiptFor(r) ||
+          toIsoDate(globalReceiptDateStr);
 
-        if (carryEffective) {
-          if (rate == null || !r.trade_date || !s.paymentReceiptDateStr) {
-            toast.error(`Carrego incompleto em ${r.ticker}: taxa, data de início ou data de recebimento ausente.`);
-            setSubmitting(false);
-            return;
-          }
-        }
+        // Carry is effective only if everything required by backend is present
+        const carryEffective =
+          s.enabled && s.carryEnabled && available && !!tradeDate && !!receiptDate;
 
-        meta[r.id] = { rate, period, carryEffective };
-        items.push({
+        meta[r.id] = { rate, period, carryEffective, receiptDate };
+        const item: Record<string, unknown> = {
           pricing_snapshot_id: r.id,
           base_price_brl: r.origination_price_brl,
           premium_brl: Number(s.premiumStr || 0),
           coverage_pct: Number(s.coverageStr || 0) / 100,
           enabled: s.enabled,
           carry_enabled: carryEffective,
-          interest_rate: rate,
-          interest_rate_period: period,
-          trade_date: r.trade_date ?? null,
-          payment_receipt_date: s.paymentReceiptDateStr || null,
-        });
+        };
+        if (carryEffective) {
+          item.interest_rate = rate;
+          item.interest_rate_period = period;
+          item.trade_date = tradeDate;
+          item.payment_receipt_date = receiptDate;
+        } else {
+          // include trade_date when known (harmless) but omit carry-required fields
+          if (tradeDate) item.trade_date = tradeDate;
+        }
+        items.push(item);
       }
 
       const resp = await callApi<{ results: InsuranceResult[] }>('/pricing/insurance-layer', { items });
@@ -235,9 +242,9 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
         .map((result) => {
           const r = rows.find((row) => row.id === result.pricing_snapshot_id);
           if (!r) return null;
-          const s = perRow[r.id];
           const m = meta[r.id];
           const atmPremium = Number(r.insurance_json?.atm?.premium_brl);
+          const carryEnabled = result.carry_enabled ?? false;
           return {
             pricing_snapshot_id: result.pricing_snapshot_id,
             enabled: result.enabled,
@@ -246,11 +253,11 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
             insurance_cost_brl: result.insurance_cost_brl,
             adjusted_price_brl: result.adjusted_price_brl,
             premium_source: result.premium_brl === atmPremium ? 'theoretical' : 'manual',
-            carry_enabled: result.carry_enabled ?? m?.carryEffective ?? false,
+            carry_enabled: carryEnabled,
             carry_cost_brl: result.carry_cost_brl ?? 0,
-            carry_interest_rate: m?.rate ?? null,
-            carry_interest_rate_period: m?.period ?? null,
-            payment_receipt_date: s?.paymentReceiptDateStr || null,
+            carry_interest_rate: carryEnabled ? (m?.rate ?? null) : null,
+            carry_interest_rate_period: carryEnabled ? (m?.period ?? null) : null,
+            payment_receipt_date: carryEnabled ? (m?.receiptDate || null) : null,
             created_by: user.id,
             created_at: new Date().toISOString(),
           };
