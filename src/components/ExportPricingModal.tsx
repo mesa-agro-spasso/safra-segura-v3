@@ -174,10 +174,38 @@ function getDateStr() {
   return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
 }
 
+const CSV_HEADER_OVERRIDES: Record<string, string> = {
+  target_basis_brl: 'Basis Alvo (R$)',
+  futures_price_brl: 'Futuros (R$)',
+  origination_price_brl: 'Preço Originação (R$)',
+  insurance_adjusted_price_brl: 'Preço c/ Seguro (R$)',
+  additional_discount_brl: 'Desconto (R$)',
+};
+
+const CSV_NUMERIC_KEYS = new Set([
+  'target_basis_brl',
+  'futures_price_brl',
+  'origination_price_brl',
+  'insurance_adjusted_price_brl',
+  'additional_discount_brl',
+  'exchange_rate',
+]);
+
+function toCsvCell(key: string, raw: string): string {
+  if (raw === '-' || raw === '' || raw == null) return '';
+  if (CSV_NUMERIC_KEYS.has(key)) {
+    const cleaned = raw.replace(/^R\$\s*/, '').trim();
+    return cleaned.replace('.', ',');
+  }
+  return raw;
+}
+
 async function exportXlsx(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
   const sep = ';';
-  const header = cols.map((c) => c.label).join(sep);
-  const body = rows.map((r) => cols.map((c) => c.getValue(r, wm, im).replace(/;/g, ',')).join(sep));
+  const header = cols.map((c) => CSV_HEADER_OVERRIDES[c.key] ?? c.label).join(sep);
+  const body = rows.map((r) =>
+    cols.map((c) => toCsvCell(c.key, c.getValue(r, wm, im)).replace(/;/g, ',')).join(sep)
+  );
   const csv = '\uFEFF' + [header, ...body].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   downloadBlob(blob, `tabela_precos_${getDateStr()}.csv`);
