@@ -525,15 +525,25 @@ const PricingTable = () => {
               {(() => {
                 const applied = insuranceMap?.[detailSnap.id];
                 if (!applied) return null;
+                if (!applied.enabled || applied.adjusted_price_brl == null) return null;
                 const sourceLabel = applied.premium_source === 'theoretical' ? 'Teórico' : 'Manual';
+                const carryOn = !!(applied as any).carry_enabled;
+                const carryCost = Number((applied as any).carry_cost_brl ?? 0);
+                const insuranceCost = Number(applied.insurance_cost_brl ?? 0);
                 return (
                   <>
                     <Separator />
                     <h4 className="font-semibold text-sm">Seguro aplicado</h4>
-                    <DetailRow label="Status" value={applied.enabled ? 'Ativo' : 'Desativado'} />
+                    <DetailRow label="Status" value="Aplicado" />
                     <DetailRow label="Prêmio usado" value={`R$ ${Number(applied.premium_brl).toFixed(2)}`} />
                     <DetailRow label="Cobertura" value={`${(Number(applied.coverage_pct) * 100).toFixed(1)}%`} />
-                    <DetailRow label="Custo seguro" value={`R$ ${Number(applied.insurance_cost_brl).toFixed(2)}`} />
+                    <DetailRow label="Custo seguro" value={`R$ ${insuranceCost.toFixed(2)}`} />
+                    {carryOn && (
+                      <>
+                        <DetailRow label="Carrego" value={`R$ ${carryCost.toFixed(2)}`} />
+                        <DetailRow label="Custo total" value={`R$ ${(insuranceCost + carryCost).toFixed(2)}`} />
+                      </>
+                    )}
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Preço ajustado</span>
                       <span className="font-bold text-primary">R$ {Number(applied.adjusted_price_brl).toFixed(2)}</span>
