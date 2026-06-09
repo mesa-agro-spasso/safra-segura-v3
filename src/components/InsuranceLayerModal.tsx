@@ -419,8 +419,12 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
                         {result && (
                           <>
                             <span>Seguro: R$ {Number(result.insurance_cost_brl).toFixed(2)}</span>
-                            <span>Carrego: R$ {Number(result.carry_cost_brl ?? 0).toFixed(2)}</span>
-                            <span>Total: R$ {Number(result.total_insurance_cost_brl ?? result.insurance_cost_brl).toFixed(2)}</span>
+                            {result.carry_enabled && (
+                              <>
+                                <span>Carrego: R$ {Number(result.carry_cost_brl ?? 0).toFixed(2)}</span>
+                                <span>Total: R$ {Number(result.total_insurance_cost_brl ?? ((result.insurance_cost_brl ?? 0) + (result.carry_cost_brl ?? 0))).toFixed(2)}</span>
+                              </>
+                            )}
                             <span>Ajustado: R$ {Number(result.adjusted_price_brl).toFixed(2)}</span>
                           </>
                         )}
