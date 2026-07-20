@@ -214,6 +214,7 @@ export const helpSections: HelpSection[] = [
       { type: 'p', text: 'Funções: Mesa, Comercial N1, Financeiro N1, Financeiro N2, Presidência. A função determina quais telas e ações estão disponíveis e quais aprovações o usuário pode assinar.' },
       { type: 'callout', text: '→ As funções definidas aqui determinam quem aparece como signatário em Aprovações.' },
       { type: 'p', text: 'Desativar: revoga o acesso do usuário sem excluí-lo do sistema.' },
+      { type: 'p', text: 'Excluir: remove o usuário (ou armazém) permanentemente da interface. Por questão de integridade do log de auditoria, o registro é preservado internamente e não pode ser restaurado pela interface — recuperação apenas via backend, em caráter excepcional.' },
     ],
   },
   {
