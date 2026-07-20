@@ -11,6 +11,17 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -148,6 +159,7 @@ const UsersTab = () => {
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -158,7 +170,8 @@ const UsersTab = () => {
 
     const { data: userRoles, error: rolesError } = await supabase
       .from('users')
-      .select('id, roles');
+      .select('id, roles')
+      .is('deleted_at', null);
 
     if (rolesError) {
       setRolesMap({});
@@ -257,6 +270,22 @@ const UsersTab = () => {
     if (ok) {
       toast.success('Nível de acesso alterado');
       fetchProfiles();
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const nowIso = new Date().toISOString();
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from('user_profiles').update({ deleted_at: nowIso } as never).eq('id', id),
+        supabase.from('users').update({ deleted_at: nowIso } as never).eq('id', id),
+      ]);
+      if (e1 || e2) throw new Error(e1?.message || e2?.message || 'Erro ao excluir');
+      void logActivity('user.delete', 'user', id, {});
+      toast.success('Usuário excluído');
+      fetchProfiles();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao excluir');
     }
   };
 
@@ -374,21 +403,49 @@ const UsersTab = () => {
                     {p.approved_at ? format(new Date(p.approved_at), 'dd/MM/yyyy') : '—'}
                   </TableCell>
                   <TableCell className="text-right">
-                    {p.status === 'pending' && (
-                      <Button size="sm" className="h-7 text-xs" onClick={() => handleApprove(p.id)}>
-                        Aprovar
-                      </Button>
-                    )}
-                    {p.status === 'active' && p.id !== user?.id && (
-                      <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => handleDisable(p.id)}>
-                        Desativar
-                      </Button>
-                    )}
-                    {p.status === 'disabled' && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleReactivate(p.id)}>
-                        Reativar
-                      </Button>
-                    )}
+                    <div className="flex justify-end gap-2">
+                      {p.status === 'pending' && (
+                        <Button size="sm" className="h-7 text-xs" onClick={() => handleApprove(p.id)}>
+                          Aprovar
+                        </Button>
+                      )}
+                      {p.status === 'active' && p.id !== user?.id && (
+                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => handleDisable(p.id)}>
+                          Desativar
+                        </Button>
+                      )}
+                      {p.status === 'disabled' && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleReactivate(p.id)}>
+                          Reativar
+                        </Button>
+                      )}
+                      {p.id !== user?.id && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="destructive" className="h-7 text-xs">
+                              Excluir
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                O usuário {p.full_name || p.email} será excluído e não aparecerá mais em nenhuma tela. Esta ação não pode ser desfeita pela interface.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(p.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

@@ -7,7 +7,7 @@ export function useWarehouses(activeOnly = false) {
   return useQuery({
     queryKey: ['warehouses', activeOnly],
     queryFn: async () => {
-      let query = supabase.from('warehouses').select('*').order('display_name');
+      let query = supabase.from('warehouses').select('*').is('deleted_at', null).order('display_name');
       if (activeOnly) query = query.eq('active', true);
       const { data, error } = await query;
       if (error) throw error;
@@ -23,6 +23,7 @@ export function useActiveArmazens() {
       const { data, error } = await supabase
         .from('warehouses')
         .select('*')
+        .is('deleted_at', null)
         .eq('active', true)
         .eq('type', 'ARMAZEM')
         .order('display_name');

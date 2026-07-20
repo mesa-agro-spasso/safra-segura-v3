@@ -1047,6 +1047,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           created_at: string
+          deleted_at: string | null
           email: string
           forced_env: string | null
           full_name: string | null
@@ -1061,6 +1062,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          deleted_at?: string | null
           email: string
           forced_env?: string | null
           full_name?: string | null
@@ -1075,6 +1077,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string
           forced_env?: string | null
           full_name?: string | null
@@ -1090,6 +1093,7 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          deleted_at: string | null
           full_name: string
           id: string
           roles: string[]
@@ -1098,6 +1102,7 @@ export type Database = {
         Insert: {
           active?: boolean
           created_at?: string
+          deleted_at?: string | null
           full_name: string
           id: string
           roles?: string[]
@@ -1106,6 +1111,7 @@ export type Database = {
         Update: {
           active?: boolean
           created_at?: string
+          deleted_at?: string | null
           full_name?: string
           id?: string
           roles?: string[]
@@ -1207,6 +1213,7 @@ export type Database = {
           brokerage_per_contract_cbot: number | null
           city: string | null
           created_at: string
+          deleted_at: string | null
           desk_cost_pct: number | null
           display_name: string
           id: string
@@ -1227,6 +1234,7 @@ export type Database = {
           brokerage_per_contract_cbot?: number | null
           city?: string | null
           created_at?: string
+          deleted_at?: string | null
           desk_cost_pct?: number | null
           display_name: string
           id: string
@@ -1247,6 +1255,7 @@ export type Database = {
           brokerage_per_contract_cbot?: number | null
           city?: string | null
           created_at?: string
+          deleted_at?: string | null
           desk_cost_pct?: number | null
           display_name?: string
           id?: string

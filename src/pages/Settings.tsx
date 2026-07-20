@@ -52,7 +52,10 @@ function WarehousesTab() {
   const handleDelete = async () => {
     if (!editing?.id) return;
     try {
-      const { error } = await supabase.from('warehouses').delete().eq('id', editing.id);
+      const { error } = await supabase
+        .from('warehouses')
+        .update({ deleted_at: new Date().toISOString() } as never)
+        .eq('id', editing.id);
       if (error) throw error;
       toast.success('Armazém excluído');
       queryClient.invalidateQueries({ queryKey: ['warehouses'] });
@@ -60,11 +63,7 @@ function WarehousesTab() {
       setEditing(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao excluir';
-      if (msg.includes('foreign key') || msg.includes('violates') || msg.includes('23503')) {
-        toast.error('Não é possível excluir: existem registros vinculados a este armazém.');
-      } else {
-        toast.error(msg);
-      }
+      toast.error(msg);
     }
   };
 
