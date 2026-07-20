@@ -7,10 +7,7 @@ import { AdminRoute } from '@/components/AdminRoute';
 import { useMesaEnv } from '@/contexts/MesaEnvContext';
 import { FEATURES } from '@/config/features';
 import PricingTable from '@/pages/PricingTable';
-import OrdensD24 from '@/pages/OrdensD24';
 import Approvals from '@/pages/Approvals';
-import OperacoesD24 from '@/pages/OperacoesD24';
-import ArmazensD24 from '@/pages/ArmazensD24';
 import Market from '@/pages/Market';
 import Producers from '@/pages/Producers';
 import Settings from '@/pages/Settings';
@@ -23,10 +20,7 @@ import NotFound from '@/pages/NotFound';
 const routes: KeepAliveRoute[] = [
   { path: '/', element: <PricingTable />, end: true },
   { path: '/ajuda', element: <Ajuda /> },
-  { path: '/ordens-d24', element: <OrdensD24 /> },
   { path: '/aprovacoes', element: <Approvals /> },
-  { path: '/operacoes-d24', element: <OperacoesD24 /> },
-  { path: '/armazens-d24', element: <ArmazensD24 /> },
   { path: '/mercado', element: <Market /> },
   ...(FEATURES.PRODUCERS ? [{ path: '/produtores', element: <Producers /> }] : []),
   ...(FEATURES.FINANCIAL_CALENDAR ? [{ path: '/financeiro', element: <Financial /> }] : []),

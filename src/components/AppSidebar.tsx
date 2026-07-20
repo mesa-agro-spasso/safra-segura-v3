@@ -1,4 +1,4 @@
-import { TableProperties, FileText, TrendingUp, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck, Warehouse, ClipboardList, Building2, Sprout, HelpCircle } from 'lucide-react';
+import { TableProperties, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck, Sprout, HelpCircle } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -37,9 +37,6 @@ const formatRole = (r: string) =>
 
 const items = [
   { title: 'Tabela de Preços', url: '/', icon: TableProperties },
-  { title: 'Operações', url: '/operacoes-d24', icon: ClipboardList },
-  { title: 'Ordens',    url: '/ordens-d24',    icon: FileText },
-  { title: 'Armazéns',  url: '/armazens-d24',  icon: Building2 },
   ...(FEATURES.FINANCIAL_CALENDAR ? [{ title: 'Financeiro', url: '/financeiro', icon: DollarSign }] : []),
   { title: 'Mercado', url: '/mercado', icon: BarChart3 },
   ...(FEATURES.PRODUCERS ? [{ title: 'Produtores', url: '/produtores', icon: Sprout }] : []),
