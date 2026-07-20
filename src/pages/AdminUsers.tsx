@@ -273,6 +273,22 @@ const UsersTab = () => {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      const nowIso = new Date().toISOString();
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from('user_profiles').update({ deleted_at: nowIso } as never).eq('id', id),
+        supabase.from('users').update({ deleted_at: nowIso } as never).eq('id', id),
+      ]);
+      if (e1 || e2) throw new Error(e1?.message || e2?.message || 'Erro ao excluir');
+      void logActivity('user.delete', 'user', id, {});
+      toast.success('Usuário excluído');
+      fetchProfiles();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao excluir');
+    }
+  };
+
   const filtered = profiles.filter((p) => {
     const matchSearch =
       !search ||
