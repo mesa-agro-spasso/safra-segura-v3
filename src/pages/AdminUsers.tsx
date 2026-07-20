@@ -148,6 +148,7 @@ const UsersTab = () => {
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -158,7 +159,8 @@ const UsersTab = () => {
 
     const { data: userRoles, error: rolesError } = await supabase
       .from('users')
-      .select('id, roles');
+      .select('id, roles')
+      .is('deleted_at', null);
 
     if (rolesError) {
       setRolesMap({});
