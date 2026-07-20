@@ -403,21 +403,49 @@ const UsersTab = () => {
                     {p.approved_at ? format(new Date(p.approved_at), 'dd/MM/yyyy') : '—'}
                   </TableCell>
                   <TableCell className="text-right">
-                    {p.status === 'pending' && (
-                      <Button size="sm" className="h-7 text-xs" onClick={() => handleApprove(p.id)}>
-                        Aprovar
-                      </Button>
-                    )}
-                    {p.status === 'active' && p.id !== user?.id && (
-                      <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => handleDisable(p.id)}>
-                        Desativar
-                      </Button>
-                    )}
-                    {p.status === 'disabled' && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleReactivate(p.id)}>
-                        Reativar
-                      </Button>
-                    )}
+                    <div className="flex justify-end gap-2">
+                      {p.status === 'pending' && (
+                        <Button size="sm" className="h-7 text-xs" onClick={() => handleApprove(p.id)}>
+                          Aprovar
+                        </Button>
+                      )}
+                      {p.status === 'active' && p.id !== user?.id && (
+                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => handleDisable(p.id)}>
+                          Desativar
+                        </Button>
+                      )}
+                      {p.status === 'disabled' && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleReactivate(p.id)}>
+                          Reativar
+                        </Button>
+                      )}
+                      {p.id !== user?.id && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="destructive" className="h-7 text-xs">
+                              Excluir
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                O usuário {p.full_name || p.email} será excluído e não aparecerá mais em nenhuma tela. Esta ação não pode ser desfeita pela interface.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(p.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
