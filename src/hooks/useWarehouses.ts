@@ -23,6 +23,7 @@ export function useActiveArmazens() {
       const { data, error } = await supabase
         .from('warehouses')
         .select('*')
+        .is('deleted_at', null)
         .eq('active', true)
         .eq('type', 'ARMAZEM')
         .order('display_name');
