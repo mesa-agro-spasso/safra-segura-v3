@@ -1,69 +1,48 @@
-# Onda 1 — Reduzir superfície ao fluxo de Geração de Preços
+## Objetivo
+Melhorar a exportação da Tabela de Preços: consertar o CSV, adicionar filtro de commodity em pills WYSIWYG, e criar um novo formato "Tabela formatada" (PNG apresentável com logo Grupo Spasso).
 
-Escopo: apenas navegação, rotas e um placeholder. **Nenhuma lógica de negócio (D24, hedge, ordens, seguro, pricing) é alterada.** Todos os arquivos das telas ocultas permanecem no repositório para as próximas ondas.
+## Escopo (apenas UI/exportação)
 
-## Estado atual das flags (`.env` / `.env.example`)
+### 1. `src/pages/PricingTable.tsx` — filtro pills de commodity
+- Adicionar acima da tabela um grupo de botões pills: **Todas | Soja | Milho**, seleção única.
+- Estado novo `commodityPill: 'all' | 'soybean' | 'corn'` (default `'all'`), gerado dinamicamente a partir das commodities presentes nos snapshots (escala para novas commodities).
+- A lista filtrada da tabela passa a considerar essa pill (mantendo os filtros existentes de praça/ticker como estão, em dropdown).
+- Passar as **linhas já filtradas** e a commodity ativa para o `ExportPricingModal` (WYSIWYG).
 
-| Flag | Valor hoje | Ação |
-|---|---|---|
-| `VITE_FEATURE_AUTHORIZATION_TIERS` (Alçadas) | `false` | Já oculta — nada a fazer |
-| `VITE_FEATURE_MARKET_PHYSICAL` | `true` | Manter `true` (aba visível, com placeholder) |
-| `VITE_FEATURE_MARKET_HISTORICAL` | `false` | Já oculta |
-| `VITE_FEATURE_PRODUCERS` | `false` | Já oculta |
-| `VITE_FEATURE_FINANCIAL_CALENDAR` | `false` | Já oculta |
+### 2. `src/components/ExportPricingModal.tsx` — 3 mudanças
 
-Observação: a decisão (1) mencionou `VITE_FEATURE_ALCADAS`, mas o flag existente é `VITE_FEATURE_AUTHORIZATION_TIERS`. Vou respeitar o flag existente (sem criar variável nova) e ele já está `false`, então Alçadas fica escondida sem tocar em nada.
+**a) CSV real:**
+- Renomear label "Excel (.xlsx)" → "CSV (.csv)", chave `format='csv'`.
+- Manter a lógica atual (separador `;`, BOM UTF-8, vírgula decimal, headers com unidade) — a extensão do arquivo já é `.csv`; apenas a label mentia.
 
-## Mudanças concretas
+**b) Colunas disponíveis (sem Safra):**
+- Confirmar que `ALL_COLUMNS` cobre: Praça, Commodity, Recepção, Pagamento, Venda, Basis Alvo, Futuros (BRL), Câmbio, Preço Originação (mais Ticker, Preço c/ Seguro, Desconto, Trade Date, Benchmark já existentes). **Não** adicionar coluna Safra.
 
-### 1. `src/components/AppSidebar.tsx` — remover itens da navegação
+**c) Novo formato "Tabela formatada" (PNG):**
+- Novo radio `format='formatted'` com label "Tabela formatada (PNG)".
+- Recebe do `PricingTable` a commodity ativa da pill.
+- Set default de colunas quando este formato está selecionado: **Praça, Commodity, Recepção, Pagamento, Venda, Preço Originação**. As demais (basis, futuros, câmbio, etc.) ficam desmarcáveis mas OFF por padrão.
+- Renderiza HTML dedicado em iframe off-screen e converte com `html2canvas` (já usado no formato "mobile"):
+  - Topo: `<img src="/logo-spasso.png">` à esquerda, título centralizado, data à direita.
+  - Título: `PREÇOS ORIGINAÇÃO — {COMMODITY}` quando a pill é Soja/Milho; `PREÇOS ORIGINAÇÃO` quando a pill é "Todas". Sem sufixo "SAFRA …".
+  - Cabeçalho colorido (verde primary do app), linhas zebradas, tipografia limpa. Largura ~1200px.
+  - Nome do arquivo: `precos_originacao_{commodity|todas}_{YYYYMMDD}.png`.
 
-Remover do array `items` (linhas ~39-48) os entries de:
-- **Operações** (`/operacoes-d24`)
-- **Ordens** (`/ordens-d24`)
-- **Armazéns** (`/armazens-d24`, o painel de posição)
+**d) WYSIWYG:**
+- O modal já recebe `rows` — como o `PricingTable` passará as linhas já filtradas pela pill, todos os formatos (CSV, PDF, Mobile, Formatada) exportam apenas o que está na tela. Nenhum toggle novo no modal.
 
-Manter tudo o resto: Tabela de Preços, Financeiro (flagged), Mercado, Produtores (flagged), Configurações, Aprovações, Administração (admin), Ajuda.
+### 3. Assets
+- Reutilizar `/logo-spasso.png` já servido em `public/` (mesmo que a sidebar usa). Sem novos assets.
 
-Também remover os imports dos ícones que não são mais usados: `ClipboardList`, `FileText`, `Building2` (verificar antes de remover, para não deixar import morto).
+## Fora de escopo
+- Sem campo UF, sem coluna Safra, sem novas colunas.
+- Sem toggle "por commodity" no modal (a pill resolve).
+- Sem alteração em geração de preço, snapshots, RLS ou schema.
+- Sem mexer nos formatos PDF/Mobile existentes além de eles respeitarem o filtro (herdado do `rows` já filtrado).
 
-### 2. `src/components/AppLayout.tsx` — remover rotas
+## Riscos
+- `html2canvas` já é dependência (usado em "Celular"), sem custo novo.
+- CSVs antigos com extensão `.csv` (a atual já é `.csv`, só a label mentia): usuários não perdem nada.
 
-Remover do array `routes` (linhas 23-36) as três rotas correspondentes:
-- `{ path: '/ordens-d24', element: <OrdensD24 /> }`
-- `{ path: '/operacoes-d24', element: <OperacoesD24 /> }`
-- `{ path: '/armazens-d24', element: <ArmazensD24 /> }`
-
-Remover também os `import` das páginas `OrdensD24`, `OperacoesD24`, `ArmazensD24` (linhas 10, 12, 13).
-
-Efeito: acessar `/operacoes-d24`, `/ordens-d24` ou `/armazens-d24` direto na URL cai no `NotFound` do `KeepAliveOutlet`. **A rota `/aprovacoes` continua ativa** (decisão 2).
-
-### 3. `src/pages/market/MarketFisico.tsx` — substituir por placeholder
-
-Substituir o componente inteiro por um card simples "Em breve", no mesmo padrão visual de `HistoricoTerceiros.tsx`. Nada de tabela, nada de dialogs, nada de hooks — a página fica inerte.
-
-Motivo: `MARKET_PHYSICAL=true` é preservado (a aba "Físico" segue visível no seletor de sub-abas de Mercado), mas o conteúdo real fica pausado. Os hooks/dialogs/API de preços físicos continuam existindo no repositório para a próxima onda.
-
-Resultado final na página `/mercado`: sub-abas **Físico** (placeholder) + **Bolsa** (funcional). Histórico permanece oculto pelo flag.
-
-## O que NÃO muda
-
-- Nenhum arquivo em `src/pages/OperacoesD24.tsx`, `src/pages/OrdensD24.tsx`, `src/pages/ArmazensD24.tsx`, `src/pages/Approvals.tsx`, nem os hooks/serviços D24 (`useHedgeOrders`, `useOperations`, `useUpdateOperationProducer`, `src/services/d24Api.ts`, `src/lib/blockTradeExecution.ts`).
-- Nenhum arquivo em `src/components/market/PhysicalPrice*`, `usePhysicalPrices`, `usePhysicalPriceHistoryAll` — ficam órfãos por ora, prontos para religar.
-- `Settings.tsx` inteiro (inclusive `AlcadasTab`) — a aba Alçadas já é ocultada pelo flag existente.
-- Nenhuma migration, nenhuma RLS, nenhum edge function.
-
-## Pontos de atenção
-
-1. **Deep-links quebrados.** Qualquer bookmark do usuário para `/operacoes-d24`, `/ordens-d24` ou `/armazens-d24` passará a mostrar 404. Aceitável nesta onda; se preferir, dá para trocar por um redirect para `/` — precisa sua decisão.
-2. **`activityLog`.** Continua funcionando normalmente na Tabela de Preços; nada muda.
-3. **Ícones removidos.** Se algum outro arquivo importa `Building2`/`ClipboardList`/`FileText` do sidebar, mantenho os imports — verifico na hora de aplicar.
-4. **Modo staging.** O toggle Produção/Teste no rodapé da sidebar não é alterado; permanece funcionando.
-
-## Crítica sincera
-
-**Pontos fortes.** Mudança cirúrgica, três arquivos tocados, zero risco em lógica de pricing/D24. Reversível em um commit. Não cria débito novo (sem flags novas, sem "sistema de módulos" — reaproveita o padrão existente de flags + array de rotas).
-
-**Pontos fracos.** (a) Deixa código órfão no bundle (as páginas D24 continuam sendo tree-shaken? Como não são mais importadas em `AppLayout`, sim — cai do bundle final). (b) Não há teste automatizado que garanta que a Tabela de Preços continua íntegra depois da poda; a verificação vai ser manual (build + smoke test na `/`). (c) A decisão de manter Aprovações inteira significa que o usuário ainda vê a aba "aprovar operações" mesmo com Operações escondida — pequena inconsistência de UX aceita explicitamente pela decisão 2.
-
-**Ponto de atenção principal.** Se em algum lugar de Configurações (Combinações) ou da Tabela de Preços houver `<Link to="/operacoes-d24">` ou similar, o link vai levar ao 404. Antes de aplicar, vou grep por essas URLs e reportar. Se aparecerem, remove-se junto.
+## Verificação
+- Manual: gerar preços, filtrar por Soja → CSV/PDF/PNG/Formatada saem só com soja; alternar para Todas → todos aparecem; conferir logo, título e colunas default no PNG formatado.

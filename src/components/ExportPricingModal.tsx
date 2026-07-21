@@ -51,14 +51,36 @@ interface Props {
   rows: PricingSnapshot[];
   warehouseMap: Record<string, string>;
   insuranceMap?: InsuranceMap;
+  activeCommodity?: string;
 }
 
-export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, insuranceMap }: Props) {
+const FORMATTED_DEFAULT_KEYS = new Set([
+  'warehouse',
+  'commodity',
+  'grain_reception_date',
+  'payment_date',
+  'sale_date',
+  'origination_price_brl',
+]);
+
+export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, insuranceMap, activeCommodity = 'all' }: Props) {
+  const [format, setFormat] = useState<'csv' | 'pdf' | 'mobile' | 'formatted'>('csv');
   const [selectedCols, setSelectedCols] = useState<Set<string>>(
     new Set(ALL_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key))
   );
-  const [format, setFormat] = useState<'xlsx' | 'pdf' | 'mobile'>('xlsx');
   const [exporting, setExporting] = useState(false);
+
+  // When switching to/from "formatted", swap the default column selection.
+  const prevFormatRef = useState<{ current: string }>({ current: 'csv' })[0];
+  if (prevFormatRef.current !== format) {
+    prevFormatRef.current = format;
+    if (format === 'formatted') {
+      setSelectedCols(new Set(ALL_COLUMNS.filter((c) => FORMATTED_DEFAULT_KEYS.has(c.key)).map((c) => c.key)));
+    } else {
+      setSelectedCols(new Set(ALL_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key)));
+    }
+  }
+
 
   const toggleCol = (key: string) => {
     setSelectedCols((prev) => {
@@ -77,12 +99,14 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, ins
     }
     setExporting(true);
     try {
-      if (format === 'xlsx') {
-        await exportXlsx(cols, rows, warehouseMap, insuranceMap);
+      if (format === 'csv') {
+        await exportCsv(cols, rows, warehouseMap, insuranceMap);
       } else if (format === 'pdf') {
         await exportPdf(cols, rows, warehouseMap, insuranceMap);
       } else if (format === 'mobile') {
         await exportMobilePng(cols, rows, warehouseMap, insuranceMap);
+      } else if (format === 'formatted') {
+        await exportFormattedPng(cols, rows, warehouseMap, insuranceMap, activeCommodity);
       }
       toast.success('Exportação concluída');
       onOpenChange(false);
@@ -103,10 +127,14 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, ins
         <div className="space-y-4">
           <div>
             <Label className="text-sm font-semibold">Formato</Label>
-            <RadioGroup value={format} onValueChange={(v) => setFormat(v as 'xlsx' | 'pdf' | 'mobile')} className="flex flex-col gap-2 mt-2">
+            <RadioGroup value={format} onValueChange={(v) => setFormat(v as 'csv' | 'pdf' | 'mobile' | 'formatted')} className="flex flex-col gap-2 mt-2">
               <div className="flex items-center gap-2">
-                <RadioGroupItem value="xlsx" id="fmt-xlsx" />
-                <Label htmlFor="fmt-xlsx" className="text-sm cursor-pointer">Excel (.xlsx)</Label>
+                <RadioGroupItem value="csv" id="fmt-csv" />
+                <Label htmlFor="fmt-csv" className="text-sm cursor-pointer">CSV (.csv)</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="formatted" id="fmt-formatted" />
+                <Label htmlFor="fmt-formatted" className="text-sm cursor-pointer">Tabela formatada (PNG)</Label>
               </div>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="pdf" id="fmt-pdf" />
@@ -118,6 +146,7 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, ins
               </div>
             </RadioGroup>
           </div>
+
 
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -200,7 +229,7 @@ function toCsvCell(key: string, raw: string): string {
   return raw;
 }
 
-async function exportXlsx(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
+async function exportCsv(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
   const sep = ';';
   const header = cols.map((c) => CSV_HEADER_OVERRIDES[c.key] ?? c.label).join(sep);
   const body = rows.map((r) =>
@@ -456,3 +485,133 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
     document.body.removeChild(iframe);
   }
 }
+
+async function exportFormattedPng(
+  cols: ExportColumn[],
+  rows: PricingSnapshot[],
+  wm: Record<string, string>,
+  im: InsuranceMap | undefined,
+  activeCommodity: string
+) {
+  const now = new Date();
+  const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+
+  const commodityLabel =
+    activeCommodity === 'soybean' ? 'SOJA' :
+    activeCommodity === 'corn' ? 'MILHO' :
+    activeCommodity && activeCommodity !== 'all' ? activeCommodity.toUpperCase() : '';
+  const title = commodityLabel
+    ? `PREÇOS ORIGINAÇÃO — ${commodityLabel}`
+    : 'PREÇOS ORIGINAÇÃO';
+
+  const headerRow = cols.map((c) => `<th>${c.label}</th>`).join('');
+  const bodyRows = rows.map((r, i) => {
+    const cells = cols.map((c) => `<td>${c.getValue(r, wm, im)}</td>`).join('');
+    return `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">${cells}</tr>`;
+  }).join('');
+
+  const logoUrl = `${window.location.origin}/logo-spasso.png`;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1200px;
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #ffffff;
+    padding: 40px 44px;
+    color: #1f2937;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 24px; margin-bottom: 28px; padding-bottom: 20px;
+    border-bottom: 3px solid #e5e7eb;
+  }
+  .header .logo { height: 56px; object-fit: contain; }
+  .header .title {
+    flex: 1; text-align: center;
+    font-size: 26px; font-weight: 800; color: #111827;
+    letter-spacing: 0.5px;
+  }
+  .header .date {
+    font-size: 16px; color: #6b7280; font-weight: 500;
+    white-space: nowrap;
+  }
+  table { width: 100%; border-collapse: collapse; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  thead tr { background: #16a34a; }
+  th {
+    padding: 14px 18px; font-size: 14px; font-weight: 700; color: #ffffff;
+    text-align: left; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  td {
+    padding: 14px 18px; font-size: 16px; color: #1f2937; font-weight: 500;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .row-even { background: #ffffff; }
+  .row-odd { background: #f8fafc; }
+  tr:last-child td { border-bottom: none; }
+  .footer {
+    margin-top: 24px; text-align: right;
+    font-size: 12px; color: #9ca3af;
+  }
+</style></head><body>
+  <div class="header">
+    <img class="logo" src="${logoUrl}" alt="Grupo Spasso" crossorigin="anonymous" />
+    <div class="title">${title}</div>
+    <div class="date">${dateStr}</div>
+  </div>
+  <table>
+    <thead><tr>${headerRow}</tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table>
+  <div class="footer">${rows.length} ${rows.length === 1 ? 'praça' : 'praças'}</div>
+</body></html>`;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1200px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+
+  try {
+    const iframeDoc = iframe.contentDocument!;
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
+
+    // Wait for logo image to load (so html2canvas captures it)
+    await new Promise<void>((resolve) => {
+      const img = iframeDoc.querySelector('img.logo') as HTMLImageElement | null;
+      if (!img) { resolve(); return; }
+      if (img.complete && img.naturalWidth > 0) { resolve(); return; }
+      img.onload = () => resolve();
+      img.onerror = () => resolve();
+      setTimeout(() => resolve(), 2000);
+    });
+
+    const bodyEl = iframeDoc.body;
+    iframe.style.height = `${bodyEl.scrollHeight}px`;
+    await new Promise((r) => setTimeout(r, 100));
+
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await html2canvas(bodyEl, {
+      width: 1200,
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+    });
+
+    const suffix = activeCommodity && activeCommodity !== 'all' ? activeCommodity : 'todas';
+    await new Promise<void>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          downloadBlob(blob, `precos_originacao_${suffix}_${getDateStr()}.png`);
+          resolve();
+        } else {
+          reject(new Error('Falha ao gerar PNG'));
+        }
+      }, 'image/png');
+    });
+  } finally {
+    document.body.removeChild(iframe);
+  }
+}
+

@@ -231,8 +231,39 @@ const PricingTable = () => {
             </div>
           )}
 
+          {/* Commodity pills (single-select, WYSIWYG) */}
+          {uniqueCommodities.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {(() => {
+                const activePill = filterCommodity.length === 1 ? filterCommodity[0] : 'all';
+                const pills: { key: string; label: string }[] = [
+                  { key: 'all', label: 'Todas' },
+                  ...uniqueCommodities.map((c) => ({
+                    key: c,
+                    label: c === 'soybean' ? 'Soja' : c === 'corn' ? 'Milho' : c.charAt(0).toUpperCase() + c.slice(1),
+                  })),
+                ];
+                return pills.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => setFilterCommodity(p.key === 'all' ? [] : [p.key])}
+                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                      activePill === p.key
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ));
+              })()}
+            </div>
+          )}
+
           {/* Filters toggle */}
           <div className="mb-4">
+
             <button
               type="button"
               className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
@@ -247,24 +278,7 @@ const PricingTable = () => {
             </button>
             {filtersExpanded && (
               <div className="flex flex-wrap gap-3 mt-2 pl-5">
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Commodity</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-36 h-8 text-xs justify-between">
-                        {filterCommodity.length === 0 ? 'Todas' : filterCommodity.map(c => c === 'soybean' ? 'Soja' : 'Milho').join(', ')}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-40 p-2" align="start">
-                      {uniqueCommodities.map((c) => (
-                        <label key={c} className="flex items-center gap-2 px-1 py-1 text-xs cursor-pointer hover:bg-muted rounded">
-                          <Checkbox checked={filterCommodity.includes(c)} onCheckedChange={() => toggleFilter(setFilterCommodity, c)} />
-                          {c === 'soybean' ? 'Soja' : 'Milho'}
-                        </label>
-                      ))}
-                    </PopoverContent>
-                  </Popover>
-                </div>
+
                 <div className="space-y-1">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Praça</span>
                   <Popover>
@@ -572,7 +586,7 @@ const PricingTable = () => {
             })()}
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
-      <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} insuranceMap={insuranceMap} />
+      <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} insuranceMap={insuranceMap} activeCommodity={filterCommodity.length === 1 ? filterCommodity[0] : 'all'} />
       <InsuranceLayerModal open={insuranceOpen} onOpenChange={setInsuranceOpen} rows={allRows as any} warehouseMap={warehouseMap} warehouseInterestMap={warehouseInterestMap} />
     </div>
   );
