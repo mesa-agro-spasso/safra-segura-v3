@@ -99,12 +99,14 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, ins
     }
     setExporting(true);
     try {
-      if (format === 'xlsx') {
-        await exportXlsx(cols, rows, warehouseMap, insuranceMap);
+      if (format === 'csv') {
+        await exportCsv(cols, rows, warehouseMap, insuranceMap);
       } else if (format === 'pdf') {
         await exportPdf(cols, rows, warehouseMap, insuranceMap);
       } else if (format === 'mobile') {
         await exportMobilePng(cols, rows, warehouseMap, insuranceMap);
+      } else if (format === 'formatted') {
+        await exportFormattedPng(cols, rows, warehouseMap, insuranceMap, activeCommodity);
       }
       toast.success('Exportação concluída');
       onOpenChange(false);
@@ -125,10 +127,14 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, ins
         <div className="space-y-4">
           <div>
             <Label className="text-sm font-semibold">Formato</Label>
-            <RadioGroup value={format} onValueChange={(v) => setFormat(v as 'xlsx' | 'pdf' | 'mobile')} className="flex flex-col gap-2 mt-2">
+            <RadioGroup value={format} onValueChange={(v) => setFormat(v as 'csv' | 'pdf' | 'mobile' | 'formatted')} className="flex flex-col gap-2 mt-2">
               <div className="flex items-center gap-2">
-                <RadioGroupItem value="xlsx" id="fmt-xlsx" />
-                <Label htmlFor="fmt-xlsx" className="text-sm cursor-pointer">Excel (.xlsx)</Label>
+                <RadioGroupItem value="csv" id="fmt-csv" />
+                <Label htmlFor="fmt-csv" className="text-sm cursor-pointer">CSV (.csv)</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="formatted" id="fmt-formatted" />
+                <Label htmlFor="fmt-formatted" className="text-sm cursor-pointer">Tabela formatada (PNG)</Label>
               </div>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="pdf" id="fmt-pdf" />
@@ -140,6 +146,7 @@ export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, ins
               </div>
             </RadioGroup>
           </div>
+
 
           <div>
             <div className="flex items-center justify-between mb-2">
