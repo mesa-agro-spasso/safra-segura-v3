@@ -231,8 +231,39 @@ const PricingTable = () => {
             </div>
           )}
 
+          {/* Commodity pills (single-select, WYSIWYG) */}
+          {uniqueCommodities.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {(() => {
+                const activePill = filterCommodity.length === 1 ? filterCommodity[0] : 'all';
+                const pills: { key: string; label: string }[] = [
+                  { key: 'all', label: 'Todas' },
+                  ...uniqueCommodities.map((c) => ({
+                    key: c,
+                    label: c === 'soybean' ? 'Soja' : c === 'corn' ? 'Milho' : c.charAt(0).toUpperCase() + c.slice(1),
+                  })),
+                ];
+                return pills.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => setFilterCommodity(p.key === 'all' ? [] : [p.key])}
+                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                      activePill === p.key
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ));
+              })()}
+            </div>
+          )}
+
           {/* Filters toggle */}
           <div className="mb-4">
+
             <button
               type="button"
               className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
