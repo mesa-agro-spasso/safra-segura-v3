@@ -247,24 +247,7 @@ const PricingTable = () => {
             </button>
             {filtersExpanded && (
               <div className="flex flex-wrap gap-3 mt-2 pl-5">
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Commodity</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-36 h-8 text-xs justify-between">
-                        {filterCommodity.length === 0 ? 'Todas' : filterCommodity.map(c => c === 'soybean' ? 'Soja' : 'Milho').join(', ')}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-40 p-2" align="start">
-                      {uniqueCommodities.map((c) => (
-                        <label key={c} className="flex items-center gap-2 px-1 py-1 text-xs cursor-pointer hover:bg-muted rounded">
-                          <Checkbox checked={filterCommodity.includes(c)} onCheckedChange={() => toggleFilter(setFilterCommodity, c)} />
-                          {c === 'soybean' ? 'Soja' : 'Milho'}
-                        </label>
-                      ))}
-                    </PopoverContent>
-                  </Popover>
-                </div>
+
                 <div className="space-y-1">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Praça</span>
                   <Popover>
