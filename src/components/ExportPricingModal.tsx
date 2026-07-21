@@ -229,7 +229,7 @@ function toCsvCell(key: string, raw: string): string {
   return raw;
 }
 
-async function exportXlsx(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
+async function exportCsv(cols: ExportColumn[], rows: PricingSnapshot[], wm: Record<string, string>, im?: InsuranceMap) {
   const sep = ';';
   const header = cols.map((c) => CSV_HEADER_OVERRIDES[c.key] ?? c.label).join(sep);
   const body = rows.map((r) =>
