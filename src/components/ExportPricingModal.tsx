@@ -51,14 +51,36 @@ interface Props {
   rows: PricingSnapshot[];
   warehouseMap: Record<string, string>;
   insuranceMap?: InsuranceMap;
+  activeCommodity?: string;
 }
 
-export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, insuranceMap }: Props) {
+const FORMATTED_DEFAULT_KEYS = new Set([
+  'warehouse',
+  'commodity',
+  'grain_reception_date',
+  'payment_date',
+  'sale_date',
+  'origination_price_brl',
+]);
+
+export function ExportPricingModal({ open, onOpenChange, rows, warehouseMap, insuranceMap, activeCommodity = 'all' }: Props) {
+  const [format, setFormat] = useState<'csv' | 'pdf' | 'mobile' | 'formatted'>('csv');
   const [selectedCols, setSelectedCols] = useState<Set<string>>(
     new Set(ALL_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key))
   );
-  const [format, setFormat] = useState<'xlsx' | 'pdf' | 'mobile'>('xlsx');
   const [exporting, setExporting] = useState(false);
+
+  // When switching to/from "formatted", swap the default column selection.
+  const prevFormatRef = useState<{ current: string }>({ current: 'csv' })[0];
+  if (prevFormatRef.current !== format) {
+    prevFormatRef.current = format;
+    if (format === 'formatted') {
+      setSelectedCols(new Set(ALL_COLUMNS.filter((c) => FORMATTED_DEFAULT_KEYS.has(c.key)).map((c) => c.key)));
+    } else {
+      setSelectedCols(new Set(ALL_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key)));
+    }
+  }
+
 
   const toggleCol = (key: string) => {
     setSelectedCols((prev) => {
