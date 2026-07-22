@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { RefreshCw, AlertTriangle, Download, Filter, Shield } from 'lucide-react';
 import { GeneratePricingModal } from '@/components/GeneratePricingModal';
 import { ExportPricingModal } from '@/components/ExportPricingModal';
+import { PublishPricingModal } from '@/components/PublishPricingModal';
 import { InsuranceLayerModal } from '@/components/InsuranceLayerModal';
 import { useInsuranceSnapshots } from '@/hooks/useInsuranceSnapshots';
 
