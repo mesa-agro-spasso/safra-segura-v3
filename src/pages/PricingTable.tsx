@@ -593,6 +593,7 @@ const PricingTable = () => {
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
       <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} insuranceMap={insuranceMap} activeCommodity={filterCommodity.length === 1 ? filterCommodity[0] : 'all'} />
+      <PublishPricingModal open={publishOpen} onOpenChange={setPublishOpen} rows={rows} warehouseMap={warehouseMap} insuranceMap={insuranceMap} activeCommodity={filterCommodity.length === 1 ? filterCommodity[0] : 'all'} />
       <InsuranceLayerModal open={insuranceOpen} onOpenChange={setInsuranceOpen} rows={allRows as any} warehouseMap={warehouseMap} warehouseInterestMap={warehouseInterestMap} />
     </div>
   );
