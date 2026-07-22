@@ -1,48 +1,56 @@
 ## Objetivo
-Melhorar a exportação da Tabela de Preços: consertar o CSV, adicionar filtro de commodity em pills WYSIWYG, e criar um novo formato "Tabela formatada" (PNG apresentável com logo Grupo Spasso).
+Adicionar botão "Publicar" na Tabela de Preços que envia as linhas visíveis (respeitando o filtro de commodity) para o Worker Cloudflare, autenticado com o secret `PUBLISH_KEY`.
 
-## Escopo (apenas UI/exportação)
+## Arquitetura — por que precisa de Edge Function
 
-### 1. `src/pages/PricingTable.tsx` — filtro pills de commodity
-- Adicionar acima da tabela um grupo de botões pills: **Todas | Soja | Milho**, seleção única.
-- Estado novo `commodityPill: 'all' | 'soybean' | 'corn'` (default `'all'`), gerado dinamicamente a partir das commodities presentes nos snapshots (escala para novas commodities).
-- A lista filtrada da tabela passa a considerar essa pill (mantendo os filtros existentes de praça/ticker como estão, em dropdown).
-- Passar as **linhas já filtradas** e a commodity ativa para o `ExportPricingModal` (WYSIWYG).
+`PUBLISH_KEY` é um secret runtime (Supabase Edge Function Secret). O frontend não tem — e não deve ter — acesso a ele: qualquer valor embutido no bundle Vite vira público. Portanto o fluxo é:
 
-### 2. `src/components/ExportPricingModal.tsx` — 3 mudanças
+```text
+PricingTable → PublishModal → supabase.functions.invoke('publish-pricing-table')
+                                          ↓
+                              Edge Function lê PUBLISH_KEY
+                                          ↓
+                              POST worker Cloudflare /publish
+```
 
-**a) CSV real:**
-- Renomear label "Excel (.xlsx)" → "CSV (.csv)", chave `format='csv'`.
-- Manter a lógica atual (separador `;`, BOM UTF-8, vírgula decimal, headers com unidade) — a extensão do arquivo já é `.csv`; apenas a label mentia.
+## Mudanças
 
-**b) Colunas disponíveis (sem Safra):**
-- Confirmar que `ALL_COLUMNS` cobre: Praça, Commodity, Recepção, Pagamento, Venda, Basis Alvo, Futuros (BRL), Câmbio, Preço Originação (mais Ticker, Preço c/ Seguro, Desconto, Trade Date, Benchmark já existentes). **Não** adicionar coluna Safra.
+### 1. Nova Edge Function `supabase/functions/publish-pricing-table/index.ts`
+- Recebe `{ columns, rows }` do frontend.
+- Lê `Deno.env.get('PUBLISH_KEY')`.
+- Faz `POST https://spasso-public-table-api.mesaagro.workers.dev/publish` com header `X-Publish-Key` e o body repassado.
+- Devolve status/erro do worker ao frontend.
+- CORS liberado (padrão do projeto). Não requer JWT verificado — mas exige usuário autenticado no client (invoke já anexa o token).
 
-**c) Novo formato "Tabela formatada" (PNG):**
-- Novo radio `format='formatted'` com label "Tabela formatada (PNG)".
-- Recebe do `PricingTable` a commodity ativa da pill.
-- Set default de colunas quando este formato está selecionado: **Praça, Commodity, Recepção, Pagamento, Venda, Preço Originação**. As demais (basis, futuros, câmbio, etc.) ficam desmarcáveis mas OFF por padrão.
-- Renderiza HTML dedicado em iframe off-screen e converte com `html2canvas` (já usado no formato "mobile"):
-  - Topo: `<img src="/logo-spasso.png">` à esquerda, título centralizado, data à direita.
-  - Título: `PREÇOS ORIGINAÇÃO — {COMMODITY}` quando a pill é Soja/Milho; `PREÇOS ORIGINAÇÃO` quando a pill é "Todas". Sem sufixo "SAFRA …".
-  - Cabeçalho colorido (verde primary do app), linhas zebradas, tipografia limpa. Largura ~1200px.
-  - Nome do arquivo: `precos_originacao_{commodity|todas}_{YYYYMMDD}.png`.
+### 2. Novo `src/components/PublishPricingModal.tsx`
+Espelha o layout do `ExportPricingModal` mas isolado:
+- Props: `open`, `onOpenChange`, `rows`, `warehouseMap`, `insuranceMap`, `activeCommodity`.
+- Reusa `ALL_COLUMNS` do modal de export (extrair para `src/lib/pricingColumns.ts` para não duplicar).
+- Default de colunas: Praça, Commodity, Recepção, Pagamento, Venda, Preço Originação.
+- Mostra resumo "N linhas serão publicadas" (contagem já filtrada por commodity, vinda de `rows`).
+- Botão "Publicar" → monta payload:
+  - `columns`: `[{ key, label }]` só das selecionadas.
+  - `rows`: cada linha um objeto `{ [key]: valorFormatado }`. Datas em `DD/MM/AAAA`, preços em `R$ 0,00` (mesma formatação do CSV/PNG).
+  - Garante presença de `commodity` e `praca` sempre que essas colunas estiverem selecionadas (o worker usa para filtros).
+- Chama `supabase.functions.invoke('publish-pricing-table', { body })`.
+- Toast de sucesso com link clicável para `https://spasso-public-table.pages.dev`.
+- Toast de erro com mensagem retornada.
 
-**d) WYSIWYG:**
-- O modal já recebe `rows` — como o `PricingTable` passará as linhas já filtradas pela pill, todos os formatos (CSV, PDF, Mobile, Formatada) exportam apenas o que está na tela. Nenhum toggle novo no modal.
+### 3. `src/pages/PricingTable.tsx`
+- Adicionar botão "Publicar" ao lado de "Exportar" (mesmo estilo, ícone `Upload` ou `Globe`).
+- Estado `publishOpen` e render do `<PublishPricingModal>` recebendo `activeCommodity` e as mesmas `rows` já filtradas passadas hoje ao export.
 
-### 3. Assets
-- Reutilizar `/logo-spasso.png` já servido em `public/` (mesmo que a sidebar usa). Sem novos assets.
+### 4. `src/lib/pricingColumns.ts` (novo, pequeno refactor)
+Extrair `ALL_COLUMNS`, `FORMATTED_DEFAULT_KEYS`, helpers de formatação (data, preço, praça) hoje dentro do `ExportPricingModal` para uso compartilhado. `ExportPricingModal` passa a importar do novo módulo — comportamento inalterado.
 
 ## Fora de escopo
-- Sem campo UF, sem coluna Safra, sem novas colunas.
-- Sem toggle "por commodity" no modal (a pill resolve).
-- Sem alteração em geração de preço, snapshots, RLS ou schema.
-- Sem mexer nos formatos PDF/Mobile existentes além de eles respeitarem o filtro (herdado do `rows` já filtrado).
+- Modal de exportação existente (só passa a importar helpers do novo módulo, sem mudança de UI/comportamento).
+- Geração de preços, snapshots, schema.
+- Hardcode do `PUBLISH_KEY` no frontend.
 
-## Riscos
-- `html2canvas` já é dependência (usado em "Celular"), sem custo novo.
-- CSVs antigos com extensão `.csv` (a atual já é `.csv`, só a label mentia): usuários não perdem nada.
-
-## Verificação
-- Manual: gerar preços, filtrar por Soja → CSV/PDF/PNG/Formatada saem só com soja; alternar para Todas → todos aparecem; conferir logo, título e colunas default no PNG formatado.
+## Passos de implementação
+1. Criar `src/lib/pricingColumns.ts` e migrar `ExportPricingModal` para importar de lá.
+2. Criar `supabase/functions/publish-pricing-table/index.ts` e deployar.
+3. Criar `src/components/PublishPricingModal.tsx`.
+4. Adicionar botão + estado no `PricingTable.tsx`.
+5. Testar: publicar com filtro "Soja" ativo, conferir toast e site público.
