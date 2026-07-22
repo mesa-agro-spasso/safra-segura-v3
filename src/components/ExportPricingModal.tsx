@@ -54,7 +54,7 @@ interface Props {
   activeCommodity?: string;
 }
 
-const FORMATTED_DEFAULT_KEYS = new Set([
+export const FORMATTED_DEFAULT_KEYS = new Set([
   'warehouse',
   'commodity',
   'grain_reception_date',
