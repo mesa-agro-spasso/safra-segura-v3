@@ -12,9 +12,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, AlertTriangle, Download, Filter, Shield } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Download, Filter, Shield, Globe } from 'lucide-react';
 import { GeneratePricingModal } from '@/components/GeneratePricingModal';
 import { ExportPricingModal } from '@/components/ExportPricingModal';
+import { PublishPricingModal } from '@/components/PublishPricingModal';
 import { InsuranceLayerModal } from '@/components/InsuranceLayerModal';
 import { useInsuranceSnapshots } from '@/hooks/useInsuranceSnapshots';
 
@@ -38,6 +39,7 @@ const PricingTable = () => {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
   const [insuranceOpen, setInsuranceOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
   const [detailSnap, setDetailSnap] = useState<any>(null);
@@ -206,6 +208,10 @@ const PricingTable = () => {
             <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={loading || rows.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Exportar
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPublishOpen(true)} disabled={loading || rows.length === 0}>
+              <Globe className="mr-2 h-4 w-4" />
+              Publicar
             </Button>
             <Button variant="outline" size="sm" onClick={() => setInsuranceOpen(true)} disabled={loading || allRows.length === 0}>
               <Shield className="mr-2 h-4 w-4" />
@@ -587,6 +593,7 @@ const PricingTable = () => {
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
       <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} insuranceMap={insuranceMap} activeCommodity={filterCommodity.length === 1 ? filterCommodity[0] : 'all'} />
+      <PublishPricingModal open={publishOpen} onOpenChange={setPublishOpen} rows={rows} warehouseMap={warehouseMap} insuranceMap={insuranceMap} activeCommodity={filterCommodity.length === 1 ? filterCommodity[0] : 'all'} />
       <InsuranceLayerModal open={insuranceOpen} onOpenChange={setInsuranceOpen} rows={allRows as any} warehouseMap={warehouseMap} warehouseInterestMap={warehouseInterestMap} />
     </div>
   );
