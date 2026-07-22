@@ -18,7 +18,7 @@ export interface ExportColumn {
   getValue: (snap: PricingSnapshot, warehouseMap: Record<string, string>, insuranceMap?: InsuranceMap) => string;
 }
 
-const ALL_COLUMNS: ExportColumn[] = [
+export const ALL_COLUMNS: ExportColumn[] = [
   { key: 'warehouse', label: 'Praça', defaultOn: true, getValue: (s, wm) => wm[s.warehouse_id] ?? s.warehouse_id },
   { key: 'commodity', label: 'Commodity', defaultOn: true, getValue: (s) => s.commodity === 'soybean' ? 'Soja' : 'Milho' },
   { key: 'ticker', label: 'Ticker', defaultOn: true, getValue: (s) => s.ticker },
