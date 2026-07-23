@@ -282,6 +282,9 @@ const MarketBolsa = () => {
     if (isNaN(price)) { toast.error('Valor inválido'); return; }
     const existing = dataMap[ticker];
     try {
+      // Manual override on USD/BRL, SOJA or MILHO_CBOT: writes the canonical
+      // `price` only. `raw_price` / `raw_unit` are left untouched — they keep
+      // whatever the last API fetch stored (or null).
       await upsertMarket.mutateAsync({
         ticker,
         commodity: existing?.commodity ?? 'UNKNOWN',
@@ -306,7 +309,9 @@ const MarketBolsa = () => {
         price,
         currency: 'BRL',
         source: 'manual',
-        price_unit: 'BRL/sack',
+        price_unit: 'brl_per_sack',
+        raw_price: price,
+        raw_unit: 'brl_per_sack',
         exp_date: expDate,
         exchange_rate: null,
         ndf_spot: null,
