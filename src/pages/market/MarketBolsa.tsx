@@ -29,6 +29,7 @@ interface SoybeanQuote {
 interface CornQuote {
   ticker: string;
   exp_date: string;
+  price_usd_bushel: number;
   price_usd_cents_bushel: number;
 }
 
