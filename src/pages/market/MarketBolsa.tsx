@@ -133,6 +133,8 @@ const MarketBolsa = () => {
     await upsertMarket.mutateAsync({
       ticker: 'USD/BRL', commodity: 'FX',
       price: result.spot_usd_brl, currency: 'BRL', source: 'api',
+      price_unit: 'brl_per_usd',
+      raw_price: null, raw_unit: null,
     });
   };
 
@@ -141,6 +143,8 @@ const MarketBolsa = () => {
       await upsertMarket.mutateAsync({
         ticker: s.ticker, commodity: 'SOJA',
         price: s.price_usd_bushel, currency: 'USD', source: 'api',
+        price_unit: 'usd_per_bushel',
+        raw_price: s.price_usd_cents_bushel, raw_unit: 'cents_per_bushel',
         exchange_rate: result.spot_usd_brl ?? null,
         exp_date: s.exp_date,
         ndf_spot: s.ndf?.spot ?? null,
@@ -155,8 +159,10 @@ const MarketBolsa = () => {
     for (const c of result.corn_cbot ?? []) {
       await upsertMarket.mutateAsync({
         ticker: c.ticker, commodity: 'MILHO_CBOT',
-        price: c.price_usd_cents_bushel, currency: 'USD', source: 'api',
-        price_unit: 'cents/bushel', exp_date: c.exp_date,
+        price: c.price_usd_bushel, currency: 'USD', source: 'api',
+        price_unit: 'usd_per_bushel',
+        raw_price: c.price_usd_cents_bushel, raw_unit: 'cents_per_bushel',
+        exp_date: c.exp_date,
       });
     }
   };
@@ -174,7 +180,8 @@ const MarketBolsa = () => {
       if (!existingSet.has(t.ticker)) {
         await supabase.from('market_data').insert({
           ticker: t.ticker, commodity: 'MILHO', currency: 'BRL',
-          price: null, price_unit: 'BRL/sack', source: 'manual',
+          price: null, price_unit: 'brl_per_sack', source: 'manual',
+          raw_price: null, raw_unit: null,
           date: new Date().toISOString().split('T')[0], exp_date: t.exp_date,
         });
       }
