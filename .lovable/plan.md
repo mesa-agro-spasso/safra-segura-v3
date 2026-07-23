@@ -1,56 +1,69 @@
+
 ## Objetivo
-Adicionar botão "Publicar" na Tabela de Preços que envia as linhas visíveis (respeitando o filtro de commodity) para o Worker Cloudflare, autenticado com o secret `PUBLISH_KEY`.
 
-## Arquitetura — por que precisa de Edge Function
+Padronizar o vocabulário de unidades em `market_data`: `price` sempre canônico, `price_unit` em snake_case, e novos campos `raw_price` / `raw_unit` guardando o que o provedor entregou. Ajustar rótulos de exibição do MILHO_CBOT para o novo canônico.
 
-`PUBLISH_KEY` é um secret runtime (Supabase Edge Function Secret). O frontend não tem — e não deve ter — acesso a ele: qualquer valor embutido no bundle Vite vira público. Portanto o fluxo é:
+## Estado alvo
 
-```text
-PricingTable → PublishModal → supabase.functions.invoke('publish-pricing-table')
-                                          ↓
-                              Edge Function lê PUBLISH_KEY
-                                          ↓
-                              POST worker Cloudflare /publish
-```
+| commodity | price | price_unit | raw_price | raw_unit |
+|---|---|---|---|---|
+| SOJA | `price_usd_bushel` | `usd_per_bushel` | `price_usd_cents_bushel` | `cents_per_bushel` |
+| MILHO_CBOT | `price_usd_bushel` | `usd_per_bushel` | `price_usd_cents_bushel` | `cents_per_bushel` |
+| MILHO (B3, manual) | valor digitado | `brl_per_sack` | valor digitado | `brl_per_sack` |
+| FX (USD/BRL) | `spot_usd_brl` | `brl_per_usd` | `null` | `null` |
+
+Invariante: `raw_price` e `raw_unit` são **sempre** ambos preenchidos ou ambos `null`.
 
 ## Mudanças
 
-### 1. Nova Edge Function `supabase/functions/publish-pricing-table/index.ts`
-- Recebe `{ columns, rows }` do frontend.
-- Lê `Deno.env.get('PUBLISH_KEY')`.
-- Faz `POST https://spasso-public-table-api.mesaagro.workers.dev/publish` com header `X-Publish-Key` e o body repassado.
-- Devolve status/erro do worker ao frontend.
-- CORS liberado (padrão do projeto). Não requer JWT verificado — mas exige usuário autenticado no client (invoke já anexa o token).
+### 1. `src/hooks/useMarketData.ts` — `useUpsertMarketData`
+Acrescentar `raw_price?: number | null` e `raw_unit?: string | null` na assinatura e propagar no `.upsert`.
 
-### 2. Novo `src/components/PublishPricingModal.tsx`
-Espelha o layout do `ExportPricingModal` mas isolado:
-- Props: `open`, `onOpenChange`, `rows`, `warehouseMap`, `insuranceMap`, `activeCommodity`.
-- Reusa `ALL_COLUMNS` do modal de export (extrair para `src/lib/pricingColumns.ts` para não duplicar).
-- Default de colunas: Praça, Commodity, Recepção, Pagamento, Venda, Preço Originação.
-- Mostra resumo "N linhas serão publicadas" (contagem já filtrada por commodity, vinda de `rows`).
-- Botão "Publicar" → monta payload:
-  - `columns`: `[{ key, label }]` só das selecionadas.
-  - `rows`: cada linha um objeto `{ [key]: valorFormatado }`. Datas em `DD/MM/AAAA`, preços em `R$ 0,00` (mesma formatação do CSV/PNG).
-  - Garante presença de `commodity` e `praca` sempre que essas colunas estiverem selecionadas (o worker usa para filtros).
-- Chama `supabase.functions.invoke('publish-pricing-table', { body })`.
-- Toast de sucesso com link clicável para `https://spasso-public-table.pages.dev`.
-- Toast de erro com mensagem retornada.
+### 2. `src/pages/market/MarketBolsa.tsx` — persistência
 
-### 3. `src/pages/PricingTable.tsx`
-- Adicionar botão "Publicar" ao lado de "Exportar" (mesmo estilo, ícone `Upload` ou `Globe`).
-- Estado `publishOpen` e render do `<PublishPricingModal>` recebendo `activeCommodity` e as mesmas `rows` já filtradas passadas hoje ao export.
+- `persistFX`: `price_unit: 'brl_per_usd'`, `raw_price: null`, `raw_unit: null`.
+- `persistSoybean`: `price_unit: 'usd_per_bushel'`, `raw_price: s.price_usd_cents_bushel`, `raw_unit: 'cents_per_bushel'`.
+- `persistCornCBOT` (**mudança de semântica**): incluir `price_usd_bushel: number` no tipo `CornCBOTQuote` (backend já entrega) e passar a gravar `price: c.price_usd_bushel`, `price_unit: 'usd_per_bushel'`, `raw_price: c.price_usd_cents_bushel`, `raw_unit: 'cents_per_bushel'`.
+- `persistCornB3` (insert de tickers novos vindos da API, sem preço): `price_unit: 'brl_per_sack'`, `raw_price: null`, `raw_unit: null`. Par raw_* fica nulo até o usuário digitar.
+- `handleB3Save` (usuário digita preço B3): `price_unit: 'brl_per_sack'`, `raw_price: price`, `raw_unit: 'brl_per_sack'`.
+- `handleManualSave` (edição manual de USD/BRL, SOJA, MILHO_CBOT): mantido como está — sobrescreve `price`, não toca `raw_*`. Adicionar comentário curto explicando.
 
-### 4. `src/lib/pricingColumns.ts` (novo, pequeno refactor)
-Extrair `ALL_COLUMNS`, `FORMATTED_DEFAULT_KEYS`, helpers de formatação (data, preço, praça) hoje dentro do `ExportPricingModal` para uso compartilhado. `ExportPricingModal` passa a importar do novo módulo — comportamento inalterado.
+### 3. Rótulos de unidade — MILHO_CBOT muda de ~465 para ~4,65
 
-## Fora de escopo
-- Modal de exportação existente (só passa a importar helpers do novo módulo, sem mudança de UI/comportamento).
-- Geração de preços, snapshots, schema.
-- Hardcode do `PUBLISH_KEY` no frontend.
+Cada ponto que hoje exibe rótulo fixo de unidade da coluna de preço do MILHO_CBOT:
 
-## Passos de implementação
-1. Criar `src/lib/pricingColumns.ts` e migrar `ExportPricingModal` para importar de lá.
-2. Criar `supabase/functions/publish-pricing-table/index.ts` e deployar.
-3. Criar `src/components/PublishPricingModal.tsx`.
-4. Adicionar botão + estado no `PricingTable.tsx`.
-5. Testar: publicar com filtro "Soja" ativo, conferir toast e site público.
+| Arquivo | Linha | Atual | Novo |
+|---|---|---|---|
+| `src/pages/market/MarketBolsa.tsx` | 543 | `Preço (¢/bu)` | `Preço (USD/bu)` |
+
+Outros pontos varridos, sem mudança necessária:
+- `MarketBolsa.tsx:495` — Soja já é `Preço (USD/bu)`.
+- `HistoricoBolsa.tsx:162` — coluna "Unidade" renderiza `r.price_unit` do banco (dinâmico); o novo valor `usd_per_bushel` aparece automaticamente. Sem hardcode a trocar.
+- `helpContent.ts:151` — texto genérico de docs já em `USD/bu`.
+- `OperacoesD24.tsx`, `OrdensD24.tsx`, `ArmazensD24.tsx` — usam `USD/bushel` / `USD/bu` para futuros CBOT (já corretos, não tocam MILHO_CBOT com rótulo de cents).
+
+Se durante a implementação surgir outro literal `cents` / `¢/bu` / `US¢` ligado a MILHO_CBOT, trocar por `USD/bu` na mesma passada.
+
+### 4. Fora de escopo (confirmado pelo usuário)
+- `GeneratePricingModal.tsx` e payloads de pricing.
+- Conversão de cents no backend (já validada).
+
+## Consumidores auditados de `market_data.price` / `price_unit`
+
+**`price`:**
+- `MarketBolsa.tsx:95,127,190` — mapas de exibição / FX.
+- `MarketBolsa.tsx:351,353` — filtros SOJA / MILHO_CBOT (`!= null`).
+- `MarketBolsa.tsx:467,471,508,515,553,557,621,626` — render em tabela (MILHO_CBOT passa a exibir ~4,65; rótulo do cabeçalho ajustado no item 3).
+- `GeneratePricingModal.tsx:40,68,92,183` — FX + envio ao backend (fora do escopo por instrução).
+
+**`price_unit`:**
+- `HistoricoBolsa.tsx:162` — exibe dinamicamente, aceita qualquer valor.
+- `blockTradeExecution.test.ts:15,33` — fixtures `null`.
+
+Nenhum consumidor faz string-match em `'cents/bushel'` ou `'BRL/sack'`.
+
+## Verificação
+1. "Atualizar Dados" → conferir no Supabase que SOJA, MILHO_CBOT e USD/BRL saem com `price_unit` novo e `raw_*` conforme tabela.
+2. Salvar preço B3 manual → `price_unit='brl_per_sack'`, `raw_price=price`, `raw_unit='brl_per_sack'`. Ticker B3 recém-inserido pela API (sem preço) → `raw_price` e `raw_unit` ambos `null`.
+3. Cabeçalho da tabela MILHO_CBOT lê `Preço (USD/bu)` e valores aparecem em ~4,65.
+4. `tsgo` limpo.

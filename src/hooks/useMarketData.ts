@@ -29,6 +29,7 @@ export function useUpsertMarketData() {
     mutationFn: async (item: {
       ticker: string; commodity: string; price: number | null; currency: string; source: string;
       exchange_rate?: number | null; price_unit?: string | null; exp_date?: string | null;
+      raw_price?: number | null; raw_unit?: string | null;
       ndf_spot?: number | null; ndf_estimated?: number | null; ndf_spread?: number | null; ndf_override?: number | null;
     }) => {
       const { error } = await supabase

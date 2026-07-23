@@ -23,12 +23,14 @@ interface SoybeanQuote {
   ticker: string;
   exp_date: string;
   price_usd_bushel: number;
+  price_usd_cents_bushel: number;
   ndf: NdfData;
 }
 
 interface CornQuote {
   ticker: string;
   exp_date: string;
+  price_usd_bushel: number;
   price_usd_cents_bushel: number;
 }
 
@@ -132,6 +134,8 @@ const MarketBolsa = () => {
     await upsertMarket.mutateAsync({
       ticker: 'USD/BRL', commodity: 'FX',
       price: result.spot_usd_brl, currency: 'BRL', source: 'api',
+      price_unit: 'brl_per_usd',
+      raw_price: null, raw_unit: null,
     });
   };
 
@@ -140,6 +144,8 @@ const MarketBolsa = () => {
       await upsertMarket.mutateAsync({
         ticker: s.ticker, commodity: 'SOJA',
         price: s.price_usd_bushel, currency: 'USD', source: 'api',
+        price_unit: 'usd_per_bushel',
+        raw_price: s.price_usd_cents_bushel, raw_unit: 'cents_per_bushel',
         exchange_rate: result.spot_usd_brl ?? null,
         exp_date: s.exp_date,
         ndf_spot: s.ndf?.spot ?? null,
@@ -154,8 +160,10 @@ const MarketBolsa = () => {
     for (const c of result.corn_cbot ?? []) {
       await upsertMarket.mutateAsync({
         ticker: c.ticker, commodity: 'MILHO_CBOT',
-        price: c.price_usd_cents_bushel, currency: 'USD', source: 'api',
-        price_unit: 'cents/bushel', exp_date: c.exp_date,
+        price: c.price_usd_bushel, currency: 'USD', source: 'api',
+        price_unit: 'usd_per_bushel',
+        raw_price: c.price_usd_cents_bushel, raw_unit: 'cents_per_bushel',
+        exp_date: c.exp_date,
       });
     }
   };
@@ -173,7 +181,8 @@ const MarketBolsa = () => {
       if (!existingSet.has(t.ticker)) {
         await supabase.from('market_data').insert({
           ticker: t.ticker, commodity: 'MILHO', currency: 'BRL',
-          price: null, price_unit: 'BRL/sack', source: 'manual',
+          price: null, price_unit: 'brl_per_sack', source: 'manual',
+          raw_price: null, raw_unit: null,
           date: new Date().toISOString().split('T')[0], exp_date: t.exp_date,
         });
       }
@@ -273,6 +282,9 @@ const MarketBolsa = () => {
     if (isNaN(price)) { toast.error('Valor inválido'); return; }
     const existing = dataMap[ticker];
     try {
+      // Manual override on USD/BRL, SOJA or MILHO_CBOT: writes the canonical
+      // `price` only. `raw_price` / `raw_unit` are left untouched — they keep
+      // whatever the last API fetch stored (or null).
       await upsertMarket.mutateAsync({
         ticker,
         commodity: existing?.commodity ?? 'UNKNOWN',
@@ -297,7 +309,9 @@ const MarketBolsa = () => {
         price,
         currency: 'BRL',
         source: 'manual',
-        price_unit: 'BRL/sack',
+        price_unit: 'brl_per_sack',
+        raw_price: price,
+        raw_unit: 'brl_per_sack',
         exp_date: expDate,
         exchange_rate: null,
         ndf_spot: null,
@@ -540,7 +554,7 @@ const MarketBolsa = () => {
                     <TableRow>
                       <TableHead>Ticker</TableHead>
                       <TableHead>Vencimento</TableHead>
-                      <TableHead className="text-right">Preço (¢/bu)</TableHead>
+                      <TableHead className="text-right">Preço (USD/bu)</TableHead>
                       <TableHead className="text-right">Atualizado</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
