@@ -554,7 +554,7 @@ const MarketBolsa = () => {
                     <TableRow>
                       <TableHead>Ticker</TableHead>
                       <TableHead>Vencimento</TableHead>
-                      <TableHead className="text-right">Preço (¢/bu)</TableHead>
+                      <TableHead className="text-right">Preço (USD/bu)</TableHead>
                       <TableHead className="text-right">Atualizado</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
