@@ -342,12 +342,17 @@ const MarketBolsa = () => {
     }
   };
 
-  // Group saved market data — limit displayed rows to configured quantities
+  // Group saved market data — limit displayed rows to configured quantities.
+  // Hide expired tickers (exp_date < today) e, para CBOT (API), exigir preço.
   const sortByExpDate = (a: { exp_date?: string | null }, b: { exp_date?: string | null }) =>
     (a.exp_date ?? '').localeCompare(b.exp_date ?? '');
-  const soybeanRows = (marketData?.filter(m => m.commodity === 'SOJA') ?? []).sort(sortByExpDate).slice(0, cbotQty);
-  const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT') ?? []).sort(sortByExpDate).slice(0, cbotQty);
-  const visibleB3Tickers = b3Tickers.slice(0, b3Qty);
+  const todayIso = new Date().toISOString().split('T')[0];
+  const isNotExpired = (m: { exp_date?: string | null }) => !!m.exp_date && m.exp_date >= todayIso;
+  const soybeanRows = (marketData?.filter(m => m.commodity === 'SOJA' && isNotExpired(m) && m.price != null) ?? [])
+    .sort(sortByExpDate).slice(0, cbotQty);
+  const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT' && isNotExpired(m) && m.price != null) ?? [])
+    .sort(sortByExpDate).slice(0, cbotQty);
+  const visibleB3Tickers = b3Tickers.filter(isNotExpired).slice(0, b3Qty);
   const fxRow = dataMap['USD/BRL'];
 
   const renderEditCell = (ticker: string, currentPrice?: number) => {
