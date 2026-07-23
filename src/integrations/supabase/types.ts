@@ -232,6 +232,8 @@ export type Database = {
           ndf_spread: number | null
           price: number | null
           price_unit: string | null
+          raw_price: number | null
+          raw_unit: string | null
           source: string
           ticker: string
           updated_at: string
@@ -250,6 +252,8 @@ export type Database = {
           ndf_spread?: number | null
           price?: number | null
           price_unit?: string | null
+          raw_price?: number | null
+          raw_unit?: string | null
           source?: string
           ticker: string
           updated_at?: string
@@ -268,6 +272,8 @@ export type Database = {
           ndf_spread?: number | null
           price?: number | null
           price_unit?: string | null
+          raw_price?: number | null
+          raw_unit?: string | null
           source?: string
           ticker?: string
           updated_at?: string
