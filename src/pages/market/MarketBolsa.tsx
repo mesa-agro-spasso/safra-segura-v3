@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMarketData, useUpsertMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { callApi } from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
