@@ -88,6 +88,42 @@ export type Database = {
           },
         ]
       }
+      fx_parameters: {
+        Row: {
+          calibration_date: string | null
+          calibration_source: string | null
+          id: string
+          long_bucket_carry_ann: number
+          safety_haircut_brl: number
+          short_bucket_carry_ann: number
+          short_bucket_max_days: number
+          spot_adjustment_factor: number
+          updated_at: string
+        }
+        Insert: {
+          calibration_date?: string | null
+          calibration_source?: string | null
+          id?: string
+          long_bucket_carry_ann: number
+          safety_haircut_brl?: number
+          short_bucket_carry_ann: number
+          short_bucket_max_days: number
+          spot_adjustment_factor?: number
+          updated_at?: string
+        }
+        Update: {
+          calibration_date?: string | null
+          calibration_source?: string | null
+          id?: string
+          long_bucket_carry_ann?: number
+          safety_haircut_brl?: number
+          short_bucket_carry_ann?: number
+          short_bucket_max_days?: number
+          spot_adjustment_factor?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       historical_basis: {
         Row: {
           basis_brl_per_sack: number
@@ -213,6 +249,13 @@ export type Database = {
             columns: ["pricing_snapshot_id"]
             isOneToOne: true
             referencedRelation: "pricing_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "insurance_snapshots_pricing_snapshot_id_fkey"
+            columns: ["pricing_snapshot_id"]
+            isOneToOne: true
+            referencedRelation: "pricing_snapshots_clean"
             referencedColumns: ["id"]
           },
         ]
@@ -501,6 +544,13 @@ export type Database = {
             columns: ["pricing_snapshot_id"]
             isOneToOne: false
             referencedRelation: "pricing_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operations_pricing_snapshot_id_fkey"
+            columns: ["pricing_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_snapshots_clean"
             referencedColumns: ["id"]
           },
           {
@@ -1278,7 +1328,84 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      pricing_snapshots_clean: {
+        Row: {
+          additional_discount_brl: number | null
+          benchmark: string | null
+          commodity: string | null
+          created_at: string | null
+          created_by: string | null
+          exchange_rate: number | null
+          futures_price_brl: number | null
+          grain_reception_date: string | null
+          id: string | null
+          inputs_json: Json | null
+          origination_price_brl: number | null
+          outputs_json: Json | null
+          payment_date: string | null
+          sale_date: string | null
+          target_basis_brl: number | null
+          ticker: string | null
+          trade_date: string | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          additional_discount_brl?: number | null
+          benchmark?: string | null
+          commodity?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          exchange_rate?: number | null
+          futures_price_brl?: number | null
+          grain_reception_date?: string | null
+          id?: string | null
+          inputs_json?: Json | null
+          origination_price_brl?: number | null
+          outputs_json?: never
+          payment_date?: string | null
+          sale_date?: string | null
+          target_basis_brl?: number | null
+          ticker?: string | null
+          trade_date?: string | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          additional_discount_brl?: number | null
+          benchmark?: string | null
+          commodity?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          exchange_rate?: number | null
+          futures_price_brl?: number | null
+          grain_reception_date?: string | null
+          id?: string | null
+          inputs_json?: Json | null
+          origination_price_brl?: number | null
+          outputs_json?: never
+          payment_date?: string | null
+          sale_date?: string | null
+          target_basis_brl?: number | null
+          ticker?: string | null
+          trade_date?: string | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_snapshots_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_snapshots_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       execute_block_trade_physical: {
