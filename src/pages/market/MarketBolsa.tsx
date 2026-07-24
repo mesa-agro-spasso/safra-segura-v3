@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMarketData, useUpsertMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
 import { callApi } from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/activityLog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +65,7 @@ const MarketBolsa = () => {
   const cbotQty = parameters?.[0]?.cbot_ticker_count ?? 5;
   const b3Qty = parameters?.[0]?.b3_corn_ticker_count ?? 10;
   const upsertMarket = useUpsertMarketData();
+  const queryClient = useQueryClient();
   const [fetchingOp, setFetchingOp] = useState<'fx' | 'soybean' | 'corn_cbot' | 'corn_b3' | 'all' | 'markets' | null>(null);
   const [editingTicker, setEditingTicker] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -139,8 +142,40 @@ const MarketBolsa = () => {
     });
   };
 
+  // Mirror the API batch into market_data: upsert everything the fetch returned,
+  // then delete rows for the same commodity whose ticker is no longer in the batch.
+  // Empty batch is treated as a no-op (never wipes data). Delete failures do NOT
+  // revert successful upserts — a specific toast surfaces the partial sync.
+  const syncCommodityBatch = async (
+    commodity: 'SOJA' | 'MILHO_CBOT',
+    batchTickers: string[],
+  ) => {
+    const inList = `(${batchTickers.map((t) => `"${t}"`).join(',')})`;
+    const { data: removed, error } = await supabase
+      .from('market_data')
+      .delete()
+      .eq('commodity', commodity)
+      .not('ticker', 'in', inList)
+      .select('ticker');
+
+    if (error) {
+      toast.error('Sync parcial: dados novos salvos, limpeza de tickers antigos falhou');
+    } else if (removed && removed.length > 0) {
+      void logActivity('market_data.sync', 'market_data', commodity, {
+        removed_tickers: removed.map((r) => r.ticker),
+        batch_tickers: batchTickers,
+      });
+    }
+
+    // The upsert hook invalidates before the delete runs, so we must invalidate
+    // again here to reflect removed rows in the UI.
+    queryClient.invalidateQueries({ queryKey: ['market_data'] });
+  };
+
   const persistSoybean = async (result: MarketQuotesResponse) => {
-    for (const s of result.soybean_cbot ?? []) {
+    const batch = result.soybean_cbot ?? [];
+    if (batch.length === 0) return;
+    for (const s of batch) {
       await upsertMarket.mutateAsync({
         ticker: s.ticker, commodity: 'SOJA',
         price: s.price_usd_bushel, currency: 'USD', source: 'api',
@@ -154,10 +189,13 @@ const MarketBolsa = () => {
         ndf_override: s.ndf?.override ?? null,
       });
     }
+    await syncCommodityBatch('SOJA', batch.map((s) => s.ticker));
   };
 
   const persistCornCBOT = async (result: MarketQuotesResponse) => {
-    for (const c of result.corn_cbot ?? []) {
+    const batch = result.corn_cbot ?? [];
+    if (batch.length === 0) return;
+    for (const c of batch) {
       await upsertMarket.mutateAsync({
         ticker: c.ticker, commodity: 'MILHO_CBOT',
         price: c.price_usd_bushel, currency: 'USD', source: 'api',
@@ -166,6 +204,7 @@ const MarketBolsa = () => {
         exp_date: c.exp_date,
       });
     }
+    await syncCommodityBatch('MILHO_CBOT', batch.map((c) => c.ticker));
   };
 
   const persistCornB3 = async () => {
