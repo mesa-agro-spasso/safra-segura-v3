@@ -34,6 +34,7 @@ interface CornQuote {
   exp_date: string;
   price_usd_bushel: number;
   price_usd_cents_bushel: number;
+  ndf: NdfData;
 }
 
 interface MarketQuotesResponse {
@@ -201,7 +202,12 @@ const MarketBolsa = () => {
         price: c.price_usd_bushel, currency: 'USD', source: 'api',
         price_unit: 'usd_per_bushel',
         raw_price: c.price_usd_cents_bushel, raw_unit: 'cents_per_bushel',
+        exchange_rate: result.spot_usd_brl ?? null,
         exp_date: c.exp_date,
+        ndf_spot: c.ndf?.spot ?? null,
+        ndf_estimated: c.ndf?.estimated ?? null,
+        ndf_spread: c.ndf?.spread ?? null,
+        ndf_override: c.ndf?.override ?? null,
       });
     }
     await syncCommodityBatch('MILHO_CBOT', batch.map((c) => c.ticker));
@@ -594,6 +600,9 @@ const MarketBolsa = () => {
                       <TableHead>Ticker</TableHead>
                       <TableHead>Vencimento</TableHead>
                       <TableHead className="text-right">Preço (USD/bu)</TableHead>
+                      <TableHead className="text-right">Spot</TableHead>
+                      <TableHead className="text-right">NDF Estimado</TableHead>
+                      <TableHead className="text-right">Spread</TableHead>
                       <TableHead className="text-right">Atualizado</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
@@ -604,6 +613,9 @@ const MarketBolsa = () => {
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.price != null ? row.price.toFixed(2) : '-'}</TableCell>
+                        <TableCell className="text-right">{row.ndf_spot?.toFixed(4) ?? '-'}</TableCell>
+                        <TableCell className="text-right">{row.ndf_estimated?.toFixed(4) ?? '-'}</TableCell>
+                        <TableCell className="text-right">{row.ndf_spread?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
                           {getHoursAgo(row.updated_at)}h · {row.source}
                         </TableCell>
