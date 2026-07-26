@@ -148,7 +148,7 @@ const MarketBolsa = () => {
   // Empty batch is treated as a no-op (never wipes data). Delete failures do NOT
   // revert successful upserts — a specific toast surfaces the partial sync.
   const syncCommodityBatch = async (
-    commodity: 'SOJA' | 'MILHO_CBOT',
+    commodity: 'SOJA' | 'MILHO_CBOT' | 'MILHO',
     batchTickers: string[],
   ) => {
     const inList = `(${batchTickers.map((t) => `"${t}"`).join(',')})`;
