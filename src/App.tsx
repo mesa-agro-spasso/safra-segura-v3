@@ -28,6 +28,8 @@ const App = () => (
               <Route path="/redefinir-senha" element={<ResetPassword />} />
               <Route path="/aguardando-aprovacao" element={<PendingApproval />} />
               <Route path="/acesso-desativado" element={<AccountDisabled />} />
+              {/* TEMPORARY: Sentry validation route — remove in the next commit */}
+              <Route path="/debug-sentry" element={<DebugSentry />} />
               <Route path="/*" element={<ProtectedRoute><AppLayout /></ProtectedRoute>} />
             </Routes>
           </MesaEnvProvider>
