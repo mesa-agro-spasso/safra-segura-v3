@@ -12,6 +12,7 @@ import ResetPassword from "./pages/ResetPassword";
 import PendingApproval from "./pages/PendingApproval";
 import AccountDisabled from "./pages/AccountDisabled";
 import NotFound from "./pages/NotFound";
+import DebugSentry from "./pages/DebugSentry"; // TEMPORARY
 
 // MesaEnvProvider depends on AuthContext (reads profile.forced_env), so
 // AuthProvider must wrap it.
@@ -27,6 +28,8 @@ const App = () => (
               <Route path="/redefinir-senha" element={<ResetPassword />} />
               <Route path="/aguardando-aprovacao" element={<PendingApproval />} />
               <Route path="/acesso-desativado" element={<AccountDisabled />} />
+              {/* TEMPORARY: Sentry validation route — remove in the next commit */}
+              <Route path="/debug-sentry" element={<DebugSentry />} />
               <Route path="/*" element={<ProtectedRoute><AppLayout /></ProtectedRoute>} />
             </Routes>
           </MesaEnvProvider>
