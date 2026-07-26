@@ -52,11 +52,16 @@ const PricingTable = () => {
   // ordered by exp_date. FX is always included.
   const visibleMarket = useMemo(() => {
     if (!marketData) return [];
+    const todayIso = new Date().toISOString().split('T')[0];
     const sortByExp = (a: typeof marketData[0], b: typeof marketData[0]) =>
       (a.exp_date ?? '').localeCompare(b.exp_date ?? '');
-    const soja = marketData.filter(m => m.commodity === 'SOJA').sort(sortByExp).slice(0, cbotQty);
-    const cbot = marketData.filter(m => m.commodity === 'MILHO_CBOT').sort(sortByExp).slice(0, cbotQty);
-    const b3 = marketData.filter(m => m.commodity === 'MILHO').sort(sortByExp).slice(0, b3Qty);
+    // Expired contracts must never be monitored (FX has no exp_date and is always kept).
+    const notExpired = (m: typeof marketData[0]) => !!m.exp_date && m.exp_date >= todayIso;
+    const pick = (commodity: string, qty: number) =>
+      marketData.filter((m) => m.commodity === commodity && notExpired(m)).sort(sortByExp).slice(0, qty);
+    const soja = pick('SOJA', cbotQty);
+    const cbot = pick('MILHO_CBOT', cbotQty);
+    const b3 = pick('MILHO', b3Qty);
     const fx = marketData.filter(m => m.commodity === 'FX');
     return [...fx, ...soja, ...cbot, ...b3];
   }, [marketData, cbotQty, b3Qty]);
