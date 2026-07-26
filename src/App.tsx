@@ -12,6 +12,7 @@ import ResetPassword from "./pages/ResetPassword";
 import PendingApproval from "./pages/PendingApproval";
 import AccountDisabled from "./pages/AccountDisabled";
 import NotFound from "./pages/NotFound";
+import DebugSentry from "./pages/DebugSentry"; // TEMPORARY
 
 // MesaEnvProvider depends on AuthContext (reads profile.forced_env), so
 // AuthProvider must wrap it.
