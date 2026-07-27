@@ -349,7 +349,26 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               <p className="text-xs text-destructive">USD/BRL não disponível — atualize dados de mercado primeiro</p>
             )
           ) : (
-            <p className="text-xs text-muted-foreground">Câmbio não necessário (apenas combinações B3)</p>
+            <p className="text-xs text-muted-foreground">Spot USD/BRL não necessário (câmbio por vencimento via NDF)</p>
+          )}
+
+          {(cornCbotMissingNdf.length > 0 || cornCbotStale.length > 0) && (
+            <div className="rounded border border-destructive/40 bg-destructive/10 p-3 space-y-1">
+              <p className="text-xs font-semibold text-destructive">
+                ⛔ Geração bloqueada — Milho CBOT
+              </p>
+              {cornCbotMissingNdf.length > 0 && (
+                <p className="text-xs text-destructive">
+                  NDF indisponível para {cornCbotMissingNdf.join(', ')} — atualize os dados na aba Mercado.
+                </p>
+              )}
+              {cornCbotStale.length > 0 && (
+                <p className="text-xs text-destructive">
+                  Dados de mercado desatualizados para{' '}
+                  {cornCbotStale.map((s) => `${s.ticker} (há ${s.hours}h)`).join(', ')} — atualize a aba Mercado antes de gerar.
+                </p>
+              )}
+            </div>
           )}
 
           {b3MissingPrice.length > 0 && (
