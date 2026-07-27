@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { callApi } from '@/lib/api';
 import { useSavePricingSnapshots } from '@/hooks/usePricingSnapshots';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
-import { useMarketData } from '@/hooks/useMarketData';
+import { useMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
@@ -57,28 +57,61 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     return new Set(combinations.map((c) => c.warehouse_id)).size;
   }, [combinations]);
 
-  const { cbotCombos, b3Combos, b3MissingPrice } = useMemo(() => {
-    const cbot: PricingCombination[] = [];
-    const b3: PricingCombination[] = [];
+  const { b3MissingPrice } = useMemo(() => {
     const missing: string[] = [];
     for (const c of combinations ?? []) {
       if (c.commodity === 'corn' && c.benchmark === 'b3') {
-        b3.push(c);
         const m = marketMap[c.ticker];
         if (!m || m.price == null) missing.push(c.ticker);
-      } else {
-        cbot.push(c);
       }
     }
-    return { cbotCombos: cbot, b3Combos: b3, b3MissingPrice: missing };
+    return { b3MissingPrice: missing };
   }, [combinations, marketMap]);
 
-  const needsSpot = cbotCombos.length > 0;
+  // Corn CBOT requires a per-maturity NDF (same rule as soybean) and fresh market data.
+  const { cornCbotMissingNdf, cornCbotStale } = useMemo(() => {
+    const missingNdf: string[] = [];
+    const stale: { ticker: string; hours: number }[] = [];
+    const seen = new Set<string>();
+    for (const c of combinations ?? []) {
+      if (!(c.commodity === 'corn' && c.benchmark === 'cbot')) continue;
+      if (seen.has(c.ticker)) continue;
+      seen.add(c.ticker);
+      const m = marketMap[c.ticker];
+      if (!m) continue;
+      if (m.ndf_estimated == null) missingNdf.push(c.ticker);
+      if (m.updated_at) {
+        const hours = getHoursAgo(m.updated_at);
+        if (hours > 24) stale.push({ ticker: c.ticker, hours });
+      }
+    }
+    return { cornCbotMissingNdf: missingNdf, cornCbotStale: stale };
+  }, [combinations, marketMap]);
+
+  const hasSoybeanCombo = useMemo(
+    () => (combinations ?? []).some((c) => c.commodity === 'soybean'),
+    [combinations],
+  );
+
+  const needsSpot = hasSoybeanCombo;
   const canGenerate = (combinations?.length ?? 0) > 0
-    && (!needsSpot || spotRate !== null);
+    && (!needsSpot || spotRate !== null)
+    && cornCbotMissingNdf.length === 0
+    && cornCbotStale.length === 0;
 
   const handleGenerate = async () => {
     if (!canGenerate || !combinations || !marketData || !warehouses) return;
+
+    // Blocking validations for corn CBOT — never fall back to spot silently.
+    if (cornCbotMissingNdf.length > 0) {
+      toast.error(`NDF indisponível para ${cornCbotMissingNdf.join(', ')} — atualize os dados na aba Mercado`);
+      return;
+    }
+    if (cornCbotStale.length > 0) {
+      const detail = cornCbotStale.map((s) => `${s.ticker} (atualizado há ${s.hours}h)`).join(', ');
+      toast.error(`Dados de mercado desatualizados para ${detail} — atualize a aba Mercado antes de gerar`);
+      return;
+    }
 
     const payload: Record<string, unknown>[] = [];
 
@@ -158,14 +191,19 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         return warehouse[warehouseField] ?? null;
       };
 
-      // Resolver exchange_rate por commodity/benchmark
+      // Resolve exchange_rate per commodity/benchmark
       let exchangeRate: number | null = null;
       if (combo.commodity === 'soybean') {
         exchangeRate = market.ndf_estimated ?? spotRate;
       } else if (combo.commodity === 'corn' && combo.benchmark === 'cbot') {
-        exchangeRate = spotRate;
+        // Corn CBOT uses the per-maturity NDF. No spot fallback (blocked above).
+        if (market.ndf_estimated == null) {
+          toast.error(`NDF indisponível para ${combo.ticker} — atualize os dados na aba Mercado`);
+          return;
+        }
+        exchangeRate = market.ndf_estimated;
       }
-      // corn + b3: não envia exchange_rate (null)
+      // corn + b3: no exchange_rate (null)
 
       const pricingMethod = combo.pricing_method ?? 'LONG_BASIS';
 
@@ -311,7 +349,26 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               <p className="text-xs text-destructive">USD/BRL não disponível — atualize dados de mercado primeiro</p>
             )
           ) : (
-            <p className="text-xs text-muted-foreground">Câmbio não necessário (apenas combinações B3)</p>
+            <p className="text-xs text-muted-foreground">Spot USD/BRL não necessário (câmbio por vencimento via NDF)</p>
+          )}
+
+          {(cornCbotMissingNdf.length > 0 || cornCbotStale.length > 0) && (
+            <div className="rounded border border-destructive/40 bg-destructive/10 p-3 space-y-1">
+              <p className="text-xs font-semibold text-destructive">
+                ⛔ Geração bloqueada — Milho CBOT
+              </p>
+              {cornCbotMissingNdf.length > 0 && (
+                <p className="text-xs text-destructive">
+                  NDF indisponível para {cornCbotMissingNdf.join(', ')} — atualize os dados na aba Mercado.
+                </p>
+              )}
+              {cornCbotStale.length > 0 && (
+                <p className="text-xs text-destructive">
+                  Dados de mercado desatualizados para{' '}
+                  {cornCbotStale.map((s) => `${s.ticker} (há ${s.hours}h)`).join(', ')} — atualize a aba Mercado antes de gerar.
+                </p>
+              )}
+            </div>
           )}
 
           {b3MissingPrice.length > 0 && (
