@@ -57,20 +57,15 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     return new Set(combinations.map((c) => c.warehouse_id)).size;
   }, [combinations]);
 
-  const { cbotCombos, b3Combos, b3MissingPrice } = useMemo(() => {
-    const cbot: PricingCombination[] = [];
-    const b3: PricingCombination[] = [];
+  const { b3MissingPrice } = useMemo(() => {
     const missing: string[] = [];
     for (const c of combinations ?? []) {
       if (c.commodity === 'corn' && c.benchmark === 'b3') {
-        b3.push(c);
         const m = marketMap[c.ticker];
         if (!m || m.price == null) missing.push(c.ticker);
-      } else {
-        cbot.push(c);
       }
     }
-    return { cbotCombos: cbot, b3Combos: b3, b3MissingPrice: missing };
+    return { b3MissingPrice: missing };
   }, [combinations, marketMap]);
 
   // Corn CBOT requires a per-maturity NDF (same rule as soybean) and fresh market data.
@@ -196,14 +191,19 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         return warehouse[warehouseField] ?? null;
       };
 
-      // Resolver exchange_rate por commodity/benchmark
+      // Resolve exchange_rate per commodity/benchmark
       let exchangeRate: number | null = null;
       if (combo.commodity === 'soybean') {
         exchangeRate = market.ndf_estimated ?? spotRate;
       } else if (combo.commodity === 'corn' && combo.benchmark === 'cbot') {
-        exchangeRate = spotRate;
+        // Corn CBOT uses the per-maturity NDF. No spot fallback (blocked above).
+        if (market.ndf_estimated == null) {
+          toast.error(`NDF indisponível para ${combo.ticker} — atualize os dados na aba Mercado`);
+          return;
+        }
+        exchangeRate = market.ndf_estimated;
       }
-      // corn + b3: não envia exchange_rate (null)
+      // corn + b3: no exchange_rate (null)
 
       const pricingMethod = combo.pricing_method ?? 'LONG_BASIS';
 
