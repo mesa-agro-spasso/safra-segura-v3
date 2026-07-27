@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { callApi } from '@/lib/api';
 import { useSavePricingSnapshots } from '@/hooks/usePricingSnapshots';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
-import { useMarketData } from '@/hooks/useMarketData';
+import { useMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
@@ -73,12 +73,50 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     return { cbotCombos: cbot, b3Combos: b3, b3MissingPrice: missing };
   }, [combinations, marketMap]);
 
-  const needsSpot = cbotCombos.length > 0;
+  // Corn CBOT requires a per-maturity NDF (same rule as soybean) and fresh market data.
+  const { cornCbotMissingNdf, cornCbotStale } = useMemo(() => {
+    const missingNdf: string[] = [];
+    const stale: { ticker: string; hours: number }[] = [];
+    const seen = new Set<string>();
+    for (const c of combinations ?? []) {
+      if (!(c.commodity === 'corn' && c.benchmark === 'cbot')) continue;
+      if (seen.has(c.ticker)) continue;
+      seen.add(c.ticker);
+      const m = marketMap[c.ticker];
+      if (!m) continue;
+      if (m.ndf_estimated == null) missingNdf.push(c.ticker);
+      if (m.updated_at) {
+        const hours = getHoursAgo(m.updated_at);
+        if (hours > 24) stale.push({ ticker: c.ticker, hours });
+      }
+    }
+    return { cornCbotMissingNdf: missingNdf, cornCbotStale: stale };
+  }, [combinations, marketMap]);
+
+  const hasSoybeanCombo = useMemo(
+    () => (combinations ?? []).some((c) => c.commodity === 'soybean'),
+    [combinations],
+  );
+
+  const needsSpot = hasSoybeanCombo;
   const canGenerate = (combinations?.length ?? 0) > 0
-    && (!needsSpot || spotRate !== null);
+    && (!needsSpot || spotRate !== null)
+    && cornCbotMissingNdf.length === 0
+    && cornCbotStale.length === 0;
 
   const handleGenerate = async () => {
     if (!canGenerate || !combinations || !marketData || !warehouses) return;
+
+    // Blocking validations for corn CBOT — never fall back to spot silently.
+    if (cornCbotMissingNdf.length > 0) {
+      toast.error(`NDF indisponível para ${cornCbotMissingNdf.join(', ')} — atualize os dados na aba Mercado`);
+      return;
+    }
+    if (cornCbotStale.length > 0) {
+      const detail = cornCbotStale.map((s) => `${s.ticker} (atualizado há ${s.hours}h)`).join(', ');
+      toast.error(`Dados de mercado desatualizados para ${detail} — atualize a aba Mercado antes de gerar`);
+      return;
+    }
 
     const payload: Record<string, unknown>[] = [];
 
