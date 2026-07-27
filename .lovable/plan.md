@@ -1,26 +1,37 @@
-## Por que CCMN26 aparece
+## Problema confirmado
 
-Confirmado no banco: a linha `market_data` de `CCMN26` (commodity `MILHO`, B3) tem `exp_date = 2026-07-14` (já vencida) e `updated_at = 23/07` — por isso entra no alerta "Milho B3 desatualizado" e nos chips de frescor.
+Em `src/components/GeneratePricingModal.tsx` (linhas 161-168), a resolução de câmbio é:
 
-Duas causas somadas:
+```
+soybean        -> market.ndf_estimated ?? spotRate
+corn + cbot    -> spotRate            <-- regra antiga, errada
+corn + b3      -> null
+```
 
-1. **Nada apaga tickers B3 vencidos.** O `syncCommodityBatch` em `src/pages/market/MarketBolsa.tsx` (que remove tickers fora do lote da API) só roda para `SOJA` e `MILHO_CBOT`. O `persistCornB3` (linhas 216-248) apenas **insere** tickers novos que a API traz e recarrega tudo que existe em `market_data` — nunca remove os que a API deixou de retornar. A linha de CCMN26 continua lá desde antes do vencimento.
-2. **A Tabela de Preços não filtra vencidos.** Em `src/pages/PricingTable.tsx` o `visibleMarket` (linhas 53-62) ordena por `exp_date` e corta pelos limites configurados, mas não descarta `exp_date < hoje`. A aba Mercado já filtra (`isNotExpired`, linha 409 de `MarketBolsa.tsx`), por isso o ticker some lá e permanece aqui.
+Consulta ao banco confirma que as linhas `MILHO_CBOT` já têm tudo: `price` em `usd_per_bushel` (ex. ZCU27 = 4.9225), `ndf_estimated` (ZCU27 = 5.5567), `exp_date` e `updated_at`. O spot atual (~5.09) é usado indevidamente, subprecificando.
 
-## Correção proposta
+## Mudanças (arquivo único: `src/components/GeneratePricingModal.tsx`)
 
-**1. Filtrar vencidos na Tabela de Preços (efeito imediato na tela)**
-- Em `PricingTable.tsx`, dentro de `visibleMarket`, aplicar o mesmo critério da aba Mercado: manter apenas linhas com `exp_date >= hoje` (FX segue sempre incluído, pois não tem `exp_date`). O corte por `cbotQty`/`b3Qty` passa a ser feito depois do filtro, garantindo que a contagem configurada mostre contratos válidos.
-- Consequência: CCMN26 sai dos chips e do alerta de "Milho B3 desatualizado".
+**1. Câmbio corn+cbot**
+- `exchange_rate = market.ndf_estimated` para `commodity === 'corn' && benchmark === 'cbot'`.
+- Sem fallback para spot. Soja e B3 inalterados.
 
-**2. Espelhar o lote da B3 no banco (corrige a origem)**
-- Em `persistCornB3`, após os inserts, remover de `market_data` as linhas com `commodity = 'MILHO'` cujo ticker não está no lote retornado por `/market/b3-corn-quotes` — mesma regra e mesma ordem já usadas por `syncCommodityBatch` (nunca apagar com lote vazio; inserir primeiro, deletar depois; log via `logActivity('market_data.sync', ..., 'MILHO')`; toast específico se a limpeza falhar).
-- Reaproveitar `syncCommodityBatch` passando `'MILHO'` em vez de duplicar lógica.
+**2. Erro bloqueante — NDF ausente**
+- Antes de montar o payload, varrer as combinações corn+cbot ativas e coletar tickers cujo `ndf_estimated` é null/undefined.
+- Se houver algum: abortar toda a geração (nenhuma chamada à API) com `toast.error` nomeando os tickers: "NDF indisponível para ZCU27 — atualize os dados na aba Mercado".
 
-**3. Limpeza pontual do registro atual**
-- Após o ajuste, uma execução de "Atualizar Mercado" já remove CCMN26 automaticamente. Não é necessária migration nem alteração de schema.
+**3. Erro bloqueante — dados vencidos (>24h)**
+- Para as mesmas linhas `MILHO_CBOT` usadas, comparar `updated_at` com agora; se `> 24h`, abortar a geração com mensagem em português: "Dados de mercado desatualizados para ZCU27 (atualizado há Xh) — atualize a aba Mercado antes de gerar".
+- Reuso do helper existente `getHoursAgo` de `@/hooks/useMarketData` (leitura pura, sem cálculo financeiro).
 
-## Notas técnicas
-- Nenhum cálculo financeiro no frontend; apenas filtro de exibição e sincronização de linhas.
-- Sem mudanças em `persistSoybean`, `persistCornCBOT`, `persistFX` ou no fluxo de geração de preços.
-- Snapshots de preço já gerados com tickers vencidos não são alterados — o filtro atua só na faixa de monitoramento de mercado.
+**4. Reflexo na UI do modal**
+- Mesma lógica exposta como estado derivado (`useMemo`) para: mostrar bloco de aviso vermelho listando tickers com NDF ausente / dados velhos e desabilitar o botão **Gerar** (`canGenerate`), no mesmo padrão do bloco amarelo já existente de "B3 sem preço".
+
+**5. Verificações (corrigir só se divergente)**
+- `benchmark`: já vai explícito no payload via `combo.benchmark` — combinações corn+cbot são cadastradas com `'cbot'`; será confirmado na implementação e, se algum caminho enviar valor implícito, passa a enviar `'cbot'` explicitamente.
+- `futures_price`: já usa `market.price` (USD/bushel canônico). `raw_price` não é lido em lugar nenhum do modal — nenhuma mudança prevista.
+
+## Escopo negativo respeitado
+- Sem alterações em soja CBOT, milho B3, `MarketBolsa.tsx`, hooks de mercado ou endpoints.
+- Nenhum cálculo financeiro novo: o modal apenas lê `market_data` e monta payload.
+- Código e comentários em inglês; mensagens de UI em português.
