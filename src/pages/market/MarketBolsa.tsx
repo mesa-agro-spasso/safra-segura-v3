@@ -558,7 +558,6 @@ const MarketBolsa = () => {
                       <TableHead>Ticker</TableHead>
                       <TableHead>Vencimento</TableHead>
                       <TableHead className="text-right">Preço (USD/bu)</TableHead>
-                      <TableHead className="text-right">Spot</TableHead>
                       <TableHead className="text-right">NDF Estimado</TableHead>
                       <TableHead className="text-right">Spread</TableHead>
                       <TableHead className="text-right">Atualizado</TableHead>
@@ -571,7 +570,6 @@ const MarketBolsa = () => {
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.price != null ? row.price.toFixed(2) : '-'}</TableCell>
-                        <TableCell className="text-right">{row.ndf_spot?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_estimated?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spread?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
@@ -606,7 +604,7 @@ const MarketBolsa = () => {
                       <TableHead>Ticker</TableHead>
                       <TableHead>Vencimento</TableHead>
                       <TableHead className="text-right">Preço (USD/bu)</TableHead>
-                      <TableHead className="text-right">Spot</TableHead>
+                      
                       <TableHead className="text-right">NDF Estimado</TableHead>
                       <TableHead className="text-right">Spread</TableHead>
                       <TableHead className="text-right">Atualizado</TableHead>
@@ -619,7 +617,7 @@ const MarketBolsa = () => {
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.price != null ? row.price.toFixed(2) : '-'}</TableCell>
-                        <TableCell className="text-right">{row.ndf_spot?.toFixed(4) ?? '-'}</TableCell>
+                        
                         <TableCell className="text-right">{row.ndf_estimated?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spread?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
