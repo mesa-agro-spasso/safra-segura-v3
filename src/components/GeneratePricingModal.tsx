@@ -328,6 +328,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               target_basis: orig.target_basis ?? null,
               origination_price_net_brl: orig.origination_price_net_brl ?? null,
               interest_rate: orig.interest_rate,
+              interest_rate_period: orig.interest_rate_period,
+
               storage_cost: orig.storage_cost,
               storage_cost_type: orig.storage_cost_type,
               reception_cost: orig.reception_cost,
