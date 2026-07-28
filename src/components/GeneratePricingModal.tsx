@@ -150,6 +150,16 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       const warehouse = warehouseMap[combo.warehouse_id];
       if (!warehouse) continue;
 
+      // Período da taxa de juros: bloqueia geração se o cadastro tiver valor fora do vocabulário.
+      const interestRatePeriod = normalizeInterestPeriod(warehouse.interest_rate_period);
+      if (interestRatePeriod === null) {
+        toast.error(
+          `Período de juros inválido no cadastro de ${warehouse.display_name}: '${warehouse.interest_rate_period}' — corrija em Configurações`,
+        );
+        return;
+      }
+
+
       
 
       // Resolve exp_date
