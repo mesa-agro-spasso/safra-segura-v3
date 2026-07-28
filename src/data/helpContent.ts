@@ -160,7 +160,7 @@ export const helpSections: HelpSection[] = [
         ['Preço Originação', 'Preço calculado pelo sistema que pode ser ofertado ao produtor, considerando futuros, câmbio, basis e custos.'],
         ['Praça', 'Armazém ou região geográfica de referência da operação.'],
         ['Sigma (σ)', 'Volatilidade implícita utilizada no modelo Black-76 para precificação teórica de opções.'],
-        ['Spread de Execução', 'Folga adicionada ao break-even e ao físico alvo para compensar o deslizamento esperado na execução das ordens no mercado.'],
+        ['Spread de Execução', 'Folga aplicada para compensar o deslizamento esperado na execução das ordens no mercado.'],
         ['Spread (Mercado)', 'Diferencial entre a taxa NDF estimada e a taxa spot atual.'],
         ['Ticker', 'Código do contrato futuro de referência. Ex: ZSK27 = Soja CBOT maio/2027; CCMF27 = Milho B3 janeiro/2027.'],
       ]},
