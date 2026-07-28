@@ -67,7 +67,9 @@ interface ProfileEnvFields {
 
 export const resolveEnvFromProfile = (profile: ProfileEnvFields | null): MesaEnv => {
   if (!profile) return 'production';
+  // Staging is deprecated: only users explicitly pinned via forced_env stay in it.
+  // The admin localStorage toggle no longer influences the active env.
   if (profile.forced_env === 'staging') return 'staging';
-  // Both admins and regular users follow the admin toggle (current behavior).
-  return readAdminToggle();
+  return 'production';
 };
+
