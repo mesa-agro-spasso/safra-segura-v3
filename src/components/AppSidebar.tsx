@@ -24,7 +24,6 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 
 const ROLE_LABELS: Record<string, string> = {
   mesa: 'Mesa',
@@ -48,7 +47,7 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { signOut, user, profile } = useAuth();
   const { isAdmin } = useAuthorization();
-  const { isStaging, isPending, toggle } = useMesaEnv();
+  const { isStaging, isPending } = useMesaEnv();
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
   const { data: userRoles = [] } = useQuery({
     queryKey: ['sidebar-user-roles', user?.id],
