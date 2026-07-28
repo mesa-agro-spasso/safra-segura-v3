@@ -22,6 +22,22 @@ function getNextTuesday(date: Date): Date {
   return d;
 }
 
+// Vocabulário aceito pelo motor de pricing. Valores canônicos: 'monthly' | 'yearly'.
+const INTEREST_PERIOD_VOCAB: Record<string, 'monthly' | 'yearly'> = {
+  monthly: 'monthly', am: 'monthly', 'a.m': 'monthly', 'a.m.': 'monthly',
+  yearly: 'yearly', aa: 'yearly', 'a.a': 'yearly', 'a.a.': 'yearly',
+};
+
+/**
+ * null/vazio -> 'monthly' (campo ausente herda o default do sistema).
+ * Valor preenchido fora do vocabulário -> null (cadastro inválido: bloqueia a geração).
+ */
+function normalizeInterestPeriod(raw: string | null | undefined): 'monthly' | 'yearly' | null {
+  if (raw == null || raw.trim() === '') return 'monthly';
+  return INTEREST_PERIOD_VOCAB[raw.trim().toLowerCase()] ?? null;
+}
+
+
 interface GeneratePricingModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
