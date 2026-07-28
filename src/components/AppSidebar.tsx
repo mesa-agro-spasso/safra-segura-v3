@@ -24,7 +24,6 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 
 const ROLE_LABELS: Record<string, string> = {
   mesa: 'Mesa',
@@ -48,7 +47,7 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { signOut, user, profile } = useAuth();
   const { isAdmin } = useAuthorization();
-  const { isStaging, isPending, toggle } = useMesaEnv();
+  const { isStaging, isPending } = useMesaEnv();
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
   const { data: userRoles = [] } = useQuery({
     queryKey: ['sidebar-user-roles', user?.id],
@@ -167,14 +166,14 @@ export function AppSidebar() {
             )}
           </div>
         )}
-        {!collapsed && isAdmin() && !isPending && (
-          <div className="mb-2 flex items-center justify-between rounded-md border border-sidebar-border/50 px-2 py-1.5">
+        {!collapsed && isStaging && !isPending && (
+          <div className="mb-2 rounded-md border border-yellow-500/50 px-2 py-1.5">
             <span className="text-[11px] text-sidebar-foreground/70">
-              Ambiente: <span className={isStaging ? 'font-bold text-yellow-500' : 'font-medium'}>{isStaging ? 'Teste' : 'Produção'}</span>
+              Ambiente: <span className="font-bold text-yellow-500">Teste</span>
             </span>
-            <Switch checked={isStaging} onCheckedChange={toggle} aria-label="Alternar ambiente" />
           </div>
         )}
+
         <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground">
           <LogOut className="mr-2 h-4 w-4" />
           {!collapsed && 'Sair'}
