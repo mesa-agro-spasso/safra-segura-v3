@@ -247,6 +247,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         futures_price: market.price,
         exchange_rate: exchangeRate,
         interest_rate: inheritCost('interest_rate', 'interest_rate'),
+        interest_rate_period: interestRatePeriod,
+
         storage_cost: inheritCost('storage_cost', 'storage_cost'),
         storage_cost_type: inheritCost('storage_cost_type', 'storage_cost_type'),
         reception_cost: inheritCost('reception_cost', 'reception_cost'),
