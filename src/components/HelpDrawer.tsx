@@ -9,9 +9,6 @@ import { cn } from '@/lib/utils';
 
 const ROUTE_TO_SECTION: Record<string, string> = {
   '/': 'tabela-de-precos',
-  '/operacoes-d24': 'operacoes',
-  '/ordens-d24': 'ordens',
-  '/armazens-d24': 'armazens',
   '/mercado': 'mercado',
   '/configuracoes': 'configuracoes',
   '/aprovacoes': 'aprovacoes',
