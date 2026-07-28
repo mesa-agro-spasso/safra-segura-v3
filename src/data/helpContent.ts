@@ -103,22 +103,22 @@ export const helpSections: HelpSection[] = [
 
   {
     id: 'aprovacoes',
-    title: '8. Aprovações',
+    title: '5. Aprovações',
     route: '/aprovacoes',
     blocks: [
-      { type: 'p', text: 'Fluxo de governança para operações que requerem múltiplas assinaturas antes de se tornarem ativas.' },
-      { type: 'callout', text: '→ As operações chegam aqui após o clique em Enviar p/ Assinatura na tela de Operações. As funções que precisam assinar são definidas em Administração.' },
+      { type: 'p', text: 'Fluxo de governança para itens que requerem múltiplas assinaturas antes de entrarem em vigor.' },
+      { type: 'callout', text: '→ As funções que precisam assinar são definidas em Administração.' },
       { type: 'h3', text: 'Aba Pendentes' },
-      { type: 'p', text: 'Operações que aguardam sua assinatura. Clique em uma linha para abrir o detalhe e assinar.' },
+      { type: 'p', text: 'Itens que aguardam sua assinatura. Clique em uma linha para abrir o detalhe e assinar.' },
       { type: 'h3', text: 'Aba Histórico' },
-      { type: 'p', text: 'Operações que você já assinou, com o registro completo das assinaturas coletadas.' },
-      { type: 'p', text: 'Assinaturas: dependendo da operação e do volume, diferentes funções precisam assinar — Mesa, Comercial N1, Presidência, Financeiro N1 e/ou Financeiro N2. As assinaturas coletadas são exibidas como badges coloridos na linha da operação.' },
+      { type: 'p', text: 'Itens que você já assinou, com o registro completo das assinaturas coletadas.' },
+      { type: 'p', text: 'Assinaturas: dependendo do item e do volume, diferentes funções precisam assinar — Mesa, Comercial N1, Presidência, Financeiro N1 e/ou Financeiro N2. As assinaturas coletadas são exibidas como badges coloridos.' },
       { type: 'p', text: 'Filtros: por praça, commodity e período de pagamento.' },
     ],
   },
   {
     id: 'administracao',
-    title: '9. Administração',
+    title: '6. Administração',
     route: '/admin/usuarios',
     blocks: [
       { type: 'p', text: 'Gestão de usuários do sistema. Visível apenas para administradores.' },
@@ -128,20 +128,22 @@ export const helpSections: HelpSection[] = [
       ]},
       { type: 'p', text: 'Funções: Mesa, Comercial N1, Financeiro N1, Financeiro N2, Presidência. A função determina quais telas e ações estão disponíveis e quais aprovações o usuário pode assinar.' },
       { type: 'callout', text: '→ As funções definidas aqui determinam quem aparece como signatário em Aprovações.' },
+      { type: 'p', text: 'Registros: aba com o log de atividades do sistema, disponível para administradores.' },
       { type: 'p', text: 'Desativar: revoga o acesso do usuário sem excluí-lo do sistema.' },
       { type: 'p', text: 'Excluir: remove o usuário (ou armazém) permanentemente da interface. Por questão de integridade do log de auditoria, o registro é preservado internamente e não pode ser restaurado pela interface — recuperação apenas via backend, em caráter excepcional.' },
     ],
   },
   {
     id: 'perfil',
-    title: '10. Meu Perfil',
+    title: '7. Meu Perfil',
     route: '/perfil',
     blocks: [
       { type: 'p', text: 'Acesse clicando no seu nome no menu lateral esquerdo.' },
-      { type: 'p', text: 'Informações pessoais: nome completo e e-mail. O nome aparece em ordens, aprovações e logs.' },
+      { type: 'p', text: 'Informações pessoais: nome completo e e-mail. O nome aparece em aprovações e logs.' },
       { type: 'p', text: 'Preferências: alterne entre tema claro e escuro.' },
     ],
   },
+
   {
     id: 'glossario',
     title: 'Glossário',
