@@ -22,6 +22,22 @@ function getNextTuesday(date: Date): Date {
   return d;
 }
 
+// Vocabulário aceito pelo motor de pricing. Valores canônicos: 'monthly' | 'yearly'.
+const INTEREST_PERIOD_VOCAB: Record<string, 'monthly' | 'yearly'> = {
+  monthly: 'monthly', am: 'monthly', 'a.m': 'monthly', 'a.m.': 'monthly',
+  yearly: 'yearly', aa: 'yearly', 'a.a': 'yearly', 'a.a.': 'yearly',
+};
+
+/**
+ * null/vazio -> 'monthly' (campo ausente herda o default do sistema).
+ * Valor preenchido fora do vocabulário -> null (cadastro inválido: bloqueia a geração).
+ */
+function normalizeInterestPeriod(raw: string | null | undefined): 'monthly' | 'yearly' | null {
+  if (raw == null || raw.trim() === '') return 'monthly';
+  return INTEREST_PERIOD_VOCAB[raw.trim().toLowerCase()] ?? null;
+}
+
+
 interface GeneratePricingModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -134,6 +150,16 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       const warehouse = warehouseMap[combo.warehouse_id];
       if (!warehouse) continue;
 
+      // Período da taxa de juros: bloqueia geração se o cadastro tiver valor fora do vocabulário.
+      const interestRatePeriod = normalizeInterestPeriod(warehouse.interest_rate_period);
+      if (interestRatePeriod === null) {
+        toast.error(
+          `Período de juros inválido no cadastro de ${warehouse.display_name}: '${warehouse.interest_rate_period}' — corrija em Configurações`,
+        );
+        return;
+      }
+
+
       
 
       // Resolve exp_date
@@ -221,6 +247,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         futures_price: market.price,
         exchange_rate: exchangeRate,
         interest_rate: inheritCost('interest_rate', 'interest_rate'),
+        interest_rate_period: interestRatePeriod,
+
         storage_cost: inheritCost('storage_cost', 'storage_cost'),
         storage_cost_type: inheritCost('storage_cost_type', 'storage_cost_type'),
         reception_cost: inheritCost('reception_cost', 'reception_cost'),
@@ -300,6 +328,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               target_basis: orig.target_basis ?? null,
               origination_price_net_brl: orig.origination_price_net_brl ?? null,
               interest_rate: orig.interest_rate,
+              interest_rate_period: orig.interest_rate_period,
+
               storage_cost: orig.storage_cost,
               storage_cost_type: orig.storage_cost_type,
               reception_cost: orig.reception_cost,

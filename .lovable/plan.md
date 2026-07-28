@@ -1,37 +1,57 @@
-## Problema confirmado
+## Escopo
 
-Em `src/components/GeneratePricingModal.tsx` (linhas 161-168), a resolução de câmbio é:
+Apenas `src/components/GeneratePricingModal.tsx`. Etapas 2 e 3 do plano original descartadas (backend já corrigido e validado em produção: Confresa 0,27 → 3,19; ZCU27 inalterado em 1,17).
 
+## 1. Helper de normalização (topo do arquivo)
+
+Vocabulário aceito pelo motor, canonizado em `'monthly'` / `'yearly'`:
+
+```text
+'monthly' | 'am' | 'a.m' | 'a.m.'   -> 'monthly'
+'yearly'  | 'aa' | 'a.a' | 'a.a.'   -> 'yearly'
+null | string vazia                 -> 'monthly'   (campo ausente herda o default do sistema)
+valor preenchido fora do vocabulário -> INVÁLIDO   (sem fallback silencioso)
 ```
-soybean        -> market.ndf_estimated ?? spotRate
-corn + cbot    -> spotRate            <-- regra antiga, errada
-corn + b3      -> null
+
+Comparação com `trim()` e case-insensitive. A função devolve `'monthly' | 'yearly' | null`, onde `null` significa "cadastro inválido".
+
+## 2. Validação bloqueante
+
+Dentro do laço de combinações, ao resolver o armazém: se `normalizeInterestPeriod(warehouse.interest_rate_period)` retornar `null`, abortar a geração inteira com `toast.error` em português nomeando armazém e valor:
+
+```text
+Período de juros inválido no cadastro de Confresa: 'mensal' — corrija em Configurações
 ```
 
-Consulta ao banco confirma que as linhas `MILHO_CBOT` já têm tudo: `price` em `usd_per_bushel` (ex. ZCU27 = 4.9225), `ndf_estimated` (ZCU27 = 5.5567), `exp_date` e `updated_at`. O spot atual (~5.09) é usado indevidamente, subprecificando.
+Aborta (não apenas pula a combinação), pelo mesmo motivo do bug do motor: fallback ou omissão silenciosa mascara cadastro podre.
 
-## Mudanças (arquivo único: `src/components/GeneratePricingModal.tsx`)
+## 3. Enviar no payload
 
-**1. Câmbio corn+cbot**
-- `exchange_rate = market.ndf_estimated` para `commodity === 'corn' && benchmark === 'cbot'`.
-- Sem fallback para spot. Soja e B3 inalterados.
+No `baseCombo`, logo após `interest_rate`:
 
-**2. Erro bloqueante — NDF ausente**
-- Antes de montar o payload, varrer as combinações corn+cbot ativas e coletar tickers cujo `ndf_estimated` é null/undefined.
-- Se houver algum: abortar toda a geração (nenhuma chamada à API) com `toast.error` nomeando os tickers: "NDF indisponível para ZCU27 — atualize os dados na aba Mercado".
+```ts
+interest_rate_period: <valor normalizado>,
+```
 
-**3. Erro bloqueante — dados vencidos (>24h)**
-- Para as mesmas linhas `MILHO_CBOT` usadas, comparar `updated_at` com agora; se `> 24h`, abortar a geração com mensagem em português: "Dados de mercado desatualizados para ZCU27 (atualizado há Xh) — atualize a aba Mercado antes de gerar".
-- Reuso do helper existente `getHoursAgo` de `@/hooks/useMarketData` (leitura pura, sem cálculo financeiro).
+Herança igual aos demais custos — combinação sobrescreve armazém; como `pricing_combinations` ainda não tem a coluna, o valor efetivo vem do armazém.
 
-**4. Reflexo na UI do modal**
-- Mesma lógica exposta como estado derivado (`useMemo`) para: mostrar bloco de aviso vermelho listando tickers com NDF ausente / dados velhos e desabilitar o botão **Gerar** (`canGenerate`), no mesmo padrão do bloco amarelo já existente de "B3 sem preço".
+## 4. Persistir em `inputs_json`
 
-**5. Verificações (corrigir só se divergente)**
-- `benchmark`: já vai explícito no payload via `combo.benchmark` — combinações corn+cbot são cadastradas com `'cbot'`; será confirmado na implementação e, se algum caminho enviar valor implícito, passa a enviar `'cbot'` explicitamente.
-- `futures_price`: já usa `market.price` (USD/bushel canônico). `raw_price` não é lido em lugar nenhum do modal — nenhuma mudança prevista.
+No mapeamento de snapshots, após `interest_rate`:
 
-## Escopo negativo respeitado
-- Sem alterações em soja CBOT, milho B3, `MarketBolsa.tsx`, hooks de mercado ou endpoints.
-- Nenhum cálculo financeiro novo: o modal apenas lê `market_data` e monta payload.
-- Código e comentários em inglês; mensagens de UI em português.
+```ts
+interest_rate_period: orig.interest_rate_period,
+```
+
+Grava o período efetivamente enviado ao motor, não um default reconstruído depois.
+
+## O que NÃO muda
+
+- Resolução de câmbio (spot/NDF por commodity e benchmark).
+- Validações bloqueantes de NDF ausente e de dados de mercado com mais de 24h.
+- Herança dos demais custos, regras de `payment_date`/`exp_date`, `pricing_method`, qualquer outro fluxo.
+- Nenhuma migração de banco: `warehouses.interest_rate_period` já existe e está preenchido com `monthly`.
+
+## Verificação
+
+Type-check do projeto e conferência de que o payload passa a incluir `interest_rate_period: 'monthly'` para as combinações de Confresa.
