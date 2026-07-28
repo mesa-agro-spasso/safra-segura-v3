@@ -152,9 +152,8 @@ export const helpSections: HelpSection[] = [
       { type: 'table', headers: ['Termo', 'Definição'], rows: [
         ['Basis', 'Diferencial entre o preço físico local e o contrato futuro de referência (R$/sc). Reflete custos logísticos, prêmios regionais e condições locais de oferta e demanda.'],
         ['Benchmark', 'Bolsa de referência para precificação — CBOT para soja, B3 para milho.'],
-        ['Break-even', 'Preço físico mínimo necessário para cobrir integralmente o custo da posição de hedge.'],
         ['Combinação', 'Conjunto de parâmetros que define como uma praça é precificada: commodity, ticker, benchmark, datas e método.'],
-        ['MTM (Mark-to-Market)', 'Valor de mercado atual da posição de hedge calculado com as cotações vigentes. Representa o ganho ou perda não realizado.'],
+
         ['NDF (Non-Deliverable Forward)', 'Contrato de câmbio a termo sem entrega física. Usado para travar a taxa de câmbio em operações de soja precificadas em dólar.'],
         ['NDF Estimado', 'Taxa de câmbio a termo calculada pelo sistema para o vencimento do contrato, com base no diferencial de juros entre Brasil e EUA.'],
         ['Opção', 'Contrato que dá o direito (sem obrigação) de comprar ou vender um futuro a um preço determinado. Usado como instrumento de hedge com proteção assimétrica.'],
