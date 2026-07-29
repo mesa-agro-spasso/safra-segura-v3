@@ -130,6 +130,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       return;
     }
 
+    // Data de negócio da mesa (Brasília) — enviada em TODA requisição.
+    const tradeDate = getTradeDateBRT();
+
     const payload: Record<string, unknown>[] = [];
 
     const sigmaMap: Record<string, number> = {};
