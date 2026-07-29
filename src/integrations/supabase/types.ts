@@ -878,6 +878,7 @@ export type Database = {
           cbot_ticker_count: number
           execution_spread_pct: number | null
           id: string
+          rounding_increment: number | null
           sigma: number
           target_profit_brl_per_sack: number | null
           updated_at: string | null
@@ -887,6 +888,7 @@ export type Database = {
           cbot_ticker_count?: number
           execution_spread_pct?: number | null
           id: string
+          rounding_increment?: number | null
           sigma: number
           target_profit_brl_per_sack?: number | null
           updated_at?: string | null
@@ -896,6 +898,7 @@ export type Database = {
           cbot_ticker_count?: number
           execution_spread_pct?: number | null
           id?: string
+          rounding_increment?: number | null
           sigma?: number
           target_profit_brl_per_sack?: number | null
           updated_at?: string | null
