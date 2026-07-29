@@ -14,13 +14,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
 import type { Warehouse, MarketData, PricingSnapshot, PricingCombination } from '@/types';
 
-function getNextTuesday(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const daysUntilTuesday = day === 2 ? 7 : (2 - day + 7) % 7 || 7;
-  d.setDate(d.getDate() + daysUntilTuesday);
-  return d;
+/**
+ * Data de negócio da mesa (fuso de Brasília), formato ISO YYYY-MM-DD.
+ * É apenas formatação de fuso — nenhuma regra de negócio de data no frontend.
+ */
+function getTradeDateBRT(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 }
+
 
 // Vocabulário aceito pelo motor de pricing. Valores canônicos: 'monthly' | 'yearly'.
 const INTEREST_PERIOD_VOCAB: Record<string, 'monthly' | 'yearly'> = {
