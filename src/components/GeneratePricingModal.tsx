@@ -182,10 +182,11 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       }
 
       // Resolve payment_date
-      let paymentDate: string;
-      if (combo.is_spot) {
-        paymentDate = format(getNextTuesday(new Date()), 'yyyy-MM-dd');
-      } else {
+      // is_spot=true: NÃO enviar payment_date — a API resolve a data de pagamento.
+      // is_spot=false: envia exatamente o que está cadastrado, sem ajuste.
+      const isSpot = combo.is_spot ?? false;
+      let paymentDate: string | null = null;
+      if (!isSpot) {
         if (!combo.payment_date) {
           toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} sem payment_date — pulando`);
           continue;
@@ -193,22 +194,12 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         paymentDate = combo.payment_date;
       }
 
-      // PROTEÇÃO: payment_date deve ser estritamente futuro (T>0 no Black-76).
-      // Se for hoje ou passado, avança para a próxima terça-feira útil.
-      {
-        const pd = new Date(paymentDate);
-        const today = new Date();
-        pd.setHours(0, 0, 0, 0);
-        today.setHours(0, 0, 0, 0);
-        if (pd <= today) {
-          const next = format(getNextTuesday(new Date()), 'yyyy-MM-dd');
-          toast.info(`${combo.ticker}/${warehouse.display_name}: pagamento ${paymentDate} ajustado para ${next} (data já vencida)`);
-          paymentDate = next;
-        }
-      }
+      // NOTA: o tratamento de payment_date vencido é responsabilidade da API
+      // (está sendo implementado no backend). O frontend não empurra datas.
 
-      // Resolve grain_reception_date
+      // Resolve grain_reception_date (para spot, ausente → a API resolve)
       const grainReceptionDate = combo.grain_reception_date ?? paymentDate;
+
 
       // Cost inheritance: combination overrides warehouse
       const inheritCost = (comboField: keyof PricingCombination, warehouseField: keyof Warehouse) => {
