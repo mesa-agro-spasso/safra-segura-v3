@@ -493,8 +493,25 @@ const PricingTable = () => {
               <DetailRow label="Futuros (BRL)" value={`R$ ${detailSnap.futures_price_brl.toFixed(2)}`} />
               <DetailRow label="Câmbio" value={detailSnap.exchange_rate?.toFixed(4) ?? '-'} />
               <DetailRow label="Basis alvo" value={`R$ ${detailSnap.target_basis_brl.toFixed(2)}`} />
-              <DetailRow label="Purchased basis" value={(outputs?.purchased_basis_brl as number) != null ? `R$ ${(outputs!.purchased_basis_brl as number).toFixed(2)}` : '-'} />
-              <DetailRow label="Breakeven basis" value={(outputs?.breakeven_basis_brl as number) != null ? `R$ ${(outputs!.breakeven_basis_brl as number).toFixed(2)}` : '-'} />
+              {/* engine_result é trilha de auditoria: nunca é fonte de exibição. Só campos publicados no topo. */}
+              {(() => {
+                const readTop = (key: string): number | null => {
+                  const v = outputs?.[key];
+                  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+                };
+                const pBrl = readTop('purchased_basis_brl');
+                const bBrl = readTop('breakeven_basis_brl');
+                const pUsd = readTop('purchased_basis_usd');
+                const bUsd = readTop('breakeven_basis_usd');
+                return (
+                  <>
+                    <DetailRow label="Purchased basis" value={pBrl != null ? `R$ ${pBrl.toFixed(2)}` : '-'} />
+                    <DetailRow label="Breakeven basis" value={bBrl != null ? `R$ ${bBrl.toFixed(2)}` : '-'} />
+                    {pUsd != null && <DetailRow label="Purchased basis (USD)" value={`US$ ${pUsd.toFixed(4)}`} />}
+                    {bUsd != null && <DetailRow label="Breakeven basis (USD)" value={`US$ ${bUsd.toFixed(4)}`} />}
+                  </>
+                );
+              })()}
               <DetailRow label="Preço bruto" value={(outputs?.gross_price_brl as number) != null ? `R$ ${(outputs!.gross_price_brl as number).toFixed(2)}` : '-'} />
               <DetailRow label="Desconto adicional" value={`R$ ${detailSnap.additional_discount_brl.toFixed(2)}`} />
               <div className="flex justify-between text-sm">
