@@ -1285,6 +1285,7 @@ function ParametersTab() {
           </div>
         </CardContent>
       </Card>
+      <RoundingIncrementCard parameters={parameters ?? []} />
     </div>
   );
 }
