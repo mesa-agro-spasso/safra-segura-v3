@@ -1443,6 +1443,7 @@ function ParametersTab() {
         </CardContent>
       </Card>
       <RoundingIncrementCard parameters={parameters ?? []} />
+      <SpotPaymentCard />
     </div>
   );
 }
