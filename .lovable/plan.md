@@ -1,49 +1,36 @@
-## Escopo
+## Estado atual (verificado)
 
-Arquivo único: `src/pages/Settings.tsx`, componente `CombinationsTab`. Nada mais é tocado.
+- `src/pages/PricingTable.tsx` (linhas 496-497) já lê `outputs_json.purchased_basis_brl` e `outputs_json.breakeven_basis_brl` — campos do **topo**, não de `engine_result`. Não há nenhuma leitura de `engine_result` nesta tela (a única no app está em `OperacoesD24.tsx`, fora do escopo).
+- Faltam os campos USD: `purchased_basis_usd` / `breakeven_basis_usd` não aparecem em lugar nenhum da tabela de preços.
+- `GeneratePricingModal.tsx` grava `outputs_json: { ...r }`, ou seja, a resposta inteira de `/pricing/table` — os campos do topo chegam ao snapshot sem transformação.
 
-## Parte 1 — Duplicar
+## O que muda
 
-Novo botão (ícone `Copy`) em cada linha da tabela, entre editar e excluir.
+Arquivo único: `src/pages/PricingTable.tsx`, seção "Preços e Basis" do diálogo de detalhe.
 
-Ao clicar:
+1. Extrair um helper local de leitura, sem cálculo:
+   - lê a chave direto de `outputs`, retorna `null` se ausente ou não numérica;
+   - `null` → renderiza traço (`-`), nunca zero, nunca fallback para `engine_result`.
+2. Manter as duas linhas BRL como estão (já corretas), passando pelo helper para uniformizar.
+3. Adicionar duas linhas USD **condicionais**, renderizadas apenas quando o campo existe no topo:
+   - "Purchased basis (USD)" → `purchased_basis_usd`
+   - "Breakeven basis (USD)" → `breakeven_basis_usd`
+   - Ausentes no milho B3 → a linha simplesmente não é montada (nem traço, nem zero), seguindo o padrão já usado nas linhas de custo.
+4. Reforço de comentário curto no topo do bloco: `engine_result` é auditoria, não fonte de exibição.
 
-```
-const { id, created_at, updated_at, ...rest } = c;
-setEditing({ ...rest });   // sem id → upsert insere linha nova
-setOpen(true); setCostsOpen(false); setCalcResult(null);
-```
+Nada muda no tooltip da linha (ele mostra breakdown de custos e basis alvo, não purchased/breakeven).
 
-- Abre o mesmo diálogo de criação pré-preenchido (título "Nova Combinação", pois `editing.id` é `undefined`). Não grava nada até a operadora clicar em Salvar.
-- Copia todos os demais campos, inclusive as quatro datas, `is_spot`, `active`, método e custos.
-- Campos de custo `null` continuam `null` — o spread copia o valor cru da linha; o valor herdado do armazém aparece apenas como texto cinza no input (comportamento atual de `numField`, que só lê `editing[key]` para decidir se é override). Trocar o armazém recalcula a herança exibida automaticamente, porque `inheritedValueFor` deriva de `selectedWarehouse`.
-- Salvamento passa pelo `handleSave` existente sem alteração: ele já normaliza método (`target_basis`/`origination_price_net_brl` mutuamente exclusivos, `additional_discount_brl = 0` em TARGET_PRICE) e valida obrigatórios.
+## Fora do escopo (não tocado)
 
-Nenhuma mudança em `usePricingCombinations` / `useUpsertPricingCombination`: o upsert com `onConflict: 'id'` e sem `id` no payload gera um insert com id novo pelo default da tabela.
-
-## Parte 2 — Reorganizar o formulário
-
-Reordenar o JSX do diálogo em quatro blocos, cada um com um título curto (`text-xs uppercase text-muted-foreground`) e separador:
-
-1. **Identidade** — Armazém, Commodity, Benchmark, Ticker, Exp Date
-2. **Método** — seletor LONG_BASIS/TARGET_PRICE; se LONG_BASIS: Target Basis + Desconto adicional; se TARGET_PRICE: Preço de Originação Net + o painel de pré-cálculo existente (mantido como está)
-3. **Datas** — switch Spot, Data de pagamento (oculta quando spot), Data de venda, Recepção de grão
-4. **Custos** — `Collapsible` atual, **fechado por padrão** (já é o comportamento: `setCostsOpen(false)` ao abrir), com os sete campos e a herança visível
-
-O switch "Ativa" e o botão Salvar ficam no rodapé, fora dos blocos.
-
-Nenhum rótulo, validação, handler ou regra de campo muda — apenas ordem, agrupamento e títulos. `handleCalculate`, `handleSave`, `numField`, `inheritedValueFor` permanecem intactos.
+`ExportPricingModal.tsx`, `OperacoesD24.tsx`, `Settings.tsx`, schema, Edge Functions e o fluxo de geração da tabela.
 
 ## Regras respeitadas
 
-- Zero cálculo financeiro no frontend (o pré-cálculo continua chamando `/pricing/table`).
-- Nenhum valor inventado para campos restritos; listas de opções inalteradas.
-- Sem mudança de schema, Edge Function, tabela de preços ou formulário de armazéns.
+- Zero cálculo no frontend: só leitura e formatação (`toFixed`).
+- Snapshot antigo sem os campos → traço no BRL, linha ausente no USD; jamais número da engine.
 
 ## Validação manual (Eduardo)
 
-1. Duplicar uma LONG_BASIS com custos herdados → formulário abre preenchido, custos em cinza, nada virou valor fixo.
-2. Trocar só o armazém e salvar → linha nova, original intacta.
-3. Gerar a tabela → nova combinação com preço coerente com a praça.
-4. Duplicar uma TARGET_PRICE e salvar sem mexer → salva sem erro.
-5. Duplicar LONG_BASIS, trocar para TARGET_PRICE, preencher o preço net, salvar → salva e `target_basis` fica nulo.
+1. Gerar tabela nova e conferir na calculadora: `purchased_basis` = preço publicado − futuro.
+2. Abrir snapshot antigo: basis com traço, sem número errado.
+3. Linha de milho B3: nenhuma linha USD na tela.
