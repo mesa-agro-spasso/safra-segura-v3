@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
-import { CalendarIcon, Plus, Edit2, ChevronDown, Trash2 } from 'lucide-react';
+import { CalendarIcon, Plus, Edit2, ChevronDown, Trash2, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWarehouses, useUpsertWarehouse, useActiveArmazens } from '@/hooks/useWarehouses';
 import { usePricingCombinations, useUpsertPricingCombination, useTogglePricingCombinationActive, useDeletePricingCombination } from '@/hooks/usePricingCombinations';
