@@ -961,12 +961,130 @@ function CombinationsTab() {
   );
 }
 
+const PARAM_LABELS: Record<string, string> = {
+  soybean_cbot: 'Soja CBOT',
+  corn_b3: 'Milho B3',
+  corn_cbot: 'Milho CBOT',
+};
+
+function parseDecimalInput(raw: string): number | null {
+  const n = parseFloat(raw.replace(',', '.'));
+  return isNaN(n) ? null : n;
+}
+
+function RoundingIncrementCard({ parameters }: { parameters: PricingParameter[] }) {
+  const updateParameter = useUpdatePricingParameter();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  const getLabel = (id: string) => PARAM_LABELS[id] ?? id;
+
+  const draftFor = (p: PricingParameter) =>
+    drafts[p.id] ?? (p.rounding_increment == null ? '' : String(p.rounding_increment));
+
+  const errorFor = (p: PricingParameter): string | null => {
+    const raw = draftFor(p).trim();
+    if (raw === '') return null;
+    const n = parseDecimalInput(raw);
+    if (n === null) return 'Valor inválido';
+    if (n < 0) return 'Não é permitido valor negativo';
+    return null;
+  };
+
+  const nextValueFor = (p: PricingParameter): number | null => {
+    const raw = draftFor(p).trim();
+    if (raw === '') return null;
+    return parseDecimalInput(raw);
+  };
+
+  const fmt = (v: number | null) =>
+    v == null || v === 0 ? 'piso desligado' : `R$ ${v.toFixed(2)}/sc`;
+
+  const save = async (p: PricingParameter) => {
+    const next = nextValueFor(p);
+    try {
+      await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, rounding_increment: next });
+      toast.success(`Incremento de arredondamento (${getLabel(p.id)}) atualizado`);
+      setDrafts((d) => { const n = { ...d }; delete n[p.id]; return n; });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+    } finally {
+      setConfirming(null);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-sm">Incremento de Arredondamento</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Múltiplo mínimo aplicado pelo motor ao preço final por saca. Este campo altera o preço que vai ao produtor.
+        </p>
+        <p className="text-xs text-amber-500">
+          Deixar o campo vazio ou informar 0 desliga o piso intencionalmente: o preço volta a ser arredondado em duas casas decimais, sem múltiplo.
+        </p>
+        {parameters.map((p) => {
+          const err = errorFor(p);
+          const next = nextValueFor(p);
+          const changed = draftFor(p).trim() !== (p.rounding_increment == null ? '' : String(p.rounding_increment));
+          return (
+            <div key={p.id} className="flex items-start gap-3 max-w-md">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">{getLabel(p.id)} — Incremento de arredondamento (R$/sc)</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="vazio = piso desligado"
+                  value={draftFor(p)}
+                  onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
+                />
+                {err ? (
+                  <p className="text-[10px] text-destructive">{err}</p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">
+                    {p.rounding_increment == null || p.rounding_increment === 0
+                      ? 'Atual: piso desligado — preço arredondado em 2 casas'
+                      : `Atual: R$ ${p.rounding_increment.toFixed(2)}/sc`}
+                  </p>
+                )}
+              </div>
+              <AlertDialog open={confirming === p.id} onOpenChange={(o) => setConfirming(o ? p.id : null)}>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" className="mt-5" disabled={!!err || !changed || updateParameter.isPending}>
+                    Salvar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Alterar incremento de arredondamento</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Par: <strong>{getLabel(p.id)}</strong>. Valor atual: <strong>{fmt(p.rounding_increment)}</strong> → novo valor:{' '}
+                      <strong>{fmt(next)}</strong>.
+                      {(next == null || next === 0) && ' O piso será desligado: o preço passa a ser arredondado em duas casas decimais, sem múltiplo.'}
+                      {' '}Este campo muda o preço que vai ao produtor.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => save(p)}>Confirmar</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ParametersTab() {
   const { data: parameters, isLoading } = usePricingParameters();
   const updateParameter = useUpdatePricingParameter();
   const [values, setValues] = useState<Record<string, string>>({});
 
-  const getLabel = (id: string) => id === 'soybean_cbot' ? 'Soja CBOT' : 'Milho B3';
+  const getLabel = (id: string) => PARAM_LABELS[id] ?? id;
+
 
   const handleSave = async (id: string) => {
     const raw = values[id];
@@ -1167,6 +1285,7 @@ function ParametersTab() {
           </div>
         </CardContent>
       </Card>
+      <RoundingIncrementCard parameters={parameters ?? []} />
     </div>
   );
 }
