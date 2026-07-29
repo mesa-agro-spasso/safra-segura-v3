@@ -52,6 +52,13 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
   const { user } = useAuth();
   const { data: pricingParameters } = usePricingParameters();
   const [generating, setGenerating] = useState(false);
+  const [discarded, setDiscarded] = useState<DiscardedCombination[] | null>(null);
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next) setDiscarded(null);
+    onOpenChange(next);
+  };
+
 
   const spotRate = useMemo(() => {
     return marketData?.find((m) => m.ticker === 'USD/BRL')?.price ?? null;
