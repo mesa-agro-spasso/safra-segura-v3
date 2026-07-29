@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { format } from 'date-fns';
 import { RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -14,13 +13,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
 import type { Warehouse, MarketData, PricingSnapshot, PricingCombination } from '@/types';
 
-function getNextTuesday(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const daysUntilTuesday = day === 2 ? 7 : (2 - day + 7) % 7 || 7;
-  d.setDate(d.getDate() + daysUntilTuesday);
-  return d;
+/**
+ * Data de negócio da mesa (fuso de Brasília), formato ISO YYYY-MM-DD.
+ * É apenas formatação de fuso — nenhuma regra de negócio de data no frontend.
+ */
+function getTradeDateBRT(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 }
+
 
 // Vocabulário aceito pelo motor de pricing. Valores canônicos: 'monthly' | 'yearly'.
 const INTEREST_PERIOD_VOCAB: Record<string, 'monthly' | 'yearly'> = {
@@ -129,6 +129,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       return;
     }
 
+    // Data de negócio da mesa (Brasília) — enviada em TODA requisição.
+    const tradeDate = getTradeDateBRT();
+
     const payload: Record<string, unknown>[] = [];
 
     const sigmaMap: Record<string, number> = {};
@@ -182,10 +185,11 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       }
 
       // Resolve payment_date
-      let paymentDate: string;
-      if (combo.is_spot) {
-        paymentDate = format(getNextTuesday(new Date()), 'yyyy-MM-dd');
-      } else {
+      // is_spot=true: NÃO enviar payment_date — a API resolve a data de pagamento.
+      // is_spot=false: envia exatamente o que está cadastrado, sem ajuste.
+      const isSpot = combo.is_spot ?? false;
+      let paymentDate: string | null = null;
+      if (!isSpot) {
         if (!combo.payment_date) {
           toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} sem payment_date — pulando`);
           continue;
@@ -193,22 +197,12 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         paymentDate = combo.payment_date;
       }
 
-      // PROTEÇÃO: payment_date deve ser estritamente futuro (T>0 no Black-76).
-      // Se for hoje ou passado, avança para a próxima terça-feira útil.
-      {
-        const pd = new Date(paymentDate);
-        const today = new Date();
-        pd.setHours(0, 0, 0, 0);
-        today.setHours(0, 0, 0, 0);
-        if (pd <= today) {
-          const next = format(getNextTuesday(new Date()), 'yyyy-MM-dd');
-          toast.info(`${combo.ticker}/${warehouse.display_name}: pagamento ${paymentDate} ajustado para ${next} (data já vencida)`);
-          paymentDate = next;
-        }
-      }
+      // NOTA: o tratamento de payment_date vencido é responsabilidade da API
+      // (está sendo implementado no backend). O frontend não empurra datas.
 
-      // Resolve grain_reception_date
+      // Resolve grain_reception_date (para spot, ausente → a API resolve)
       const grainReceptionDate = combo.grain_reception_date ?? paymentDate;
+
 
       // Cost inheritance: combination overrides warehouse
       const inheritCost = (comboField: keyof PricingCombination, warehouseField: keyof Warehouse) => {
@@ -240,10 +234,13 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         benchmark: combo.benchmark,
         ticker: combo.ticker,
         exp_date: expDate,
-        payment_date: paymentDate,
+        is_spot: isSpot,
+        // payment_date só é enviado quando não é spot (a API resolve o spot)
+        ...(isSpot ? {} : { payment_date: paymentDate }),
         sale_date: combo.sale_date,
         grain_reception_date: grainReceptionDate,
         pricing_method: pricingMethod,
+
         futures_price: market.price,
         exchange_rate: exchangeRate,
         interest_rate: inheritCost('interest_rate', 'interest_rate'),
@@ -298,8 +295,10 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     setGenerating(true);
     try {
       const result = await callApi<{ results: Record<string, unknown>[] }>('/pricing/table', {
+        trade_date: tradeDate,
         combinations: payload,
       });
+
 
       const apiResults = result?.results;
       if (apiResults?.length) {
@@ -311,7 +310,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             commodity: r.commodity ?? orig.commodity,
             benchmark: r.benchmark ?? orig.benchmark,
             ticker: r.ticker ?? orig.ticker,
-            trade_date: r.trade_date_used ?? format(new Date(), 'yyyy-MM-dd'),
+            trade_date: r.trade_date_used ?? tradeDate,
             sale_date: r.sale_date ?? orig.sale_date,
             payment_date: r.payment_date ?? orig.payment_date,
             grain_reception_date: r.grain_reception_date ?? orig.grain_reception_date,
