@@ -383,8 +383,32 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     }
   };
 
+  if (discarded && discarded.length > 0) {
+    return (
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Combinações descartadas</DialogTitle>
+            <DialogDescription>
+              {discarded.length} combinação(ões) não entraram na tabela. Corrija o cadastro em
+              Configurações → Combinações.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            <DiscardedCombinationsList items={discarded} />
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => handleOpenChange(false)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Gerar Tabela de Preços</DialogTitle>
@@ -392,6 +416,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             A tabela será gerada com base nas combinações ativas cadastradas em Configurações.
           </DialogDescription>
         </DialogHeader>
+
 
         <div className="space-y-3 py-2">
           <p className="text-sm">
