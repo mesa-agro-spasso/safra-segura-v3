@@ -1,53 +1,45 @@
-## Estado atual (verificado)
+## Objetivo
 
-- `getNextTuesday` existe apenas em `src/components/GeneratePricingModal.tsx` (linha 17). É usada em dois pontos: pagamento spot (linha 187) e o "empurrão" de `payment_date` vencido (linha 204). Nenhum outro arquivo do projeto a consome — remoção é segura.
-- O payload de `POST /pricing/table` hoje **não** envia `is_spot` nem `trade_date`; `payment_date` é sempre calculado/normalizado no frontend.
-- `trade_date` do snapshot vem de `r.trade_date_used` com fallback para `new Date()` (relógio do navegador).
+Mostrar, ao gerar a tabela de preços, quais combinações a API descartou — e só liberar a tabela depois da confirmação.
 
-## O que muda — apenas `src/components/GeneratePricingModal.tsx`
+## Fluxo novo
 
-**1. Data de negócio de Brasília**
-- Novo helper local `getTradeDateBRT()`: formata `new Date()` em `America/Sao_Paulo` via `Intl.DateTimeFormat` (`en-CA` → `YYYY-MM-DD`). É formatação de fuso, não cálculo de regra de negócio.
-- Calculado uma vez por geração e enviado como `trade_date` **global no topo da requisição**, junto de `combinations`.
+```text
+Gerar → POST /pricing/table → { results, discarded }
+   ├─ discarded vazio  → salva snapshots, fecha modal (igual hoje)
+   └─ discarded cheio  → salva snapshots, troca o conteúdo do modal
+                          pela lista de descartes → "Entendi" → fecha,
+                          tabela aparece
+```
 
-**2. `is_spot` por linha**
-- Cada item do payload passa a incluir `is_spot: combo.is_spot ?? false`, repassando a coluna sem transformação.
+Se `results` vier vazio, é 200 normal: sem toast de erro, apenas o diálogo e depois a tabela vazia.
 
-**3. `payment_date`**
-- `is_spot=true`: campo **omitido** do payload. A API resolve.
-- `is_spot=false`: `payment_date` continua obrigatório e vai exatamente como cadastrado; se ausente, mantém o `toast.warning` + pular a linha (comportamento atual).
+## Alterações
 
-**4. Remoção do `getNextTuesday`**
-- Função apagada do arquivo, junto do bloco de "proteção" que empurrava `payment_date` vencido para a próxima terça.
-- No lugar do bloco removido, um comentário: o tratamento de `payment_date` vencido é responsabilidade da API e está sendo implementado no backend.
-- Import `format` de `date-fns` permanece (ainda usado em outros pontos).
+**`src/components/GeneratePricingModal.tsx`**
+- Tipar a resposta como `{ results: [...]; discarded?: DiscardedCombination[] }`.
+- Novo estado `discarded`. Quando não vazio, o modal permanece aberto e renderiza a etapa "Combinações descartadas" (lista + botão único "Entendi" que fecha e limpa o estado). Quando vazio, comportamento atual intacto.
+- Toast de sucesso ajustado para refletir também o número de descartes quando houver.
+- Limpar `discarded` ao reabrir o modal, para que o diálogo reapareça a cada geração.
 
-**5. Snapshot**
-- `trade_date` do snapshot: `r.trade_date_used ?? tradeDate` (o global de Brasília), eliminando o fallback pelo relógio do navegador.
-- `payment_date` do snapshot: `r.payment_date ?? orig.payment_date` — para linha spot, `orig.payment_date` não existe mais, então o valor gravado e exibido é o que a API devolveu. Mesma coisa em `inputs_json`, que passa a refletir o payload realmente enviado.
+**`src/components/DiscardedCombinationsList.tsx`** (novo)
+- Recebe `DiscardedCombination[]`, renderiza uma linha por descarte: `display_name · commodity · ticker` + motivo em português.
+- Mapa de códigos → texto:
+  - `PAYMENT_DATE_BEFORE_TRADE_DATE` → "Data de pagamento vencida (DD/MM/AAAA). Corrija o cadastro da combinação."
+  - `PAYMENT_DATE_AFTER_SALE_DATE` → "Pagamento (DD/MM/AAAA) posterior à venda (DD/MM/AAAA)."
+  - Código desconhecido → exibe o `detail` da API (fallback obrigatório, a lista vai crescer).
+- Formatação DD/MM/AAAA é só troca de string do ISO `YYYY-MM-DD` — sem `new Date()`, sem comparação, sem cálculo.
 
-## Regras respeitadas
+**`src/types/index.ts`**
+- `DiscardedCombination`: `index`, `warehouse_id`, `display_name`, `commodity`, `benchmark`, `ticker`, `reason`, `detail`, `payment_date`, `sale_date`, `trade_date` (campos de data opcionais/nuláveis).
 
-- Zero cálculo de data de precificação no frontend: nenhuma terça é calculada, nem para enviar, nem para exibir, nem para comparar.
-- `rounding_increment` não entra no payload.
-- `is_spot` e `trade_date` entram na mesma entrega — nunca um sem o outro.
+## Não muda
 
-## Fora do escopo
+Payload enviado (nada de filtro prévio ou correção de data), Edge Function, schema, formulários de combinação/armazém, detalhamento de custos e painel de basis.
 
-Schema, Edge Function, formulários de combinações e armazéns, detalhamento de custos, painel de basis.
+## Validação manual
 
-## Aviso de impacto no preço
-
-Ao subir, combinação spot negociada numa **segunda-feira** passa a pagar oito dias depois em vez de um: soja +0,30 · milho CBOT +0,15 · milho B3 +0,20 R$/saca. Nos demais dias, nada muda. Não há combinação spot ativa hoje, então o efeito prático é zero até alguém cadastrar uma.
-
-## Validação manual (Eduardo)
-
-1. Gerar tabela sem nenhuma combinação spot: preços idênticos aos de antes.
-2. Criar uma combinação spot e gerar num dia que não seja segunda: pagamento na próxima terça.
-3. Gerar numa segunda (ou simular): pagamento na terça da semana seguinte, oito dias à frente.
-4. Conferir no snapshot que `trade_date` é o hoje de Brasília (inclusive gerando depois das 21h).
-5. Apagar a combinação spot de teste.
-
-## Entrega
-
-Arquivo alterado: `src/components/GeneratePricingModal.tsx` (único). Confirmação explícita de que `getNextTuesday` foi **removida do código**, não apenas desativada.
+1. Gerar sem combinação inválida → sem diálogo.
+2. Gerar com a combinação soja ZSF27 / praça 050 (pagamento 24/08/2026, venda 14/08/2026) → aparece no diálogo com motivo "pagamento posterior à venda" e não entra na tabela.
+3. Confirmar → tabela com as demais praças.
+4. Gerar de novo → diálogo reaparece.
