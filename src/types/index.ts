@@ -233,3 +233,18 @@ export interface OperationWithDetails {
   display_code?: string | null;
   exchange?: string | null;
 }
+
+/** Combinação descartada pela API em POST /pricing/table. */
+export interface DiscardedCombination {
+  index: number;
+  warehouse_id?: string | null;
+  display_name?: string | null;
+  commodity?: string | null;
+  benchmark?: string | null;
+  ticker?: string | null;
+  reason: string;
+  detail?: string | null;
+  payment_date?: string | null;
+  sale_date?: string | null;
+  trade_date?: string | null;
+}

@@ -11,7 +11,8 @@ import { useMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
-import type { Warehouse, MarketData, PricingSnapshot, PricingCombination } from '@/types';
+import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
+import type { Warehouse, MarketData, PricingSnapshot, PricingCombination, DiscardedCombination } from '@/types';
 
 /**
  * Data de negócio da mesa (fuso de Brasília), formato ISO YYYY-MM-DD.
@@ -51,6 +52,13 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
   const { user } = useAuth();
   const { data: pricingParameters } = usePricingParameters();
   const [generating, setGenerating] = useState(false);
+  const [discarded, setDiscarded] = useState<DiscardedCombination[] | null>(null);
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next) setDiscarded(null);
+    onOpenChange(next);
+  };
+
 
   const spotRate = useMemo(() => {
     return marketData?.find((m) => m.ticker === 'USD/BRL')?.price ?? null;
@@ -293,18 +301,28 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     }
 
     setGenerating(true);
+    setDiscarded(null);
     try {
-      const result = await callApi<{ results: Record<string, unknown>[] }>('/pricing/table', {
+      const result = await callApi<{
+        results: Record<string, unknown>[];
+        discarded?: DiscardedCombination[];
+      }>('/pricing/table', {
         trade_date: tradeDate,
         combinations: payload,
       });
 
 
-      const apiResults = result?.results;
-      if (apiResults?.length) {
-        // Build a lookup from payload index to original payload for injecting inputs
+      const apiResults = result?.results ?? [];
+      const apiDiscarded = result?.discarded ?? [];
+
+      // Os resultados voltam apenas para as linhas não descartadas; o `index`
+      // do descarte é a única forma de recasar resultado ↔ payload enviado.
+      const discardedIdx = new Set(apiDiscarded.map((d) => d.index));
+      const keptIndexes = payload.map((_, i) => i).filter((i) => !discardedIdx.has(i));
+
+      if (apiResults.length) {
         const snapshots = apiResults.map((r: Record<string, unknown>, idx: number) => {
-          const orig = payload[idx] ?? {};
+          const orig = payload[keptIndexes[idx] ?? idx] ?? {};
           return {
             warehouse_id: r.warehouse_id ?? orig.warehouse_id,
             commodity: r.commodity ?? orig.commodity,
@@ -342,11 +360,21 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
           } as Omit<PricingSnapshot, 'id' | 'created_at'>;
         });
         await saveSnapshots.mutateAsync(snapshots);
+      }
+
+      if (apiDiscarded.length > 0) {
+        // Mantém o modal aberto: a tabela só aparece após a confirmação.
+        setDiscarded(apiDiscarded);
+        toast.success(
+          `Tabela gerada: ${apiResults.length} preços calculados, ${apiDiscarded.length} combinação(ões) descartada(s)`,
+        );
+      } else if (apiResults.length) {
         toast.success(`Tabela gerada: ${apiResults.length} preços calculados`);
         onOpenChange(false);
       } else {
         toast.warning('API retornou 0 snapshots');
       }
+
     } catch (err) {
       const msg = err instanceof Error ? err.message : typeof err === 'object' && err !== null && 'message' in err ? String((err as Record<string, unknown>).message) : JSON.stringify(err);
       toast.error(`Erro ao gerar tabela: ${msg}`);
@@ -355,8 +383,32 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     }
   };
 
+  if (discarded && discarded.length > 0) {
+    return (
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Combinações descartadas</DialogTitle>
+            <DialogDescription>
+              {discarded.length} combinação(ões) não entraram na tabela. Corrija o cadastro em
+              Configurações → Combinações.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            <DiscardedCombinationsList items={discarded} />
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => handleOpenChange(false)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Gerar Tabela de Preços</DialogTitle>
@@ -364,6 +416,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             A tabela será gerada com base nas combinações ativas cadastradas em Configurações.
           </DialogDescription>
         </DialogHeader>
+
 
         <div className="space-y-3 py-2">
           <p className="text-sm">
