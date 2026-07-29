@@ -411,9 +411,9 @@ const PricingTable = () => {
                                 <>
                                   {costs.financial_brl != null && <p>Financeiro: R$ {Number(costs.financial_brl).toFixed(2)}</p>}
                                   {costs.storage_brl != null && <p>Armazenagem: R$ {Number(costs.storage_brl).toFixed(2)}</p>}
+                                  {costs.reception_brl != null && <p>Recepção: R$ {Number(costs.reception_brl).toFixed(2)}</p>}
                                   {costs.brokerage_brl != null && <p>Corretagem: R$ {Number(costs.brokerage_brl).toFixed(2)}</p>}
                                   {costs.desk_brl != null && <p>Mesa: R$ {Number(costs.desk_brl).toFixed(2)}</p>}
-                                  {costs.reception_brl != null && <p>Recepção: R$ {Number(costs.reception_brl).toFixed(2)}</p>}
                                   {totalCosts != null && <p className="font-semibold border-t border-border pt-1">Total: R$ {Number(totalCosts).toFixed(2)}</p>}
                                 </>
                               )}
@@ -508,9 +508,9 @@ const PricingTable = () => {
                 <>
                   {costs.financial_brl != null && <DetailRow label="Financeiro" value={`R$ ${Number(costs.financial_brl).toFixed(2)}`} />}
                   {costs.storage_brl != null && <DetailRow label="Armazenagem" value={`R$ ${Number(costs.storage_brl).toFixed(2)}`} />}
+                  {costs.reception_brl != null && <DetailRow label="Recepção" value={`R$ ${Number(costs.reception_brl).toFixed(2)}`} />}
                   {costs.brokerage_brl != null && <DetailRow label="Corretagem" value={`R$ ${Number(costs.brokerage_brl).toFixed(2)}`} />}
                   {costs.desk_cost_brl != null && <DetailRow label="Mesa" value={`R$ ${Number(costs.desk_cost_brl).toFixed(2)}`} />}
-                  {costs.reception_brl != null && <DetailRow label="Recepção" value={`R$ ${Number(costs.reception_brl).toFixed(2)}`} />}
                   {costs.total_brl != null && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Total custos</span>

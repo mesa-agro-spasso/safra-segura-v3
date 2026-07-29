@@ -1,57 +1,38 @@
-## Escopo
+## Situação atual (verificada no código)
 
-Apenas `src/components/GeneratePricingModal.tsx`. Etapas 2 e 3 do plano original descartadas (backend já corrigido e validado em produção: Confresa 0,27 → 3,19; ZCU27 inalterado em 1,17).
+Em `src/pages/PricingTable.tsx` a linha de Recepção **já existe** nas duas superfícies:
 
-## 1. Helper de normalização (topo do arquivo)
+- Tooltip de resumo (linha 416): `{costs.reception_brl != null && <p>Recepção: R$ …</p>}`
+- Diálogo de detalhamento completo (linha 513): `<DetailRow label="Recepção" …>` com a mesma guarda
 
-Vocabulário aceito pelo motor, canonizado em `'monthly'` / `'yearly'`:
+A guarda `!= null` já atende as decisões 3 e 4: campo ausente → linha não renderiza; campo presente com valor 0 → linha aparece como R$ 0,00. Não há cálculo no frontend: `total_brl` vem da API e é exibido cru.
 
-```text
-'monthly' | 'am' | 'a.m' | 'a.m.'   -> 'monthly'
-'yearly'  | 'aa' | 'a.a' | 'a.a.'   -> 'yearly'
-null | string vazia                 -> 'monthly'   (campo ausente herda o default do sistema)
-valor preenchido fora do vocabulário -> INVÁLIDO   (sem fallback silencioso)
-```
+## O que falta
 
-Comparação com `trim()` e case-insensitive. A função devolve `'monthly' | 'yearly' | null`, onde `null` significa "cadastro inválido".
+Apenas apresentação: hoje "Recepção" aparece **depois** de Mesa, e a especificação pede a linha ao lado de Armazenagem.
 
-## 2. Validação bloqueante
+### Mudança única
 
-Dentro do laço de combinações, ao resolver o armazém: se `normalizeInterestPeriod(warehouse.interest_rate_period)` retornar `null`, abortar a geração inteira com `toast.error` em português nomeando armazém e valor:
+`src/pages/PricingTable.tsx` — mover a linha de Recepção para logo após Armazenagem nas duas superfícies, ficando a ordem:
 
 ```text
-Período de juros inválido no cadastro de Confresa: 'mensal' — corrija em Configurações
+Financeiro
+Armazenagem
+Recepção
+Corretagem
+Mesa
+Total
 ```
 
-Aborta (não apenas pula a combinação), pelo mesmo motivo do bug do motor: fallback ou omissão silenciosa mascara cadastro podre.
+Nenhuma outra alteração: sem tocar em Edge Functions, schema, `ExportPricingModal`, geração de tabela ou outras telas.
 
-## 3. Enviar no payload
+## Observação (fora de escopo, só registro)
 
-No `baseCombo`, logo após `interest_rate`:
+`src/pages/OperacoesD24.tsx` tem um breakdown de custos próprio (Financeiro/Armazenagem/Corretagem, ~linha 2489) sem a linha de Recepção. Essa tela está suspensa da navegação desde o refactor Wave 1, e o escopo negativo proíbe mexer nela — não será alterada.
 
-```ts
-interest_rate_period: <valor normalizado>,
-```
+## Validação manual (Eduardo)
 
-Herança igual aos demais custos — combinação sobrescreve armazém; como `pricing_combinations` ainda não tem a coluna, o valor efetivo vem do armazém.
-
-## 4. Persistir em `inputs_json`
-
-No mapeamento de snapshots, após `interest_rate`:
-
-```ts
-interest_rate_period: orig.interest_rate_period,
-```
-
-Grava o período efetivamente enviado ao motor, não um default reconstruído depois.
-
-## O que NÃO muda
-
-- Resolução de câmbio (spot/NDF por commodity e benchmark).
-- Validações bloqueantes de NDF ausente e de dados de mercado com mais de 24h.
-- Herança dos demais custos, regras de `payment_date`/`exp_date`, `pricing_method`, qualquer outro fluxo.
-- Nenhuma migração de banco: `warehouses.interest_rate_period` já existe e está preenchido com `monthly`.
-
-## Verificação
-
-Type-check do projeto e conferência de que o payload passa a incluir `interest_rate_period: 'monthly'` para as combinações de Confresa.
+1. Gerar tabela nova, abrir detalhamento: "Recepção" aparece com R$ 0,00, logo abaixo de Armazenagem.
+2. Somar as linhas exibidas e conferir contra o Total — tem que fechar.
+3. Abrir snapshot antigo: linha "Recepção" não aparece e a armazenagem segue igual.
+4. Conferir que o preço de originação está idêntico ao anterior.
