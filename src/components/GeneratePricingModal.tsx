@@ -311,7 +311,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             commodity: r.commodity ?? orig.commodity,
             benchmark: r.benchmark ?? orig.benchmark,
             ticker: r.ticker ?? orig.ticker,
-            trade_date: r.trade_date_used ?? format(new Date(), 'yyyy-MM-dd'),
+            trade_date: r.trade_date_used ?? tradeDate,
             sale_date: r.sale_date ?? orig.sale_date,
             payment_date: r.payment_date ?? orig.payment_date,
             grain_reception_date: r.grain_reception_date ?? orig.grain_reception_date,
