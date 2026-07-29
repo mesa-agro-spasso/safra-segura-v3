@@ -248,3 +248,13 @@ export interface DiscardedCombination {
   sale_date?: string | null;
   trade_date?: string | null;
 }
+
+/** Configuração da regra de pagamento à vista (linha única id='default'). */
+export interface SpotSettings {
+  id: string;
+  mode: 'weekday' | 'next_day' | 'same_day';
+  weekday: number;
+  skip_current_week: boolean;
+  updated_at: string;
+}
+
