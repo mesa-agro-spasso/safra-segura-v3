@@ -293,8 +293,10 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     setGenerating(true);
     try {
       const result = await callApi<{ results: Record<string, unknown>[] }>('/pricing/table', {
+        trade_date: tradeDate,
         combinations: payload,
       });
+
 
       const apiResults = result?.results;
       if (apiResults?.length) {
