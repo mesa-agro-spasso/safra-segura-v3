@@ -20,19 +20,25 @@ export function usePricingParameters() {
 export function useUpdatePricingParameter() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count }: {
+    mutationFn: async (args: {
       id: string;
       sigma: number;
       target_profit_brl_per_sack?: number;
       execution_spread_pct?: number;
       cbot_ticker_count?: number;
       b3_corn_ticker_count?: number;
+      rounding_increment?: number | null;
     }) => {
+      const { id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count } = args;
       const update: Record<string, unknown> = { sigma, updated_at: new Date().toISOString() };
       if (target_profit_brl_per_sack !== undefined) update.target_profit_brl_per_sack = target_profit_brl_per_sack;
       if (execution_spread_pct !== undefined) update.execution_spread_pct = execution_spread_pct;
       if (cbot_ticker_count !== undefined) update.cbot_ticker_count = cbot_ticker_count;
       if (b3_corn_ticker_count !== undefined) update.b3_corn_ticker_count = b3_corn_ticker_count;
+      // presence check: null is a meaningful value (desliga o piso de arredondamento)
+      if (Object.prototype.hasOwnProperty.call(args, 'rounding_increment')) {
+        update.rounding_increment = args.rounding_increment;
+      }
       const { error } = await (supabase
         .from('pricing_parameters') as any)
         .update(update)
