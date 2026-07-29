@@ -1078,7 +1078,163 @@ function RoundingIncrementCard({ parameters }: { parameters: PricingParameter[] 
   );
 }
 
+const SPOT_MODE_LABELS: Record<SpotSettings['mode'], string> = {
+  weekday: 'Dia da semana fixo',
+  next_day: 'Dia seguinte',
+  same_day: 'Mesmo dia',
+};
+
+const SPOT_MODE_HELP: Record<SpotSettings['mode'], string> = {
+  weekday: 'Paga no próximo dia da semana escolhido.',
+  next_day: 'Paga no dia seguinte à negociação.',
+  same_day: 'Paga no mesmo dia da negociação.',
+};
+
+const WEEKDAY_LABELS: Record<number, string> = {
+  1: 'Segunda-feira',
+  2: 'Terça-feira',
+  3: 'Quarta-feira',
+  4: 'Quinta-feira',
+  5: 'Sexta-feira',
+  6: 'Sábado',
+  7: 'Domingo',
+};
+
+function SpotPaymentCard() {
+  const { data: settings, isLoading } = useSpotSettings();
+  const updateSettings = useUpdateSpotSettings();
+  const [draft, setDraft] = useState<{ mode: SpotSettings['mode']; weekday: number; skip_current_week: boolean } | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (settings) {
+      setDraft({ mode: settings.mode, weekday: settings.weekday, skip_current_week: settings.skip_current_week });
+    }
+  }, [settings]);
+
+  if (isLoading || !settings || !draft) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Pagamento à vista</CardTitle></CardHeader>
+        <CardContent><p className="text-xs text-muted-foreground">Carregando...</p></CardContent>
+      </Card>
+    );
+  }
+
+  const weekdayDisabled = draft.mode !== 'weekday';
+  const changed =
+    draft.mode !== settings.mode ||
+    draft.weekday !== settings.weekday ||
+    draft.skip_current_week !== settings.skip_current_week;
+
+  const describe = (s: { mode: SpotSettings['mode']; weekday: number; skip_current_week: boolean }) =>
+    s.mode === 'weekday'
+      ? `${SPOT_MODE_LABELS[s.mode]} — ${WEEKDAY_LABELS[s.weekday]}${s.skip_current_week ? ', pulando a semana corrente' : ', sem pular a semana corrente'}`
+      : SPOT_MODE_LABELS[s.mode];
+
+  const save = async () => {
+    try {
+      await updateSettings.mutateAsync(draft);
+      toast.success('Configuração de pagamento à vista atualizada');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-sm">Pagamento à vista</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Regra usada pelo motor para resolver a data de pagamento das combinações à vista. Este campo muda o preço que vai ao produtor.
+        </p>
+
+        <div className="space-y-1 max-w-md">
+          <Label className="text-xs">Modo</Label>
+          <Select
+            value={draft.mode}
+            onValueChange={(v) => setDraft({ ...draft, mode: v as SpotSettings['mode'] })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(Object.keys(SPOT_MODE_LABELS) as SpotSettings['mode'][]).map((m) => (
+                <SelectItem key={m} value={m}>{SPOT_MODE_LABELS[m]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-muted-foreground">{SPOT_MODE_HELP[draft.mode]}</p>
+        </div>
+
+        <div className="space-y-1 max-w-md">
+          <Label className="text-xs">Dia da semana</Label>
+          <Select
+            value={String(draft.weekday)}
+            disabled={weekdayDisabled}
+            onValueChange={(v) => setDraft({ ...draft, weekday: parseInt(v, 10) })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                <SelectItem key={d} value={String(d)}>{WEEKDAY_LABELS[d]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {weekdayDisabled && (
+            <p className="text-[10px] text-muted-foreground">Não se aplica ao modo selecionado.</p>
+          )}
+        </div>
+
+        <div className="flex items-start gap-3 max-w-md">
+          <Switch
+            checked={draft.skip_current_week}
+            disabled={weekdayDisabled}
+            onCheckedChange={(c) => setDraft({ ...draft, skip_current_week: c })}
+          />
+          <div className="space-y-0.5">
+            <Label className="text-xs">Pular a semana corrente</Label>
+            <p className="text-[10px] text-muted-foreground">
+              Descarta a ocorrência da semana atual. Exemplo: negociando numa segunda com o dia definido como terça, o pagamento cai na terça da semana seguinte, não na de amanhã.
+              {weekdayDisabled && ' Não se aplica ao modo selecionado.'}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-[10px] text-muted-foreground">
+          Em qualquer modo, se a data cair em fim de semana ou feriado, a API avança para o próximo dia útil. Isso é automático e não configurável.
+        </p>
+
+        <div className="flex items-center gap-3">
+          <AlertDialog open={confirming} onOpenChange={setConfirming}>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" disabled={!changed || updateSettings.isPending}>Salvar</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Alterar pagamento à vista</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Configuração atual: <strong>{describe(settings)}</strong> → nova configuração:{' '}
+                  <strong>{describe(draft)}</strong>. Este campo muda o preço que vai ao produtor.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={save}>Confirmar</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <span className="text-[10px] text-muted-foreground">
+            Última alteração: {new Date(settings.updated_at).toLocaleString('pt-BR')}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ParametersTab() {
+
   const { data: parameters, isLoading } = usePricingParameters();
   const updateParameter = useUpdatePricingParameter();
   const [values, setValues] = useState<Record<string, string>>({});
