@@ -11,7 +11,8 @@ import { useMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
-import type { Warehouse, MarketData, PricingSnapshot, PricingCombination } from '@/types';
+import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
+import type { Warehouse, MarketData, PricingSnapshot, PricingCombination, DiscardedCombination } from '@/types';
 
 /**
  * Data de negócio da mesa (fuso de Brasília), formato ISO YYYY-MM-DD.
