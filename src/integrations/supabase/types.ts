@@ -1100,6 +1100,30 @@ export type Database = {
           },
         ]
       }
+      spot_settings: {
+        Row: {
+          id: string
+          mode: string
+          skip_current_week: boolean
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          id?: string
+          mode?: string
+          skip_current_week?: boolean
+          updated_at?: string
+          weekday?: number
+        }
+        Update: {
+          id?: string
+          mode?: string
+          skip_current_week?: boolean
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           access_level: string
