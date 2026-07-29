@@ -232,10 +232,13 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         benchmark: combo.benchmark,
         ticker: combo.ticker,
         exp_date: expDate,
-        payment_date: paymentDate,
+        is_spot: isSpot,
+        // payment_date só é enviado quando não é spot (a API resolve o spot)
+        ...(isSpot ? {} : { payment_date: paymentDate }),
         sale_date: combo.sale_date,
         grain_reception_date: grainReceptionDate,
         pricing_method: pricingMethod,
+
         futures_price: market.price,
         exchange_rate: exchangeRate,
         interest_rate: inheritCost('interest_rate', 'interest_rate'),
