@@ -26,8 +26,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { usePricingParameters, useUpdatePricingParameter } from '@/hooks/usePricingParameters';
+import { useSpotSettings, useUpdateSpotSettings } from '@/hooks/useSpotSettings';
 import { callApi } from '@/lib/api';
-import type { Warehouse, PricingCombination, PricingParameter } from '@/types';
+import type { Warehouse, PricingCombination, PricingParameter, SpotSettings } from '@/types';
 
 const emptyWarehouse: Partial<Warehouse> & { id: string } = {
   id: '', display_name: '', city: '', state: '', type: 'ARMAZEM', active: true,
