@@ -1,38 +1,49 @@
-## Situação atual (verificada no código)
+## Escopo
 
-Em `src/pages/PricingTable.tsx` a linha de Recepção **já existe** nas duas superfícies:
+Arquivo único: `src/pages/Settings.tsx`, componente `CombinationsTab`. Nada mais é tocado.
 
-- Tooltip de resumo (linha 416): `{costs.reception_brl != null && <p>Recepção: R$ …</p>}`
-- Diálogo de detalhamento completo (linha 513): `<DetailRow label="Recepção" …>` com a mesma guarda
+## Parte 1 — Duplicar
 
-A guarda `!= null` já atende as decisões 3 e 4: campo ausente → linha não renderiza; campo presente com valor 0 → linha aparece como R$ 0,00. Não há cálculo no frontend: `total_brl` vem da API e é exibido cru.
+Novo botão (ícone `Copy`) em cada linha da tabela, entre editar e excluir.
 
-## O que falta
+Ao clicar:
 
-Apenas apresentação: hoje "Recepção" aparece **depois** de Mesa, e a especificação pede a linha ao lado de Armazenagem.
-
-### Mudança única
-
-`src/pages/PricingTable.tsx` — mover a linha de Recepção para logo após Armazenagem nas duas superfícies, ficando a ordem:
-
-```text
-Financeiro
-Armazenagem
-Recepção
-Corretagem
-Mesa
-Total
+```
+const { id, created_at, updated_at, ...rest } = c;
+setEditing({ ...rest });   // sem id → upsert insere linha nova
+setOpen(true); setCostsOpen(false); setCalcResult(null);
 ```
 
-Nenhuma outra alteração: sem tocar em Edge Functions, schema, `ExportPricingModal`, geração de tabela ou outras telas.
+- Abre o mesmo diálogo de criação pré-preenchido (título "Nova Combinação", pois `editing.id` é `undefined`). Não grava nada até a operadora clicar em Salvar.
+- Copia todos os demais campos, inclusive as quatro datas, `is_spot`, `active`, método e custos.
+- Campos de custo `null` continuam `null` — o spread copia o valor cru da linha; o valor herdado do armazém aparece apenas como texto cinza no input (comportamento atual de `numField`, que só lê `editing[key]` para decidir se é override). Trocar o armazém recalcula a herança exibida automaticamente, porque `inheritedValueFor` deriva de `selectedWarehouse`.
+- Salvamento passa pelo `handleSave` existente sem alteração: ele já normaliza método (`target_basis`/`origination_price_net_brl` mutuamente exclusivos, `additional_discount_brl = 0` em TARGET_PRICE) e valida obrigatórios.
 
-## Observação (fora de escopo, só registro)
+Nenhuma mudança em `usePricingCombinations` / `useUpsertPricingCombination`: o upsert com `onConflict: 'id'` e sem `id` no payload gera um insert com id novo pelo default da tabela.
 
-`src/pages/OperacoesD24.tsx` tem um breakdown de custos próprio (Financeiro/Armazenagem/Corretagem, ~linha 2489) sem a linha de Recepção. Essa tela está suspensa da navegação desde o refactor Wave 1, e o escopo negativo proíbe mexer nela — não será alterada.
+## Parte 2 — Reorganizar o formulário
+
+Reordenar o JSX do diálogo em quatro blocos, cada um com um título curto (`text-xs uppercase text-muted-foreground`) e separador:
+
+1. **Identidade** — Armazém, Commodity, Benchmark, Ticker, Exp Date
+2. **Método** — seletor LONG_BASIS/TARGET_PRICE; se LONG_BASIS: Target Basis + Desconto adicional; se TARGET_PRICE: Preço de Originação Net + o painel de pré-cálculo existente (mantido como está)
+3. **Datas** — switch Spot, Data de pagamento (oculta quando spot), Data de venda, Recepção de grão
+4. **Custos** — `Collapsible` atual, **fechado por padrão** (já é o comportamento: `setCostsOpen(false)` ao abrir), com os sete campos e a herança visível
+
+O switch "Ativa" e o botão Salvar ficam no rodapé, fora dos blocos.
+
+Nenhum rótulo, validação, handler ou regra de campo muda — apenas ordem, agrupamento e títulos. `handleCalculate`, `handleSave`, `numField`, `inheritedValueFor` permanecem intactos.
+
+## Regras respeitadas
+
+- Zero cálculo financeiro no frontend (o pré-cálculo continua chamando `/pricing/table`).
+- Nenhum valor inventado para campos restritos; listas de opções inalteradas.
+- Sem mudança de schema, Edge Function, tabela de preços ou formulário de armazéns.
 
 ## Validação manual (Eduardo)
 
-1. Gerar tabela nova, abrir detalhamento: "Recepção" aparece com R$ 0,00, logo abaixo de Armazenagem.
-2. Somar as linhas exibidas e conferir contra o Total — tem que fechar.
-3. Abrir snapshot antigo: linha "Recepção" não aparece e a armazenagem segue igual.
-4. Conferir que o preço de originação está idêntico ao anterior.
+1. Duplicar uma LONG_BASIS com custos herdados → formulário abre preenchido, custos em cinza, nada virou valor fixo.
+2. Trocar só o armazém e salvar → linha nova, original intacta.
+3. Gerar a tabela → nova combinação com preço coerente com a praça.
+4. Duplicar uma TARGET_PRICE e salvar sem mexer → salva sem erro.
+5. Duplicar LONG_BASIS, trocar para TARGET_PRICE, preencher o preço net, salvar → salva e `target_basis` fica nulo.

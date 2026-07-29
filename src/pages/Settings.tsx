@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
-import { CalendarIcon, Plus, Edit2, ChevronDown, Trash2 } from 'lucide-react';
+import { CalendarIcon, Plus, Edit2, ChevronDown, Trash2, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWarehouses, useUpsertWarehouse, useActiveArmazens } from '@/hooks/useWarehouses';
 import { usePricingCombinations, useUpsertPricingCombination, useTogglePricingCombinationActive, useDeletePricingCombination } from '@/hooks/usePricingCombinations';
@@ -626,201 +626,223 @@ function CombinationsTab() {
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editing?.id ? 'Editar Combinação' : 'Nova Combinação'}</DialogTitle></DialogHeader>
             {editing && (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Método de Precificação</Label>
-                  <Select
-                    value={editing.pricing_method ?? 'LONG_BASIS'}
-                    onValueChange={(v) => {
-                      const method = v as 'LONG_BASIS' | 'TARGET_PRICE';
-                      setEditing({
-                        ...editing,
-                        pricing_method: method,
-                        target_basis: method === 'LONG_BASIS' ? (editing.target_basis ?? 0) : null,
-                        origination_price_net_brl: method === 'TARGET_PRICE' ? (editing.origination_price_net_brl ?? null) : null,
-                        additional_discount_brl: method === 'TARGET_PRICE' ? 0 : (editing.additional_discount_brl ?? 0),
-                      });
-                      setCalcResult(null);
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LONG_BASIS">Long Basis (Basis → Preço)</SelectItem>
-                      <SelectItem value="TARGET_PRICE">Target Price (Preço → Basis)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Armazém</Label>
-                    <Select value={editing.warehouse_id ?? ''} onValueChange={(v) => setEditing({ ...editing, warehouse_id: v })}>
-                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>{warehouses?.map((w) => <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Commodity</Label>
-                    <Select value={editing.commodity ?? 'soybean'} onValueChange={(v) => {
-                      const updates: Record<string, unknown> = { ...editing, commodity: v, ticker: '' };
-                      if (v === 'soybean' && editing.benchmark === 'b3') updates.benchmark = 'cbot';
-                      setEditing(updates as typeof editing);
-                    }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="soybean">Soja (soybean)</SelectItem><SelectItem value="corn">Milho (corn)</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Benchmark</Label>
-                    <Select value={editing.benchmark ?? 'cbot'} onValueChange={(v) => setEditing({ ...editing, benchmark: v, ticker: '' })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cbot">CBOT</SelectItem>
-                        {(editing.commodity ?? 'soybean') !== 'soybean' && <SelectItem value="b3">B3</SelectItem>}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Ticker</Label>
-                    <Select value={editing.ticker ?? ''} onValueChange={(v) => setEditing({ ...editing, ticker: v })}>
-                      <SelectTrigger><SelectValue placeholder="Selecione o ticker" /></SelectTrigger>
-                      <SelectContent>
-                        {marketData
-                          ?.filter((m) => {
-                            const commodity = editing.commodity ?? 'soybean';
-                            const benchmark = editing.benchmark ?? 'cbot';
-                            if (commodity === 'soybean' && benchmark === 'cbot') return m.commodity === 'SOJA';
-                            if (commodity === 'corn' && benchmark === 'cbot') return m.commodity === 'MILHO_CBOT';
-                            if (commodity === 'corn' && benchmark === 'b3') return m.commodity === 'MILHO';
-                            return false;
-                          })
-                          .sort((a, b) => (a.exp_date ?? '').localeCompare(b.exp_date ?? ''))
-                          .map((m) => (
-                            <SelectItem key={m.ticker} value={m.ticker}>{m.ticker}{m.exp_date ? ` (${m.exp_date})` : ''}</SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs">Exp Date (opcional — fallback market_data)</Label>
-                  <Input value={editing.exp_date ?? ''} onChange={(e) => setEditing({ ...editing, exp_date: e.target.value || null })} placeholder="2026-08-14" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <DateField label="Data de venda" value={editing.sale_date ?? null} onChange={(v) => setEditing({ ...editing, sale_date: v ?? '' })} />
-                  <DateField label="Recepção de grão (opcional)" value={editing.grain_reception_date ?? null} onChange={(v) => setEditing({ ...editing, grain_reception_date: v })} />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Switch checked={editing.is_spot ?? false} onCheckedChange={(v) => setEditing({ ...editing, is_spot: v, payment_date: v ? null : editing.payment_date })} />
-                  <Label className="text-xs">Spot (pagamento = próxima terça)</Label>
-                </div>
-
-                {!editing.is_spot && (
-                  <DateField label="Data de pagamento" value={editing.payment_date ?? null} onChange={(v) => setEditing({ ...editing, payment_date: v })} />
-                )}
-
-                {(editing.pricing_method ?? 'LONG_BASIS') === 'LONG_BASIS' ? (
+              <div className="space-y-5">
+                {/* ---------- 1. IDENTIDADE ---------- */}
+                <section className="space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b pb-1">
+                    Identidade
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
-                    {numField('Target Basis (R$/sc)', 'target_basis', '0')}
-                    {numField('Desconto adicional (R$/sc)', 'additional_discount_brl', '0')}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Armazém</Label>
+                      <Select value={editing.warehouse_id ?? ''} onValueChange={(v) => setEditing({ ...editing, warehouse_id: v })}>
+                        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectContent>{warehouses?.map((w) => <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Commodity</Label>
+                      <Select value={editing.commodity ?? 'soybean'} onValueChange={(v) => {
+                        const updates: Record<string, unknown> = { ...editing, commodity: v, ticker: '' };
+                        if (v === 'soybean' && editing.benchmark === 'b3') updates.benchmark = 'cbot';
+                        setEditing(updates as typeof editing);
+                      }}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="soybean">Soja (soybean)</SelectItem><SelectItem value="corn">Milho (corn)</SelectItem></SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Benchmark</Label>
+                      <Select value={editing.benchmark ?? 'cbot'} onValueChange={(v) => setEditing({ ...editing, benchmark: v, ticker: '' })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cbot">CBOT</SelectItem>
+                          {(editing.commodity ?? 'soybean') !== 'soybean' && <SelectItem value="b3">B3</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Ticker</Label>
+                      <Select value={editing.ticker ?? ''} onValueChange={(v) => setEditing({ ...editing, ticker: v })}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o ticker" /></SelectTrigger>
+                        <SelectContent>
+                          {marketData
+                            ?.filter((m) => {
+                              const commodity = editing.commodity ?? 'soybean';
+                              const benchmark = editing.benchmark ?? 'cbot';
+                              if (commodity === 'soybean' && benchmark === 'cbot') return m.commodity === 'SOJA';
+                              if (commodity === 'corn' && benchmark === 'cbot') return m.commodity === 'MILHO_CBOT';
+                              if (commodity === 'corn' && benchmark === 'b3') return m.commodity === 'MILHO';
+                              return false;
+                            })
+                            .sort((a, b) => (a.exp_date ?? '').localeCompare(b.exp_date ?? ''))
+                            .map((m) => (
+                              <SelectItem key={m.ticker} value={m.ticker}>{m.ticker}{m.exp_date ? ` (${m.exp_date})` : ''}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                ) : (
                   <div className="space-y-1">
-                    <Label className="text-xs">Preço de Originação Net (R$/sc)</Label>
-                    <Input
-                      type="number" step="any" placeholder="ex: 109.11"
-                      value={editing.origination_price_net_brl ?? ''}
-                      onChange={(e) => {
+                    <Label className="text-xs">Exp Date (opcional — fallback market_data)</Label>
+                    <Input value={editing.exp_date ?? ''} onChange={(e) => setEditing({ ...editing, exp_date: e.target.value || null })} placeholder="2026-08-14" />
+                  </div>
+                </section>
+
+                {/* ---------- 2. MÉTODO ---------- */}
+                <section className="space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b pb-1">
+                    Método
+                  </p>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Método de Precificação</Label>
+                    <Select
+                      value={editing.pricing_method ?? 'LONG_BASIS'}
+                      onValueChange={(v) => {
+                        const method = v as 'LONG_BASIS' | 'TARGET_PRICE';
                         setEditing({
                           ...editing,
-                          origination_price_net_brl: e.target.value === '' ? null : Number(e.target.value),
+                          pricing_method: method,
+                          target_basis: method === 'LONG_BASIS' ? (editing.target_basis ?? 0) : null,
+                          origination_price_net_brl: method === 'TARGET_PRICE' ? (editing.origination_price_net_brl ?? null) : null,
+                          additional_discount_brl: method === 'TARGET_PRICE' ? 0 : (editing.additional_discount_brl ?? 0),
                         });
                         setCalcResult(null);
                       }}
-                    />
-                    <p className="text-[10px] text-muted-foreground">
-                      Valor que será pago ao produtor. O sistema calculará o basis.
-                    </p>
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LONG_BASIS">Long Basis (Basis → Preço)</SelectItem>
+                        <SelectItem value="TARGET_PRICE">Target Price (Preço → Basis)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
 
-                {editing.pricing_method === 'TARGET_PRICE' && (
-                  <div className="border rounded-md p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Pré-cálculo do basis
-                      </p>
-                      <Button size="sm" variant="outline" onClick={handleCalculate} disabled={calculating}>
-                        {calculating ? 'Calculando...' : 'Calcular'}
-                      </Button>
+                  {(editing.pricing_method ?? 'LONG_BASIS') === 'LONG_BASIS' ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {numField('Target Basis (R$/sc)', 'target_basis', '0')}
+                      {numField('Desconto adicional (R$/sc)', 'additional_discount_brl', '0')}
                     </div>
-                    {calcResult ? (
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Preço ao produtor:</span>
-                          <span className="font-mono">R$ {calcResult.origination_price_brl.toFixed(4)}/sc</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Target basis:</span>
-                          <span className="font-mono">R$ {calcResult.target_basis_brl.toFixed(4)}/sc</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Breakeven basis:</span>
-                          <span className="font-mono">R$ {calcResult.breakeven_basis_brl.toFixed(4)}/sc</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Purchased basis:</span>
-                          <span className="font-mono">R$ {calcResult.purchased_basis_brl.toFixed(4)}/sc</span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground pt-1">
-                          Confira os valores antes de salvar. Se o basis sair muito fora do esperado, ajuste o preço de originação.
-                        </p>
-                      </div>
-                    ) : (
+                  ) : (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Preço de Originação Net (R$/sc)</Label>
+                      <Input
+                        type="number" step="any" placeholder="ex: 109.11"
+                        value={editing.origination_price_net_brl ?? ''}
+                        onChange={(e) => {
+                          setEditing({
+                            ...editing,
+                            origination_price_net_brl: e.target.value === '' ? null : Number(e.target.value),
+                          });
+                          setCalcResult(null);
+                        }}
+                      />
                       <p className="text-[10px] text-muted-foreground">
-                        Clique em "Calcular" para ver o basis resultante antes de salvar.
+                        Valor que será pago ao produtor. O sistema calculará o basis.
                       </p>
-                    )}
-                  </div>
-                )}
-
-                <Collapsible open={costsOpen} onOpenChange={setCostsOpen}>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" className="w-full justify-between text-xs text-muted-foreground">
-                      Sobrescrever custos do armazém
-                      <ChevronDown className={cn('h-4 w-4 transition-transform', costsOpen && 'rotate-180')} />
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-3 pt-2">
-                    <div className="grid grid-cols-2 gap-3">
-                      {numField('Taxa de juros', 'interest_rate', undefined, true)}
-                      {numField('Custo armazenagem', 'storage_cost', undefined, true)}
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Tipo armazenagem</Label>
-                        <Select value={editing.storage_cost_type ?? 'inherit'} onValueChange={(v) => setEditing({ ...editing, storage_cost_type: v === 'inherit' ? null : v })}>
-                          <SelectTrigger><SelectValue placeholder="Herdar do armazém" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="inherit">Herdar do armazém</SelectItem>
-                            <SelectItem value="fixed">Fixo (R$/saca)</SelectItem>
-                            <SelectItem value="monthly">Mensal (R$/mês)</SelectItem>
-                          </SelectContent>
-                        </Select>
+                  )}
+
+                  {editing.pricing_method === 'TARGET_PRICE' && (
+                    <div className="border rounded-md p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          Pré-cálculo do basis
+                        </p>
+                        <Button size="sm" variant="outline" onClick={handleCalculate} disabled={calculating}>
+                          {calculating ? 'Calculando...' : 'Calcular'}
+                        </Button>
                       </div>
-                      {numField('Custo recepção', 'reception_cost', undefined, true)}
+                      {calcResult ? (
+                        <div className="space-y-1 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Preço ao produtor:</span>
+                            <span className="font-mono">R$ {calcResult.origination_price_brl.toFixed(4)}/sc</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Target basis:</span>
+                            <span className="font-mono">R$ {calcResult.target_basis_brl.toFixed(4)}/sc</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Breakeven basis:</span>
+                            <span className="font-mono">R$ {calcResult.breakeven_basis_brl.toFixed(4)}/sc</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Purchased basis:</span>
+                            <span className="font-mono">R$ {calcResult.purchased_basis_brl.toFixed(4)}/sc</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground pt-1">
+                            Confira os valores antes de salvar. Se o basis sair muito fora do esperado, ajuste o preço de originação.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          Clique em "Calcular" para ver o basis resultante antes de salvar.
+                        </p>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      {numField('Corretagem/contrato', 'brokerage_per_contract', undefined, true)}
-                      {numField('Custo mesa (%)', 'desk_cost_pct', undefined, true)}
-                    </div>
-                    {numField('Quebra mensal (%)', 'shrinkage_rate_monthly', undefined, true)}
-                  </CollapsibleContent>
-                </Collapsible>
+                  )}
+                </section>
 
-                <div className="flex items-center gap-2">
+                {/* ---------- 3. DATAS ---------- */}
+                <section className="space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b pb-1">
+                    Datas
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={editing.is_spot ?? false} onCheckedChange={(v) => setEditing({ ...editing, is_spot: v, payment_date: v ? null : editing.payment_date })} />
+                    <Label className="text-xs">Spot (pagamento = próxima terça)</Label>
+                  </div>
+                  {!editing.is_spot && (
+                    <DateField label="Data de pagamento" value={editing.payment_date ?? null} onChange={(v) => setEditing({ ...editing, payment_date: v })} />
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <DateField label="Recepção de grão (opcional)" value={editing.grain_reception_date ?? null} onChange={(v) => setEditing({ ...editing, grain_reception_date: v })} />
+                    <DateField label="Data de venda" value={editing.sale_date ?? null} onChange={(v) => setEditing({ ...editing, sale_date: v ?? '' })} />
+                  </div>
+                </section>
+
+                {/* ---------- 4. CUSTOS ---------- */}
+                <section className="space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b pb-1">
+                    Custos
+                  </p>
+                  <Collapsible open={costsOpen} onOpenChange={setCostsOpen}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="w-full justify-between text-xs text-muted-foreground">
+                        Sobrescrever custos do armazém
+                        <ChevronDown className={cn('h-4 w-4 transition-transform', costsOpen && 'rotate-180')} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 pt-2">
+                      <div className="grid grid-cols-2 gap-3">
+                        {numField('Taxa de juros', 'interest_rate', undefined, true)}
+                        {numField('Custo armazenagem', 'storage_cost', undefined, true)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Tipo armazenagem</Label>
+                          <Select value={editing.storage_cost_type ?? 'inherit'} onValueChange={(v) => setEditing({ ...editing, storage_cost_type: v === 'inherit' ? null : v })}>
+                            <SelectTrigger><SelectValue placeholder="Herdar do armazém" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="inherit">Herdar do armazém</SelectItem>
+                              <SelectItem value="fixed">Fixo (R$/saca)</SelectItem>
+                              <SelectItem value="monthly">Mensal (R$/mês)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {numField('Custo recepção', 'reception_cost', undefined, true)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {numField('Corretagem/contrato', 'brokerage_per_contract', undefined, true)}
+                        {numField('Custo mesa (%)', 'desk_cost_pct', undefined, true)}
+                      </div>
+                      {numField('Quebra mensal (%)', 'shrinkage_rate_monthly', undefined, true)}
+                    </CollapsibleContent>
+                  </Collapsible>
+                </section>
+
+                <div className="flex items-center gap-2 pt-2 border-t">
                   <Switch checked={editing.active ?? true} onCheckedChange={(v) => setEditing({ ...editing, active: v })} />
                   <Label className="text-xs">Ativa</Label>
                 </div>
@@ -876,6 +898,20 @@ function CombinationsTab() {
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); setCalcResult(null); }}>
                             <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Duplicar combinação"
+                            onClick={() => {
+                              const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = c;
+                              setEditing({ ...rest });
+                              setOpen(true);
+                              setCostsOpen(false);
+                              setCalcResult(null);
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
