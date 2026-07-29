@@ -899,6 +899,20 @@ function CombinationsTab() {
                           <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); setCalcResult(null); }}>
                             <Edit2 className="h-4 w-4" />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Duplicar combinação"
+                            onClick={() => {
+                              const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = c;
+                              setEditing({ ...rest });
+                              setOpen(true);
+                              setCostsOpen(false);
+                              setCalcResult(null);
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
