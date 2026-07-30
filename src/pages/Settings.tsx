@@ -999,7 +999,7 @@ function RoundingIncrementCard({ parameters }: { parameters: PricingParameter[] 
   const save = async (p: PricingParameter) => {
     const next = nextValueFor(p);
     try {
-      await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, rounding_increment: next });
+      await updateParameter.mutateAsync({ id: p.id, rounding_increment: next });
       toast.success(`Incremento de arredondamento (${getLabel(p.id)}) atualizado`);
       setDrafts((d) => { const n = { ...d }; delete n[p.id]; return n; });
     } catch (err) {
@@ -1269,7 +1269,7 @@ function ParametersTab() {
                 if (isNaN(val) || val < 0) { toast.error('Valor deve ser >= 0'); return; }
                 try {
                   for (const p of parameters ?? []) {
-                    await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, target_profit_brl_per_sack: val, execution_spread_pct: p.execution_spread_pct ?? 0.05 });
+                    await updateParameter.mutateAsync({ id: p.id, target_profit_brl_per_sack: val, execution_spread_pct: p.execution_spread_pct ?? 0.05 });
                   }
                   toast.success('Lucro alvo atualizado');
                   setValues((v) => { const n = { ...v }; delete n['target_profit']; return n; });
@@ -1356,7 +1356,7 @@ function ParametersTab() {
                 if (isNaN(val) || val < 1 || val > 24) { toast.error('Valor entre 1 e 24'); return; }
                 try {
                   for (const p of parameters ?? []) {
-                    await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, cbot_ticker_count: val });
+                    await updateParameter.mutateAsync({ id: p.id, cbot_ticker_count: val });
                   }
                   toast.success('Quantidade CBOT atualizada');
                   setValues((v) => { const n = { ...v }; delete n['cbot_qty']; return n; });
@@ -1390,7 +1390,7 @@ function ParametersTab() {
                 if (isNaN(val) || val < 1 || val > 24) { toast.error('Valor entre 1 e 24'); return; }
                 try {
                   for (const p of parameters ?? []) {
-                    await updateParameter.mutateAsync({ id: p.id, sigma: p.sigma, b3_corn_ticker_count: val });
+                    await updateParameter.mutateAsync({ id: p.id, b3_corn_ticker_count: val });
                   }
                   toast.success('Quantidade Milho B3 atualizada');
                   setValues((v) => { const n = { ...v }; delete n['b3_qty']; return n; });

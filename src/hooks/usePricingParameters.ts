@@ -22,7 +22,7 @@ export function useUpdatePricingParameter() {
   return useMutation({
     mutationFn: async (args: {
       id: string;
-      sigma: number;
+      sigma?: number;
       target_profit_brl_per_sack?: number;
       execution_spread_pct?: number;
       cbot_ticker_count?: number;
@@ -30,7 +30,8 @@ export function useUpdatePricingParameter() {
       rounding_increment?: number | null;
     }) => {
       const { id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count } = args;
-      const update: Record<string, unknown> = { sigma, updated_at: new Date().toISOString() };
+      const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (sigma !== undefined) update.sigma = sigma;
       if (target_profit_brl_per_sack !== undefined) update.target_profit_brl_per_sack = target_profit_brl_per_sack;
       if (execution_spread_pct !== undefined) update.execution_spread_pct = execution_spread_pct;
       if (cbot_ticker_count !== undefined) update.cbot_ticker_count = cbot_ticker_count;
