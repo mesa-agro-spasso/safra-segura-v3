@@ -558,7 +558,7 @@ const PricingTable = () => {
                       <span className="text-muted-foreground">Preço ajustado</span>
                       <span className="font-bold text-primary">R$ {Number(applied.adjusted_price_brl).toFixed(2)}</span>
                     </div>
-                    <DetailRow label="Fonte" value={sourceLabel} />
+                    
                   </>
                 );
               })()}
