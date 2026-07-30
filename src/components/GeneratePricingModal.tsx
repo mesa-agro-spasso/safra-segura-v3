@@ -92,9 +92,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     return { b3MissingPrice: missing };
   }, [combinations, marketMap]);
 
-  // Corn CBOT requires a per-maturity NDF (same rule as soybean) and fresh market data.
-  const { cornCbotMissingNdf, cornCbotStale } = useMemo(() => {
-    const missingNdf: string[] = [];
+  // Corn CBOT requires fresh market data (futures price). NDF is no longer a pricing input.
+  const cornCbotStale = useMemo(() => {
     const stale: { ticker: string; hours: number }[] = [];
     const seen = new Set<string>();
     for (const c of combinations ?? []) {
@@ -103,36 +102,31 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       seen.add(c.ticker);
       const m = marketMap[c.ticker];
       if (!m) continue;
-      if (m.ndf_estimated == null) missingNdf.push(c.ticker);
       if (m.updated_at) {
         const hours = getHoursAgo(m.updated_at);
         if (hours > 24) stale.push({ ticker: c.ticker, hours });
       }
     }
-    return { cornCbotMissingNdf: missingNdf, cornCbotStale: stale };
+    return stale;
   }, [combinations, marketMap]);
 
-  const hasSoybeanCombo = useMemo(
-    () => (combinations ?? []).some((c) => c.commodity === 'soybean'),
+  // Any CBOT line (soybean or corn) needs the spot USD/BRL — the API resolves the rate from it.
+  const hasCbotCombo = useMemo(
+    () => (combinations ?? []).some((c) => c.benchmark === 'cbot'),
     [combinations],
   );
 
-  const needsSpot = hasSoybeanCombo;
+  const needsSpot = hasCbotCombo;
   const canGenerate = (combinations?.length ?? 0) > 0
     && (!needsSpot || spotRate !== null)
-    && cornCbotMissingNdf.length === 0
     && cornCbotStale.length === 0;
 
   const handleGenerate = async () => {
     if (!canGenerate || !combinations || !marketData || !warehouses) return;
 
-    // Blocking validations for corn CBOT — never fall back to spot silently.
-    if (cornCbotMissingNdf.length > 0) {
-      toast.error(`NDF indisponível para ${cornCbotMissingNdf.join(', ')} — atualize os dados na aba Mercado`);
-      return;
-    }
     if (cornCbotStale.length > 0) {
       const detail = cornCbotStale.map((s) => `${s.ticker} (atualizado há ${s.hours}h)`).join(', ');
+
       toast.error(`Dados de mercado desatualizados para ${detail} — atualize a aba Mercado antes de gerar`);
       return;
     }
@@ -218,19 +212,12 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         return warehouse[warehouseField] ?? null;
       };
 
-      // Resolve exchange_rate per commodity/benchmark
-      let exchangeRate: number | null = null;
-      if (combo.commodity === 'soybean') {
-        exchangeRate = market.ndf_estimated ?? spotRate;
-      } else if (combo.commodity === 'corn' && combo.benchmark === 'cbot') {
-        // Corn CBOT uses the per-maturity NDF. No spot fallback (blocked above).
-        if (market.ndf_estimated == null) {
-          toast.error(`NDF indisponível para ${combo.ticker} — atualize os dados na aba Mercado`);
-          return;
-        }
-        exchangeRate = market.ndf_estimated;
-      }
-      // corn + b3: no exchange_rate (null)
+      // ZERO CÁLCULO DE CÂMBIO NO FRONTEND.
+      // A API resolve a taxa a partir do spot enviado no nível da requisição.
+      // Só repassamos o override manual da mesa, e apenas em linhas CBOT
+      // (milho B3 com qualquer campo de câmbio retorna 422).
+      const isCbot = combo.benchmark === 'cbot';
+      const fxOverride = isCbot ? market.ndf_override ?? null : null;
 
       const pricingMethod = combo.pricing_method ?? 'LONG_BASIS';
 
@@ -249,7 +236,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         pricing_method: pricingMethod,
 
         futures_price: market.price,
-        exchange_rate: exchangeRate,
+        ...(fxOverride != null ? { exchange_rate_override: fxOverride } : {}),
+
         interest_rate: inheritCost('interest_rate', 'interest_rate'),
         interest_rate_period: interestRatePeriod,
 
@@ -304,6 +292,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         discarded?: DiscardedCombination[];
       }>('/pricing/table', {
         trade_date: tradeDate,
+        // Dólar à vista da mesa (market_data USD/BRL, já refletindo fx_override).
+        spot_usd_brl: spotRate,
         combinations: payload,
       });
 
@@ -328,7 +318,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             sale_date: r.sale_date ?? orig.sale_date,
             payment_date: r.payment_date ?? orig.payment_date,
             grain_reception_date: r.grain_reception_date ?? orig.grain_reception_date,
-            exchange_rate: orig.exchange_rate ?? null,
+            // Taxa resolvida pela API — não mais o câmbio escolhido no frontend.
+            exchange_rate: (r.exchange_rate as number | null | undefined) ?? null,
             target_basis_brl: r.target_basis_brl ?? 0,
             futures_price_brl: r.futures_price_brl ?? 0,
             origination_price_brl: r.origination_price_brl ?? 0,
@@ -336,7 +327,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             inputs_json: {
               pricing_method: orig.pricing_method,
               futures_price: orig.futures_price,
-              exchange_rate: orig.exchange_rate ?? null,
+              spot_usd_brl: spotRate,
+              exchange_rate_override: orig.exchange_rate_override ?? null,
               exp_date: orig.exp_date ?? null,
               target_basis: orig.target_basis ?? null,
               origination_price_net_brl: orig.origination_price_net_brl ?? null,
@@ -422,32 +414,26 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
           {needsSpot ? (
             spotRate !== null ? (
-              <p className="text-xs text-muted-foreground">USD/BRL: {spotRate.toFixed(4)}</p>
+              <p className="text-xs text-muted-foreground">USD/BRL à vista: {spotRate.toFixed(4)}</p>
             ) : (
               <p className="text-xs text-destructive">USD/BRL não disponível — atualize dados de mercado primeiro</p>
             )
           ) : (
-            <p className="text-xs text-muted-foreground">Spot USD/BRL não necessário (câmbio por vencimento via NDF)</p>
+            <p className="text-xs text-muted-foreground">Spot USD/BRL não necessário (nenhuma combinação CBOT)</p>
           )}
 
-          {(cornCbotMissingNdf.length > 0 || cornCbotStale.length > 0) && (
+          {cornCbotStale.length > 0 && (
             <div className="rounded border border-destructive/40 bg-destructive/10 p-3 space-y-1">
               <p className="text-xs font-semibold text-destructive">
                 ⛔ Geração bloqueada — Milho CBOT
               </p>
-              {cornCbotMissingNdf.length > 0 && (
-                <p className="text-xs text-destructive">
-                  NDF indisponível para {cornCbotMissingNdf.join(', ')} — atualize os dados na aba Mercado.
-                </p>
-              )}
-              {cornCbotStale.length > 0 && (
-                <p className="text-xs text-destructive">
-                  Dados de mercado desatualizados para{' '}
-                  {cornCbotStale.map((s) => `${s.ticker} (há ${s.hours}h)`).join(', ')} — atualize a aba Mercado antes de gerar.
-                </p>
-              )}
+              <p className="text-xs text-destructive">
+                Dados de mercado desatualizados para{' '}
+                {cornCbotStale.map((s) => `${s.ticker} (há ${s.hours}h)`).join(', ')} — atualize a aba Mercado antes de gerar.
+              </p>
             </div>
           )}
+
 
           {b3MissingPrice.length > 0 && (
             <div className="rounded border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-1">
