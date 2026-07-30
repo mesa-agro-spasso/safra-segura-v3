@@ -93,7 +93,7 @@ export const helpSections: HelpSection[] = [
       { type: 'p', text: 'Nova Combinação: cria uma nova combinação. Toggle ativo/inativo: inclui ou exclui da geração da tabela. ✎: edita os parâmetros. 🗑: remove a combinação.' },
       { type: 'h3', text: 'Parâmetros' },
       { type: 'table', headers: ['Parâmetro', 'Descrição'], rows: [
-        ['Volatilidade Implícita (sigma)', 'Utilizada no modelo Black-76 para precificação teórica de opções. Valor decimal — ex: 0.25 = 25%. Configurável separadamente para Milho B3 e Soja CBOT.'],
+        
         ['Lucro Alvo por Saca', 'Lucro desejado por saca (R$/sc), usado como referência nos cálculos de resultado.'],
         ['Spread de Execução', 'Folga aplicada para compensar o deslizamento na execução das ordens. Valor decimal — ex: 0.05 = 5%.'],
         ['Quantidade de contratos por mercado', 'Define quantos vencimentos (tickers) são buscados e exibidos nas tabelas de Soja CBOT, Milho CBOT e Milho B3 em Mercado > Bolsa.'],
