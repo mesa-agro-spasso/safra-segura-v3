@@ -21,6 +21,12 @@ function reasonText(item: DiscardedCombination): string {
       return `Data de pagamento vencida (${formatISODate(item.payment_date)}). Corrija o cadastro da combinação.`;
     case 'PAYMENT_DATE_AFTER_SALE_DATE':
       return `Pagamento (${formatISODate(item.payment_date)}) posterior à venda (${formatISODate(item.sale_date)}).`;
+    case 'FX_MATURITY_NOT_AFTER_TRADE_DATE':
+      return 'Data de venda não é posterior à data de negociação.';
+    case 'FX_RATE_NOT_POSITIVE':
+      return 'Câmbio resultante inválido. Verifique os parâmetros de câmbio.';
+    case 'FX_PARAMETERS_UNAVAILABLE':
+      return 'Parâmetros de câmbio indisponíveis. Tente novamente.';
     default:
       return item.detail?.trim() || item.reason;
   }
