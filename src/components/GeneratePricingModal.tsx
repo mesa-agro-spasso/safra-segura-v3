@@ -327,7 +327,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             inputs_json: {
               pricing_method: orig.pricing_method,
               futures_price: orig.futures_price,
-              exchange_rate: orig.exchange_rate ?? null,
+              spot_usd_brl: spotRate,
+              exchange_rate_override: orig.exchange_rate_override ?? null,
               exp_date: orig.exp_date ?? null,
               target_basis: orig.target_basis ?? null,
               origination_price_net_brl: orig.origination_price_net_brl ?? null,
