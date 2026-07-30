@@ -258,3 +258,18 @@ export interface SpotSettings {
   updated_at: string;
 }
 
+/** Parâmetros do modelo de câmbio (linha única id='default'). */
+export interface FxParameters {
+  id: string;
+  short_bucket_carry_ann: number;
+  short_bucket_max_days: number;
+  long_bucket_carry_ann: number;
+  safety_haircut_brl: number;
+  /** Semeado neutro, não aplicado a nenhum cálculo. Não exposto na UI. */
+  spot_adjustment_factor: number;
+  calibration_date: string | null;
+  calibration_source: string | null;
+  updated_at: string;
+}
+
+
