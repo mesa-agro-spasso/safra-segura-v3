@@ -1,50 +1,61 @@
-## Objetivo
+## Achados da investigação
 
-Permitir que a mesa configure a regra de pagamento à vista pela tela, sem SQL. Só leitura/gravação da linha `id = 'default'` de `spot_settings`.
+**Item 2 — bloqueado (confirmado).** Duas telas LEEM `insurance_json`:
+- `src/pages/PricingTable.tsx` (~455): diálogo de detalhamento monta bloco de seguro teórico ATM / OTM 5% / OTM 10%.
+- `src/components/InsuranceLayerModal.tsx` (116 e 246): pré-preenche o prêmio e classifica `premium_source` como `theoretical` vs `manual`.
 
-## O que aparece na tela
+`insurance_json: r.insurance ?? {}` permanece exatamente como está.
 
-Novo card "Pagamento à vista" na aba **Parâmetros** de `/configuracoes`, abaixo de "Incremento de Arredondamento":
+**Item 3 — Armadilha 2 (confirmada).** `supabasePublic` não serve só ao log: é usado em `AuthContext.tsx` linha 40 (`fetchProfile`) e linha 166 (leitura de `forced_env`), além de `activityLog.ts` (24 e 27). Por isso ele será mantido como **alias do client único**, sem tocar nas chamadas.
 
-- **Modo** (select):
-  - `weekday` — paga no próximo dia da semana escolhido
-  - `next_day` — paga no dia seguinte à negociação
-  - `same_day` — paga no mesmo dia da negociação
-- **Dia da semana** (select, 7 nomes em português, valor ISO 1–7)
-- **Pular semana corrente** (switch) com a explicação do exemplo segunda→terça da semana seguinte
-- Nota fixa: se a data cair em fim de semana ou feriado, a API avança para o próximo dia útil — automático, não configurável.
-- Linha "Última alteração: DD/MM/AAAA HH:mm" lida de `updated_at`.
+---
 
-Nos modos `next_day` e `same_day`, o select de dia e o switch ficam **desabilitados** (visíveis, valor preservado no estado local; voltar para `weekday` traz a escolha de volta).
+## Item 1 — `sigma` sai do payload
 
-Botão **Salvar** habilitado só quando algo mudou, com `AlertDialog` de confirmação mostrando "atual → novo" em texto (modo, dia, pular semana) e o aviso de que isso muda o preço que vai ao produtor.
+`src/components/GeneratePricingModal.tsx`
+- Remover `sigmaMap` (145-146) e o campo `sigma` do `baseCombo` (267-269).
+- `usePricingParameters()` alimenta **apenas** o sigma neste arquivo → remover hook e import.
 
-## Arquivos
+`src/pages/Settings.tsx` (preview TARGET_PRICE, mesmo endpoint `/pricing/table`)
+- Remover `sigmaMap` (469-470) e o campo `sigma` do payload (498-500).
+- `pricingParameters` continua em uso pela aba Parâmetros → leitura preservada.
 
-**`src/hooks/useSpotSettings.ts`** (novo)
-- `useSpotSettings()` — `select * from spot_settings where id = 'default'` (single).
-- `useUpdateSpotSettings()` — apenas `UPDATE ... eq('id','default')` com `{ mode, weekday, skip_current_week }`. Sem `updated_at` (trigger no banco), sem insert/delete. Registra `logActivity('spot_settings.update', ...)` seguindo o padrão dos outros hooks. Invalida `['spot_settings']`.
+Coluna `sigma`, tipo `PricingParameter`, card "Volatilidade Implícita" e `useUpdatePricingParameter` ficam intactos.
 
-**`src/types/index.ts`**
-- `SpotSettings`: `id`, `mode: 'weekday' | 'next_day' | 'same_day'`, `weekday: number`, `skip_current_week: boolean`, `updated_at: string`.
+## Item 2 — sem alteração (reportado acima)
 
-**`src/pages/Settings.tsx`**
-- Novo componente `SpotPaymentCard` com o conteúdo acima.
-- Renderizado dentro de `ParametersTab`, após `<RoundingIncrementCard />`.
+## Item 3 — remoção do switch de ambiente
 
-## Notas técnicas
+- **Excluir** `src/lib/envState.ts` e `src/contexts/MesaEnvContext.tsx`.
+- `src/integrations/supabase/client.ts`: eliminar o Proxy de schema, `getCurrentEnv`, `getMesaEnv`, `setMesaEnv`, `isStagingEnv` e o tipo `MesaEnv`. Fica um `createClient` único exportado como `supabase`, com `supabasePublic` como alias.
+- `src/App.tsx`: remover `MesaEnvProvider`.
+- `src/components/AppLayout.tsx`: remover `useMesaEnv` e o banner amarelo.
+- `src/components/AppSidebar.tsx`: remover `useMesaEnv`, o badge "TESTE" e o bloco "Ambiente: Teste" do rodapé.
+- `src/pages/AdminUsers.tsx`: remover `useMesaEnv`; aba "Registros" sempre visível.
+- `src/pages/PendingApproval.tsx`: remover o botão "Sair do modo Teste" e os imports `getMesaEnv`/`setMesaEnv`.
+- `src/lib/activityLog.ts`: remover `getCurrentEnv` e a opção `isStaging`; gravar `is_staging: false` fixo.
+- `src/contexts/AuthContext.tsx`: remover `setCurrentEnv`/`resolveEnvFromProfile` e a leitura extra de `forced_env` que existia só para carimbar o log. `fetchProfile` e o tema seguem intactos.
+- `src/components/admin/ActivityLogTab.tsx`: inalterado (o filtro histórico de `is_staging` continua útil).
+- `profile.forced_env` deixa de ter efeito no frontend; **nenhuma coluna removida do banco**.
 
-- RLS já permite SELECT e UPDATE para `authenticated`; nenhuma migration é necessária.
-- Formatação da data de `updated_at` é só exibição (`toLocaleString('pt-BR')`), não é cálculo de regra.
-- Nenhuma função de cálculo de data de pagamento é introduzida; a tela não prevê nem valida datas.
+## Item 4 — warm-up no login (via api-proxy)
 
-## Fora do escopo
+Novo `src/lib/warmup.ts`:
+- `warmUpApi()` com guarda de módulo (`let warmed = false`) → uma vez por sessão de página.
+- Usa `callApi('/market/quotes', undefined, { method: 'GET', query: { quantity: '1' } })` — endpoint já na allowlist do api-proxy. Sem `await`, `.catch(() => {})`, resposta descartada. Nenhuma URL de backend exposta no frontend.
+- Comentário no arquivo registrando que, quando o Eduardo liberar `GET /health` na allowlist do api-proxy, basta trocar o endpoint.
 
-Combinações, armazéns, schema, Edge Functions, tabela de preços e geração de preços — nada disso é tocado.
+`src/pages/Login.tsx`: chamar `warmUpApi()` após `signIn` resolver e antes de `navigate('/')`, sem `await` — redirecionamento não é atrasado.
 
-## Validação manual
+## Detalhes técnicos
 
-1. Trocar o dia para quinta, salvar, conferir `weekday = 4` e `updated_at` novo no Supabase.
-2. Trocar o modo para `same_day`: dia e "pular semana" ficam desabilitados, dia continua visível.
-3. Voltar para `weekday`: quinta segue selecionada.
-4. Restaurar: modo `weekday`, terça, pular semana ligado.
+- Sem alteração de schema, de Edge Function ou do payload de `/pricing/table` além da remoção do `sigma`.
+- Zero cálculo financeiro adicionado no frontend.
+- Ao final: typecheck e suíte de testes.
+
+## Validação manual (Eduardo)
+
+1. Gerar tabela — preços idênticos aos de antes.
+2. Aplicar seguro manual em uma linha — deve continuar funcionando (`insurance_snapshots`).
+3. Confirmar que banner/badge de ambiente sumiram da interface.
+4. Login com servidor dormindo → primeira geração de tabela mais rápida.
