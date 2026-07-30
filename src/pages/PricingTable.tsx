@@ -60,12 +60,12 @@ const PricingTable = () => {
     const notExpired = (m: typeof marketData[0]) => !!m.exp_date && m.exp_date >= todayIso;
     const pick = (commodity: string, qty: number) =>
       marketData.filter((m) => m.commodity === commodity && notExpired(m)).sort(sortByExp).slice(0, qty);
-    const soja = pick('SOJA', cbotQty);
-    const cbot = pick('MILHO_CBOT', cbotQty);
+    const soja = pick('SOJA', sojaQty);
+    const cbot = pick('MILHO_CBOT', cornCbotQty);
     const b3 = pick('MILHO', b3Qty);
     const fx = marketData.filter(m => m.commodity === 'FX');
     return [...fx, ...soja, ...cbot, ...b3];
-  }, [marketData, cbotQty, b3Qty]);
+  }, [marketData, sojaQty, cornCbotQty, b3Qty]);
 
   const staleTickers = useMemo(() => {
     return visibleMarket.filter((m) => getHoursAgo(m.updated_at) > 24);
