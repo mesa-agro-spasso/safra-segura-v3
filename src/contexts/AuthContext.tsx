@@ -3,10 +3,6 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase, supabasePublic } from '@/integrations/supabase/client';
 import { logActivity } from '@/lib/activityLog';
 import { queryClient } from '@/lib/queryClient';
-import {
-  setCurrentEnv,
-  resolveEnvFromProfile,
-} from '@/lib/envState';
 import type { UserProfile } from '@/types';
 
 interface AuthContextType {
@@ -51,9 +47,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const p = data as UserProfile | null;
       setProfile(p);
-      // Resolve the active env from this profile. This is the single point
-      // where pending → production/staging transition happens.
-      setCurrentEnv(resolveEnvFromProfile(p), 'profile-resolved');
       // Apply theme preference to document root
       if (p?.theme === 'light') {
         document.documentElement.classList.remove('dark');
