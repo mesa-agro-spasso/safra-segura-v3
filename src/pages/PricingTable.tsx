@@ -32,8 +32,9 @@ const PricingTable = () => {
   const { data: snapshots, isLoading: loadingSnapshots } = usePricingSnapshots();
   const { data: marketData, isLoading: loadingMarket } = useMarketData();
   const { data: parameters } = usePricingParameters();
-  const cbotQty = parameters?.[0]?.cbot_ticker_count ?? 5;
-  const b3Qty = parameters?.[0]?.b3_corn_ticker_count ?? 10;
+  const sojaQty = parameters?.find((p) => p.id === 'soybean_cbot')?.ticker_count ?? 8;
+  const cornCbotQty = parameters?.find((p) => p.id === 'corn_cbot')?.ticker_count ?? 8;
+  const b3Qty = parameters?.find((p) => p.id === 'corn_b3')?.ticker_count ?? 6;
   const { data: warehouses } = useActiveArmazens();
   const navigate = useNavigate();
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());

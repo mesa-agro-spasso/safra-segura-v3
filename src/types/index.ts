@@ -172,8 +172,7 @@ export interface PricingParameter {
   sigma: number;
   target_profit_brl_per_sack: number;
   execution_spread_pct: number;
-  cbot_ticker_count: number;
-  b3_corn_ticker_count: number;
+  ticker_count: number;
   rounding_increment: number | null;
   updated_at: string;
 }
