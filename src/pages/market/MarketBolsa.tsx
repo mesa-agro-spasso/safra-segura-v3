@@ -613,6 +613,7 @@ const MarketBolsa = () => {
                       <TableHead>Ticker</TableHead>
                       <TableHead>Vencimento</TableHead>
                       <TableHead className="text-right">Preço (USD/bu)</TableHead>
+                      <TableHead className="text-right">Preço (R$/sc)</TableHead>
                       <TableHead className="text-right">NDF Estimado</TableHead>
                       <TableHead className="text-right">Spread</TableHead>
                       <TableHead className="text-right">Atualizado</TableHead>
