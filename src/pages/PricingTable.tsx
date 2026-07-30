@@ -32,8 +32,9 @@ const PricingTable = () => {
   const { data: snapshots, isLoading: loadingSnapshots } = usePricingSnapshots();
   const { data: marketData, isLoading: loadingMarket } = useMarketData();
   const { data: parameters } = usePricingParameters();
-  const cbotQty = parameters?.[0]?.cbot_ticker_count ?? 5;
-  const b3Qty = parameters?.[0]?.b3_corn_ticker_count ?? 10;
+  const sojaQty = parameters?.find((p) => p.id === 'soybean_cbot')?.ticker_count ?? 8;
+  const cornCbotQty = parameters?.find((p) => p.id === 'corn_cbot')?.ticker_count ?? 8;
+  const b3Qty = parameters?.find((p) => p.id === 'corn_b3')?.ticker_count ?? 6;
   const { data: warehouses } = useActiveArmazens();
   const navigate = useNavigate();
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
@@ -59,12 +60,12 @@ const PricingTable = () => {
     const notExpired = (m: typeof marketData[0]) => !!m.exp_date && m.exp_date >= todayIso;
     const pick = (commodity: string, qty: number) =>
       marketData.filter((m) => m.commodity === commodity && notExpired(m)).sort(sortByExp).slice(0, qty);
-    const soja = pick('SOJA', cbotQty);
-    const cbot = pick('MILHO_CBOT', cbotQty);
+    const soja = pick('SOJA', sojaQty);
+    const cbot = pick('MILHO_CBOT', cornCbotQty);
     const b3 = pick('MILHO', b3Qty);
     const fx = marketData.filter(m => m.commodity === 'FX');
     return [...fx, ...soja, ...cbot, ...b3];
-  }, [marketData, cbotQty, b3Qty]);
+  }, [marketData, sojaQty, cornCbotQty, b3Qty]);
 
   const staleTickers = useMemo(() => {
     return visibleMarket.filter((m) => getHoursAgo(m.updated_at) > 24);

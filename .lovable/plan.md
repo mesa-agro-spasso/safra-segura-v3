@@ -1,47 +1,51 @@
-## Objetivo
+## Achados da busca (leituras das colunas antigas)
 
-Tirar da interface todo resquício do seguro teórico (Black-76 ATM / OTM 5% / OTM 10%) e do sigma que o alimentava. O fluxo de seguro manual segue intacto.
+Confirmado por busca no `src/` e por consulta ao banco:
 
-## Resultado das buscas pedidas (feitas, sem alterar nada)
+| Local | Leitura hoje |
+|---|---|
+| `src/pages/Settings.tsx` (card "Quantidade de Contratos por Mercado", ~1330-1400) | `parameters[0].cbot_ticker_count` e `parameters[0].b3_corn_ticker_count`; grava o mesmo valor nas 3 linhas em loop |
+| `src/pages/market/MarketBolsa.tsx:66-67` | `cbotQty` / `b3Qty` — usados no `quantity` das chamadas CBOT (linha 117) e B3 (219) e no `slice()` de exibição (417-420) |
+| `src/pages/PricingTable.tsx:35-36` | `cbotQty` / `b3Qty` — filtram quantos vencimentos entram na tabela (62-64) |
+| `src/hooks/usePricingParameters.ts:28-38` | aceita e grava as duas colunas |
+| `src/types/index.ts:175-176` | campos do tipo `PricingParameter` |
 
-**`r.insurance` / `insurance_json`** — a única leitura da resposta da API é a própria escrita em `GeneratePricingModal.tsx:354`. Fora dela, `insurance_json` só aparece em `PricingTable.tsx` (bloco de detalhamento) e `InsuranceLayerModal.tsx` (linhas 20, 116, 246), todos previstos nesta tarefa. As demais ocorrências de "insurance" no `src/` são `is_counterparty_insurance` (ordens D24) e os tipos gerados do Supabase — sem relação. Nenhuma outra tela consome o campo.
+Nenhuma outra leitura no frontend; nenhuma nas Edge Functions.
 
-**`target_profit_brl_per_sack`** — lido apenas em `src/pages/OperacoesD24.tsx:1030-1031`. Essa página **não está roteada** (nem em `App.tsx`, nem na sidebar) desde a Wave 1. Ou seja: hoje o campo não é lido por nenhuma tela viva. **Reportado, não removido** — decisão do Eduardo.
+Estado atual no banco (confirmado): `soybean_cbot.ticker_count = 8`, `corn_cbot.ticker_count = 8`, `corn_b3.ticker_count = 6`.
 
-**`sigma` fora do card** — usado em `OperacoesD24.tsx:1149-1181` (Black-76 do MTM), também na página não roteada. Depois de remover o card, sigma deixa de ter consumidor vivo, mas a coluna e o tipo permanecem.
+Observação de escopo: `PricingTable.tsx` está no escopo negativo, mas é leitura direta das colunas que serão apagadas. Migro só essas duas linhas (fonte do valor), sem tocar em nada mais da tela — se preferir deixar de fora, avise.
 
-## Ordem de execução (leituras antes da escrita)
+## O que muda
 
-### 1. `src/pages/PricingTable.tsx` — leitura no diálogo de detalhamento
-- Remover as consts `insurance`, `insuranceLevels`, `hasInsurance` (~455-461) e toda a seção "Seguro" com ATM / OTM 5% / OTM 10% (~545-566).
-- Na seção "Seguro aplicado" (manual, permanece), remover `sourceLabel` e a linha `Fonte` — com todo prêmio manual, o rótulo perde função.
+**1. `src/types/index.ts`** — adicionar `ticker_count: number` em `PricingParameter`; remover `cbot_ticker_count` e `b3_corn_ticker_count`.
 
-### 2. `src/components/InsuranceLayerModal.tsx` — leituras
-- Linha ~116: remover `atmPremium` e iniciar `premiumStr: ''` para linhas sem snapshot. Linhas com snapshot existente seguem pré-preenchidas por `insurance_snapshots`.
-- Linhas ~246-255: remover a segunda leitura e gravar `premium_source: 'manual'` fixo.
-- Remover `insurance_json` da interface de props (linha 20).
+**2. `src/hooks/usePricingParameters.ts`** — em `useUpdatePricingParameter`: aceitar `ticker_count?: number`, remover as duas chaves antigas. Também remover a escrita de `updated_at` (a tarefa pede para não gravá-lo). Continua sendo só `UPDATE ... eq('id', id)`.
 
-### 3. `src/components/GeneratePricingModal.tsx` — escrita (por último)
-- Remover `insurance_json: r.insurance ?? {}` (linha 354) e o campo `insurance` do tipo da resposta, se declarado localmente.
+**3. `src/pages/Settings.tsx`** — o card passa a ter três campos, um por linha, no mesmo formato do card "Incremento de Arredondamento": cada campo lê `parameters.find(p => p.id === <id>)?.ticker_count`, valida inteiro entre 1 e 24 e salva com um único `updateParameter.mutateAsync({ id: <id>, ticker_count: val })` — sem loop pelas linhas.
 
-### 4. Card "Volatilidade Implícita (sigma)" em Configurações → Parâmetros
-- Remover o card inteiro (`src/pages/Settings.tsx` ~1240-1276), incluindo o handler `saveSigma` e a validação 0-2.
-- `useUpdatePricingParameter` **fica**: serve também ao arredondamento, ticker counts, lucro alvo e spread. Ajuste necessário: `sigma` passa de obrigatório a opcional na assinatura e só entra no `update` quando informado — hoje todas as chamadas passam `sigma: p.sigma` só para satisfazer o tipo; essas passagens saem.
-- `src/data/helpContent.ts:96`: remover a linha do glossário que descreve o sigma como insumo do Black-76.
-- Sem migração: coluna `sigma` e o campo no tipo `PricingParameter` permanecem.
+```text
+Soja CBOT   → soybean_cbot.ticker_count
+Milho CBOT  → corn_cbot.ticker_count
+Milho B3    → corn_b3.ticker_count
+```
 
-## Escopo negativo
-- Nenhuma alteração de schema, Edge Function, cálculo do seguro manual, detalhamento de custos, painel de basis ou diálogo de descartes.
-- `OperacoesD24.tsx` / `ArmazensD24.tsx` não são tocados nesta tarefa.
-- Zero cálculo financeiro no frontend.
+Cada campo mostra "Atual: N" e tem seu próprio botão Salvar e sua própria chave em `values`.
+
+**4. `src/pages/market/MarketBolsa.tsx`** — trocar as duas consts por três, lidas por id:
+`sojaQty` (`soybean_cbot`), `cornCbotQty` (`corn_cbot`), `b3Qty` (`corn_b3`). Aplicar cada uma na sua chamada e no seu `slice()`: soja usa `sojaQty` (linhas 117 quando a busca é de soja e 417), milho CBOT usa `cornCbotQty` (117 quando milho e 419), B3 usa `b3Qty` (219 e 420).
+
+**5. `src/pages/PricingTable.tsx`** — mesma troca nas linhas 35-36 e nos `pick('SOJA', …)`, `pick('MILHO_CBOT', …)`, `pick('MILHO', …)`.
+
+Fallbacks passam a ser 8 / 8 / 6, coerentes com o banco.
+
+## Fora de escopo
+Sem migração, sem alterar schema, sem Edge Function, sem INSERT/DELETE, sem tocar nos outros cards de Parâmetros nem na geração da tabela de preços.
 
 ## Verificação
-- Typecheck + suíte de testes.
-- Busca por `insurance_json` no `src/` deve sobrar apenas nos tipos gerados do Supabase.
+Typecheck + suíte de testes; busca por `cbot_ticker_count` / `b3_corn_ticker_count` no `src/` deve sobrar apenas nos tipos gerados do Supabase.
 
 ## Validação manual (Eduardo)
-1. Detalhamento de uma linha: nenhum bloco de seguro teórico.
-2. Seguro manual aplica normalmente, com prêmio em branco.
-3. Novo registro em `insurance_snapshots` com `premium_source = 'manual'`.
-4. Novo snapshot de tabela sem `insurance_json` preenchido.
-5. Aba Parâmetros sem o card de sigma; arredondamento, ticker counts e lucro alvo continuam salvando.
+1. Trocar o milho B3 para 5, salvar, conferir no Supabase que só a linha `corn_b3` mudou.
+2. Abrir a tela de Mercado: milho B3 com 5 vencimentos, soja e milho CBOT com 8.
+3. Restaurar: soja 8, milho CBOT 8, milho B3 6.

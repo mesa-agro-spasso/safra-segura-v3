@@ -63,8 +63,9 @@ interface B3SavedPrice {
 const MarketBolsa = () => {
   const { data: marketData, isLoading } = useMarketData();
   const { data: parameters } = usePricingParameters();
-  const cbotQty = parameters?.[0]?.cbot_ticker_count ?? 5;
-  const b3Qty = parameters?.[0]?.b3_corn_ticker_count ?? 10;
+  const sojaQty = parameters?.find((p) => p.id === 'soybean_cbot')?.ticker_count ?? 8;
+  const cornCbotQty = parameters?.find((p) => p.id === 'corn_cbot')?.ticker_count ?? 8;
+  const b3Qty = parameters?.find((p) => p.id === 'corn_b3')?.ticker_count ?? 6;
   const upsertMarket = useUpsertMarketData();
   const queryClient = useQueryClient();
   const [fetchingOp, setFetchingOp] = useState<'fx' | 'soybean' | 'corn_cbot' | 'corn_b3' | 'all' | 'markets' | null>(null);
@@ -114,7 +115,7 @@ const MarketBolsa = () => {
   // ---- Atomic functions ----
 
   const fetchQuotes = async (fxOverride?: number) => {
-    const query: Record<string, string> = { quantity: String(cbotQty) };
+    const query: Record<string, string> = { quantity: String(Math.max(sojaQty, cornCbotQty)) };
     if (fxOverride !== undefined) {
       query.fx_override = fxOverride.toString();
     }
@@ -414,9 +415,9 @@ const MarketBolsa = () => {
   const todayIso = new Date().toISOString().split('T')[0];
   const isNotExpired = (m: { exp_date?: string | null }) => !!m.exp_date && m.exp_date >= todayIso;
   const soybeanRows = (marketData?.filter(m => m.commodity === 'SOJA' && isNotExpired(m) && m.price != null) ?? [])
-    .sort(sortByExpDate).slice(0, cbotQty);
+    .sort(sortByExpDate).slice(0, sojaQty);
   const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT' && isNotExpired(m) && m.price != null) ?? [])
-    .sort(sortByExpDate).slice(0, cbotQty);
+    .sort(sortByExpDate).slice(0, cornCbotQty);
   const visibleB3Tickers = b3Tickers.filter(isNotExpired).slice(0, b3Qty);
   const fxRow = dataMap['USD/BRL'];
 
