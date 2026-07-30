@@ -1203,3 +1203,12 @@ INSERT INTO public.warehouses (id, display_name, city, state, type, active, basi
 INSERT INTO public.warehouses (id, display_name, city, state, type, active, basis_config, abbr, interest_rate, interest_rate_period, storage_cost, storage_cost_type, reception_cost, brokerage_per_contract_cbot, brokerage_per_contract_b3, desk_cost_pct, shrinkage_rate_monthly, deleted_at) VALUES ('vianopolis', 'Vianópolis', 'Vianópolis', 'GO', 'ARMAZEM', true, '{"soybean": {"mode": "fixed", "value": -19}}'::jsonb, 'VIA', 1.4, 'monthly', 4, 'fixed', 0, 15, 12, 0.003, 0.003, NULL) ON CONFLICT (id) DO NOTHING;
 
 -- FIM DO SNAPSHOT
+
+-- AVISOS DE FIDELIDADE (o banco atual é assim, não corrigimos aqui):
+--  - public.has_role() referencia public.user_roles, que NÃO existe no
+--    banco. A função é legado e não é usada por nenhuma policy.
+--  - public.handle_new_user_profile() escreve também em
+--    staging.user_profiles (schema staging, depreciado).
+--  - public.generate_hedge_order_display_code() e
+--    set_hedge_order_display_code() referenciam hedge_orders, tabela que
+--    não existe mais. Legado, sem trigger associado.
