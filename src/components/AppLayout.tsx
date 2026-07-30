@@ -4,7 +4,7 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { HelpDrawer } from '@/components/HelpDrawer';
 import { KeepAliveOutlet, KeepAliveRoute } from '@/components/KeepAliveOutlet';
 import { AdminRoute } from '@/components/AdminRoute';
-import { useMesaEnv } from '@/contexts/MesaEnvContext';
+
 import { FEATURES } from '@/config/features';
 import PricingTable from '@/pages/PricingTable';
 import Approvals from '@/pages/Approvals';
@@ -30,7 +30,6 @@ const routes: KeepAliveRoute[] = [
 ];
 
 export function AppLayout() {
-  const { isStaging } = useMesaEnv();
   const { pathname } = useLocation();
   const showHelp = pathname !== '/ajuda';
   return (
@@ -38,11 +37,6 @@ export function AppLayout() {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col">
-          {isStaging && (
-            <div className="bg-yellow-500 text-black text-center text-xs font-bold py-1 tracking-wider">
-              ⚠️ AMBIENTE DE TESTE — dados fictícios, alterações não afetam produção
-            </div>
-          )}
           <header className="h-12 flex items-center border-b border-border px-4">
             <SidebarTrigger className="mr-4" />
             <h1 className="text-sm font-semibold text-foreground/80">Mesa Integrada de Hedge</h1>

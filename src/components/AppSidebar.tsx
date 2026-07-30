@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
 import { supabase } from '@/integrations/supabase/client';
-import { useMesaEnv } from '@/contexts/MesaEnvContext';
+
 import { FEATURES } from '@/config/features';
 import logoLight from '/logo-spasso.png';
 import logoDark from '/logo-spasso-dark.png';
@@ -47,7 +47,7 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { signOut, user, profile } = useAuth();
   const { isAdmin } = useAuthorization();
-  const { isStaging, isPending } = useMesaEnv();
+  
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
   const { data: userRoles = [] } = useQuery({
     queryKey: ['sidebar-user-roles', user?.id],
@@ -75,13 +75,6 @@ export function AppSidebar() {
               </>
             )}
           </div>
-          {isStaging && (
-            <div className={`flex justify-center ${collapsed ? 'pb-2' : 'pb-2 px-3'}`}>
-              <Badge variant="destructive" className={collapsed ? 'h-5 px-1 text-[9px]' : 'w-full justify-center text-[10px] font-bold tracking-wider bg-yellow-500 text-black hover:bg-yellow-500'}>
-                {collapsed ? 'T' : 'TESTE'}
-              </Badge>
-            </div>
-          )}
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -164,13 +157,6 @@ export function AppSidebar() {
                 {userRoles.map(formatRole).join(' · ')}
               </p>
             )}
-          </div>
-        )}
-        {!collapsed && isStaging && !isPending && (
-          <div className="mb-2 rounded-md border border-yellow-500/50 px-2 py-1.5">
-            <span className="text-[11px] text-sidebar-foreground/70">
-              Ambiente: <span className="font-bold text-yellow-500">Teste</span>
-            </span>
           </div>
         )}
 
