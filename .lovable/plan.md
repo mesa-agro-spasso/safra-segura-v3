@@ -1,51 +1,52 @@
-# Câmbio: frontend para de escolher, API resolve
+## 1. Allowlist do api-proxy (fonte da verdade volta ao repositório)
 
-## Arquivos alterados
-- `src/components/GeneratePricingModal.tsx` (payload, validações, persistência)
-- `src/components/DiscardedCombinationsList.tsx` (três motivos novos)
+`supabase/functions/api-proxy/index.ts` — substituir apenas as duas listas pelas fornecidas. Nada mais no arquivo muda: verificação, timeout de 120s, headers `X-API-Key`, tratamento de abort/erro ficam idênticos.
 
-Nada mais: sem schema, sem Edge Function, sem tela de Mercado, sem formulários.
+Confirmado contra o Swagger de produção (`/openapi.json`), que hoje expõe: `/pricing/table`, `/pricing/insurance-layer`, `/market/quotes`, `/market/b3-corn-quotes`, `/market/fx-parameters`, `/utils/sacks-to-contracts`, `/utils/convert-price`, `/health`. `/pricing/option-premium` de fato não existe mais.
 
-## 1. Payload de `POST /pricing/table`
+Observação de comportamento, não uma mudança: POST usa `includes()` (match exato), então `'/closing/'` só libera o path literal `/closing/`. GET usa `startsWith()`, então prefixos funcionam. Mantenho a lógica como está, conforme instruído.
 
-Nível da requisição, um por geração:
+Depois da edição, deploy do `api-proxy`.
+
+## 2. Warm-up
+
+`src/lib/warmup.ts` — trocar a chamada por `callApi('/health', undefined, { method: 'GET' })`, sem `query`, e remover o comentário NOTA sobre a allowlist. Continua silencioso, uma vez por sessão, erro engolido.
+
+## 3. `/utils/convert-price` NÃO aceita lista
+
+Contrato do Swagger:
 
 ```text
-{ trade_date, spot_usd_brl, combinations: [...] }
+POST /utils/convert-price
+{ value: number, from_unit, to_unit, commodity, exchange_rate: number }
+→ { value_converted, from_unit, to_unit, commodity, exchange_rate_used }
 ```
 
-`spot_usd_brl` = `price` do registro `USD/BRL` de `market_data` (o mesmo valor já usado hoje como `spotRate` no modal, que reflete o `fx_override` gravado pela mesa na tela de Mercado).
+`value` é escalar e não há endpoint de lote. Reportado conforme instruído: **fica uma chamada por linha**.
 
-Por linha:
-- Remover `exchange_rate` do `baseCombo` — deixa de ser enviado em qualquer linha, CBOT ou B3. Some também toda a lógica atual de escolher entre `ndf_estimated` e spot (linhas ~221-233).
-- Novo `exchange_rate_override`, opcional: enviado **apenas** para linhas CBOT (soja CBOT e milho CBOT) quando `market_data[ticker].ndf_override` estiver preenchido. Omitido quando nulo.
-- Milho B3: nunca envia `exchange_rate` nem `exchange_rate_override` (retorna 422).
+Quantas chamadas a tela passa a fazer: uma por linha CBOT **que tenha `ndf_estimated` e `price`**, ou seja no máximo 8 de soja + 8 de milho CBOT = **16 por carregamento**, com cache do React Query por `ticker + price + ndf_estimated` — remontar a aba sem mudança de dado não refaz as chamadas; um novo fetch de mercado refaz só as linhas cujo preço ou NDF mudou.
 
-## 2. Validações do modal
+## 4. Coluna "Preço (R$/sc)" na tela de Mercado
 
-- `spot_usd_brl` passa a ser obrigatório para **qualquer** geração que contenha linha CBOT (hoje só bloqueia quando há soja). Sem USD/BRL disponível → botão desabilitado e mensagem já existente.
-- Remover o bloqueio "NDF indisponível para milho CBOT" (`cornCbotMissingNdf`): `ndf_estimated` deixa de ser insumo de precificação, logo sua ausência não pode mais impedir a geração.
-- Manter o bloqueio de dados de mercado desatualizados (>24h) para milho CBOT — é sobre o preço do futuro, não sobre o câmbio.
-- Manter os avisos de B3 sem preço.
+Novo hook `src/hooks/useConvertedPrices.ts`:
+- Recebe a lista de linhas (`ticker`, `price`, `ndf_estimated`, commodity da API: `soybean` | `corn`).
+- Um `useQueries` do React Query, uma query por linha com NDF presente, chamando `callApi('/utils/convert-price', { value: price, from_unit: 'usd_per_bushel', to_unit: 'brl_per_sack', commodity, exchange_rate: ndf_estimated })`.
+- `staleTime` alto; linhas sem `ndf_estimated` ou sem `price` não geram query.
+- Devolve `Map<ticker, number | null>`.
 
-## 3. Persistência do snapshot
+`src/pages/market/MarketBolsa.tsx`:
+- Coluna nova logo após "Preço (USD/bu)", nas tabelas de **Soja CBOT** e **Milho CBOT**: cabeçalho `Preço (R$/sc)`, alinhado à direita.
+- Célula: `value_converted` formatado em pt-BR com 2 casas; `—` quando não há NDF estimado, enquanto carrega ou se a chamada falhar. Nunca usa o spot como substituto.
+- **Milho B3**: nenhuma alteração — preço já é BRL/saca.
 
-`exchange_rate` do snapshot passa a vir da resposta da API (`r.exchange_rate`), não mais do payload enviado. Em `inputs_json`, trocar `exchange_rate` por `exchange_rate_override` (o que de fato foi enviado). A coluna Câmbio da tabela e os detalhes seguem lendo `snap.exchange_rate` — sem alteração de código lá, mas passam a mostrar a taxa resolvida pela API.
+Zero aritmética: nenhuma multiplicação, nenhum fator bushel/saca em TypeScript. Só `toLocaleString` do número devolvido pela API.
 
-## 4. Descartes novos
-
-Em `reasonText`, três casos, mantendo o fallback para `detail`:
-
-- `FX_MATURITY_NOT_AFTER_TRADE_DATE` → "Data de venda não é posterior à data de negociação."
-- `FX_RATE_NOT_POSITIVE` → "Câmbio resultante inválido. Verifique os parâmetros de câmbio."
-- `FX_PARAMETERS_UNAVAILABLE` → "Parâmetros de câmbio indisponíveis. Tente novamente."
-
-## Ponto a confirmar na primeira geração
-O nome do campo de câmbio resolvido na resposta da API é assumido como `exchange_rate` no objeto de resultado. Se vier com outro nome, a coluna Câmbio aparecerá vazia e o ajuste é de uma linha.
+## Escopo negativo respeitado
+Sem schema, sem tabela de preços, sem `/pricing/table`, sem formulários de combinação/armazém, sem tocar em NDF estimado ou spread.
 
 ## Validação manual (Eduardo)
-1. Gerar tabela: preços de soja devem CAIR (R$0,40 a R$3,10/sc).
-2. Milho B3 idêntico ao anterior.
-3. ZSF27 da praça 050 cai ~R$3,10/sc.
-4. Coluna Câmbio mostra a taxa da API, não o `ndf_estimated` do ticker.
-5. Snapshot salvo com `exchange_rate` = taxa resolvida.
+1. Aplicar seguro manual numa linha da tabela de preços — prova que a allowlist não regrediu.
+2. Gerar tabela de preços normalmente.
+3. Tela de Mercado: coluna R$/sc em Soja CBOT e Milho CBOT; Milho B3 inalterado; linha sem NDF mostra traço.
+4. Login com servidor dormindo: sem erro no console (warm-up via `/health`).
+5. O valor em R$/sc diverge do câmbio da tabela de preços — esperado, são prazos diferentes.
