@@ -579,6 +579,7 @@ const MarketBolsa = () => {
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.price != null ? row.price.toFixed(2) : '-'}</TableCell>
+                        <TableCell className="text-right">{fmtBrl(soybeanBrl.get(row.ticker))}</TableCell>
                         <TableCell className="text-right">{row.ndf_estimated?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spread?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
