@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { logActivity } from '@/lib/activityLog';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMesaEnv } from '@/contexts/MesaEnvContext';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -458,25 +458,20 @@ const UsersTab = () => {
 };
 
 const AdminUsers = () => {
-  const { env } = useMesaEnv();
-  const showRegistros = env === 'production';
-
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold tracking-tight">Administração</h2>
       <Tabs defaultValue="usuarios">
         <TabsList>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
-          {showRegistros && <TabsTrigger value="registros">Registros</TabsTrigger>}
+          <TabsTrigger value="registros">Registros</TabsTrigger>
         </TabsList>
         <TabsContent value="usuarios" className="mt-4">
           <UsersTab />
         </TabsContent>
-        {showRegistros && (
-          <TabsContent value="registros" className="mt-4">
-            <ActivityLogTab />
-          </TabsContent>
-        )}
+        <TabsContent value="registros" className="mt-4">
+          <ActivityLogTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
