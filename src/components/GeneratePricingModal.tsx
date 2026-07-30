@@ -212,19 +212,12 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         return warehouse[warehouseField] ?? null;
       };
 
-      // Resolve exchange_rate per commodity/benchmark
-      let exchangeRate: number | null = null;
-      if (combo.commodity === 'soybean') {
-        exchangeRate = market.ndf_estimated ?? spotRate;
-      } else if (combo.commodity === 'corn' && combo.benchmark === 'cbot') {
-        // Corn CBOT uses the per-maturity NDF. No spot fallback (blocked above).
-        if (market.ndf_estimated == null) {
-          toast.error(`NDF indisponível para ${combo.ticker} — atualize os dados na aba Mercado`);
-          return;
-        }
-        exchangeRate = market.ndf_estimated;
-      }
-      // corn + b3: no exchange_rate (null)
+      // ZERO CÁLCULO DE CÂMBIO NO FRONTEND.
+      // A API resolve a taxa a partir do spot enviado no nível da requisição.
+      // Só repassamos o override manual da mesa, e apenas em linhas CBOT
+      // (milho B3 com qualquer campo de câmbio retorna 422).
+      const isCbot = combo.benchmark === 'cbot';
+      const fxOverride = isCbot ? market.ndf_override ?? null : null;
 
       const pricingMethod = combo.pricing_method ?? 'LONG_BASIS';
 
@@ -243,7 +236,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         pricing_method: pricingMethod,
 
         futures_price: market.price,
-        exchange_rate: exchangeRate,
+        ...(fxOverride != null ? { exchange_rate_override: fxOverride } : {}),
+
         interest_rate: inheritCost('interest_rate', 'interest_rate'),
         interest_rate_period: interestRatePeriod,
 
