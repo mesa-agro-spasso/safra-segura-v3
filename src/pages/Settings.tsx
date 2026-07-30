@@ -1311,7 +1311,7 @@ function ParametersTab() {
                   for (const p of parameters ?? []) {
                     await updateParameter.mutateAsync({
                       id: p.id,
-                      sigma: p.sigma,
+                      
                       target_profit_brl_per_sack: p.target_profit_brl_per_sack,
                       execution_spread_pct: val,
                     });
