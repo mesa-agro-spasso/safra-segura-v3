@@ -1,52 +1,68 @@
-## 1. Allowlist do api-proxy (fonte da verdade volta ao repositório)
+## Objetivo
 
-`supabase/functions/api-proxy/index.ts` — substituir apenas as duas listas pelas fornecidas. Nada mais no arquivo muda: verificação, timeout de 120s, headers `X-API-Key`, tratamento de abort/erro ficam idênticos.
+Criar um único arquivo de snapshot com o schema completo do banco como está hoje, mais as linhas de configuração. Nenhuma migration é executada.
 
-Confirmado contra o Swagger de produção (`/openapi.json`), que hoje expõe: `/pricing/table`, `/pricing/insurance-layer`, `/market/quotes`, `/market/b3-corn-quotes`, `/market/fx-parameters`, `/utils/sacks-to-contracts`, `/utils/convert-price`, `/health`. `/pricing/option-premium` de fato não existe mais.
+## Caminho do arquivo
 
-Observação de comportamento, não uma mudança: POST usa `includes()` (match exato), então `'/closing/'` só libera o path literal `/closing/`. GET usa `startsWith()`, então prefixos funcionam. Mantenho a lógica como está, conforme instruído.
+`supabase/schema/20260730_snapshot.sql` — **fora** de `supabase/migrations/`, de propósito: dentro da pasta de migrations a plataforma rodaria as 16 antigas primeiro e os `CREATE TABLE IF NOT EXISTS` do snapshot não fariam nada, deixando de fora tudo que foi adicionado depois de maio.
 
-Depois da edição, deploy do `api-proxy`.
-
-## 2. Warm-up
-
-`src/lib/warmup.ts` — trocar a chamada por `callApi('/health', undefined, { method: 'GET' })`, sem `query`, e remover o comentário NOTA sobre a allowlist. Continua silencioso, uma vez por sessão, erro engolido.
-
-## 3. `/utils/convert-price` NÃO aceita lista
-
-Contrato do Swagger:
+### Cabeçalho do arquivo
 
 ```text
-POST /utils/convert-price
-{ value: number, from_unit, to_unit, commodity, exchange_rate: number }
-→ { value_converted, from_unit, to_unit, commodity, exchange_rate_used }
+-- SNAPSHOT DECLARATIVO DO SCHEMA — 30/07/2026
+-- Isto NÃO é uma migration. Não é aplicado automaticamente por deploy,
+-- db push ou db reset. É um documento de referência do estado do banco
+-- de produção nesta data, para ser aplicado MANUALMENTE ao recriar o projeto.
+-- As migrations em supabase/migrations/ estão INCOMPLETAS a partir de
+-- 28/05/2026: alterações feitas por SQL direto nunca foram versionadas.
 ```
 
-`value` é escalar e não há endpoint de lote. Reportado conforme instruído: **fica uma chamada por linha**.
+## Como o schema será extraído
 
-Quantas chamadas a tela passa a fazer: uma por linha CBOT **que tenha `ndf_estimated` e `price`**, ou seja no máximo 8 de soja + 8 de milho CBOT = **16 por carregamento**, com cache do React Query por `ticker + price + ndf_estimated` — remontar a aba sem mudança de dado não refaz as chamadas; um novo fetch de mercado refaz só as linhas cujo preço ou NDF mudou.
+`pg_dump` não está disponível nesta plataforma e esta sessão não tem `psql` (variáveis `PG*` ausentes). A extração usa **consultas de leitura ao catálogo do Postgres**, que devolvem o DDL gerado pelo próprio banco — não é redação à mão:
 
-## 4. Coluna "Preço (R$/sc)" na tela de Mercado
+- Tabelas e colunas: `information_schema.columns` + defaults literais
+- Constraints (PK, FK, unique, check): `pg_get_constraintdef()`
+- Índices: `pg_indexes.indexdef`
+- Enums: `pg_type` / `pg_enum` (ex.: `app_role`)
+- Funções: `pg_get_functiondef()` (todas, incluindo as `security definer`)
+- Triggers: `pg_get_triggerdef()` (inclui `spot_settings_updated_at` e `fx_parameters_updated_at`)
+- Policies de RLS: `pg_policies` + `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
+- Grants: `information_schema.role_table_grants` para `anon`, `authenticated`, `service_role`
 
-Novo hook `src/hooks/useConvertedPrices.ts`:
-- Recebe a lista de linhas (`ticker`, `price`, `ndf_estimated`, commodity da API: `soybean` | `corn`).
-- Um `useQueries` do React Query, uma query por linha com NDF presente, chamando `callApi('/utils/convert-price', { value: price, from_unit: 'usd_per_bushel', to_unit: 'brl_per_sack', commodity, exchange_rate: ndf_estimated })`.
-- `staleTime` alto; linhas sem `ndf_estimated` ou sem `price` não geram query.
-- Devolve `Map<ticker, number | null>`.
+Os `INSERT` de configuração saem de `SELECT` nas próprias tabelas, convertidos em SQL literal.
 
-`src/pages/market/MarketBolsa.tsx`:
-- Coluna nova logo após "Preço (USD/bu)", nas tabelas de **Soja CBOT** e **Milho CBOT**: cabeçalho `Preço (R$/sc)`, alinhado à direita.
-- Célula: `value_converted` formatado em pt-BR com 2 casas; `—` quando não há NDF estimado, enquanto carrega ou se a chamada falhar. Nunca usa o spot como substituto.
-- **Milho B3**: nenhuma alteração — preço já é BRL/saca.
+## Ordem dos objetos no arquivo
 
-Zero aritmética: nenhuma multiplicação, nenhum fator bushel/saca em TypeScript. Só `toLocaleString` do número devolvido pela API.
+```text
+0. Cabeçalho explicativo
+1. CREATE TYPE (enums)
+2. CREATE TABLE (todas as tabelas do schema public)
+3. GRANT por tabela (conforme o estado atual)
+4. ALTER TABLE ... ENABLE ROW LEVEL SECURITY
+5. CREATE POLICY
+6. Índices e constraints adicionais
+7. CREATE OR REPLACE FUNCTION
+8. CREATE TRIGGER
+9. INSERT de configuração
+```
 
-## Escopo negativo respeitado
-Sem schema, sem tabela de preços, sem `/pricing/table`, sem formulários de combinação/armazém, sem tocar em NDF estimado ou spread.
+## Dados de configuração incluídos
 
-## Validação manual (Eduardo)
-1. Aplicar seguro manual numa linha da tabela de preços — prova que a allowlist não regrediu.
-2. Gerar tabela de preços normalmente.
-3. Tela de Mercado: coluna R$/sc em Soja CBOT e Milho CBOT; Milho B3 inalterado; linha sem NDF mostra traço.
-4. Login com servidor dormindo: sem erro no console (warm-up via `/health`).
-5. O valor em R$/sc diverge do câmbio da tabela de preços — esperado, são prazos diferentes.
+- `pricing_parameters` — 3 linhas (`soybean_cbot`, `corn_cbot`, `corn_b3`), com `ticker_count` e `rounding_increment`
+- `spot_settings` — 1 linha (`default`)
+- `fx_parameters` — 1 linha (`default`)
+- `warehouses` — as 13 praças, com `basis_config`, custos e `abbr`
+
+Excluídos: `pricing_combinations`, `pricing_snapshots`, `operations`, `orders`, `market_data`, `market_data_history`, `historical_basis`, `activity_log`, `users`, `user_profiles`, `producers` e demais tabelas transacionais.
+
+## Escopo negativo
+
+- Nenhuma migration aplicada, sem `db push` nem `db reset`; as consultas ao banco são exclusivamente `SELECT` no catálogo.
+- Migrations antigas intactas.
+- `types.ts` não é regenerado.
+- Nenhum arquivo de código da aplicação alterado.
+
+## Entrega
+
+Caminho do arquivo, contagem de tabelas, lista de triggers, contagem de policies por tabela e as linhas de configuração incluídas — com confirmação explícita de que nada foi aplicado ao banco.
