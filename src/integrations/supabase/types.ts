@@ -881,6 +881,7 @@ export type Database = {
           rounding_increment: number | null
           sigma: number
           target_profit_brl_per_sack: number | null
+          ticker_count: number | null
           updated_at: string | null
         }
         Insert: {
@@ -891,6 +892,7 @@ export type Database = {
           rounding_increment?: number | null
           sigma: number
           target_profit_brl_per_sack?: number | null
+          ticker_count?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -901,6 +903,7 @@ export type Database = {
           rounding_increment?: number | null
           sigma?: number
           target_profit_brl_per_sack?: number | null
+          ticker_count?: number | null
           updated_at?: string | null
         }
         Relationships: []
