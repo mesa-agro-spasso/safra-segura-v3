@@ -27,6 +27,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from 'sonner';
 import { usePricingParameters, useUpdatePricingParameter } from '@/hooks/usePricingParameters';
 import { useSpotSettings, useUpdateSpotSettings } from '@/hooks/useSpotSettings';
+import { useFxParameters, useUpdateFxParameters } from '@/hooks/useFxParameters';
 import { callApi } from '@/lib/api';
 import type { Warehouse, PricingCombination, PricingParameter, SpotSettings } from '@/types';
 
@@ -1378,9 +1379,242 @@ function ParametersTab() {
       </Card>
       <RoundingIncrementCard parameters={parameters ?? []} />
       <SpotPaymentCard />
+      <FxParametersCard />
     </div>
   );
 }
+
+function FxParametersCard() {
+  const { data: fx, isLoading } = useFxParameters();
+  const updateFx = useUpdateFxParameters();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [confirmingHaircut, setConfirmingHaircut] = useState(false);
+
+  if (isLoading) return null;
+  if (!fx) return null;
+
+  const draft = (key: string, current: string | number | null) =>
+    drafts[key] ?? (current == null ? '' : String(current));
+
+  const set = (key: string, v: string) => setDrafts((d) => ({ ...d, [key]: v }));
+  const clear = (key: string) => setDrafts((d) => { const n = { ...d }; delete n[key]; return n; });
+
+  const haircutRaw = draft('safety_haircut_brl', fx.safety_haircut_brl).trim();
+  const haircutParsed = haircutRaw === '' ? null : parseDecimalInput(haircutRaw);
+  const haircutError =
+    haircutRaw === ''
+      ? 'Informe um valor (0 = sem margem)'
+      : haircutParsed === null
+        ? 'Valor inválido'
+        : haircutParsed < 0
+          ? 'Não é permitido valor negativo'
+          : null;
+  const haircutChanged = haircutParsed !== null && haircutParsed !== fx.safety_haircut_brl;
+
+  const saveNumeric = async (
+    key: 'short_bucket_carry_ann' | 'long_bucket_carry_ann',
+    label: string,
+  ) => {
+    const raw = draft(key, fx[key]).trim();
+    const val = parseDecimalInput(raw);
+    if (val === null) { toast.error('Valor inválido'); return; }
+    try {
+      await updateFx.mutateAsync({ [key]: val });
+      toast.success(`${label} atualizado`);
+      clear(key);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+    }
+  };
+
+  const saveMaxDays = async () => {
+    const raw = draft('short_bucket_max_days', fx.short_bucket_max_days).trim();
+    const val = parseInt(raw, 10);
+    if (isNaN(val) || val < 1 || String(val) !== raw) { toast.error('Informe um inteiro positivo'); return; }
+    try {
+      await updateFx.mutateAsync({ short_bucket_max_days: val });
+      toast.success('Fronteira de prazo atualizada');
+      clear('short_bucket_max_days');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+    }
+  };
+
+  const saveCalibration = async () => {
+    const date = draft('calibration_date', fx.calibration_date).trim();
+    const source = draft('calibration_source', fx.calibration_source);
+    try {
+      await updateFx.mutateAsync({
+        calibration_date: date === '' ? null : date,
+        calibration_source: source.trim() === '' ? null : source.trim(),
+      });
+      toast.success('Calibração atualizada');
+      clear('calibration_date');
+      clear('calibration_source');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+    }
+  };
+
+  const saveHaircut = async () => {
+    if (haircutError || haircutParsed === null) return;
+    try {
+      await updateFx.mutateAsync({ safety_haircut_brl: haircutParsed });
+      toast.success('Margem de segurança atualizada');
+      clear('safety_haircut_brl');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+    } finally {
+      setConfirmingHaircut(false);
+    }
+  };
+
+  const calibrationChanged =
+    draft('calibration_date', fx.calibration_date).trim() !== (fx.calibration_date ?? '') ||
+    draft('calibration_source', fx.calibration_source) !== (fx.calibration_source ?? '');
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-sm">Câmbio</CardTitle></CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Curva de carrego do modelo de câmbio. Estes valores vêm de calibração contra cotações da StoneX — não são escolha livre.
+            Taxas anuais em decimal (ex: 0.12 = 12% a.a.).
+          </p>
+          <div className="flex items-end gap-3 max-w-md">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Carrego anual — prazo curto</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={draft('short_bucket_carry_ann', fx.short_bucket_carry_ann)}
+                onChange={(e) => set('short_bucket_carry_ann', e.target.value)}
+              />
+              <p className="text-[10px] text-muted-foreground">Atual: {fx.short_bucket_carry_ann}</p>
+            </div>
+            <Button
+              size="sm"
+              disabled={updateFx.isPending}
+              onClick={() => saveNumeric('short_bucket_carry_ann', 'Carrego de prazo curto')}
+            >Salvar</Button>
+          </div>
+          <div className="flex items-end gap-3 max-w-md">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Carrego anual — prazo longo</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={draft('long_bucket_carry_ann', fx.long_bucket_carry_ann)}
+                onChange={(e) => set('long_bucket_carry_ann', e.target.value)}
+              />
+              <p className="text-[10px] text-muted-foreground">Atual: {fx.long_bucket_carry_ann}</p>
+            </div>
+            <Button
+              size="sm"
+              disabled={updateFx.isPending}
+              onClick={() => saveNumeric('long_bucket_carry_ann', 'Carrego de prazo longo')}
+            >Salvar</Button>
+          </div>
+          <div className="flex items-end gap-3 max-w-md">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Fronteira de prazo (dias)</Label>
+              <Input
+                type="number"
+                step="1"
+                min="1"
+                value={draft('short_bucket_max_days', fx.short_bucket_max_days)}
+                onChange={(e) => set('short_bucket_max_days', e.target.value)}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Até este número de dias vale a taxa curta; acima dele, a longa. Atual: {fx.short_bucket_max_days} dias
+              </p>
+            </div>
+            <Button size="sm" disabled={updateFx.isPending} onClick={saveMaxDays}>Salvar</Button>
+          </div>
+        </div>
+
+        <div className="space-y-2 border-t border-border pt-4">
+          <div className="flex items-start gap-3 max-w-md">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Margem de segurança (R$/USD)</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={draft('safety_haircut_brl', fx.safety_haircut_brl)}
+                onChange={(e) => set('safety_haircut_brl', e.target.value)}
+              />
+              {haircutError ? (
+                <p className="text-[10px] text-destructive">{haircutError}</p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  Atual: R$ {fx.safety_haircut_brl}/USD{fx.safety_haircut_brl === 0 ? ' — sem margem' : ''}
+                </p>
+              )}
+            </div>
+            <AlertDialog open={confirmingHaircut} onOpenChange={setConfirmingHaircut}>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" className="mt-5" disabled={!!haircutError || !haircutChanged || updateFx.isPending}>
+                  Salvar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Alterar margem de segurança</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Valor atual: <strong>R$ {fx.safety_haircut_brl}/USD</strong> → novo valor:{' '}
+                    <strong>R$ {haircutRaw}/USD</strong>.{' '}
+                    Este campo muda o preço que vai ao produtor.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={saveHaircut}>Confirmar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+          <p className="text-xs text-amber-500 max-w-2xl">
+            É subtraída da taxa de câmbio depois do carrego, sempre para baixo. Cada centavo reduz o preço em cerca de
+            R$0,22/sc na soja e R$0,09/sc no milho. Zero significa sem margem.
+          </p>
+        </div>
+
+        <div className="space-y-3 border-t border-border pt-4">
+          <p className="text-xs text-muted-foreground">
+            Registro de quando e contra o que o modelo foi calibrado.
+          </p>
+          <div className="flex items-end gap-3 max-w-md">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Data da calibração</Label>
+              <DateInput
+                value={draft('calibration_date', fx.calibration_date)}
+                onChange={(v) => set('calibration_date', v)}
+              />
+            </div>
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Fonte da calibração</Label>
+              <Input
+                type="text"
+                placeholder="ex: StoneX"
+                value={draft('calibration_source', fx.calibration_source)}
+                onChange={(e) => set('calibration_source', e.target.value)}
+              />
+            </div>
+            <Button size="sm" disabled={updateFx.isPending || !calibrationChanged} onClick={saveCalibration}>
+              Salvar
+            </Button>
+          </div>
+        </div>
+
+        <p className="text-[10px] text-muted-foreground">
+          Última alteração: {new Date(fx.updated_at).toLocaleString('pt-BR')}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 
 function AlcadasTab() {
   const { profile } = useAuth();
