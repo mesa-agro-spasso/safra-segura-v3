@@ -292,6 +292,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         discarded?: DiscardedCombination[];
       }>('/pricing/table', {
         trade_date: tradeDate,
+        // Dólar à vista da mesa (market_data USD/BRL, já refletindo fx_override).
+        spot_usd_brl: spotRate,
         combinations: payload,
       });
 
