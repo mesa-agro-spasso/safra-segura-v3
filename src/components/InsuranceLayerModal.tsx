@@ -17,7 +17,7 @@ interface Row {
   commodity: string;
   warehouse_id: string;
   origination_price_brl: number;
-  insurance_json?: Record<string, any> | null;
+  
   trade_date?: string | null;
   payment_date?: string | null;
   grain_reception_date?: string | null;
@@ -113,10 +113,10 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
           paymentReceiptDateStr: toIsoDate(ex.payment_receipt_date as string) || defaultReceipt,
         };
       } else {
-        const atmPremium = r.insurance_json?.atm?.premium_brl;
         next[r.id] = {
           enabled: true,
-          premiumStr: atmPremium != null ? String(atmPremium) : '',
+          premiumStr: '',
+
           coverageStr: globalCoverage,
           carryEnabled: available,
           paymentReceiptDateStr: defaultReceipt,
@@ -243,7 +243,6 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
           const r = rows.find((row) => row.id === result.pricing_snapshot_id);
           if (!r) return null;
           const m = meta[r.id];
-          const atmPremium = Number(r.insurance_json?.atm?.premium_brl);
           const carryEnabled = result.carry_enabled ?? false;
           return {
             pricing_snapshot_id: result.pricing_snapshot_id,
@@ -252,7 +251,8 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
             coverage_pct: result.coverage_pct,
             insurance_cost_brl: result.insurance_cost_brl,
             adjusted_price_brl: result.adjusted_price_brl,
-            premium_source: result.premium_brl === atmPremium ? 'theoretical' : 'manual',
+            premium_source: 'manual',
+
             carry_enabled: carryEnabled,
             carry_cost_brl: result.carry_cost_brl ?? 0,
             carry_interest_rate: carryEnabled ? (m?.rate ?? null) : null,

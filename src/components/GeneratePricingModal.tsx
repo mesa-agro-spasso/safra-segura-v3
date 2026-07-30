@@ -351,7 +351,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               shrinkage_rate_monthly: orig.shrinkage_rate_monthly,
             },
             outputs_json: { ...r },
-            insurance_json: r.insurance ?? {},
+            
             created_by: user?.id ?? null,
           } as Omit<PricingSnapshot, 'id' | 'created_at'>;
         });
