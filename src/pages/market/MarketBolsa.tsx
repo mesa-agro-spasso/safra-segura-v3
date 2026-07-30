@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMarketData, useUpsertMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
+import { useConvertedPrices } from '@/hooks/useConvertedPrices';
 import { callApi } from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
 import { logActivity } from '@/lib/activityLog';
