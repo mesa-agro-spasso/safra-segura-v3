@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { warmUpApi } from '@/lib/warmup';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -25,6 +26,8 @@ const Login = () => {
     setLoading(true);
     try {
       await signIn(email, password);
+      // Acorda o backend em segundo plano — não bloqueia o redirecionamento.
+      warmUpApi();
       navigate('/');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao fazer login';

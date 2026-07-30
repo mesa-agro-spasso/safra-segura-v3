@@ -3,10 +3,6 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase, supabasePublic } from '@/integrations/supabase/client';
 import { logActivity } from '@/lib/activityLog';
 import { queryClient } from '@/lib/queryClient';
-import {
-  setCurrentEnv,
-  resolveEnvFromProfile,
-} from '@/lib/envState';
 import type { UserProfile } from '@/types';
 
 interface AuthContextType {
@@ -51,9 +47,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const p = data as UserProfile | null;
       setProfile(p);
-      // Resolve the active env from this profile. This is the single point
-      // where pending → production/staging transition happens.
-      setCurrentEnv(resolveEnvFromProfile(p), 'profile-resolved');
       // Apply theme preference to document root
       if (p?.theme === 'light') {
         document.documentElement.classList.remove('dark');
@@ -70,17 +63,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
-    // Get initial session first. fetchProfile is awaited so the env is
-    // resolved before setLoading(false) — no window where AppLayout can
-    // mount with env='pending'.
+    // Get initial session first.
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         await fetchProfile(session.user.id);
-      } else {
-        setCurrentEnv('production', 'init');
       }
       if (mounted) setLoading(false);
     });
@@ -100,7 +89,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!session?.user) {
         // BRANCH A: logout
         setProfile(null);
-        setCurrentEnv('production', 'signout');
         queryClient.clear();
         setLoading(false);
         return;
@@ -111,9 +99,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (cached && sameUser) {
         // BRANCH B: same user, profile already in memory.
-        // Env was synced with this profile on its last resolution.
-        // Re-applying is an idempotent no-op (kept explicit for robustness).
-        setCurrentEnv(resolveEnvFromProfile(cached), 'profile-resolved');
         if (event === 'TOKEN_REFRESHED') return;
         // Other events (USER_UPDATED, INITIAL_SESSION) → refetch without blocking UI.
         setTimeout(() => {
@@ -123,12 +108,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // BRANCH C: different user (cached!==null && !sameUser) OR first load
-      // via onAuthStateChange (cached===null). Env stays 'pending' until
-      // fetchProfile resolves. ProtectedRoute blocks UI via loading=true.
+      // via onAuthStateChange (cached===null).
       if (cached && !sameUser) {
         // Real user switch: previous user's cache must die.
         queryClient.clear();
-        setCurrentEnv('pending', 'user-switch');
       }
 
       setLoading(true);
@@ -156,25 +139,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    // Resolve staging stamp from the freshly-authenticated user's profile,
-    // not from getCurrentEnv() — at this point the env ref is still the
-    // pre-login value (production) and would mis-stamp staging users.
-    let isStaging: boolean | undefined;
-    try {
-      const { data: { user: authedUser } } = await supabase.auth.getUser();
-      if (authedUser) {
-        const { data: prof } = await supabasePublic
-          .from('user_profiles')
-          .select('forced_env')
-          .eq('id', authedUser.id)
-          .maybeSingle();
-        isStaging = (prof as { forced_env?: string | null } | null)?.forced_env === 'staging';
-      }
-    } catch {
-      // fall back to default (undefined → getCurrentEnv())
-    }
-    void logActivity('auth.login', 'user', null, { email }, { isStaging });
+    void logActivity('auth.login', 'user', null, { email });
   };
+
 
   const signUp = async (email: string, password: string, fullName: string) => {
     const { error } = await supabase.auth.signUp({

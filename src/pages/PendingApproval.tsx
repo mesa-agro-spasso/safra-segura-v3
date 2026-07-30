@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { getMesaEnv, setMesaEnv } from '@/integrations/supabase/client';
+
 
 const PendingApproval = () => {
   const { user, profile, refreshProfile, signOut } = useAuth();
@@ -43,15 +43,6 @@ const PendingApproval = () => {
             <Button onClick={handleRefresh} variant="outline">
               Verificar status
             </Button>
-            {getMesaEnv() === 'staging' && (
-              <Button
-                onClick={() => { setMesaEnv('production'); window.location.reload(); }}
-                variant="outline"
-                className="border-yellow-500 text-yellow-600"
-              >
-                Sair do modo Teste
-              </Button>
-            )}
             <Button onClick={handleSignOut} variant="ghost" className="text-muted-foreground">
               Sair
             </Button>
