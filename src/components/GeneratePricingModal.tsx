@@ -318,7 +318,8 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             sale_date: r.sale_date ?? orig.sale_date,
             payment_date: r.payment_date ?? orig.payment_date,
             grain_reception_date: r.grain_reception_date ?? orig.grain_reception_date,
-            exchange_rate: orig.exchange_rate ?? null,
+            // Taxa resolvida pela API — não mais o câmbio escolhido no frontend.
+            exchange_rate: (r.exchange_rate as number | null | undefined) ?? null,
             target_basis_brl: r.target_basis_brl ?? 0,
             futures_price_brl: r.futures_price_brl ?? 0,
             origination_price_brl: r.origination_price_brl ?? 0,
