@@ -466,8 +466,6 @@ function CombinationsTab() {
       return (warehouse[warehouseField] as number | string | null) ?? null;
     };
 
-    const sigmaMap: Record<string, number> = {};
-    pricingParameters?.forEach((p) => { sigmaMap[p.id] = p.sigma; });
 
     const payload = [{
       warehouse_id: editing.warehouse_id,
@@ -495,9 +493,6 @@ function CombinationsTab() {
           : warehouse.brokerage_per_contract_cbot ?? null,
       desk_cost_pct: inheritCost('desk_cost_pct', 'desk_cost_pct'),
       shrinkage_rate_monthly: inheritCost('shrinkage_rate_monthly', 'shrinkage_rate_monthly'),
-      sigma: editing.commodity === 'soybean'
-        ? (sigmaMap['soybean_cbot'] ?? 0.35)
-        : (sigmaMap['corn_b3'] ?? 0.17),
     }];
 
     setCalculating(true);

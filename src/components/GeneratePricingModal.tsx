@@ -10,7 +10,7 @@ import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePricingParameters } from '@/hooks/usePricingParameters';
+
 import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
 import type { Warehouse, MarketData, PricingSnapshot, PricingCombination, DiscardedCombination } from '@/types';
 
@@ -50,7 +50,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
   const { data: combinations } = usePricingCombinations(true);
   const saveSnapshots = useSavePricingSnapshots();
   const { user } = useAuth();
-  const { data: pricingParameters } = usePricingParameters();
+  
   const [generating, setGenerating] = useState(false);
   const [discarded, setDiscarded] = useState<DiscardedCombination[] | null>(null);
 
@@ -142,8 +142,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
     const payload: Record<string, unknown>[] = [];
 
-    const sigmaMap: Record<string, number> = {};
-    pricingParameters?.forEach((p) => { sigmaMap[p.id] = p.sigma; });
+
 
     for (const combo of combinations) {
       const market = marketMap[combo.ticker];
@@ -264,9 +263,6 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             : warehouse.brokerage_per_contract_cbot ?? null,
         desk_cost_pct: inheritCost('desk_cost_pct', 'desk_cost_pct'),
         shrinkage_rate_monthly: inheritCost('shrinkage_rate_monthly', 'shrinkage_rate_monthly'),
-        sigma: combo.commodity === 'soybean'
-          ? (sigmaMap['soybean_cbot'] ?? 0.35)
-          : (sigmaMap['corn_b3'] ?? 0.17),
       };
 
       if (pricingMethod === 'LONG_BASIS') {
