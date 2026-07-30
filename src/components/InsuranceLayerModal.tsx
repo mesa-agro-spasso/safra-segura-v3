@@ -113,10 +113,10 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
           paymentReceiptDateStr: toIsoDate(ex.payment_receipt_date as string) || defaultReceipt,
         };
       } else {
-        const atmPremium = r.insurance_json?.atm?.premium_brl;
         next[r.id] = {
           enabled: true,
-          premiumStr: atmPremium != null ? String(atmPremium) : '',
+          premiumStr: '',
+
           coverageStr: globalCoverage,
           carryEnabled: available,
           paymentReceiptDateStr: defaultReceipt,
