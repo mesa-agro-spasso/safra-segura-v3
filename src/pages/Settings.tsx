@@ -1238,47 +1238,12 @@ function ParametersTab() {
   const getLabel = (id: string) => PARAM_LABELS[id] ?? id;
 
 
-  const handleSave = async (id: string) => {
-    const raw = values[id];
-    if (raw === undefined || raw === '') { toast.error('Informe um valor'); return; }
-    const sigma = parseFloat(raw);
-    if (isNaN(sigma) || sigma <= 0 || sigma > 2) { toast.error('Sigma deve ser entre 0 e 2 (ex: 0.25)'); return; }
-    try {
-      const currentParam = parameters?.find(p => p.id === id);
-      await updateParameter.mutateAsync({ id, sigma, target_profit_brl_per_sack: currentParam?.target_profit_brl_per_sack ?? 2.0, execution_spread_pct: currentParam?.execution_spread_pct ?? 0.05 });
-      toast.success(`Sigma ${getLabel(id)} atualizado`);
-      setValues((v) => { const n = { ...v }; delete n[id]; return n; });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
-    }
-  };
-
   if (isLoading) return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader><CardTitle className="text-sm">Volatilidade Implícita (sigma)</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-xs text-muted-foreground">Usado no modelo Black-76 para precificação teórica de opções. Valor decimal — ex: 0.25 = 25%.</p>
-          {parameters?.map((p) => (
-            <div key={p.id} className="flex items-end gap-3">
-              <div className="flex-1 space-y-1">
-                <Label className="text-xs">{getLabel(p.id)}</Label>
-                <Input type="number" step="0.01" placeholder={`ex: ${p.sigma}`}
-                  value={values[p.id] ?? ''}
-                  onChange={(e) => setValues((v) => ({ ...v, [p.id]: e.target.value }))}
-                />
-                <p className="text-[10px] text-muted-foreground">Atual: {(p.sigma * 100).toFixed(0)}%</p>
-              </div>
-              <Button size="sm" onClick={() => handleSave(p.id)} disabled={updateParameter.isPending}>
-                Salvar
-              </Button>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-      <Card>
+
         <CardHeader><CardTitle className="text-sm">Lucro Alvo por Saca</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">Preço físico alvo = break-even + lucro alvo. Usado na aba MTM para mostrar o preço do físico necessário para atingir o lucro desejado.</p>
