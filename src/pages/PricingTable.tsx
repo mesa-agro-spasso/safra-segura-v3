@@ -452,13 +452,6 @@ const PricingTable = () => {
       {detailSnap && (() => {
         const outputs = detailSnap.outputs_json as Record<string, any> | null;
         const costs = outputs?.costs as Record<string, any> | null;
-        const insurance = detailSnap.insurance_json as Record<string, any> | null;
-        const insuranceLevels = [
-          { key: 'atm', label: 'ATM' },
-          { key: 'otm_5', label: 'OTM 5%' },
-          { key: 'otm_10', label: 'OTM 10%' },
-        ];
-        const hasInsurance = insurance && insuranceLevels.some((l) => insurance[l.key]);
 
         const DetailRow = ({ label, value }: { label: string; value: string }) => (
           <div className="flex justify-between text-sm">
