@@ -532,36 +532,11 @@ const PricingTable = () => {
                 <p className="text-sm text-muted-foreground">Sem dados de custos</p>
               )}
 
-              {hasInsurance && (
-                <>
-                  <Separator />
-                  <h4 className="font-semibold text-sm">Seguro</h4>
-                  {insuranceLevels.map(({ key, label }) => {
-                    const ins = insurance![key] as Record<string, any> | undefined;
-                    if (!ins) return null;
-                    return (
-                      <div key={key} className="space-y-1 ml-2">
-                        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-                        {ins.strike_brl != null && <DetailRow label="Strike" value={`R$ ${Number(ins.strike_brl).toFixed(2)}`} />}
-                        {ins.premium_brl != null && <DetailRow label="Prêmio" value={`R$ ${Number(ins.premium_brl).toFixed(2)}`} />}
-                        {ins.carry_brl != null && <DetailRow label="Carry" value={`R$ ${Number(ins.carry_brl).toFixed(4)}`} />}
-                        {ins.total_cost_brl != null && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Custo total</span>
-                            <span className="font-bold">R$ {Number(ins.total_cost_brl).toFixed(2)}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-
               {(() => {
                 const applied = insuranceMap?.[detailSnap.id];
                 if (!applied) return null;
                 if (!applied.enabled || applied.adjusted_price_brl == null) return null;
-                const sourceLabel = applied.premium_source === 'theoretical' ? 'Teórico' : 'Manual';
+
                 const carryOn = !!(applied as any).carry_enabled;
                 const carryCost = Number((applied as any).carry_cost_brl ?? 0);
                 const insuranceCost = Number(applied.insurance_cost_brl ?? 0);
