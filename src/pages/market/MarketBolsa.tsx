@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMarketData, useUpsertMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
+import { useConvertedPrices } from '@/hooks/useConvertedPrices';
 import { callApi } from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
 import { logActivity } from '@/lib/activityLog';
@@ -421,6 +422,13 @@ const MarketBolsa = () => {
   const visibleB3Tickers = b3Tickers.filter(isNotExpired).slice(0, b3Qty);
   const fxRow = dataMap['USD/BRL'];
 
+  // Conversão USD/bu → BRL/sc feita pela API, uma chamada por linha com NDF.
+  const soybeanBrl = useConvertedPrices(soybeanRows, 'soybean');
+  const cornCbotBrl = useConvertedPrices(cornCbotRows, 'corn');
+  const fmtBrl = (v: number | undefined) =>
+    v == null ? '—' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+
   const renderEditCell = (ticker: string, currentPrice?: number) => {
     if (editingTicker === ticker) {
       return (
@@ -559,6 +567,7 @@ const MarketBolsa = () => {
                       <TableHead>Ticker</TableHead>
                       <TableHead>Vencimento</TableHead>
                       <TableHead className="text-right">Preço (USD/bu)</TableHead>
+                      <TableHead className="text-right">Preço (R$/sc)</TableHead>
                       <TableHead className="text-right">NDF Estimado</TableHead>
                       <TableHead className="text-right">Spread</TableHead>
                       <TableHead className="text-right">Atualizado</TableHead>
@@ -571,6 +580,7 @@ const MarketBolsa = () => {
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.price != null ? row.price.toFixed(2) : '-'}</TableCell>
+                        <TableCell className="text-right">{fmtBrl(soybeanBrl.get(row.ticker))}</TableCell>
                         <TableCell className="text-right">{row.ndf_estimated?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spread?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
@@ -605,6 +615,7 @@ const MarketBolsa = () => {
                       <TableHead>Ticker</TableHead>
                       <TableHead>Vencimento</TableHead>
                       <TableHead className="text-right">Preço (USD/bu)</TableHead>
+                      <TableHead className="text-right">Preço (R$/sc)</TableHead>
                       <TableHead className="text-right">NDF Estimado</TableHead>
                       <TableHead className="text-right">Spread</TableHead>
                       <TableHead className="text-right">Atualizado</TableHead>
@@ -617,6 +628,7 @@ const MarketBolsa = () => {
                         <TableCell className="font-medium">{row.ticker}</TableCell>
                         <TableCell>{row.exp_date ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.price != null ? row.price.toFixed(2) : '-'}</TableCell>
+                        <TableCell className="text-right">{fmtBrl(cornCbotBrl.get(row.ticker))}</TableCell>
                         <TableCell className="text-right">{row.ndf_estimated?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className="text-right">{row.ndf_spread?.toFixed(4) ?? '-'}</TableCell>
                         <TableCell className={`text-right text-xs ${getHoursAgo(row.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>

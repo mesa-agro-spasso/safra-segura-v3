@@ -5,6 +5,10 @@ const corsHeaders = {
 
 const ALLOWED_POST_ENDPOINTS = [
   '/pricing/table',
+  '/pricing/insurance-layer',
+  '/utils/convert-price',
+  '/utils/sacks-to-contracts',
+  '/closing/',
   '/orders/build',
   '/orders/validate',
   '/orders/validate-execution',
@@ -13,12 +17,13 @@ const ALLOWED_POST_ENDPOINTS = [
   '/closing-batches/allocate',
   '/mtm/run',
   '/mtm/run-d24',
-  '/pricing/option-premium',
 ]
 
 const ALLOWED_GET_ENDPOINTS = [
+  '/health',
   '/market/quotes',
   '/market/b3-corn-quotes',
+  '/market/fx-parameters',
 ]
 
 const API_BASE = 'https://safra-segura-api.onrender.com'
