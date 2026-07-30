@@ -1,61 +1,47 @@
-## Achados da investigação
+## Objetivo
 
-**Item 2 — bloqueado (confirmado).** Duas telas LEEM `insurance_json`:
-- `src/pages/PricingTable.tsx` (~455): diálogo de detalhamento monta bloco de seguro teórico ATM / OTM 5% / OTM 10%.
-- `src/components/InsuranceLayerModal.tsx` (116 e 246): pré-preenche o prêmio e classifica `premium_source` como `theoretical` vs `manual`.
+Tirar da interface todo resquício do seguro teórico (Black-76 ATM / OTM 5% / OTM 10%) e do sigma que o alimentava. O fluxo de seguro manual segue intacto.
 
-`insurance_json: r.insurance ?? {}` permanece exatamente como está.
+## Resultado das buscas pedidas (feitas, sem alterar nada)
 
-**Item 3 — Armadilha 2 (confirmada).** `supabasePublic` não serve só ao log: é usado em `AuthContext.tsx` linha 40 (`fetchProfile`) e linha 166 (leitura de `forced_env`), além de `activityLog.ts` (24 e 27). Por isso ele será mantido como **alias do client único**, sem tocar nas chamadas.
+**`r.insurance` / `insurance_json`** — a única leitura da resposta da API é a própria escrita em `GeneratePricingModal.tsx:354`. Fora dela, `insurance_json` só aparece em `PricingTable.tsx` (bloco de detalhamento) e `InsuranceLayerModal.tsx` (linhas 20, 116, 246), todos previstos nesta tarefa. As demais ocorrências de "insurance" no `src/` são `is_counterparty_insurance` (ordens D24) e os tipos gerados do Supabase — sem relação. Nenhuma outra tela consome o campo.
 
----
+**`target_profit_brl_per_sack`** — lido apenas em `src/pages/OperacoesD24.tsx:1030-1031`. Essa página **não está roteada** (nem em `App.tsx`, nem na sidebar) desde a Wave 1. Ou seja: hoje o campo não é lido por nenhuma tela viva. **Reportado, não removido** — decisão do Eduardo.
 
-## Item 1 — `sigma` sai do payload
+**`sigma` fora do card** — usado em `OperacoesD24.tsx:1149-1181` (Black-76 do MTM), também na página não roteada. Depois de remover o card, sigma deixa de ter consumidor vivo, mas a coluna e o tipo permanecem.
 
-`src/components/GeneratePricingModal.tsx`
-- Remover `sigmaMap` (145-146) e o campo `sigma` do `baseCombo` (267-269).
-- `usePricingParameters()` alimenta **apenas** o sigma neste arquivo → remover hook e import.
+## Ordem de execução (leituras antes da escrita)
 
-`src/pages/Settings.tsx` (preview TARGET_PRICE, mesmo endpoint `/pricing/table`)
-- Remover `sigmaMap` (469-470) e o campo `sigma` do payload (498-500).
-- `pricingParameters` continua em uso pela aba Parâmetros → leitura preservada.
+### 1. `src/pages/PricingTable.tsx` — leitura no diálogo de detalhamento
+- Remover as consts `insurance`, `insuranceLevels`, `hasInsurance` (~455-461) e toda a seção "Seguro" com ATM / OTM 5% / OTM 10% (~545-566).
+- Na seção "Seguro aplicado" (manual, permanece), remover `sourceLabel` e a linha `Fonte` — com todo prêmio manual, o rótulo perde função.
 
-Coluna `sigma`, tipo `PricingParameter`, card "Volatilidade Implícita" e `useUpdatePricingParameter` ficam intactos.
+### 2. `src/components/InsuranceLayerModal.tsx` — leituras
+- Linha ~116: remover `atmPremium` e iniciar `premiumStr: ''` para linhas sem snapshot. Linhas com snapshot existente seguem pré-preenchidas por `insurance_snapshots`.
+- Linhas ~246-255: remover a segunda leitura e gravar `premium_source: 'manual'` fixo.
+- Remover `insurance_json` da interface de props (linha 20).
 
-## Item 2 — sem alteração (reportado acima)
+### 3. `src/components/GeneratePricingModal.tsx` — escrita (por último)
+- Remover `insurance_json: r.insurance ?? {}` (linha 354) e o campo `insurance` do tipo da resposta, se declarado localmente.
 
-## Item 3 — remoção do switch de ambiente
+### 4. Card "Volatilidade Implícita (sigma)" em Configurações → Parâmetros
+- Remover o card inteiro (`src/pages/Settings.tsx` ~1240-1276), incluindo o handler `saveSigma` e a validação 0-2.
+- `useUpdatePricingParameter` **fica**: serve também ao arredondamento, ticker counts, lucro alvo e spread. Ajuste necessário: `sigma` passa de obrigatório a opcional na assinatura e só entra no `update` quando informado — hoje todas as chamadas passam `sigma: p.sigma` só para satisfazer o tipo; essas passagens saem.
+- `src/data/helpContent.ts:96`: remover a linha do glossário que descreve o sigma como insumo do Black-76.
+- Sem migração: coluna `sigma` e o campo no tipo `PricingParameter` permanecem.
 
-- **Excluir** `src/lib/envState.ts` e `src/contexts/MesaEnvContext.tsx`.
-- `src/integrations/supabase/client.ts`: eliminar o Proxy de schema, `getCurrentEnv`, `getMesaEnv`, `setMesaEnv`, `isStagingEnv` e o tipo `MesaEnv`. Fica um `createClient` único exportado como `supabase`, com `supabasePublic` como alias.
-- `src/App.tsx`: remover `MesaEnvProvider`.
-- `src/components/AppLayout.tsx`: remover `useMesaEnv` e o banner amarelo.
-- `src/components/AppSidebar.tsx`: remover `useMesaEnv`, o badge "TESTE" e o bloco "Ambiente: Teste" do rodapé.
-- `src/pages/AdminUsers.tsx`: remover `useMesaEnv`; aba "Registros" sempre visível.
-- `src/pages/PendingApproval.tsx`: remover o botão "Sair do modo Teste" e os imports `getMesaEnv`/`setMesaEnv`.
-- `src/lib/activityLog.ts`: remover `getCurrentEnv` e a opção `isStaging`; gravar `is_staging: false` fixo.
-- `src/contexts/AuthContext.tsx`: remover `setCurrentEnv`/`resolveEnvFromProfile` e a leitura extra de `forced_env` que existia só para carimbar o log. `fetchProfile` e o tema seguem intactos.
-- `src/components/admin/ActivityLogTab.tsx`: inalterado (o filtro histórico de `is_staging` continua útil).
-- `profile.forced_env` deixa de ter efeito no frontend; **nenhuma coluna removida do banco**.
+## Escopo negativo
+- Nenhuma alteração de schema, Edge Function, cálculo do seguro manual, detalhamento de custos, painel de basis ou diálogo de descartes.
+- `OperacoesD24.tsx` / `ArmazensD24.tsx` não são tocados nesta tarefa.
+- Zero cálculo financeiro no frontend.
 
-## Item 4 — warm-up no login (via api-proxy)
-
-Novo `src/lib/warmup.ts`:
-- `warmUpApi()` com guarda de módulo (`let warmed = false`) → uma vez por sessão de página.
-- Usa `callApi('/market/quotes', undefined, { method: 'GET', query: { quantity: '1' } })` — endpoint já na allowlist do api-proxy. Sem `await`, `.catch(() => {})`, resposta descartada. Nenhuma URL de backend exposta no frontend.
-- Comentário no arquivo registrando que, quando o Eduardo liberar `GET /health` na allowlist do api-proxy, basta trocar o endpoint.
-
-`src/pages/Login.tsx`: chamar `warmUpApi()` após `signIn` resolver e antes de `navigate('/')`, sem `await` — redirecionamento não é atrasado.
-
-## Detalhes técnicos
-
-- Sem alteração de schema, de Edge Function ou do payload de `/pricing/table` além da remoção do `sigma`.
-- Zero cálculo financeiro adicionado no frontend.
-- Ao final: typecheck e suíte de testes.
+## Verificação
+- Typecheck + suíte de testes.
+- Busca por `insurance_json` no `src/` deve sobrar apenas nos tipos gerados do Supabase.
 
 ## Validação manual (Eduardo)
-
-1. Gerar tabela — preços idênticos aos de antes.
-2. Aplicar seguro manual em uma linha — deve continuar funcionando (`insurance_snapshots`).
-3. Confirmar que banner/badge de ambiente sumiram da interface.
-4. Login com servidor dormindo → primeira geração de tabela mais rápida.
+1. Detalhamento de uma linha: nenhum bloco de seguro teórico.
+2. Seguro manual aplica normalmente, com prêmio em branco.
+3. Novo registro em `insurance_snapshots` com `premium_source = 'manual'`.
+4. Novo snapshot de tabela sem `insurance_json` preenchido.
+5. Aba Parâmetros sem o card de sigma; arredondamento, ticker counts e lucro alvo continuam salvando.
