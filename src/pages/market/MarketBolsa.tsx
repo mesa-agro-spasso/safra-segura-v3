@@ -422,6 +422,13 @@ const MarketBolsa = () => {
   const visibleB3Tickers = b3Tickers.filter(isNotExpired).slice(0, b3Qty);
   const fxRow = dataMap['USD/BRL'];
 
+  // Conversão USD/bu → BRL/sc feita pela API, uma chamada por linha com NDF.
+  const soybeanBrl = useConvertedPrices(soybeanRows, 'soybean');
+  const cornCbotBrl = useConvertedPrices(cornCbotRows, 'corn');
+  const fmtBrl = (v: number | undefined) =>
+    v == null ? '—' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+
   const renderEditCell = (ticker: string, currentPrice?: number) => {
     if (editingTicker === ticker) {
       return (
