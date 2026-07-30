@@ -17,7 +17,7 @@ interface Row {
   commodity: string;
   warehouse_id: string;
   origination_price_brl: number;
-  insurance_json?: Record<string, any> | null;
+  
   trade_date?: string | null;
   payment_date?: string | null;
   grain_reception_date?: string | null;
