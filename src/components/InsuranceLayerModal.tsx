@@ -243,7 +243,6 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
           const r = rows.find((row) => row.id === result.pricing_snapshot_id);
           if (!r) return null;
           const m = meta[r.id];
-          const atmPremium = Number(r.insurance_json?.atm?.premium_brl);
           const carryEnabled = result.carry_enabled ?? false;
           return {
             pricing_snapshot_id: result.pricing_snapshot_id,
@@ -252,7 +251,8 @@ export function InsuranceLayerModal({ open, onOpenChange, rows, warehouseMap = {
             coverage_pct: result.coverage_pct,
             insurance_cost_brl: result.insurance_cost_brl,
             adjusted_price_brl: result.adjusted_price_brl,
-            premium_source: result.premium_brl === atmPremium ? 'theoretical' : 'manual',
+            premium_source: 'manual',
+
             carry_enabled: carryEnabled,
             carry_cost_brl: result.carry_cost_brl ?? 0,
             carry_interest_rate: carryEnabled ? (m?.rate ?? null) : null,
