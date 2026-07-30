@@ -1,51 +1,51 @@
-## Achados da busca (leituras das colunas antigas)
+# Câmbio: frontend para de escolher, API resolve
 
-Confirmado por busca no `src/` e por consulta ao banco:
+## Arquivos alterados
+- `src/components/GeneratePricingModal.tsx` (payload, validações, persistência)
+- `src/components/DiscardedCombinationsList.tsx` (três motivos novos)
 
-| Local | Leitura hoje |
-|---|---|
-| `src/pages/Settings.tsx` (card "Quantidade de Contratos por Mercado", ~1330-1400) | `parameters[0].cbot_ticker_count` e `parameters[0].b3_corn_ticker_count`; grava o mesmo valor nas 3 linhas em loop |
-| `src/pages/market/MarketBolsa.tsx:66-67` | `cbotQty` / `b3Qty` — usados no `quantity` das chamadas CBOT (linha 117) e B3 (219) e no `slice()` de exibição (417-420) |
-| `src/pages/PricingTable.tsx:35-36` | `cbotQty` / `b3Qty` — filtram quantos vencimentos entram na tabela (62-64) |
-| `src/hooks/usePricingParameters.ts:28-38` | aceita e grava as duas colunas |
-| `src/types/index.ts:175-176` | campos do tipo `PricingParameter` |
+Nada mais: sem schema, sem Edge Function, sem tela de Mercado, sem formulários.
 
-Nenhuma outra leitura no frontend; nenhuma nas Edge Functions.
+## 1. Payload de `POST /pricing/table`
 
-Estado atual no banco (confirmado): `soybean_cbot.ticker_count = 8`, `corn_cbot.ticker_count = 8`, `corn_b3.ticker_count = 6`.
-
-Observação de escopo: `PricingTable.tsx` está no escopo negativo, mas é leitura direta das colunas que serão apagadas. Migro só essas duas linhas (fonte do valor), sem tocar em nada mais da tela — se preferir deixar de fora, avise.
-
-## O que muda
-
-**1. `src/types/index.ts`** — adicionar `ticker_count: number` em `PricingParameter`; remover `cbot_ticker_count` e `b3_corn_ticker_count`.
-
-**2. `src/hooks/usePricingParameters.ts`** — em `useUpdatePricingParameter`: aceitar `ticker_count?: number`, remover as duas chaves antigas. Também remover a escrita de `updated_at` (a tarefa pede para não gravá-lo). Continua sendo só `UPDATE ... eq('id', id)`.
-
-**3. `src/pages/Settings.tsx`** — o card passa a ter três campos, um por linha, no mesmo formato do card "Incremento de Arredondamento": cada campo lê `parameters.find(p => p.id === <id>)?.ticker_count`, valida inteiro entre 1 e 24 e salva com um único `updateParameter.mutateAsync({ id: <id>, ticker_count: val })` — sem loop pelas linhas.
+Nível da requisição, um por geração:
 
 ```text
-Soja CBOT   → soybean_cbot.ticker_count
-Milho CBOT  → corn_cbot.ticker_count
-Milho B3    → corn_b3.ticker_count
+{ trade_date, spot_usd_brl, combinations: [...] }
 ```
 
-Cada campo mostra "Atual: N" e tem seu próprio botão Salvar e sua própria chave em `values`.
+`spot_usd_brl` = `price` do registro `USD/BRL` de `market_data` (o mesmo valor já usado hoje como `spotRate` no modal, que reflete o `fx_override` gravado pela mesa na tela de Mercado).
 
-**4. `src/pages/market/MarketBolsa.tsx`** — trocar as duas consts por três, lidas por id:
-`sojaQty` (`soybean_cbot`), `cornCbotQty` (`corn_cbot`), `b3Qty` (`corn_b3`). Aplicar cada uma na sua chamada e no seu `slice()`: soja usa `sojaQty` (linhas 117 quando a busca é de soja e 417), milho CBOT usa `cornCbotQty` (117 quando milho e 419), B3 usa `b3Qty` (219 e 420).
+Por linha:
+- Remover `exchange_rate` do `baseCombo` — deixa de ser enviado em qualquer linha, CBOT ou B3. Some também toda a lógica atual de escolher entre `ndf_estimated` e spot (linhas ~221-233).
+- Novo `exchange_rate_override`, opcional: enviado **apenas** para linhas CBOT (soja CBOT e milho CBOT) quando `market_data[ticker].ndf_override` estiver preenchido. Omitido quando nulo.
+- Milho B3: nunca envia `exchange_rate` nem `exchange_rate_override` (retorna 422).
 
-**5. `src/pages/PricingTable.tsx`** — mesma troca nas linhas 35-36 e nos `pick('SOJA', …)`, `pick('MILHO_CBOT', …)`, `pick('MILHO', …)`.
+## 2. Validações do modal
 
-Fallbacks passam a ser 8 / 8 / 6, coerentes com o banco.
+- `spot_usd_brl` passa a ser obrigatório para **qualquer** geração que contenha linha CBOT (hoje só bloqueia quando há soja). Sem USD/BRL disponível → botão desabilitado e mensagem já existente.
+- Remover o bloqueio "NDF indisponível para milho CBOT" (`cornCbotMissingNdf`): `ndf_estimated` deixa de ser insumo de precificação, logo sua ausência não pode mais impedir a geração.
+- Manter o bloqueio de dados de mercado desatualizados (>24h) para milho CBOT — é sobre o preço do futuro, não sobre o câmbio.
+- Manter os avisos de B3 sem preço.
 
-## Fora de escopo
-Sem migração, sem alterar schema, sem Edge Function, sem INSERT/DELETE, sem tocar nos outros cards de Parâmetros nem na geração da tabela de preços.
+## 3. Persistência do snapshot
 
-## Verificação
-Typecheck + suíte de testes; busca por `cbot_ticker_count` / `b3_corn_ticker_count` no `src/` deve sobrar apenas nos tipos gerados do Supabase.
+`exchange_rate` do snapshot passa a vir da resposta da API (`r.exchange_rate`), não mais do payload enviado. Em `inputs_json`, trocar `exchange_rate` por `exchange_rate_override` (o que de fato foi enviado). A coluna Câmbio da tabela e os detalhes seguem lendo `snap.exchange_rate` — sem alteração de código lá, mas passam a mostrar a taxa resolvida pela API.
+
+## 4. Descartes novos
+
+Em `reasonText`, três casos, mantendo o fallback para `detail`:
+
+- `FX_MATURITY_NOT_AFTER_TRADE_DATE` → "Data de venda não é posterior à data de negociação."
+- `FX_RATE_NOT_POSITIVE` → "Câmbio resultante inválido. Verifique os parâmetros de câmbio."
+- `FX_PARAMETERS_UNAVAILABLE` → "Parâmetros de câmbio indisponíveis. Tente novamente."
+
+## Ponto a confirmar na primeira geração
+O nome do campo de câmbio resolvido na resposta da API é assumido como `exchange_rate` no objeto de resultado. Se vier com outro nome, a coluna Câmbio aparecerá vazia e o ajuste é de uma linha.
 
 ## Validação manual (Eduardo)
-1. Trocar o milho B3 para 5, salvar, conferir no Supabase que só a linha `corn_b3` mudou.
-2. Abrir a tela de Mercado: milho B3 com 5 vencimentos, soja e milho CBOT com 8.
-3. Restaurar: soja 8, milho CBOT 8, milho B3 6.
+1. Gerar tabela: preços de soja devem CAIR (R$0,40 a R$3,10/sc).
+2. Milho B3 idêntico ao anterior.
+3. ZSF27 da praça 050 cai ~R$3,10/sc.
+4. Coluna Câmbio mostra a taxa da API, não o `ndf_estimated` do ticker.
+5. Snapshot salvo com `exchange_rate` = taxa resolvida.
