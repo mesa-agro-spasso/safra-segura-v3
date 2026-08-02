@@ -317,7 +317,10 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             target_basis_brl: r.target_basis_brl ?? 0,
             futures_price_brl: r.futures_price_brl ?? 0,
             origination_price_brl: r.origination_price_brl ?? 0,
-            additional_discount_brl: r.additional_discount_brl ?? orig.additional_discount_brl ?? 0,
+            additional_discount_brl:
+              r.additional_discount_brl
+              ?? (orig.combination as Record<string, unknown> | undefined)?.additional_discount_brl
+              ?? 0,
             inputs_json: {
               pricing_method: orig.pricing_method,
               futures_price: orig.futures_price,
@@ -326,15 +329,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               exp_date: orig.exp_date ?? null,
               target_basis: orig.target_basis ?? null,
               origination_price_net_brl: orig.origination_price_net_brl ?? null,
-              interest_rate: orig.interest_rate,
-              interest_rate_period: orig.interest_rate_period,
-
-              storage_cost: orig.storage_cost,
-              storage_cost_type: orig.storage_cost_type,
-              reception_cost: orig.reception_cost,
-              brokerage_per_contract: orig.brokerage_per_contract,
-              desk_cost_pct: orig.desk_cost_pct,
-              shrinkage_rate_monthly: orig.shrinkage_rate_monthly,
+              // Camadas de custo enviadas, cruas — a resolução é do backend.
+              combination: orig.combination ?? null,
+              warehouse: orig.warehouse ?? null,
             },
             outputs_json: { ...r },
             
