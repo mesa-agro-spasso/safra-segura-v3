@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -183,5 +182,3 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
     </div>
   );
 }
-
-export { RefreshCw };
