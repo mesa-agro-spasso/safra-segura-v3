@@ -36,6 +36,8 @@ const formatRole = (r: string) =>
 
 const items = [
   { title: 'Tabela de Preços', url: '/', icon: TableProperties },
+  { title: 'Cockpit', url: '/cockpit', icon: SlidersHorizontal },
+
   ...(FEATURES.FINANCIAL_CALENDAR ? [{ title: 'Financeiro', url: '/financeiro', icon: DollarSign }] : []),
   { title: 'Mercado', url: '/mercado', icon: BarChart3 },
   ...(FEATURES.PRODUCERS ? [{ title: 'Produtores', url: '/produtores', icon: Sprout }] : []),
