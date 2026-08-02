@@ -34,7 +34,8 @@ Somente leitura, via `useLatestPhysicalPrices`: praça, commodity, data de refer
 ## Card 4 — Parâmetros das combinações
 
 - Tabela: uma linha por combinação ativa, sem expandir. Colunas: praça, commodity, ticker, juros, período dos juros (leitura), armazenagem, tipo de armazenagem, recepção, corretagem, mesa (%), quebra, desconto adicional, basis alvo.
-- Todo campo mostra número: valor da combinação; se nulo, o valor do armazém já preenchido no input. Nada de rótulo "herdado" no lugar do número — só um ponto discreto marcando campo editado nesta sessão.
+- Todo campo mostra número: valor da combinação; se nulo, o valor do armazém já preenchido no input. Nada de rótulo "herdado" no lugar do número.
+- Campo editado nesta sessão fica visivelmente marcado no próprio input: fundo âmbar e borda âmbar espessa, mantidos até o recálculo. Depois de recalcular, a marca passa a um estado "aplicado" (borda em cor primária, sem fundo) até publicar, para a operadora saber quais linhas causaram a mudança de preço.
 - Basis alvo e desconto adicional só editáveis em `LONG_BASIS`; em `TARGET_PRICE` ficam desabilitados.
 - Botão RECALCULAR neste card também (sem publicar).
 - Entrada aceita vírgula decimal, como hoje.
