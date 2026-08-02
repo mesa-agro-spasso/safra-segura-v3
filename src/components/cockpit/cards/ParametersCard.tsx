@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,6 +11,10 @@ const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho
 const PERIOD_LABELS: Record<string, string> = {
   monthly: 'ao mês', mensal: 'ao mês', yearly: 'ao ano', anual: 'ao ano',
 };
+
+/** Colunas congeladas à esquerda (praça e commodity). */
+const STICKY_PRACA = 'sticky left-0 z-20 bg-card w-40 min-w-[10rem]';
+const STICKY_COMMODITY = 'sticky left-40 z-20 bg-card w-24 min-w-[6rem] shadow-[inset_-1px_0_0_hsl(var(--border))]';
 
 /** Converte texto digitado (vírgula ou ponto) em número. Sem aritmética financeira. */
 function parseDecimal(raw: string): number | null {
@@ -92,14 +97,37 @@ export interface ParametersCardProps {
   onChange: (comboId: string, field: keyof CockpitOverrides, value: number | string | null) => void;
 }
 
+const COLUMN_COUNT = 13;
+
 export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange }: ParametersCardProps) {
+  /** Todos os grupos nascem fechados: o cockpit é para ajuste pontual. */
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+
+  const groups = useMemo(() => {
+    const map = new Map<string, PricingCombination[]>();
+    combos.forEach((c) => {
+      const list = map.get(c.warehouse_id) ?? [];
+      list.push(c);
+      map.set(c.warehouse_id, list);
+    });
+    return Array.from(map.entries())
+      .map(([warehouseId, rows]) => ({
+        warehouseId,
+        name: warehouseMap[warehouseId]?.display_name ?? warehouseId,
+        rows,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [combos, warehouseMap]);
+
+  const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+
   return (
-    <div className="overflow-auto max-h-[480px]">
+    <div className="w-full min-w-0 overflow-auto max-h-[560px]">
       <Table>
-        <TableHeader className="sticky top-0 bg-card z-10">
+        <TableHeader className="sticky top-0 bg-card z-30">
           <TableRow>
-            <TableHead>Praça</TableHead>
-            <TableHead>Commodity</TableHead>
+            <TableHead className={cn(STICKY_PRACA, 'z-40')}>Praça</TableHead>
+            <TableHead className={cn(STICKY_COMMODITY, 'z-40')}>Commodity</TableHead>
             <TableHead>Ticker</TableHead>
             <TableHead>Juros</TableHead>
             <TableHead>Período</TableHead>
@@ -114,65 +142,99 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
           </TableRow>
         </TableHeader>
         <TableBody>
-          {combos.map((combo) => {
-            const wh = warehouseMap[combo.warehouse_id];
-            const ov = overrides[combo.id];
-            const pf = pendingMap[combo.id] ?? {};
-            const isLongBasis = (combo.pricing_method ?? 'LONG_BASIS') === 'LONG_BASIS';
-            const inheritedBrokerage =
-              combo.benchmark === 'cbot' ? wh?.brokerage_per_contract_cbot : wh?.brokerage_per_contract_b3;
-            const periodRaw = wh?.interest_rate_period ?? null;
-
-            const cell = (
-              field: keyof CockpitOverrides,
-              inherited: number | string | null | undefined,
-              disabled?: boolean,
-            ) => (
-              <NumberCell
-                key={field}
-                combo={combo}
-                field={field}
-                inherited={inherited}
-                overrides={ov}
-                pending={!!pf[field]}
-                disabled={disabled}
-                onChange={onChange}
-              />
+          {groups.map((group) => {
+            const isOpen = !!open[group.warehouseId];
+            const hasPending = group.rows.some(
+              (r) => Object.keys(pendingMap[r.id] ?? {}).length > 0,
             );
 
-            return (
-              <TableRow key={combo.id}>
-                <TableCell className="text-xs font-medium whitespace-nowrap">
-                  {wh?.display_name ?? combo.warehouse_id}
+            return [
+              <TableRow key={`h-${group.warehouseId}`} className="bg-muted/40 hover:bg-muted/60">
+                <TableCell colSpan={COLUMN_COUNT} className="p-0">
+                  <button
+                    type="button"
+                    onClick={() => toggle(group.warehouseId)}
+                    aria-expanded={isOpen}
+                    className="sticky left-0 flex items-center gap-2 px-4 py-2 text-xs font-medium w-[calc(100vw-8rem)] max-w-full text-left"
+                  >
+                    <ChevronRight className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-90')} />
+                    <span>{group.name}</span>
+                    <span className="text-muted-foreground">
+                      {group.rows.length} {group.rows.length === 1 ? 'combinação' : 'combinações'}
+                    </span>
+                    {hasPending && (
+                      <span className="rounded border border-amber-500 bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-500">
+                        edições não recalculadas
+                      </span>
+                    )}
+                  </button>
                 </TableCell>
-                <TableCell className="text-xs">{COMMODITY_LABELS[combo.commodity] ?? combo.commodity}</TableCell>
-                <TableCell className="font-mono text-xs">{combo.ticker}</TableCell>
-                <TableCell>{cell('interest_rate', wh?.interest_rate)}</TableCell>
-                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                  {periodRaw ? PERIOD_LABELS[periodRaw] ?? periodRaw : '—'}
-                </TableCell>
-                <TableCell>{cell('storage_cost', wh?.storage_cost)}</TableCell>
-                <TableCell>
-                  <StorageTypeCell
-                    combo={combo}
-                    inherited={wh?.storage_cost_type}
-                    overrides={ov}
-                    pending={!!pf.storage_cost_type}
-                    onChange={onChange}
-                  />
-                </TableCell>
-                <TableCell>{cell('reception_cost', wh?.reception_cost)}</TableCell>
-                <TableCell>{cell('brokerage_per_contract', inheritedBrokerage)}</TableCell>
-                <TableCell>{cell('desk_cost_pct', wh?.desk_cost_pct)}</TableCell>
-                <TableCell>{cell('shrinkage_rate_monthly', wh?.shrinkage_rate_monthly)}</TableCell>
-                <TableCell>{cell('additional_discount_brl', null, !isLongBasis)}</TableCell>
-                <TableCell>{cell('target_basis', null, !isLongBasis)}</TableCell>
-              </TableRow>
-            );
+              </TableRow>,
+              ...(isOpen
+                ? group.rows.map((combo) => {
+                    const wh = warehouseMap[combo.warehouse_id];
+                    const ov = overrides[combo.id];
+                    const pf = pendingMap[combo.id] ?? {};
+                    const isLongBasis = (combo.pricing_method ?? 'LONG_BASIS') === 'LONG_BASIS';
+                    const inheritedBrokerage =
+                      combo.benchmark === 'cbot' ? wh?.brokerage_per_contract_cbot : wh?.brokerage_per_contract_b3;
+                    const periodRaw = wh?.interest_rate_period ?? null;
+
+                    const cell = (
+                      field: keyof CockpitOverrides,
+                      inherited: number | string | null | undefined,
+                      disabled?: boolean,
+                    ) => (
+                      <NumberCell
+                        key={field}
+                        combo={combo}
+                        field={field}
+                        inherited={inherited}
+                        overrides={ov}
+                        pending={!!pf[field]}
+                        disabled={disabled}
+                        onChange={onChange}
+                      />
+                    );
+
+                    return (
+                      <TableRow key={combo.id}>
+                        <TableCell className={cn(STICKY_PRACA, 'text-xs font-medium whitespace-nowrap')}>
+                          {wh?.display_name ?? combo.warehouse_id}
+                        </TableCell>
+                        <TableCell className={cn(STICKY_COMMODITY, 'text-xs')}>
+                          {COMMODITY_LABELS[combo.commodity] ?? combo.commodity}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{combo.ticker}</TableCell>
+                        <TableCell>{cell('interest_rate', wh?.interest_rate)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {periodRaw ? PERIOD_LABELS[periodRaw] ?? periodRaw : '—'}
+                        </TableCell>
+                        <TableCell>{cell('storage_cost', wh?.storage_cost)}</TableCell>
+                        <TableCell>
+                          <StorageTypeCell
+                            combo={combo}
+                            inherited={wh?.storage_cost_type}
+                            overrides={ov}
+                            pending={!!pf.storage_cost_type}
+                            onChange={onChange}
+                          />
+                        </TableCell>
+                        <TableCell>{cell('reception_cost', wh?.reception_cost)}</TableCell>
+                        <TableCell>{cell('brokerage_per_contract', inheritedBrokerage)}</TableCell>
+                        <TableCell>{cell('desk_cost_pct', wh?.desk_cost_pct)}</TableCell>
+                        <TableCell>{cell('shrinkage_rate_monthly', wh?.shrinkage_rate_monthly)}</TableCell>
+                        <TableCell>{cell('additional_discount_brl', null, !isLongBasis)}</TableCell>
+                        <TableCell>{cell('target_basis', null, !isLongBasis)}</TableCell>
+                      </TableRow>
+                    );
+                  })
+                : []),
+            ];
           })}
           {combos.length === 0 && (
             <TableRow>
-              <TableCell colSpan={13} className="text-center text-sm text-muted-foreground py-8">
+              <TableCell colSpan={COLUMN_COUNT} className="text-center text-sm text-muted-foreground py-8">
                 Nenhuma combinação ativa.
               </TableCell>
             </TableRow>
