@@ -352,7 +352,8 @@ const Cockpit = () => {
         <div>
           <h2 className="text-xl font-semibold">Cockpit de Precificação</h2>
           <p className="text-sm text-muted-foreground">
-            Ajuste os parâmetros, recalcule e publique. Nada é gravado até publicar.
+            Ajuste os parâmetros, recalcule e publique. Custos e datas só são gravados ao publicar —
+            cotações gravam na hora.
           </p>
         </div>
         <div className="flex items-center gap-2">
