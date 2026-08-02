@@ -270,6 +270,38 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                         <TableCell>{cell('shrinkage_rate_monthly', wh?.shrinkage_rate_monthly)}</TableCell>
                         <TableCell>{cell('additional_discount_brl', null, !isLongBasis)}</TableCell>
                         <TableCell>{cell('target_basis', null, !isLongBasis)}</TableCell>
+                        <TableCell>
+                          <SpotCell combo={combo} overrides={ov} pending={!!pf.is_spot} onChange={onChange} />
+                        </TableCell>
+                        <TableCell>
+                          <DateCell
+                            combo={combo}
+                            field="payment_date"
+                            overrides={ov}
+                            pending={!!pf.payment_date}
+                            disabled={isSpot}
+                            onChange={onChange}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <DateCell
+                            combo={combo}
+                            field="grain_reception_date"
+                            overrides={ov}
+                            pending={!!pf.grain_reception_date}
+                            fallback={isSpot ? null : paymentDate}
+                            onChange={onChange}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <DateCell
+                            combo={combo}
+                            field="sale_date"
+                            overrides={ov}
+                            pending={!!pf.sale_date}
+                            onChange={onChange}
+                          />
+                        </TableCell>
                       </TableRow>
                     );
                   })
