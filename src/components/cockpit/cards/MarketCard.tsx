@@ -90,7 +90,8 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
   const cornCbotQty = parameters?.find((p) => p.id === 'corn_cbot')?.ticker_count ?? 8;
   const b3Qty = parameters?.find((p) => p.id === 'corn_b3')?.ticker_count ?? 6;
 
-  const [fetchingOp, setFetchingOp] = useState<'all' | 'markets' | null>(null);
+  const [fetchingOp, setFetchingOp] = useState<'all' | 'markets' | 'fx' | null>(null);
+  const [confirmingB3, setConfirmingB3] = useState(false);
   const [editingTicker, setEditingTicker] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   /** Tickers gravados nesta sessão desde o último recálculo (marca âmbar). */
