@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { DateInput } from '@/components/ui/date-input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { PricingCombination, Warehouse } from '@/types';
 import { effectiveValue, type CockpitOverrides, type OverridesMap } from '@/lib/cockpitPayload';
+
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
 const PERIOD_LABELS: Record<string, string> = {
