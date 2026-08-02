@@ -23,6 +23,7 @@ import {
   persistSoybean,
   persistCornCBOT,
   persistCornB3,
+  confirmB3Update,
   loadB3FromDb,
   type MarketWriteDeps,
   type B3CornQuote,
