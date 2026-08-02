@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { DateInput } from '@/components/ui/date-input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { PricingCombination, Warehouse } from '@/types';
 import { effectiveValue, type CockpitOverrides, type OverridesMap } from '@/lib/cockpitPayload';
+
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
 const PERIOD_LABELS: Record<string, string> = {
@@ -39,7 +42,7 @@ interface CellProps {
   overrides: CockpitOverrides | undefined;
   pending: boolean;
   disabled?: boolean;
-  onChange: (comboId: string, field: keyof CockpitOverrides, value: number | string | null) => void;
+  onChange: (comboId: string, field: keyof CockpitOverrides, value: number | string | boolean | null) => void;
 }
 
 /** Classe da marca: âmbar enquanto não recalculado, primária depois de aplicado. */
@@ -89,15 +92,52 @@ function StorageTypeCell({ combo, inherited, overrides, pending, onChange }: Omi
   );
 }
 
+/** Célula de data. Sem validação no frontend: a API decide e descarta com motivo. */
+function DateCell({
+  combo,
+  field,
+  overrides,
+  pending,
+  disabled,
+  fallback,
+  onChange,
+}: Omit<CellProps, 'inherited'> & { fallback?: string | null }) {
+  const edited = !!overrides && Object.prototype.hasOwnProperty.call(overrides, field);
+  const own = effectiveValue(combo, overrides, field) as string | null | undefined;
+  const shown = own ?? fallback ?? '';
+
+  return (
+    <DateInput
+      value={shown}
+      disabled={disabled}
+      onChange={(v) => onChange(combo.id, field, v === '' ? null : v)}
+      className={cn('h-7 w-[8.5rem] text-xs', markClass(edited, pending))}
+    />
+  );
+}
+
+function SpotCell({ combo, overrides, pending, onChange }: Omit<CellProps, 'field' | 'inherited'>) {
+  const field: keyof CockpitOverrides = 'is_spot';
+  const edited = !!overrides && Object.prototype.hasOwnProperty.call(overrides, field);
+  const checked = !!(effectiveValue(combo, overrides, field) ?? false);
+
+  return (
+    <div className={cn('inline-flex items-center rounded px-1 py-0.5', markClass(edited, pending))}>
+      <Switch checked={checked} onCheckedChange={(v) => onChange(combo.id, field, v)} />
+    </div>
+  );
+}
+
 export interface ParametersCardProps {
   combos: PricingCombination[];
   warehouseMap: Record<string, Warehouse>;
   overrides: OverridesMap;
   pendingMap: PendingMap;
-  onChange: (comboId: string, field: keyof CockpitOverrides, value: number | string | null) => void;
+  onChange: (comboId: string, field: keyof CockpitOverrides, value: number | string | boolean | null) => void;
 }
 
-const COLUMN_COUNT = 13;
+const COLUMN_COUNT = 17;
+
 
 export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange }: ParametersCardProps) {
   /** Todos os grupos nascem fechados: o cockpit é para ajuste pontual. */
@@ -139,6 +179,10 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
             <TableHead>Quebra</TableHead>
             <TableHead>Desc. adicional</TableHead>
             <TableHead>Basis alvo</TableHead>
+            <TableHead>À vista</TableHead>
+            <TableHead>Pagamento</TableHead>
+            <TableHead>Recepção do grão</TableHead>
+            <TableHead>Venda</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -179,6 +223,8 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                     const inheritedBrokerage =
                       combo.benchmark === 'cbot' ? wh?.brokerage_per_contract_cbot : wh?.brokerage_per_contract_b3;
                     const periodRaw = wh?.interest_rate_period ?? null;
+                    const isSpot = !!(effectiveValue(combo, ov, 'is_spot') ?? false);
+                    const paymentDate = (effectiveValue(combo, ov, 'payment_date') as string | null) ?? null;
 
                     const cell = (
                       field: keyof CockpitOverrides,
@@ -226,6 +272,38 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                         <TableCell>{cell('shrinkage_rate_monthly', wh?.shrinkage_rate_monthly)}</TableCell>
                         <TableCell>{cell('additional_discount_brl', null, !isLongBasis)}</TableCell>
                         <TableCell>{cell('target_basis', null, !isLongBasis)}</TableCell>
+                        <TableCell>
+                          <SpotCell combo={combo} overrides={ov} pending={!!pf.is_spot} onChange={onChange} />
+                        </TableCell>
+                        <TableCell>
+                          <DateCell
+                            combo={combo}
+                            field="payment_date"
+                            overrides={ov}
+                            pending={!!pf.payment_date}
+                            disabled={isSpot}
+                            onChange={onChange}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <DateCell
+                            combo={combo}
+                            field="grain_reception_date"
+                            overrides={ov}
+                            pending={!!pf.grain_reception_date}
+                            fallback={isSpot ? null : paymentDate}
+                            onChange={onChange}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <DateCell
+                            combo={combo}
+                            field="sale_date"
+                            overrides={ov}
+                            pending={!!pf.sale_date}
+                            onChange={onChange}
+                          />
+                        </TableCell>
                       </TableRow>
                     );
                   })

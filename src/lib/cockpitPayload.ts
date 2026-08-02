@@ -11,6 +11,11 @@ export interface CockpitOverrides {
   shrinkage_rate_monthly?: number | null;
   additional_discount_brl?: number | null;
   target_basis?: number | null;
+  /** Datas da combinação. Ajuste fino de prazo, não camada de custo. */
+  payment_date?: string | null;
+  grain_reception_date?: string | null;
+  sale_date?: string | null;
+  is_spot?: boolean | null;
 }
 
 export type OverridesMap = Record<string, CockpitOverrides>;
@@ -25,7 +30,12 @@ export const EDITABLE_FIELDS: (keyof CockpitOverrides)[] = [
   'shrinkage_rate_monthly',
   'additional_discount_brl',
   'target_basis',
+  'payment_date',
+  'grain_reception_date',
+  'sale_date',
+  'is_spot',
 ];
+
 
 /**
  * Data de negócio da mesa (fuso de Brasília), formato ISO YYYY-MM-DD.
@@ -111,16 +121,19 @@ export function buildCockpitPayload({
       continue;
     }
 
-    const isSpot = combo.is_spot ?? false;
+    const isSpot = effectiveValue(combo, ov, 'is_spot') ?? false;
+    const ownPaymentDate = effectiveValue(combo, ov, 'payment_date') ?? null;
     let paymentDate: string | null = null;
     if (!isSpot) {
-      if (!combo.payment_date) {
+      if (!ownPaymentDate) {
         skipped.push({ comboId: combo.id, label, reason: 'Sem data de pagamento cadastrada.' });
         continue;
       }
-      paymentDate = combo.payment_date;
+      paymentDate = ownPaymentDate;
     }
-    const grainReceptionDate = combo.grain_reception_date ?? paymentDate;
+    const grainReceptionDate = effectiveValue(combo, ov, 'grain_reception_date') ?? paymentDate;
+    const saleDate = effectiveValue(combo, ov, 'sale_date') ?? combo.sale_date;
+
 
     // Camadas cruas. A herança é do backend — nada de null <-> 0 aqui.
     const combinationLayer: Record<string, unknown> = {
@@ -158,7 +171,7 @@ export function buildCockpitPayload({
       exp_date: expDate,
       is_spot: isSpot,
       ...(isSpot ? {} : { payment_date: paymentDate }),
-      sale_date: combo.sale_date,
+      sale_date: saleDate,
       grain_reception_date: grainReceptionDate,
       pricing_method: pricingMethod,
       futures_price: market.price,

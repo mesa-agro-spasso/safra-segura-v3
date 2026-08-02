@@ -125,7 +125,7 @@ const Cockpit = () => {
   );
   const dirty = pendingIds.size > 0;
 
-  const handleChange = (comboId: string, field: keyof CockpitOverrides, value: number | string | null) => {
+  const handleChange = (comboId: string, field: keyof CockpitOverrides, value: number | string | boolean | null) => {
     setOverrides((prev) => ({ ...prev, [comboId]: { ...prev[comboId], [field]: value } }));
     setPendingMap((prev) => ({ ...prev, [comboId]: { ...prev[comboId], [field]: true } }));
   };
