@@ -179,6 +179,10 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
             <TableHead>Quebra</TableHead>
             <TableHead>Desc. adicional</TableHead>
             <TableHead>Basis alvo</TableHead>
+            <TableHead>À vista</TableHead>
+            <TableHead>Pagamento</TableHead>
+            <TableHead>Recepção do grão</TableHead>
+            <TableHead>Venda</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
