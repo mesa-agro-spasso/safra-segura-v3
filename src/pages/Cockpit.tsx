@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react';
-import { RefreshCw, Upload, AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { RefreshCw, Upload, AlertTriangle, Plus, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { callApi } from '@/lib/api';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
@@ -11,17 +17,34 @@ import { usePricingCombinations, useUpsertPricingCombination } from '@/hooks/use
 import { usePricingSnapshots, useSavePricingSnapshots } from '@/hooks/usePricingSnapshots';
 import { useAuth } from '@/contexts/AuthContext';
 import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
-import { CockpitRow } from '@/components/cockpit/CockpitRow';
+import { CockpitShell, type CockpitCardSpec } from '@/components/cockpit/CockpitShell';
+import { PriceTableCard } from '@/components/cockpit/cards/PriceTableCard';
+import { MarketCard } from '@/components/cockpit/cards/MarketCard';
+import { PhysicalPricesCard } from '@/components/cockpit/cards/PhysicalPricesCard';
+import { ParametersCard, type PendingMap } from '@/components/cockpit/cards/ParametersCard';
+import {
+  useCockpitLayout,
+  useSaveCockpitLayout,
+  DEFAULT_LAYOUT,
+  type CockpitCardId,
+  type CockpitLayout,
+} from '@/hooks/useCockpitLayout';
 import {
   buildCockpitPayload,
   buildCockpitSnapshots,
   getTradeDateBRT,
-  readOriginMap,
   EDITABLE_FIELDS,
   type CockpitOverrides,
   type OverridesMap,
 } from '@/lib/cockpitPayload';
 import type { Warehouse, MarketData, DiscardedCombination, PricingSnapshot } from '@/types';
+
+const CARD_TITLES: Record<CockpitCardId, string> = {
+  price_table: 'Tabela de preços',
+  market: 'Mercado (bolsa)',
+  physical_prices: 'Preços físicos',
+  parameters: 'Parâmetros das combinações',
+};
 
 const Cockpit = () => {
   const { data: warehouses } = useActiveArmazens();
@@ -32,10 +55,18 @@ const Cockpit = () => {
   const upsertCombination = useUpsertPricingCombination();
   const { user } = useAuth();
 
+  const { data: savedLayout } = useCockpitLayout(user?.id);
+  const saveLayout = useSaveCockpitLayout();
+  const [layout, setLayout] = useState<CockpitLayout>(DEFAULT_LAYOUT);
+
+  useEffect(() => {
+    if (savedLayout) setLayout(savedLayout);
+  }, [savedLayout]);
+
   const [overrides, setOverrides] = useState<OverridesMap>({});
+  const [pendingMap, setPendingMap] = useState<PendingMap>({});
   const [recalculating, setRecalculating] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [dirty, setDirty] = useState(false);
   const [discarded, setDiscarded] = useState<DiscardedCombination[]>([]);
   const [skipped, setSkipped] = useState<{ comboId: string; label: string; reason: string }[]>([]);
   const [calcResults, setCalcResults] = useState<Record<string, Record<string, unknown>> | null>(null);
@@ -65,7 +96,6 @@ const Cockpit = () => {
     return snapshots.filter((s) => s.created_at === latest);
   }, [snapshots]);
 
-  /** Chave praça+commodity+ticker → snapshot do lote vigente. */
   const snapshotByKey = useMemo(() => {
     const m: Record<string, PricingSnapshot> = {};
     latestBatch.forEach((s) => { m[`${s.warehouse_id}|${s.commodity}|${s.ticker}`] = s; });
@@ -89,15 +119,16 @@ const Cockpit = () => {
     return m;
   }, [skipped]);
 
+  const pendingIds = useMemo(
+    () => new Set(Object.entries(pendingMap).filter(([, f]) => Object.keys(f).length > 0).map(([id]) => id)),
+    [pendingMap],
+  );
+  const dirty = pendingIds.size > 0;
+
   const handleChange = (comboId: string, field: keyof CockpitOverrides, value: number | string | null) => {
     setOverrides((prev) => ({ ...prev, [comboId]: { ...prev[comboId], [field]: value } }));
-    setDirty(true);
+    setPendingMap((prev) => ({ ...prev, [comboId]: { ...prev[comboId], [field]: true } }));
   };
-
-  const editedCount = useMemo(
-    () => Object.values(overrides).filter((o) => Object.keys(o).length > 0).length,
-    [overrides],
-  );
 
   const handleRecalculate = async () => {
     if (!combinations || !marketData || !warehouses) return;
@@ -142,7 +173,7 @@ const Cockpit = () => {
 
       setCalcResults(byCombo);
       setDiscarded(apiDiscarded);
-      setDirty(false);
+      setPendingMap({});
 
       if (apiDiscarded.length > 0) {
         toast.success(`${apiResults.length} preços calculados, ${apiDiscarded.length} descartada(s)`);
@@ -160,7 +191,6 @@ const Cockpit = () => {
   const handlePublish = async () => {
     if (!calcResults || !combinations) return;
 
-    // Reconstrói o payload da mesma forma do recálculo para montar os snapshots.
     const { payload, comboIds } = buildCockpitPayload({
       combinations: sortedCombos,
       warehouseMap,
@@ -224,12 +254,84 @@ const Cockpit = () => {
       setPartialFailure({ labels: failed, message: lastError });
     } else {
       setOverrides({});
-      setDirty(false);
+      setPendingMap({});
       toast.success('Tabela publicada e cadastro atualizado.');
     }
   };
 
   const canPublish = !!calcResults && !dirty && !publishing && !recalculating;
+
+  const recalcButton = (
+    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRecalculate} disabled={recalculating || publishing}>
+      <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${recalculating ? 'animate-spin' : ''}`} />
+      Recalcular
+    </Button>
+  );
+
+  const cardContent: Record<CockpitCardId, React.ReactNode> = {
+    price_table: (
+      <PriceTableCard
+        combos={sortedCombos}
+        warehouseMap={warehouseMap}
+        snapshotByKey={snapshotByKey}
+        calcResults={calcResults}
+        pendingIds={pendingIds}
+        skippedMap={skippedMap}
+      />
+    ),
+    market: <MarketCard />,
+    physical_prices: <PhysicalPricesCard warehouseMap={warehouseMap} />,
+    parameters: (
+      <ParametersCard
+        combos={sortedCombos}
+        warehouseMap={warehouseMap}
+        overrides={overrides}
+        pendingMap={pendingMap}
+        onChange={handleChange}
+      />
+    ),
+  };
+
+  const cardActions: Partial<Record<CockpitCardId, React.ReactNode>> = {
+    price_table: (
+      <div className="flex items-center gap-2">
+        {recalcButton}
+        <Button size="sm" className="h-7 text-xs" onClick={handlePublish} disabled={!canPublish}>
+          <Upload className="mr-1.5 h-3.5 w-3.5" />
+          Publicar
+        </Button>
+      </div>
+    ),
+    parameters: recalcButton,
+  };
+
+  const cards: CockpitCardSpec[] = layout.cards.map((c) => ({
+    id: c.id,
+    title: CARD_TITLES[c.id],
+    fixed: c.id === 'price_table',
+    content: cardContent[c.id],
+    actions: cardActions[c.id],
+  }));
+
+  const availableToAdd = (Object.keys(CARD_TITLES) as CockpitCardId[]).filter(
+    (id) => !layout.cards.some((c) => c.id === id),
+  );
+
+  const handleReorder = (ids: CockpitCardId[]) => setLayout({ version: 1, cards: ids.map((id) => ({ id })) });
+  const handleRemove = (id: CockpitCardId) =>
+    setLayout((prev) => ({ version: 1, cards: prev.cards.filter((c) => c.id !== id) }));
+  const handleAdd = (id: CockpitCardId) =>
+    setLayout((prev) => ({ version: 1, cards: [...prev.cards, { id }] }));
+
+  const handleSaveLayout = async () => {
+    if (!user?.id) return;
+    try {
+      await saveLayout.mutateAsync({ userId: user.id, layout });
+      toast.success('Layout salvo.');
+    } catch (err) {
+      toast.error(`Erro ao salvar layout: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -241,21 +343,32 @@ const Cockpit = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleRecalculate} disabled={recalculating || publishing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${recalculating ? 'animate-spin' : ''}`} />
-            Recalcular
-          </Button>
-          <Button onClick={handlePublish} disabled={!canPublish}>
-            <Upload className="mr-2 h-4 w-4" />
-            Publicar
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={availableToAdd.length === 0}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Adicionar card
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {availableToAdd.map((id) => (
+                <DropdownMenuItem key={id} onClick={() => handleAdd(id)}>
+                  {CARD_TITLES[id]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="sm" onClick={handleSaveLayout} disabled={saveLayout.isPending || !user?.id}>
+            <Save className="mr-1.5 h-4 w-4" />
+            Salvar layout
           </Button>
         </div>
       </div>
 
       {dirty && (
-        <div className="rounded border border-primary/40 bg-primary/10 p-3 text-sm flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-primary" />
-          Há edições não recalculadas ({editedCount} linha(s)). Os preços na tela ainda não refletem essas mudanças.
+        <div className="rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          Há edições não recalculadas ({pendingIds.size} linha(s)). Publicar está travado até recalcular.
         </div>
       )}
 
@@ -276,34 +389,11 @@ const Cockpit = () => {
         </Card>
       )}
 
-      <div className="space-y-2">
-        {isLoading && <p className="text-sm text-muted-foreground">Carregando combinações…</p>}
-        {!isLoading && sortedCombos.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Nenhuma combinação ativa. Cadastre em Configurações → Combinações.
-          </p>
-        )}
-        {sortedCombos.map((combo) => {
-          const snap = snapshotByKey[`${combo.warehouse_id}|${combo.commodity}|${combo.ticker}`];
-          const calc = calcResults?.[combo.id];
-          const price = calc
-            ? ((calc.origination_price_brl as number | null) ?? null)
-            : (snap?.origination_price_brl ?? null);
-          return (
-            <CockpitRow
-              key={combo.id}
-              combo={combo}
-              warehouse={warehouseMap[combo.warehouse_id]}
-              price={price}
-              priceStale={!calc || dirty}
-              issue={skippedMap[combo.id] ?? null}
-              origin={readOriginMap((calc ?? snap?.outputs_json) as Record<string, unknown> | undefined)}
-              overrides={overrides[combo.id]}
-              onChange={handleChange}
-            />
-          );
-        })}
-      </div>
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Carregando combinações…</p>
+      ) : (
+        <CockpitShell cards={cards} onReorder={handleReorder} onRemove={handleRemove} />
+      )}
 
       <Dialog open={!!partialFailure} onOpenChange={(o) => { if (!o) setPartialFailure(null); }}>
         <DialogContent className="sm:max-w-md">
