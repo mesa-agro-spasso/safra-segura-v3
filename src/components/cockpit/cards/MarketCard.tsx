@@ -247,6 +247,40 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
     } finally { setFetchingOp(null); }
   };
 
+  /** Só o dólar: nenhum future é tocado (nem soja, nem milho CBOT, nem B3). */
+  const handleFetchFxOnly = async () => {
+    setFetchingOp('fx');
+    try {
+      const result = await fetchQuotes(Math.max(sojaQty, cornCbotQty));
+      await persistFX(deps, result);
+      markTouched(['USD/BRL']);
+      toast.success('Câmbio atualizado — gravado em market_data');
+    } catch (err) {
+      toast.error(`Erro ao atualizar câmbio: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
+  };
+
+  /** Renova o carimbo dos tickers B3 sem alterar preço (mesma lógica da aba Mercado). */
+  const handleConfirmB3 = async () => {
+    setConfirmingB3(true);
+    try {
+      const tickers = visibleB3.map((t) => t.ticker);
+      const now = await confirmB3Update(tickers);
+      setB3Prices((prev) => {
+        const updated = { ...prev };
+        tickers.forEach((t) => {
+          if (updated[t]) updated[t] = { ...updated[t], updated_at: now };
+        });
+        return updated;
+      });
+      markTouched(tickers);
+      toast.success('Atualização B3 confirmada');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao confirmar');
+    } finally { setConfirmingB3(false); }
+  };
+
+
   // ---- Células ----
 
   const editCell = (ticker: string, current: number | null | undefined, onSave: () => void) => {
