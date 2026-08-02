@@ -58,7 +58,7 @@ Sem mudança de mecânica: `buildCockpitPayload` monta as camadas `combination`/
 
 ## Detalhes técnicos
 
-- Arrastar: adicionar `@dnd-kit/core` e `@dnd-kit/sortable` (leves, sem estilo próprio). Alternativa sem dependência: setas de mover para cima/baixo — diga se prefere.
+- Arrastar: `@dnd-kit/core` + `@dnd-kit/sortable`, com alça de arraste no cabeçalho de cada card. Sem setas.
 - Nada de aritmética financeira nova: todos os números vêm de `pricing_snapshots`, da resposta de `/pricing/table` ou das tabelas de mercado.
 - Escopo negativo respeitado: nenhum arquivo de PricingTable, GeneratePricingModal, Market, Settings, hooks existentes, Edge Functions ou schema é alterado.
 
