@@ -13,12 +13,13 @@ O backend passou a resolver a herança de custos. O frontend deixa de fundir com
 ### Entra
 Dois objetos por combinação, montados por cópia direta do cadastro, sem default, sem conversão de null↔0:
 
-- `combination`: `interest_rate`, `interest_rate_period`, `storage_cost`, `storage_cost_type`, `reception_cost`, `brokerage_per_contract`, `desk_cost_pct`, `shrinkage_rate_monthly`, `additional_discount_brl` — todos vindos da linha de `pricing_combinations`.
+- `combination`: `interest_rate`, `storage_cost`, `storage_cost_type`, `reception_cost`, `brokerage_per_contract`, `desk_cost_pct`, `shrinkage_rate_monthly`, `additional_discount_brl` — todos vindos da linha de `pricing_combinations`.
+  - **Confirmado: `pricing_combinations` NÃO tem coluna `interest_rate_period`.** O campo não vai nesta camada. Nada é inventado nem copiado do armazém.
 - `warehouse`: `interest_rate`, `interest_rate_period`, `storage_cost`, `storage_cost_type`, `reception_cost`, `brokerage_per_contract_cbot`, `brokerage_per_contract_b3`, `desk_cost_pct`, `shrinkage_rate_monthly` — todos vindos do cadastro do armazém. Sem `additional_discount_brl` (422) e sem `brokerage_per_contract` sem sufixo (422).
 
 `manual_override` não é enviado nesta entrega.
 
-`additional_discount_brl` no TARGET_PRICE, que hoje é forçado a `0` no nível de cima, passa a ir dentro de `combination` — mantendo o `0` explícito, que é valor e para a descida.
+`additional_discount_brl` no TARGET_PRICE: **omitido por completo** — nem `0`, nem o valor cadastrado. Enviar zero inventado pelo frontend carimbaria `source="combination"` numa origem falsa. Omitido, cai em `system_default` ou a linha é recusada pelo backend, que é a regra do schema. No LONG_BASIS o campo segue indo dentro de `combination` com o valor cadastrado.
 
 ### Continua igual
 - Validações de mercado: ticker ausente, preço B3 faltando, contrato vencido, milho CBOT > 24h, `target_basis` / `origination_price_net_brl` obrigatórios por método.
