@@ -35,6 +35,8 @@ export interface PriceTableCardProps {
   /** Combinações com edição ainda não recalculada. */
   pendingIds: Set<string>;
   skippedMap: Record<string, string>;
+  /** Cotação alterada desde o último recálculo: TODA linha está desatualizada. */
+  staleAll?: boolean;
 }
 
 export function PriceTableCard({
@@ -44,7 +46,9 @@ export function PriceTableCard({
   calcResults,
   pendingIds,
   skippedMap,
+  staleAll = false,
 }: PriceTableCardProps) {
+
   const [commodity, setCommodity] = useState<string>('all');
   const [warehouseId, setWarehouseId] = useState<string>('all');
 
