@@ -171,7 +171,7 @@ export function buildCockpitPayload({
       exp_date: expDate,
       is_spot: isSpot,
       ...(isSpot ? {} : { payment_date: paymentDate }),
-      sale_date: combo.sale_date,
+      sale_date: saleDate,
       grain_reception_date: grainReceptionDate,
       pricing_method: pricingMethod,
       futures_price: market.price,
