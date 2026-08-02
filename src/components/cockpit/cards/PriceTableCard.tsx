@@ -127,7 +127,7 @@ export function PriceTableCard({
               const calc = calcResults?.[combo.id];
               const snap = snapshotByKey[`${combo.warehouse_id}|${combo.commodity}|${combo.ticker}`];
               const source = (calc ?? snap) as Record<string, unknown> | undefined;
-              const pending = pendingIds.has(combo.id);
+              const pending = pendingIds.has(combo.id) || staleAll;
               const issue = skippedMap[combo.id];
 
               const reception = calc ? calc.grain_reception_date : snap?.grain_reception_date;
