@@ -98,7 +98,7 @@ export function CockpitShell({ cards, onReorder, onRemove }: CockpitShellProps) 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-4">
+        <div className="space-y-4 w-full min-w-0 max-w-full">
           {cards.map((spec) => (
             <SortableCard key={spec.id} spec={spec} onRemove={onRemove} />
           ))}
