@@ -207,6 +207,23 @@ export const persistCornB3 = async (
   return await loadB3FromDb();
 };
 
+/**
+ * Renova o carimbo `updated_at` dos tickers B3 informados, SEM alterar preço.
+ * O milho B3 não tem fonte automática: este é o "confirmar atualização".
+ * Devolve o ISO aplicado para o chamador refletir na UI.
+ */
+export const confirmB3Update = async (tickers: string[]): Promise<string> => {
+  const now = new Date().toISOString();
+  for (const ticker of tickers) {
+    const { error } = await supabase
+      .from('market_data')
+      .update({ updated_at: now })
+      .eq('ticker', ticker);
+    if (error) throw new Error(error.message);
+  }
+  return now;
+};
+
 /** Lê o estado atual do milho B3 direto do banco (sem chamar a API). */
 export const loadB3FromDb = async (): Promise<{
   tickers: B3CornQuote[];
