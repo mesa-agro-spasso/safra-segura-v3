@@ -199,18 +199,20 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                     type="button"
                     onClick={() => toggle(group.warehouseId)}
                     aria-expanded={isOpen}
-                    className="sticky left-0 flex items-center gap-2 px-4 py-2 text-xs font-medium w-[calc(100vw-8rem)] max-w-full text-left"
+                    className="flex w-full text-left"
                   >
-                    <ChevronRight className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-90')} />
-                    <span>{group.name}</span>
-                    <span className="text-muted-foreground">
-                      {group.rows.length} {group.rows.length === 1 ? 'combinação' : 'combinações'}
-                    </span>
-                    {hasPending && (
-                      <span className="rounded border border-amber-500 bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-500">
-                        edições não recalculadas
+                    <span className="sticky left-0 z-20 flex w-fit items-center gap-2 px-4 py-2 text-xs font-medium">
+                      <ChevronRight className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-90')} />
+                      <span>{group.name}</span>
+                      <span className="text-muted-foreground">
+                        {group.rows.length} {group.rows.length === 1 ? 'combinação' : 'combinações'}
                       </span>
-                    )}
+                      {hasPending && (
+                        <span className="rounded border border-amber-500 bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-500">
+                          edições não recalculadas
+                        </span>
+                      )}
+                    </span>
                   </button>
                 </TableCell>
               </TableRow>,
