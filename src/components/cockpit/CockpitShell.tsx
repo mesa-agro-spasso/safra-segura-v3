@@ -39,8 +39,9 @@ function SortableCard({ spec, onRemove }: { spec: CockpitCardSpec; onRemove: (id
     <Card
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(isDragging && 'opacity-70 ring-2 ring-primary z-10 relative')}
+      className={cn('w-full min-w-0 overflow-hidden', isDragging && 'opacity-70 ring-2 ring-primary z-10 relative')}
     >
+
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <button
