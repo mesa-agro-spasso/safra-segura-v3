@@ -7,6 +7,8 @@ import { AdminRoute } from '@/components/AdminRoute';
 
 import { FEATURES } from '@/config/features';
 import PricingTable from '@/pages/PricingTable';
+import Cockpit from '@/pages/Cockpit';
+
 import Approvals from '@/pages/Approvals';
 import Market from '@/pages/Market';
 import Producers from '@/pages/Producers';
