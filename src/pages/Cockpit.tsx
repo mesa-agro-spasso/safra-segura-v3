@@ -71,6 +71,10 @@ const Cockpit = () => {
   const [skipped, setSkipped] = useState<{ comboId: string; label: string; reason: string }[]>([]);
   const [calcResults, setCalcResults] = useState<Record<string, Record<string, unknown>> | null>(null);
   const [partialFailure, setPartialFailure] = useState<{ labels: string[]; message: string } | null>(null);
+  /** Cotações gravadas desde o último recálculo — trava o Publicar junto com os parâmetros. */
+  const [quotesDirty, setQuotesDirty] = useState(false);
+  const [quoteCount, setQuoteCount] = useState(0);
+  const [recalcNonce, setRecalcNonce] = useState(0);
 
   const warehouseMap = useMemo(() => {
     const m: Record<string, Warehouse> = {};
@@ -123,7 +127,12 @@ const Cockpit = () => {
     () => new Set(Object.entries(pendingMap).filter(([, f]) => Object.keys(f).length > 0).map(([id]) => id)),
     [pendingMap],
   );
-  const dirty = pendingIds.size > 0;
+  const dirty = pendingIds.size > 0 || quotesDirty;
+
+  const handleQuoteChanged = (tickers: string[]) => {
+    setQuotesDirty(true);
+    setQuoteCount((n) => n + tickers.length);
+  };
 
   const handleChange = (comboId: string, field: keyof CockpitOverrides, value: number | string | boolean | null) => {
     setOverrides((prev) => ({ ...prev, [comboId]: { ...prev[comboId], [field]: value } }));
@@ -174,6 +183,9 @@ const Cockpit = () => {
       setCalcResults(byCombo);
       setDiscarded(apiDiscarded);
       setPendingMap({});
+      setQuotesDirty(false);
+      setQuoteCount(0);
+      setRecalcNonce((n) => n + 1);
 
       if (apiDiscarded.length > 0) {
         toast.success(`${apiResults.length} preços calculados, ${apiDiscarded.length} descartada(s)`);
@@ -277,9 +289,10 @@ const Cockpit = () => {
         calcResults={calcResults}
         pendingIds={pendingIds}
         skippedMap={skippedMap}
+        staleAll={quotesDirty}
       />
     ),
-    market: <MarketCard />,
+    market: <MarketCard onQuoteChanged={handleQuoteChanged} clearMarksKey={recalcNonce} />,
     physical_prices: <PhysicalPricesCard warehouseMap={warehouseMap} />,
     parameters: (
       <ParametersCard
@@ -368,7 +381,10 @@ const Cockpit = () => {
       {dirty && (
         <div className="rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Há edições não recalculadas ({pendingIds.size} linha(s)). Publicar está travado até recalcular.
+          {[
+            pendingIds.size > 0 ? `${pendingIds.size} linha(s) com parâmetro editado` : null,
+            quotesDirty ? `cotação alterada (${quoteCount} gravação(ões), já valendo para todos)` : null,
+          ].filter(Boolean).join(' · ')}. Publicar está travado até recalcular.
         </div>
       )}
 
