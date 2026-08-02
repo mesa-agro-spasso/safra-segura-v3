@@ -7,6 +7,7 @@ const ALLOWED_POST_ENDPOINTS = [
   '/pricing/table',
   '/pricing/insurance-layer',
   '/utils/convert-price',
+  '/utils/convert-prices',
   '/utils/sacks-to-contracts',
   '/closing/',
   '/orders/build',
