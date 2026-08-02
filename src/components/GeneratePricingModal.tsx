@@ -12,7 +12,7 @@ import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
 
 import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
-import type { Warehouse, MarketData, PricingSnapshot, PricingCombination, DiscardedCombination } from '@/types';
+import type { Warehouse, MarketData, PricingSnapshot, DiscardedCombination } from '@/types';
 
 /**
  * Data de negócio da mesa (fuso de Brasília), formato ISO YYYY-MM-DD.
