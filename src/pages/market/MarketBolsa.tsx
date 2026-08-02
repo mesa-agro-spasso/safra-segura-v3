@@ -83,8 +83,8 @@ const MarketBolsa = () => {
   const handleFetchFX = async () => {
     setFetchingOp('fx');
     try {
-      const result = await fetchQuotes();
-      await persistFX(result);
+      const result = await runFetchQuotes();
+      await persistFX(deps, result);
       toast.success('Câmbio atualizado');
     } catch (err) {
       toast.error(`Erro ao atualizar câmbio: ${err instanceof Error ? err.message : String(err)}`);
@@ -95,8 +95,8 @@ const MarketBolsa = () => {
     setFetchingOp('soybean');
     try {
       const fxOverride = await getCurrentFxFromDb();
-      const result = await fetchQuotes(fxOverride);
-      await persistSoybean(result);
+      const result = await runFetchQuotes(fxOverride);
+      await persistSoybean(deps, result);
       toast.success('Soja CBOT atualizada');
     } catch (err) {
       toast.error(`Erro ao atualizar soja: ${err instanceof Error ? err.message : String(err)}`);
@@ -107,8 +107,8 @@ const MarketBolsa = () => {
     setFetchingOp('corn_cbot');
     try {
       const fxOverride = await getCurrentFxFromDb();
-      const result = await fetchQuotes(fxOverride);
-      await persistCornCBOT(result);
+      const result = await runFetchQuotes(fxOverride);
+      await persistCornCBOT(deps, result);
       toast.success('Milho CBOT atualizado');
     } catch (err) {
       toast.error(`Erro ao atualizar milho CBOT: ${err instanceof Error ? err.message : String(err)}`);
@@ -118,7 +118,7 @@ const MarketBolsa = () => {
   const handleFetchCornB3 = async () => {
     setFetchingOp('corn_b3');
     try {
-      await persistCornB3();
+      await runPersistCornB3();
       toast.success('Milho B3 atualizado');
     } catch (err) {
       toast.error(`Erro ao atualizar milho B3: ${err instanceof Error ? err.message : String(err)}`);
@@ -128,11 +128,11 @@ const MarketBolsa = () => {
   const handleFetchAll = async () => {
     setFetchingOp('all');
     try {
-      const result = await fetchQuotes();
-      await persistFX(result);
-      await persistSoybean(result);
-      await persistCornCBOT(result);
-      await persistCornB3();
+      const result = await runFetchQuotes();
+      await persistFX(deps, result);
+      await persistSoybean(deps, result);
+      await persistCornCBOT(deps, result);
+      await runPersistCornB3();
       toast.success('Todos os dados atualizados');
     } catch (err) {
       toast.error(`Erro ao atualizar: ${err instanceof Error ? err.message : String(err)}`);
@@ -143,15 +143,16 @@ const MarketBolsa = () => {
     setFetchingOp('markets');
     try {
       const fxOverride = await getCurrentFxFromDb();
-      const result = await fetchQuotes(fxOverride);
-      await persistSoybean(result);
-      await persistCornCBOT(result);
-      await persistCornB3();
+      const result = await runFetchQuotes(fxOverride);
+      await persistSoybean(deps, result);
+      await persistCornCBOT(deps, result);
+      await runPersistCornB3();
       toast.success('Mercados atualizados (câmbio preservado)');
     } catch (err) {
       toast.error(`Erro ao atualizar mercados: ${err instanceof Error ? err.message : String(err)}`);
     } finally { setFetchingOp(null); }
   };
+
 
   const handleManualSave = async (ticker: string) => {
     const price = parseFloat(editValue);
