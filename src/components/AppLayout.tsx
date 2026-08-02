@@ -7,6 +7,8 @@ import { AdminRoute } from '@/components/AdminRoute';
 
 import { FEATURES } from '@/config/features';
 import PricingTable from '@/pages/PricingTable';
+import Cockpit from '@/pages/Cockpit';
+
 import Approvals from '@/pages/Approvals';
 import Market from '@/pages/Market';
 import Producers from '@/pages/Producers';
@@ -19,6 +21,8 @@ import NotFound from '@/pages/NotFound';
 
 const routes: KeepAliveRoute[] = [
   { path: '/', element: <PricingTable />, end: true },
+  { path: '/cockpit', element: <Cockpit /> },
+
   { path: '/ajuda', element: <Ajuda /> },
   { path: '/aprovacoes', element: <Approvals /> },
   { path: '/mercado', element: <Market /> },
