@@ -31,12 +31,15 @@ Como o recálculo lê `spot_usd_brl` e os tickers de `marketData` (React Query),
 
 ## Escopo
 
-Não são tocados: `src/pages/market/**`, o card de parâmetros, `cockpitPayload.ts`, o layout salvo, os hooks de mercado e a mecânica de recalcular/publicar (só ganha uma condição a mais na trava).
+Não são tocados: o card de parâmetros, `cockpitPayload.ts`, o layout salvo, os hooks de mercado e a mecânica de recalcular/publicar (só ganha uma condição a mais na trava).
+
+`MarketBolsa.tsx` é tocado apenas para importar as funções do novo lugar — nenhuma mudança de comportamento na aba, nenhuma outra edição no arquivo.
 
 ## Detalhes técnicos
 
 - `src/components/cockpit/cards/MarketCard.tsx` reescrito: reutiliza `useMarketData`, `useUpsertMarketData`, `usePricingParameters`, `useConvertedPrices` e `callApi('/market/quotes' | '/market/b3-corn-quotes')` — nenhum hook é modificado.
-- A lógica de fetch/persistência da aba Mercado (`fetchQuotes`, `persistFX`, `persistSoybean`, `persistCornCBOT`, `persistCornB3`, `syncCommodityBatch`) é extraída para `src/components/cockpit/marketWrites.ts`, funções puras que recebem os hooks/mutação como argumento. `MarketBolsa.tsx` fica como está — sem duplicar regra no cockpit e sem alterar a aba.
+- A lógica de fetch/persistência hoje dentro de `MarketBolsa.tsx` (`fetchQuotes`, `persistFX`, `persistSoybean`, `persistCornCBOT`, `persistCornB3`, `syncCommodityBatch`) é extraída para `src/lib/marketWrites.ts` — código compartilhado não mora na pasta de nenhuma das duas telas. As funções recebem a mutação de upsert e o `queryClient` como argumento. A aba passa a importar de lá; o cockpit importa do mesmo lugar. Se a extração revelar qualquer diferença de comportamento entre o que a aba faz hoje e o que o cockpit precisa, a implementação para e reporta antes de decidir.
+
 - Novas props do `MarketCard`: `onQuoteChanged: (tickers: string[]) => void`.
 - `src/pages/Cockpit.tsx`: novo estado `quotesDirty: boolean` (+ conjunto de tickers alterados para a mensagem). `dirty = pendingIds.size > 0 || quotesDirty`. `handleRecalculate` zera `quotesDirty` no sucesso.
 - `PriceTableCard` ganha a prop `staleAll?: boolean`; quando `true`, todas as linhas recebem o mesmo esmaecido e o selo "não recalculado".
