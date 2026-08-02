@@ -21,6 +21,8 @@ import NotFound from '@/pages/NotFound';
 
 const routes: KeepAliveRoute[] = [
   { path: '/', element: <PricingTable />, end: true },
+  { path: '/cockpit', element: <Cockpit /> },
+
   { path: '/ajuda', element: <Ajuda /> },
   { path: '/aprovacoes', element: <Approvals /> },
   { path: '/mercado', element: <Market /> },
