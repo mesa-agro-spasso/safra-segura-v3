@@ -405,7 +405,23 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
       <Section title="Milho CBOT">
         <CbotTable rows={cornCbotRows} brl={cornCbotBrl} />
       </Section>
-      <Section title="Milho B3 (manual)">
+      <Section
+        title="Milho B3 (manual)"
+        action={
+          visibleB3.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleConfirmB3}
+              disabled={confirmingB3}
+            >
+              <Check className="mr-1.5 h-3 w-3" />
+              {confirmingB3 ? 'Confirmando…' : 'Confirmar atualização'}
+            </Button>
+          ) : undefined
+        }
+      >
         {visibleB3.length === 0 ? (
           <p className="text-sm text-muted-foreground px-2 py-2">Sem dados.</p>
         ) : (
