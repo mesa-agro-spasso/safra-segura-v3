@@ -74,9 +74,11 @@ function Section({
 export interface MarketCardProps {
   /** Chamado após QUALQUER gravação de cotação (manual ou fetch automático). */
   onQuoteChanged: (tickers: string[]) => void;
+  /** Muda a cada recálculo: limpa as marcas âmbar das cotações. */
+  clearMarksKey?: number;
 }
 
-export function MarketCard({ onQuoteChanged }: MarketCardProps) {
+export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProps) {
   const { data: marketData, isLoading } = useMarketData();
   const { data: parameters } = usePricingParameters();
   const upsertMarket = useUpsertMarketData();
@@ -95,6 +97,8 @@ export function MarketCard({ onQuoteChanged }: MarketCardProps) {
 
   const [b3Tickers, setB3Tickers] = useState<B3CornQuote[]>([]);
   const [b3Prices, setB3Prices] = useState<Record<string, B3SavedPrice>>({});
+
+  useEffect(() => { setTouched(new Set()); }, [clearMarksKey]);
 
   useEffect(() => {
     loadB3FromDb()
