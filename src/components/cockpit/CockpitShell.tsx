@@ -68,7 +68,7 @@ function SortableCard({ spec, onRemove }: { spec: CockpitCardSpec; onRemove: (id
           )}
         </div>
       </CardHeader>
-      <CardContent>{spec.content}</CardContent>
+      <CardContent className="min-w-0 overflow-hidden">{spec.content}</CardContent>
     </Card>
   );
 }
