@@ -8,6 +8,11 @@ import type { PricingCombination, PricingSnapshot, Warehouse } from '@/types';
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
 
+/** Colunas congeladas à esquerda (praça e commodity). */
+const STICKY_PRACA = 'sticky left-0 z-20 bg-card w-40 min-w-[10rem]';
+const STICKY_COMMODITY = 'sticky left-40 z-20 bg-card w-24 min-w-[6rem] shadow-[inset_-1px_0_0_hsl(var(--border))]';
+
+
 function formatDate(value: unknown): string {
   if (typeof value !== 'string' || value.length < 10) return '-';
   const [y, m, d] = value.slice(0, 10).split('-');
