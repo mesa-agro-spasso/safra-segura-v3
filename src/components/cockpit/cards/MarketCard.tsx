@@ -379,6 +379,7 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleFetchAll}>Atualizar tudo (inclui câmbio)</DropdownMenuItem>
             <DropdownMenuItem onClick={handleFetchMarkets}>Atualizar mercados (preserva o câmbio)</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleFetchFxOnly}>Atualizar só o câmbio</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
