@@ -223,6 +223,8 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                     const inheritedBrokerage =
                       combo.benchmark === 'cbot' ? wh?.brokerage_per_contract_cbot : wh?.brokerage_per_contract_b3;
                     const periodRaw = wh?.interest_rate_period ?? null;
+                    const isSpot = !!(effectiveValue(combo, ov, 'is_spot') ?? false);
+                    const paymentDate = (effectiveValue(combo, ov, 'payment_date') as string | null) ?? null;
 
                     const cell = (
                       field: keyof CockpitOverrides,
