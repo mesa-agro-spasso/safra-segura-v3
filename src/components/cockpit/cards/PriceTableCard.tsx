@@ -136,10 +136,11 @@ export function PriceTableCard({
 
               return (
                 <TableRow key={combo.id} className={cn(pending && 'opacity-50')}>
-                  <TableCell className="font-medium text-xs">
+                  <TableCell className={cn(STICKY_PRACA, 'font-medium text-xs')}>
                     {warehouseMap[combo.warehouse_id]?.display_name ?? combo.warehouse_id}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={STICKY_COMMODITY}>
+
                     <span
                       className={cn(
                         'text-xs px-1.5 py-0.5 rounded',
