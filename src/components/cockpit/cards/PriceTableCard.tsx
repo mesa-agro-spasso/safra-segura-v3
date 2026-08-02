@@ -35,6 +35,8 @@ export interface PriceTableCardProps {
   /** Combinações com edição ainda não recalculada. */
   pendingIds: Set<string>;
   skippedMap: Record<string, string>;
+  /** Cotação alterada desde o último recálculo: TODA linha está desatualizada. */
+  staleAll?: boolean;
 }
 
 export function PriceTableCard({
@@ -44,7 +46,9 @@ export function PriceTableCard({
   calcResults,
   pendingIds,
   skippedMap,
+  staleAll = false,
 }: PriceTableCardProps) {
+
   const [commodity, setCommodity] = useState<string>('all');
   const [warehouseId, setWarehouseId] = useState<string>('all');
 
@@ -123,7 +127,7 @@ export function PriceTableCard({
               const calc = calcResults?.[combo.id];
               const snap = snapshotByKey[`${combo.warehouse_id}|${combo.commodity}|${combo.ticker}`];
               const source = (calc ?? snap) as Record<string, unknown> | undefined;
-              const pending = pendingIds.has(combo.id);
+              const pending = pendingIds.has(combo.id) || staleAll;
               const issue = skippedMap[combo.id];
 
               const reception = calc ? calc.grain_reception_date : snap?.grain_reception_date;
