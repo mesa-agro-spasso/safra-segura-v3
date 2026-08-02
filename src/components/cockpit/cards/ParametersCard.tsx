@@ -42,7 +42,7 @@ interface CellProps {
   overrides: CockpitOverrides | undefined;
   pending: boolean;
   disabled?: boolean;
-  onChange: (comboId: string, field: keyof CockpitOverrides, value: number | string | null) => void;
+  onChange: (comboId: string, field: keyof CockpitOverrides, value: number | string | boolean | null) => void;
 }
 
 /** Classe da marca: âmbar enquanto não recalculado, primária depois de aplicado. */
