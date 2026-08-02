@@ -39,8 +39,9 @@ function SortableCard({ spec, onRemove }: { spec: CockpitCardSpec; onRemove: (id
     <Card
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(isDragging && 'opacity-70 ring-2 ring-primary z-10 relative')}
+      className={cn('w-full min-w-0 overflow-hidden', isDragging && 'opacity-70 ring-2 ring-primary z-10 relative')}
     >
+
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <button
@@ -67,7 +68,7 @@ function SortableCard({ spec, onRemove }: { spec: CockpitCardSpec; onRemove: (id
           )}
         </div>
       </CardHeader>
-      <CardContent>{spec.content}</CardContent>
+      <CardContent className="min-w-0 overflow-hidden">{spec.content}</CardContent>
     </Card>
   );
 }
@@ -97,7 +98,7 @@ export function CockpitShell({ cards, onReorder, onRemove }: CockpitShellProps) 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-4">
+        <div className="space-y-4 w-full min-w-0 max-w-full">
           {cards.map((spec) => (
             <SortableCard key={spec.id} spec={spec} onRemove={onRemove} />
           ))}

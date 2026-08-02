@@ -40,7 +40,7 @@ export function AppLayout() {
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <AppSidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col">
           <header className="h-12 flex items-center border-b border-border px-4">
             <SidebarTrigger className="mr-4" />
             <h1 className="text-sm font-semibold text-foreground/80">Mesa Integrada de Hedge</h1>

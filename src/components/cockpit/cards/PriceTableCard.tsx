@@ -8,6 +8,11 @@ import type { PricingCombination, PricingSnapshot, Warehouse } from '@/types';
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
 
+/** Colunas congeladas à esquerda (praça e commodity). */
+const STICKY_PRACA = 'sticky left-0 z-20 bg-card w-40 min-w-[10rem]';
+const STICKY_COMMODITY = 'sticky left-40 z-20 bg-card w-24 min-w-[6rem] shadow-[inset_-1px_0_0_hsl(var(--border))]';
+
+
 function formatDate(value: unknown): string {
   if (typeof value !== 'string' || value.length < 10) return '-';
   const [y, m, d] = value.slice(0, 10).split('-');
@@ -89,12 +94,12 @@ export function PriceTableCard({
         </Select>
       </div>
 
-      <div className="overflow-auto max-h-[420px]">
+      <div className="w-full min-w-0 overflow-auto max-h-[420px]">
         <Table>
-          <TableHeader className="sticky top-0 bg-card z-10">
+          <TableHeader className="sticky top-0 bg-card z-30">
             <TableRow>
-              <TableHead>Praça</TableHead>
-              <TableHead>Commodity</TableHead>
+              <TableHead className={cn(STICKY_PRACA, 'z-40')}>Praça</TableHead>
+              <TableHead className={cn(STICKY_COMMODITY, 'z-40')}>Commodity</TableHead>
               <TableHead>Ticker</TableHead>
               <TableHead className="text-center">Recepção</TableHead>
               <TableHead className="text-center">Pagamento</TableHead>
@@ -105,6 +110,7 @@ export function PriceTableCard({
               <TableHead className="text-right">Preço Originação</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
@@ -130,10 +136,11 @@ export function PriceTableCard({
 
               return (
                 <TableRow key={combo.id} className={cn(pending && 'opacity-50')}>
-                  <TableCell className="font-medium text-xs">
+                  <TableCell className={cn(STICKY_PRACA, 'font-medium text-xs')}>
                     {warehouseMap[combo.warehouse_id]?.display_name ?? combo.warehouse_id}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={STICKY_COMMODITY}>
+
                     <span
                       className={cn(
                         'text-xs px-1.5 py-0.5 rounded',
