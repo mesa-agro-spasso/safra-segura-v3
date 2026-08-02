@@ -13,11 +13,14 @@ PUBLICAR fica travado enquanto existir edição não recalculada.
 
 ## Preços iniciais
 
-A tela abre com o último lote de `pricing_snapshots` — exatamente o que a Tabela de Preços exibe. Combinação ativa que não está nesse lote aparece com aviso "sem preço no lote vigente" e um botão para recalcular. Nenhuma chamada à API na montagem.
+A tela abre com o último lote de `pricing_snapshots` — exatamente o que a Tabela de Preços exibe. Combinação ativa que não está nesse lote aparece com o aviso "sem preço no lote vigente", sem botão próprio: o RECALCULAR da tela cobre. Nenhuma chamada à API na montagem.
 
 ## Valores iniciais dos campos
 
-Por ordem: `outputs_json.resolved_inputs` do snapshot da linha, quando existe — traz valor e camada de origem por parâmetro. Sem snapshot, o valor da combinação; sem ele, o do armazém.
+O valor vem do **cadastro vivo**, não do snapshot: a combinação primeiro, o armazém depois. O snapshot é foto do instante da geração — abrir com ele faria a operadora ajustar em cima de dado desatualizado caso alguém tenha editado a combinação em Configurações desde então.
+
+`outputs_json.resolved_inputs` é usado apenas para a **marca de origem** de cada campo, nunca para o valor.
+
 
 Campo cuja origem é `warehouse` ou `system_default` recebe uma marca discreta (texto cinza "herdado"), sem destaque de cor. O que sai do padrão — valor próprio da combinação — é o que fica visualmente evidente.
 
