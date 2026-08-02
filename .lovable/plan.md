@@ -1,68 +1,36 @@
-## Objetivo
+# Payload em camadas no POST /pricing/table
 
-Criar um único arquivo de snapshot com o schema completo do banco como está hoje, mais as linhas de configuração. Nenhuma migration é executada.
+O backend passou a resolver a herança de custos. O frontend deixa de fundir combinação sobre armazém e passa a enviar as duas fontes separadas, cruas.
 
-## Caminho do arquivo
+## Mudanças em `src/components/GeneratePricingModal.tsx`
 
-`supabase/schema/20260730_snapshot.sql` — **fora** de `supabase/migrations/`, de propósito: dentro da pasta de migrations a plataforma rodaria as 16 antigas primeiro e os `CREATE TABLE IF NOT EXISTS` do snapshot não fariam nada, deixando de fora tudo que foi adicionado depois de maio.
+### Sai
+- `inheritCost` — herança agora é do backend.
+- `normalizeInterestPeriod` e `INTEREST_PERIOD_VOCAB` — o backend traduz o vocabulário.
+- O bloqueio de geração por período de juros inválido (o `toast.error` + `return`). Cadastro inválido vira descarte de linha pelo backend.
+- Todos os campos de custo do nível de cima de cada combinação: `interest_rate`, `interest_rate_period`, `storage_cost`, `storage_cost_type`, `reception_cost`, `brokerage_per_contract`, `desk_cost_pct`, `shrinkage_rate_monthly`, `additional_discount_brl`.
 
-### Cabeçalho do arquivo
+### Entra
+Dois objetos por combinação, montados por cópia direta do cadastro, sem default, sem conversão de null↔0:
 
-```text
--- SNAPSHOT DECLARATIVO DO SCHEMA — 30/07/2026
--- Isto NÃO é uma migration. Não é aplicado automaticamente por deploy,
--- db push ou db reset. É um documento de referência do estado do banco
--- de produção nesta data, para ser aplicado MANUALMENTE ao recriar o projeto.
--- As migrations em supabase/migrations/ estão INCOMPLETAS a partir de
--- 28/05/2026: alterações feitas por SQL direto nunca foram versionadas.
-```
+- `combination`: `interest_rate`, `interest_rate_period`, `storage_cost`, `storage_cost_type`, `reception_cost`, `brokerage_per_contract`, `desk_cost_pct`, `shrinkage_rate_monthly`, `additional_discount_brl` — todos vindos da linha de `pricing_combinations`.
+- `warehouse`: `interest_rate`, `interest_rate_period`, `storage_cost`, `storage_cost_type`, `reception_cost`, `brokerage_per_contract_cbot`, `brokerage_per_contract_b3`, `desk_cost_pct`, `shrinkage_rate_monthly` — todos vindos do cadastro do armazém. Sem `additional_discount_brl` (422) e sem `brokerage_per_contract` sem sufixo (422).
 
-## Como o schema será extraído
+`manual_override` não é enviado nesta entrega.
 
-`pg_dump` não está disponível nesta plataforma e esta sessão não tem `psql` (variáveis `PG*` ausentes). A extração usa **consultas de leitura ao catálogo do Postgres**, que devolvem o DDL gerado pelo próprio banco — não é redação à mão:
+`additional_discount_brl` no TARGET_PRICE, que hoje é forçado a `0` no nível de cima, passa a ir dentro de `combination` — mantendo o `0` explícito, que é valor e para a descida.
 
-- Tabelas e colunas: `information_schema.columns` + defaults literais
-- Constraints (PK, FK, unique, check): `pg_get_constraintdef()`
-- Índices: `pg_indexes.indexdef`
-- Enums: `pg_type` / `pg_enum` (ex.: `app_role`)
-- Funções: `pg_get_functiondef()` (todas, incluindo as `security definer`)
-- Triggers: `pg_get_triggerdef()` (inclui `spot_settings_updated_at` e `fx_parameters_updated_at`)
-- Policies de RLS: `pg_policies` + `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
-- Grants: `information_schema.role_table_grants` para `anon`, `authenticated`, `service_role`
+### Continua igual
+- Validações de mercado: ticker ausente, preço B3 faltando, contrato vencido, milho CBOT > 24h, `target_basis` / `origination_price_net_brl` obrigatórios por método.
+- `trade_date` e `spot_usd_brl` no nível da requisição; `exchange_rate_override` por linha, só CBOT.
+- Lista de descartes e recasamento por `index`.
+- `outputs_json: { ...r }` por spread — `resolved_inputs` chega íntegro sem nenhuma alteração de código.
+- `inputs_json`: continua gravando o mesmo conteúdo; os campos de custo passam a ser lidos de `orig.combination` / `orig.warehouse` em vez do nível de cima.
 
-Os `INSERT` de configuração saem de `SELECT` nas próprias tabelas, convertidos em SQL literal.
+## Descartes
 
-## Ordem dos objetos no arquivo
-
-```text
-0. Cabeçalho explicativo
-1. CREATE TYPE (enums)
-2. CREATE TABLE (todas as tabelas do schema public)
-3. GRANT por tabela (conforme o estado atual)
-4. ALTER TABLE ... ENABLE ROW LEVEL SECURITY
-5. CREATE POLICY
-6. Índices e constraints adicionais
-7. CREATE OR REPLACE FUNCTION
-8. CREATE TRIGGER
-9. INSERT de configuração
-```
-
-## Dados de configuração incluídos
-
-- `pricing_parameters` — 3 linhas (`soybean_cbot`, `corn_cbot`, `corn_b3`), com `ticker_count` e `rounding_increment`
-- `spot_settings` — 1 linha (`default`)
-- `fx_parameters` — 1 linha (`default`)
-- `warehouses` — as 13 praças, com `basis_config`, custos e `abbr`
-
-Excluídos: `pricing_combinations`, `pricing_snapshots`, `operations`, `orders`, `market_data`, `market_data_history`, `historical_basis`, `activity_log`, `users`, `user_profiles`, `producers` e demais tabelas transacionais.
+`DiscardedCombinationsList` já cai no `default` do `switch` e mostra `item.detail` ou o código cru. `UNRESOLVED_COST_PARAMETER` aparece sem alteração — nada a fazer.
 
 ## Escopo negativo
 
-- Nenhuma migration aplicada, sem `db push` nem `db reset`; as consultas ao banco são exclusivamente `SELECT` no catálogo.
-- Migrations antigas intactas.
-- `types.ts` não é regenerado.
-- Nenhum arquivo de código da aplicação alterado.
-
-## Entrega
-
-Caminho do arquivo, contagem de tabelas, lista de triggers, contagem de policies por tabela e as linhas de configuração incluídas — com confirmação explícita de que nada foi aplicado ao banco.
+Nenhum cálculo financeiro no frontend, nenhuma mudança de schema, nenhuma exibição de `resolved_inputs` (é o cockpit, tarefa separada), nenhum outro arquivo alterado.
