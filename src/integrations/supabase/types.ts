@@ -88,6 +88,24 @@ export type Database = {
           },
         ]
       }
+      cockpit_layouts: {
+        Row: {
+          layout: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          layout: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          layout?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       fx_parameters: {
         Row: {
           calibration_date: string | null
