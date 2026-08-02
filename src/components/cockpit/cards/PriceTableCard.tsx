@@ -89,12 +89,12 @@ export function PriceTableCard({
         </Select>
       </div>
 
-      <div className="overflow-auto max-h-[420px]">
+      <div className="w-full min-w-0 overflow-auto max-h-[420px]">
         <Table>
-          <TableHeader className="sticky top-0 bg-card z-10">
+          <TableHeader className="sticky top-0 bg-card z-30">
             <TableRow>
-              <TableHead>Praça</TableHead>
-              <TableHead>Commodity</TableHead>
+              <TableHead className={cn(STICKY_PRACA, 'z-40')}>Praça</TableHead>
+              <TableHead className={cn(STICKY_COMMODITY, 'z-40')}>Commodity</TableHead>
               <TableHead>Ticker</TableHead>
               <TableHead className="text-center">Recepção</TableHead>
               <TableHead className="text-center">Pagamento</TableHead>
@@ -105,6 +105,7 @@ export function PriceTableCard({
               <TableHead className="text-right">Preço Originação</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
