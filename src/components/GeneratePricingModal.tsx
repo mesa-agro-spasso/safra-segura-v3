@@ -12,7 +12,7 @@ import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
 
 import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
-import type { Warehouse, MarketData, PricingSnapshot, PricingCombination, DiscardedCombination } from '@/types';
+import type { Warehouse, MarketData, PricingSnapshot, DiscardedCombination } from '@/types';
 
 /**
  * Data de negócio da mesa (fuso de Brasília), formato ISO YYYY-MM-DD.
@@ -23,20 +23,9 @@ function getTradeDateBRT(): string {
 }
 
 
-// Vocabulário aceito pelo motor de pricing. Valores canônicos: 'monthly' | 'yearly'.
-const INTEREST_PERIOD_VOCAB: Record<string, 'monthly' | 'yearly'> = {
-  monthly: 'monthly', am: 'monthly', 'a.m': 'monthly', 'a.m.': 'monthly',
-  yearly: 'yearly', aa: 'yearly', 'a.a': 'yearly', 'a.a.': 'yearly',
-};
+// A tradução do vocabulário de período de juros é responsabilidade do backend.
 
-/**
- * null/vazio -> 'monthly' (campo ausente herda o default do sistema).
- * Valor preenchido fora do vocabulário -> null (cadastro inválido: bloqueia a geração).
- */
-function normalizeInterestPeriod(raw: string | null | undefined): 'monthly' | 'yearly' | null {
-  if (raw == null || raw.trim() === '') return 'monthly';
-  return INTEREST_PERIOD_VOCAB[raw.trim().toLowerCase()] ?? null;
-}
+
 
 
 interface GeneratePricingModalProps {
@@ -154,14 +143,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       const warehouse = warehouseMap[combo.warehouse_id];
       if (!warehouse) continue;
 
-      // Período da taxa de juros: bloqueia geração se o cadastro tiver valor fora do vocabulário.
-      const interestRatePeriod = normalizeInterestPeriod(warehouse.interest_rate_period);
-      if (interestRatePeriod === null) {
-        toast.error(
-          `Período de juros inválido no cadastro de ${warehouse.display_name}: '${warehouse.interest_rate_period}' — corrija em Configurações`,
-        );
-        return;
-      }
+      // Período de juros: enviado cru na camada do armazém; o backend traduz o vocabulário
+      // e descarta a linha se o cadastro for inválido.
+
 
 
       
@@ -205,11 +189,28 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       const grainReceptionDate = combo.grain_reception_date ?? paymentDate;
 
 
-      // Cost inheritance: combination overrides warehouse
-      const inheritCost = (comboField: keyof PricingCombination, warehouseField: keyof Warehouse) => {
-        const val = combo[comboField];
-        if (val != null) return val;
-        return warehouse[warehouseField] ?? null;
+      // Herança de custos é do BACKEND. O frontend manda as duas camadas cruas,
+      // sem escolher entre elas e sem converter null <-> 0.
+      const combinationLayer: Record<string, unknown> = {
+        interest_rate: combo.interest_rate,
+        storage_cost: combo.storage_cost,
+        storage_cost_type: combo.storage_cost_type,
+        reception_cost: combo.reception_cost,
+        brokerage_per_contract: combo.brokerage_per_contract,
+        desk_cost_pct: combo.desk_cost_pct,
+        shrinkage_rate_monthly: combo.shrinkage_rate_monthly,
+      };
+
+      const warehouseLayer: Record<string, unknown> = {
+        interest_rate: warehouse.interest_rate,
+        interest_rate_period: warehouse.interest_rate_period,
+        storage_cost: warehouse.storage_cost,
+        storage_cost_type: warehouse.storage_cost_type,
+        reception_cost: warehouse.reception_cost,
+        brokerage_per_contract_cbot: warehouse.brokerage_per_contract_cbot,
+        brokerage_per_contract_b3: warehouse.brokerage_per_contract_b3,
+        desk_cost_pct: warehouse.desk_cost_pct,
+        shrinkage_rate_monthly: warehouse.shrinkage_rate_monthly,
       };
 
       // ZERO CÁLCULO DE CÂMBIO NO FRONTEND.
@@ -238,19 +239,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         futures_price: market.price,
         ...(fxOverride != null ? { exchange_rate_override: fxOverride } : {}),
 
-        interest_rate: inheritCost('interest_rate', 'interest_rate'),
-        interest_rate_period: interestRatePeriod,
-
-        storage_cost: inheritCost('storage_cost', 'storage_cost'),
-        storage_cost_type: inheritCost('storage_cost_type', 'storage_cost_type'),
-        reception_cost: inheritCost('reception_cost', 'reception_cost'),
-        brokerage_per_contract: combo.brokerage_per_contract != null
-          ? combo.brokerage_per_contract
-          : combo.benchmark === 'b3'
-            ? warehouse.brokerage_per_contract_b3 ?? null
-            : warehouse.brokerage_per_contract_cbot ?? null,
-        desk_cost_pct: inheritCost('desk_cost_pct', 'desk_cost_pct'),
-        shrinkage_rate_monthly: inheritCost('shrinkage_rate_monthly', 'shrinkage_rate_monthly'),
+        warehouse: warehouseLayer,
       };
 
       if (pricingMethod === 'LONG_BASIS') {
@@ -261,7 +250,10 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         payload.push({
           ...baseCombo,
           target_basis: combo.target_basis,
-          additional_discount_brl: combo.additional_discount_brl,
+          combination: {
+            ...combinationLayer,
+            additional_discount_brl: combo.additional_discount_brl,
+          },
         });
       } else if (pricingMethod === 'TARGET_PRICE') {
         if (combo.origination_price_net_brl == null) {
@@ -271,7 +263,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         payload.push({
           ...baseCombo,
           origination_price_net_brl: combo.origination_price_net_brl,
-          additional_discount_brl: 0,
+          // additional_discount_brl é OMITIDO aqui: zero inventado pelo frontend
+          // carimbaria origem falsa em resolved_inputs.
+          combination: { ...combinationLayer },
         });
       } else {
         toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} com pricing_method desconhecido '${pricingMethod}' — pulando`);
@@ -323,7 +317,10 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             target_basis_brl: r.target_basis_brl ?? 0,
             futures_price_brl: r.futures_price_brl ?? 0,
             origination_price_brl: r.origination_price_brl ?? 0,
-            additional_discount_brl: r.additional_discount_brl ?? orig.additional_discount_brl ?? 0,
+            additional_discount_brl:
+              r.additional_discount_brl
+              ?? (orig.combination as Record<string, unknown> | undefined)?.additional_discount_brl
+              ?? 0,
             inputs_json: {
               pricing_method: orig.pricing_method,
               futures_price: orig.futures_price,
@@ -332,15 +329,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               exp_date: orig.exp_date ?? null,
               target_basis: orig.target_basis ?? null,
               origination_price_net_brl: orig.origination_price_net_brl ?? null,
-              interest_rate: orig.interest_rate,
-              interest_rate_period: orig.interest_rate_period,
-
-              storage_cost: orig.storage_cost,
-              storage_cost_type: orig.storage_cost_type,
-              reception_cost: orig.reception_cost,
-              brokerage_per_contract: orig.brokerage_per_contract,
-              desk_cost_pct: orig.desk_cost_pct,
-              shrinkage_rate_monthly: orig.shrinkage_rate_monthly,
+              // Camadas de custo enviadas, cruas — a resolução é do backend.
+              combination: orig.combination ?? null,
+              warehouse: orig.warehouse ?? null,
             },
             outputs_json: { ...r },
             
