@@ -121,16 +121,19 @@ export function buildCockpitPayload({
       continue;
     }
 
-    const isSpot = combo.is_spot ?? false;
+    const isSpot = effectiveValue(combo, ov, 'is_spot') ?? false;
+    const ownPaymentDate = effectiveValue(combo, ov, 'payment_date') ?? null;
     let paymentDate: string | null = null;
     if (!isSpot) {
-      if (!combo.payment_date) {
+      if (!ownPaymentDate) {
         skipped.push({ comboId: combo.id, label, reason: 'Sem data de pagamento cadastrada.' });
         continue;
       }
-      paymentDate = combo.payment_date;
+      paymentDate = ownPaymentDate;
     }
-    const grainReceptionDate = combo.grain_reception_date ?? paymentDate;
+    const grainReceptionDate = effectiveValue(combo, ov, 'grain_reception_date') ?? paymentDate;
+    const saleDate = effectiveValue(combo, ov, 'sale_date') ?? combo.sale_date;
+
 
     // Camadas cruas. A herança é do backend — nada de null <-> 0 aqui.
     const combinationLayer: Record<string, unknown> = {
