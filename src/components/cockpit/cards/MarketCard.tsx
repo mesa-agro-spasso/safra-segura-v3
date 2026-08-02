@@ -23,6 +23,7 @@ import {
   persistSoybean,
   persistCornCBOT,
   persistCornB3,
+  confirmB3Update,
   loadB3FromDb,
   type MarketWriteDeps,
   type B3CornQuote,
@@ -89,7 +90,8 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
   const cornCbotQty = parameters?.find((p) => p.id === 'corn_cbot')?.ticker_count ?? 8;
   const b3Qty = parameters?.find((p) => p.id === 'corn_b3')?.ticker_count ?? 6;
 
-  const [fetchingOp, setFetchingOp] = useState<'all' | 'markets' | null>(null);
+  const [fetchingOp, setFetchingOp] = useState<'all' | 'markets' | 'fx' | null>(null);
+  const [confirmingB3, setConfirmingB3] = useState(false);
   const [editingTicker, setEditingTicker] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   /** Tickers gravados nesta sessão desde o último recálculo (marca âmbar). */
@@ -245,6 +247,40 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
     } finally { setFetchingOp(null); }
   };
 
+  /** Só o dólar: nenhum future é tocado (nem soja, nem milho CBOT, nem B3). */
+  const handleFetchFxOnly = async () => {
+    setFetchingOp('fx');
+    try {
+      const result = await fetchQuotes(Math.max(sojaQty, cornCbotQty));
+      await persistFX(deps, result);
+      markTouched(['USD/BRL']);
+      toast.success('Câmbio atualizado — gravado em market_data');
+    } catch (err) {
+      toast.error(`Erro ao atualizar câmbio: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
+  };
+
+  /** Renova o carimbo dos tickers B3 sem alterar preço (mesma lógica da aba Mercado). */
+  const handleConfirmB3 = async () => {
+    setConfirmingB3(true);
+    try {
+      const tickers = visibleB3.map((t) => t.ticker);
+      const now = await confirmB3Update(tickers);
+      setB3Prices((prev) => {
+        const updated = { ...prev };
+        tickers.forEach((t) => {
+          if (updated[t]) updated[t] = { ...updated[t], updated_at: now };
+        });
+        return updated;
+      });
+      markTouched(tickers);
+      toast.success('Atualização B3 confirmada');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao confirmar');
+    } finally { setConfirmingB3(false); }
+  };
+
+
   // ---- Células ----
 
   const editCell = (ticker: string, current: number | null | undefined, onSave: () => void) => {
@@ -343,6 +379,7 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleFetchAll}>Atualizar tudo (inclui câmbio)</DropdownMenuItem>
             <DropdownMenuItem onClick={handleFetchMarkets}>Atualizar mercados (preserva o câmbio)</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleFetchFxOnly}>Atualizar só o câmbio</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -368,7 +405,23 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
       <Section title="Milho CBOT">
         <CbotTable rows={cornCbotRows} brl={cornCbotBrl} />
       </Section>
-      <Section title="Milho B3 (manual)">
+      <Section
+        title="Milho B3 (manual)"
+        action={
+          visibleB3.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleConfirmB3}
+              disabled={confirmingB3}
+            >
+              <Check className="mr-1.5 h-3 w-3" />
+              {confirmingB3 ? 'Confirmando…' : 'Confirmar atualização'}
+            </Button>
+          ) : undefined
+        }
+      >
         {visibleB3.length === 0 ? (
           <p className="text-sm text-muted-foreground px-2 py-2">Sem dados.</p>
         ) : (

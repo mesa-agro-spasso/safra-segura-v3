@@ -11,6 +11,7 @@ import {
   persistSoybean,
   persistCornCBOT,
   persistCornB3,
+  confirmB3Update,
   loadB3FromDb,
   type MarketWriteDeps,
   type B3CornQuote,
@@ -211,15 +212,9 @@ const MarketBolsa = () => {
     setConfirmingB3(true);
     try {
       const tickers = visibleB3Tickers.map(t => t.ticker);
-      for (const ticker of tickers) {
-        await supabase
-          .from('market_data')
-          .update({ updated_at: new Date().toISOString() })
-          .eq('ticker', ticker);
-      }
+      const now = await confirmB3Update(tickers);
       setB3Prices(prev => {
         const updated = { ...prev };
-        const now = new Date().toISOString();
         tickers.forEach(t => {
           if (updated[t]) updated[t] = { ...updated[t], updated_at: now };
         });
