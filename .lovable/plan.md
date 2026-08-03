@@ -1,43 +1,63 @@
-# Corrigir login: permissões da API do banco foram perdidas
+# Plano: distinguir falha técnica de "cadastro em análise" no login
 
-## O que está acontecendo
+## Problema
+Quando a Data API do Supabase retorna erro (5xx, timeout, etc.), `AuthContext.fetchProfile` faz `console.error` e `setProfile(null)`. `ProtectedRoute` interpreta `profile === null` como usuário pendente e redireciona para `/aguardando-aprovacao`. Infraestrutura fora do ar aparece como "seu cadastro está em análise".
 
-O perfil `mesaagro@grupospasso.com.br` está correto no banco: `status = active`, `is_admin = true`, sem exclusão. O problema não é o dado — é permissão.
+## Objetivo
+Separar três situações distintas:
+1. Perfil não existe → continua indo para `/aguardando-aprovacao`.
+2. Perfil existe com status `pending` → continua indo para `/aguardando-aprovacao`.
+3. Consulta ao perfil FALHOU → mostrar erro técnico com ação de tentar novamente, sem redirecionar para análise.
 
-Nenhuma tabela do schema `public` tem mais `GRANT` para os papéis da API do Supabase (`anon`, `authenticated`, `service_role`). Consulta feita agora em `information_schema.role_table_grants` para o schema `public` retorna **zero linhas**.
+## Escopo
+- `src/contexts/AuthContext.tsx`
+- `src/components/ProtectedRoute.tsx`
+- `src/components/ProtectedRoute.test.tsx`
 
-Consequência no login:
+Não altera cliente Supabase, não muda lógica de status `pending`/`disabled`, não muda roteamento de login.
 
-```text
-login OK (auth funciona)
-  -> app busca user_profiles
-  -> PostgREST responde "permission denied"
-  -> AuthContext trata erro e deixa profile = null
-  -> ProtectedRoute: sem profile == pendente
-  -> redireciona para /aguardando-aprovacao
-```
+## Implementação
 
-Ou seja: qualquer usuário, admin ou não, cai em "Cadastro em análise". As policies de RLS estão corretas e intactas — RLS sozinha não basta sem os GRANTs.
+### 1. AuthContext — expor falha técnica
+- Adicionar estado `profileError: Error | null` (ou string) ao contexto.
+- Alterar `fetchProfile` para retornar um discriminated result ou, no mínimo, setar `profileError` quando `error` for truthy.
+- Diferenciar:
+  - `error` truthy → `setProfileError(error)` + `setProfile(null)`.
+  - `error` null e `data` null → perfil realmente ausente → `setProfileError(null)` + `setProfile(null)`.
+  - `error` null e `data` presente → `setProfileError(null)` + `setProfile(data)`.
+- Limpar `profileError` no início de toda chamada de `fetchProfile` e em `refreshProfile`.
+- Adicionar `profileError` no value do provider.
 
-Isso também derruba todo o resto do app (mercado, tabela de preços, configurações), não só o login.
+### 2. ProtectedRoute — tratar erro técnico
+- Ler `profileError` do contexto.
+- Ordem de decisão:
+  1. `isPasswordRecovery` → renderiza children (mantido).
+  2. `loading && (!user || !profile)` → spinner (mantido).
+  3. `!user` → `/login` (mantido).
+  4. `profileError` → renderizar tela de erro técnico (não redirecionar).
+  5. `!profile || profile.status === 'pending'` → `/aguardando-aprovacao` (mantido).
+  6. `profile.status === 'disabled'` → `/acesso-desativado` (mantido).
+  7. Caso contrário → children.
 
-## Correção
+### 3. Tela de erro técnico (inline no ProtectedRoute)
+- Card centralizado com:
+  - Título: "Falha ao carregar perfil" ou similar.
+  - Mensagem curta explicando que houve um problema técnico.
+  - Botão "Tentar novamente" chamando `refreshProfile()`.
+  - Botão secundário "Sair".
+- Usar componentes existentes (`Card`, `Button`, ícone `AlertTriangle` ou `WifiOff`).
 
-Uma migration que restaura os GRANTs de todas as tabelas do schema `public`, respeitando as policies existentes:
+### 4. Testes
+- Atualizar `ProtectedRoute.test.tsx` para mockar `profileError`.
+- Adicionar casos:
+  - `profileError` definido → mostra mensagem de erro técnico e botão de retry, não redireciona.
+  - `profile` null sem erro → continua redirecionando para `/aguardando-aprovacao`.
+  - `profile.status === 'pending'` → redireciona para `/aguardando-aprovacao`.
+  - Retry limpa erro e refetch (simulado).
 
-- `authenticated`: SELECT, INSERT, UPDATE, DELETE nas tabelas de negócio; em `user_profiles`, SELECT e UPDATE (as policies já limitam ao próprio perfil, com exceção para admin).
-- `service_role`: ALL em todas as tabelas (Edge Functions).
-- `anon`: nada — não há policy que libere leitura anônima.
-- Também restaurar `USAGE` no schema `public` e `USAGE, SELECT` nas sequences para os mesmos papéis, e ajustar os `ALTER DEFAULT PRIVILEGES` para que tabelas novas já nasçam com acesso.
-
-Nenhuma alteração de RLS, de policy, de schema ou de dado. Nenhuma alteração no código do frontend.
-
-## Verificação
-
-1. Reconsultar `information_schema.role_table_grants` e confirmar que cada tabela de `public` aparece para `authenticated` e `service_role`.
-2. Abrir o app, entrar com o usuário admin e confirmar que cai no cockpit e não em `/aguardando-aprovacao`.
-3. Conferir que a aba Mercado e a Tabela de Preços voltam a carregar.
-
-## Observação
-
-Vale entender depois como os GRANTs sumiram (um `REVOKE`/recriação de schema recente). Se quiser, também dá para anexar o bloco de GRANTs ao snapshot em `supabase/schema/20260730_snapshot.sql` para não se perder de novo — fora do escopo urgente.
+## Critérios de aceite
+- Usuário com status `pending` continua indo para `/aguardando-aprovacao`.
+- Usuário sem perfil e sem erro continua indo para `/aguardando-aprovacao`.
+- Falha de consulta mostra erro técnico com ação de retry, sem redirecionar para análise.
+- Usuário ativo com API saudável entra normalmente.
+- Testes de `ProtectedRoute` cobrem os três cenários.
