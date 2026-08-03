@@ -12,10 +12,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, AlertTriangle, Download, Filter, Shield, Globe } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Download, Filter, Shield } from 'lucide-react';
 import { GeneratePricingModal } from '@/components/GeneratePricingModal';
 import { ExportPricingModal } from '@/components/ExportPricingModal';
-import { PublishPricingModal } from '@/components/PublishPricingModal';
 import { InsuranceLayerModal } from '@/components/InsuranceLayerModal';
 import { useInsuranceSnapshots } from '@/hooks/useInsuranceSnapshots';
 
@@ -40,7 +39,7 @@ const PricingTable = () => {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [publishOpen, setPublishOpen] = useState(false);
+  
   const [insuranceOpen, setInsuranceOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
   const [detailSnap, setDetailSnap] = useState<any>(null);
