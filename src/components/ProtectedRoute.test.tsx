@@ -3,6 +3,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
+import type { UserProfile } from '@/types';
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: vi.fn(),
@@ -10,10 +11,26 @@ vi.mock('@/contexts/AuthContext', () => ({
 
 const mockedUseAuth = vi.mocked(useAuth);
 
+const makeProfile = (overrides: Partial<UserProfile> = {}): UserProfile => ({
+  id: 'user-1',
+  email: 'user@example.com',
+  full_name: 'Usuário Teste',
+  status: 'active',
+  access_level: 'full',
+  is_admin: false,
+  theme: 'dark',
+  forced_env: null,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+  approved_at: null,
+  approved_by: null,
+  ...overrides,
+});
+
 const mockAuth = (overrides: Partial<ReturnType<typeof useAuth>> = {}) => ({
   user: { id: 'user-1' },
   session: null,
-  profile: { id: 'user-1', status: 'approved' },
+  profile: makeProfile(),
   profileError: null,
   loading: false,
   isPasswordRecovery: false,
@@ -92,7 +109,7 @@ describe('ProtectedRoute', () => {
 
   it('redireciona para /aguardando-aprovacao quando o perfil está pendente', () => {
     mockedUseAuth.mockReturnValue(mockAuth({
-      profile: { id: 'user-1', status: 'pending' },
+      profile: makeProfile({ status: 'pending' }),
     }) as any);
 
     render(
