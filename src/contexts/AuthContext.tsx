@@ -9,6 +9,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
+  profileError: Error | null;
   loading: boolean;
   isPasswordRecovery: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -25,6 +26,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileError, setProfileError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const authStateRef = useRef<{ user: User | null; profile: UserProfile | null }>({ user: null, profile: null });
@@ -32,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   authStateRef.current = { user, profile };
 
   const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+    setProfileError(null);
     try {
       const { data, error } = await supabasePublic
         .from('user_profiles')
@@ -41,6 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error fetching profile:', error.message);
+        setProfileError(new Error(error.message));
         setProfile(null);
         return null;
       }
@@ -54,7 +58,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         document.documentElement.classList.add('dark');
       }
       return p;
-    } catch {
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Erro desconhecido ao carregar perfil');
+      console.error('Error fetching profile:', error.message);
+      setProfileError(error);
       setProfile(null);
       return null;
     }
@@ -131,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchProfile]);
 
   const refreshProfile = useCallback(async () => {
+    setProfileError(null);
     if (user) {
       await fetchProfile(user.id);
     }
@@ -160,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, isPasswordRecovery, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, profileError, loading, isPasswordRecovery, signIn, signUp, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
