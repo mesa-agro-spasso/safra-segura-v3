@@ -169,32 +169,60 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
         rows,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [combos, warehouseMap]);
+  }, [visibleCombos, warehouseMap]);
 
   const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  const HEAD = 'sticky top-0 bg-card z-30';
+
   return (
-    <div className="w-full min-w-0 overflow-auto max-h-[560px]">
-      <Table>
-        <TableHeader className="sticky top-0 bg-card z-30">
+    <div className="flex w-full min-w-0 flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-1.5 px-1">
+        <button
+          type="button"
+          onClick={() => setCommodity('all')}
+          className={cn(
+            'rounded-full border px-2.5 py-0.5 text-xs',
+            commodity === 'all' ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground',
+          )}
+        >
+          Todas
+        </button>
+        {commodities.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setCommodity(c)}
+            className={cn(
+              'rounded-full border px-2.5 py-0.5 text-xs',
+              commodity === c ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground',
+            )}
+          >
+            {COMMODITY_LABELS[c] ?? c}
+          </button>
+        ))}
+      </div>
+      <div className="w-full min-w-0 overflow-auto max-h-[560px]">
+        <Table>
+        <TableHeader>
           <TableRow>
-            <TableHead className={cn(STICKY_PRACA, 'z-40')}>Praça</TableHead>
-            <TableHead className={cn(STICKY_COMMODITY, 'z-40')}>Commodity</TableHead>
-            <TableHead>Ticker</TableHead>
-            <TableHead>Juros</TableHead>
-            <TableHead>Período</TableHead>
-            <TableHead>Armazenagem</TableHead>
-            <TableHead>Tipo</TableHead>
-            <TableHead>Recepção</TableHead>
-            <TableHead>Corretagem</TableHead>
-            <TableHead>Mesa (%)</TableHead>
-            <TableHead>Quebra</TableHead>
-            <TableHead>Desc. adicional</TableHead>
-            <TableHead>Basis alvo</TableHead>
-            <TableHead>À vista</TableHead>
-            <TableHead>Pagamento</TableHead>
-            <TableHead>Recepção do grão</TableHead>
-            <TableHead>Venda</TableHead>
+            <TableHead className={cn(STICKY_PRACA, HEAD, 'z-40')}>Praça</TableHead>
+            <TableHead className={cn(STICKY_COMMODITY, HEAD, 'left-40 z-40')}>Commodity</TableHead>
+            <TableHead className={HEAD}>Ticker</TableHead>
+            <TableHead className={HEAD}>Juros</TableHead>
+            <TableHead className={HEAD}>Período</TableHead>
+            <TableHead className={HEAD}>Armazenagem</TableHead>
+            <TableHead className={HEAD}>Tipo</TableHead>
+            <TableHead className={HEAD}>Recepção</TableHead>
+            <TableHead className={HEAD}>Corretagem</TableHead>
+            <TableHead className={HEAD}>Mesa (%)</TableHead>
+            <TableHead className={HEAD}>Quebra</TableHead>
+            <TableHead className={HEAD}>Desc. adicional</TableHead>
+            <TableHead className={HEAD}>Basis alvo</TableHead>
+            <TableHead className={HEAD}>À vista</TableHead>
+            <TableHead className={HEAD}>Pagamento</TableHead>
+            <TableHead className={HEAD}>Recepção do grão</TableHead>
+            <TableHead className={HEAD}>Venda</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
