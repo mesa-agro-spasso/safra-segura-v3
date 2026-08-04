@@ -142,10 +142,22 @@ const COLUMN_COUNT = 17;
 export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange }: ParametersCardProps) {
   /** Todos os grupos nascem fechados: o cockpit é para ajuste pontual. */
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  /** Filtro de exibição por commodity. Não altera payload nem cálculo. */
+  const [commodity, setCommodity] = useState<string>('all');
+
+  const commodities = useMemo(
+    () => Array.from(new Set(combos.map((c) => c.commodity))).sort(),
+    [combos],
+  );
+
+  const visibleCombos = useMemo(
+    () => (commodity === 'all' ? combos : combos.filter((c) => c.commodity === commodity)),
+    [combos, commodity],
+  );
 
   const groups = useMemo(() => {
     const map = new Map<string, PricingCombination[]>();
-    combos.forEach((c) => {
+    visibleCombos.forEach((c) => {
       const list = map.get(c.warehouse_id) ?? [];
       list.push(c);
       map.set(c.warehouse_id, list);
@@ -157,32 +169,60 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
         rows,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [combos, warehouseMap]);
+  }, [visibleCombos, warehouseMap]);
 
   const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  const HEAD = 'sticky top-0 bg-card z-30';
+
   return (
-    <div className="w-full min-w-0 overflow-auto max-h-[560px]">
-      <Table>
-        <TableHeader className="sticky top-0 bg-card z-30">
+    <div className="flex w-full min-w-0 flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-1.5 px-1">
+        <button
+          type="button"
+          onClick={() => setCommodity('all')}
+          className={cn(
+            'rounded-full border px-2.5 py-0.5 text-xs',
+            commodity === 'all' ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground',
+          )}
+        >
+          Todas
+        </button>
+        {commodities.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setCommodity(c)}
+            className={cn(
+              'rounded-full border px-2.5 py-0.5 text-xs',
+              commodity === c ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground',
+            )}
+          >
+            {COMMODITY_LABELS[c] ?? c}
+          </button>
+        ))}
+      </div>
+      <div className="w-full min-w-0 overflow-auto max-h-[560px]">
+        <Table>
+        <TableHeader>
           <TableRow>
-            <TableHead className={cn(STICKY_PRACA, 'z-40')}>Praça</TableHead>
-            <TableHead className={cn(STICKY_COMMODITY, 'z-40')}>Commodity</TableHead>
-            <TableHead>Ticker</TableHead>
-            <TableHead>Juros</TableHead>
-            <TableHead>Período</TableHead>
-            <TableHead>Armazenagem</TableHead>
-            <TableHead>Tipo</TableHead>
-            <TableHead>Recepção</TableHead>
-            <TableHead>Corretagem</TableHead>
-            <TableHead>Mesa (%)</TableHead>
-            <TableHead>Quebra</TableHead>
-            <TableHead>Desc. adicional</TableHead>
-            <TableHead>Basis alvo</TableHead>
-            <TableHead>À vista</TableHead>
-            <TableHead>Pagamento</TableHead>
-            <TableHead>Recepção do grão</TableHead>
-            <TableHead>Venda</TableHead>
+            <TableHead className={cn(STICKY_PRACA, HEAD, 'z-40')}>Praça</TableHead>
+            <TableHead className={cn(STICKY_COMMODITY, HEAD, 'left-40 z-40')}>Commodity</TableHead>
+            <TableHead className={HEAD}>Ticker</TableHead>
+            <TableHead className={HEAD}>Juros</TableHead>
+            <TableHead className={HEAD}>Período</TableHead>
+            <TableHead className={HEAD}>Armazenagem</TableHead>
+            <TableHead className={HEAD}>Tipo</TableHead>
+            <TableHead className={HEAD}>Recepção</TableHead>
+            <TableHead className={HEAD}>Corretagem</TableHead>
+            <TableHead className={HEAD}>Mesa (%)</TableHead>
+            <TableHead className={HEAD}>Quebra</TableHead>
+            <TableHead className={HEAD}>Desc. adicional</TableHead>
+            <TableHead className={HEAD}>Basis alvo</TableHead>
+            <TableHead className={HEAD}>À vista</TableHead>
+            <TableHead className={HEAD}>Pagamento</TableHead>
+            <TableHead className={HEAD}>Recepção do grão</TableHead>
+            <TableHead className={HEAD}>Venda</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -312,7 +352,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                 : []),
             ];
           })}
-          {combos.length === 0 && (
+          {visibleCombos.length === 0 && (
             <TableRow>
               <TableCell colSpan={COLUMN_COUNT} className="text-center text-sm text-muted-foreground py-8">
                 Nenhuma combinação ativa.
@@ -320,7 +360,8 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
             </TableRow>
           )}
         </TableBody>
-      </Table>
+        </Table>
+      </div>
     </div>
   );
 }
