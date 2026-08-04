@@ -202,6 +202,57 @@ export type Database = {
           },
         ]
       }
+      insurance_options: {
+        Row: {
+          benchmark: string
+          commodity: string
+          created_at: string
+          created_by: string | null
+          expiry_date: string
+          futures_ticker: string
+          id: string
+          label: string
+          option_type: string
+          premium_brl_sack: number | null
+          premium_usd_bushel: number | null
+          strike_brl_sack: number | null
+          strike_usd_bushel: number | null
+          trade_date: string
+        }
+        Insert: {
+          benchmark: string
+          commodity: string
+          created_at?: string
+          created_by?: string | null
+          expiry_date: string
+          futures_ticker: string
+          id?: string
+          label: string
+          option_type?: string
+          premium_brl_sack?: number | null
+          premium_usd_bushel?: number | null
+          strike_brl_sack?: number | null
+          strike_usd_bushel?: number | null
+          trade_date: string
+        }
+        Update: {
+          benchmark?: string
+          commodity?: string
+          created_at?: string
+          created_by?: string | null
+          expiry_date?: string
+          futures_ticker?: string
+          id?: string
+          label?: string
+          option_type?: string
+          premium_brl_sack?: number | null
+          premium_usd_bushel?: number | null
+          strike_brl_sack?: number | null
+          strike_usd_bushel?: number | null
+          trade_date?: string
+        }
+        Relationships: []
+      }
       insurance_snapshots: {
         Row: {
           adjusted_price_brl: number
