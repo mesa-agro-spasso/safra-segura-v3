@@ -203,7 +203,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
         ))}
       </div>
       <div className="w-full min-w-0 overflow-auto max-h-[560px]">
-        <Table>
+        <Table className="border-separate border-spacing-0">
         <TableHeader>
           <TableRow>
             <TableHead className={cn(STICKY_PRACA, HEAD, 'z-40')}>Praça</TableHead>
