@@ -142,10 +142,22 @@ const COLUMN_COUNT = 17;
 export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange }: ParametersCardProps) {
   /** Todos os grupos nascem fechados: o cockpit é para ajuste pontual. */
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  /** Filtro de exibição por commodity. Não altera payload nem cálculo. */
+  const [commodity, setCommodity] = useState<string>('all');
+
+  const commodities = useMemo(
+    () => Array.from(new Set(combos.map((c) => c.commodity))).sort(),
+    [combos],
+  );
+
+  const visibleCombos = useMemo(
+    () => (commodity === 'all' ? combos : combos.filter((c) => c.commodity === commodity)),
+    [combos, commodity],
+  );
 
   const groups = useMemo(() => {
     const map = new Map<string, PricingCombination[]>();
-    combos.forEach((c) => {
+    visibleCombos.forEach((c) => {
       const list = map.get(c.warehouse_id) ?? [];
       list.push(c);
       map.set(c.warehouse_id, list);
