@@ -352,7 +352,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                 : []),
             ];
           })}
-          {combos.length === 0 && (
+          {visibleCombos.length === 0 && (
             <TableRow>
               <TableCell colSpan={COLUMN_COUNT} className="text-center text-sm text-muted-foreground py-8">
                 Nenhuma combinação ativa.
@@ -360,7 +360,8 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
             </TableRow>
           )}
         </TableBody>
-      </Table>
+        </Table>
+      </div>
     </div>
   );
 }
