@@ -173,7 +173,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
 
   const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  const HEAD = 'sticky top-0 bg-card z-30';
+  const HEAD = 'sticky top-0 bg-card z-30 border-b border-border';
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-2">
