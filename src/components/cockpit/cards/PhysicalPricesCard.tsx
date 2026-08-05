@@ -52,6 +52,6 @@ export function PhysicalPricesCard({ warehouseMap }: { warehouseMap: Record<stri
           ))}
         </TableBody>
       </Table>
-    </div>
+    </StickyTableScroll>
   );
 }
