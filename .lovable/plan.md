@@ -38,14 +38,14 @@ Há quatro cards com tabelas: **Tabela de preços**, **Mercado (bolsa)**, **Pre�
 
 ## Implementação proposta
 
-1. Estender o componente `Table` de forma retrocompatível para permitir desativar/configurar o overflow do wrapper automático, sem alterar o comportamento das demais telas.
-2. Criar um wrapper de tabela do cockpit que seja o **único** dono dos dois eixos de scroll, com altura máxima configurável; dentro dele, o wrapper automático do `Table` ficará sem overflow.
-3. Migrar as quatro tabelas do cockpit para esse wrapper:
-   - preservar os limites atuais de 560px, 420px e 320px;
-   - definir limite equivalente nas seções de Mercado para que tabelas longas rolem dentro do card;
+1. Estender o componente `Table` com uma opção **opt-in** para desativar o overflow do wrapper automático. O padrão permanece idêntico ao atual, de modo que nenhuma tela fora do cockpit muda de comportamento.
+2. Criar um wrapper de tabela do cockpit que seja o **único** dono dos dois eixos de scroll; dentro dele, o wrapper automático do `Table` ficará sem overflow.
+3. Migrar para esse wrapper as tabelas do cockpit que hoje possuem scroll vertical próprio:
+   - **Parâmetros das combinações** (560px), **Tabela de preços** (420px) e **Preços físicos** (320px), preservando exatamente esses limites;
    - aplicar fundo opaco, `sticky top-0` e z-index em cada cabeçalho;
    - manter Praça/Commodity com `sticky left-*`, corpo em `z-20` e células de canto em `z-40`.
-4. Não alterar filtros, colunas, larguras, rótulos, formatação, valores ou lógica de dados.
+4. **Card de Mercado**: as tabelas não possuem hoje scroll vertical próprio nem altura máxima, portanto não apresentam o defeito. Ficará **intocado** — nenhum limite de altura novo será criado — e isso será declarado no relatório final.
+5. Não alterar filtros, colunas, larguras, rótulos, formatação, valores ou lógica de dados.
 
 ## Verificação
 
