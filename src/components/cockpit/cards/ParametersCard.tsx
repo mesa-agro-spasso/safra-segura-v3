@@ -365,7 +365,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
           )}
         </TableBody>
         </Table>
-      </div>
+      </StickyTableScroll>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { StickyTableScroll, STICKY_HEAD } from '@/components/cockpit/StickyTableScroll';
 import type { PricingCombination, PricingSnapshot, Warehouse } from '@/types';
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
