@@ -190,7 +190,7 @@ export function PriceTableCard({
             })}
           </TableBody>
         </Table>
-      </div>
+      </StickyTableScroll>
     </div>
   );
 }

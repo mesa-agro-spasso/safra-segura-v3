@@ -1,5 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLatestPhysicalPrices, getHoursAgo } from '@/hooks/usePhysicalPrices';
+import { StickyTableScroll, STICKY_HEAD } from '@/components/cockpit/StickyTableScroll';
+import { cn } from '@/lib/utils';
 import type { Warehouse } from '@/types';
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
