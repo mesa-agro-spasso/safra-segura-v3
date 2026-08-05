@@ -50,6 +50,7 @@ Há quatro cards com tabelas: **Tabela de preços**, **Mercado (bolsa)**, **Pre�
 ## Verificação
 
 - Em **Parâmetros das combinações**, rolar até o fim e horizontalmente: cabeçalho permanece visível; Praça e Commodity permanecem à esquerda; células do canto ficam acima do cabeçalho e do corpo.
-- Repetir em **Tabela de preços** e conferir também **Preços físicos/Mercado**.
+- Repetir em **Tabela de preços** e conferir **Preços físicos**.
 - Inspecionar estilos computados para confirmar um único ancestral de scroll entre `<th>` e a área rolável.
+- Confirmar que telas fora do cockpit que usam `Table` seguem com o wrapper padrão inalterado.
 - Conferir visualmente ausência de transparência, texto vazando e linhas do corpo sobre o cabeçalho, sem mudança em nenhum valor exibido.
