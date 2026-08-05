@@ -2,13 +2,20 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
-    </div>
-  ),
-);
+/**
+ * `unstyledWrapper` é opt-in: quando true, o wrapper deixa de criar contexto de
+ * scroll próprio, permitindo que um container externo seja o único dono da
+ * rolagem (necessário para `position: sticky` no cabeçalho). O padrão (false)
+ * mantém o comportamento histórico do shadcn — nenhuma tela existente muda.
+ */
+const Table = React.forwardRef<
+  HTMLTableElement,
+  React.HTMLAttributes<HTMLTableElement> & { unstyledWrapper?: boolean }
+>(({ className, unstyledWrapper = false, ...props }, ref) => (
+  <div className={unstyledWrapper ? "relative w-full min-w-0" : "relative w-full overflow-auto"}>
+    <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+  </div>
+));
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(

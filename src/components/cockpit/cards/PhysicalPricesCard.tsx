@@ -1,5 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLatestPhysicalPrices, getHoursAgo } from '@/hooks/usePhysicalPrices';
+import { StickyTableScroll, STICKY_HEAD } from '@/components/cockpit/StickyTableScroll';
+import { cn } from '@/lib/utils';
 import type { Warehouse } from '@/types';
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
@@ -18,15 +20,18 @@ export function PhysicalPricesCard({ warehouseMap }: { warehouseMap: Record<stri
   if (!data || data.length === 0) return <p className="text-sm text-muted-foreground">Sem preços físicos registrados.</p>;
 
   return (
-    <div className="overflow-auto max-h-[320px]">
-      <Table>
-        <TableHeader className="sticky top-0 bg-card z-10">
+    <StickyTableScroll maxHeightClass="max-h-[320px]">
+      <Table
+        unstyledWrapper
+        className="border-separate border-spacing-0 [&_tbody_td]:border-b [&_tbody_td]:border-border"
+      >
+        <TableHeader>
           <TableRow>
-            <TableHead>Praça</TableHead>
-            <TableHead>Commodity</TableHead>
-            <TableHead className="text-center">Referência</TableHead>
-            <TableHead className="text-right">Preço (R$/sc)</TableHead>
-            <TableHead className="text-right">Atualizado</TableHead>
+            <TableHead className={cn(STICKY_HEAD, 'border-b border-border')}>Praça</TableHead>
+            <TableHead className={cn(STICKY_HEAD, 'border-b border-border')}>Commodity</TableHead>
+            <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-center')}>Referência</TableHead>
+            <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-right')}>Preço (R$/sc)</TableHead>
+            <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-right')}>Atualizado</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -47,6 +52,6 @@ export function PhysicalPricesCard({ warehouseMap }: { warehouseMap: Record<stri
           ))}
         </TableBody>
       </Table>
-    </div>
+    </StickyTableScroll>
   );
 }

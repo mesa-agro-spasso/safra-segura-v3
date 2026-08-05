@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import type { PricingCombination, Warehouse } from '@/types';
 import { effectiveValue, type CockpitOverrides, type OverridesMap } from '@/lib/cockpitPayload';
+import { StickyTableScroll, STICKY_HEAD } from '@/components/cockpit/StickyTableScroll';
 
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
@@ -173,7 +174,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
 
   const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  const HEAD = 'sticky top-0 bg-card z-30 border-b border-border';
+  const HEAD = cn(STICKY_HEAD, 'border-b border-border');
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-2">
@@ -202,8 +203,11 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
           </button>
         ))}
       </div>
-      <div className="w-full min-w-0 overflow-auto max-h-[560px]">
-        <Table className="border-separate border-spacing-0 [&_tbody_td]:border-b [&_tbody_td]:border-border">
+      <StickyTableScroll maxHeightClass="max-h-[560px]">
+        <Table
+          unstyledWrapper
+          className="border-separate border-spacing-0 [&_tbody_td]:border-b [&_tbody_td]:border-border"
+        >
         <TableHeader>
           <TableRow>
             <TableHead className={cn(STICKY_PRACA, HEAD, 'z-40')}>Praça</TableHead>
@@ -361,7 +365,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
           )}
         </TableBody>
         </Table>
-      </div>
+      </StickyTableScroll>
     </div>
   );
 }
