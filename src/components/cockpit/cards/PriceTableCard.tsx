@@ -99,20 +99,23 @@ export function PriceTableCard({
         </Select>
       </div>
 
-      <div className="w-full min-w-0 overflow-auto max-h-[420px]">
-        <Table>
-          <TableHeader className="sticky top-0 bg-card z-30">
+      <StickyTableScroll maxHeightClass="max-h-[420px]">
+        <Table
+          unstyledWrapper
+          className="border-separate border-spacing-0 [&_tbody_td]:border-b [&_tbody_td]:border-border"
+        >
+          <TableHeader>
             <TableRow>
-              <TableHead className={cn(STICKY_PRACA, 'z-40')}>Praça</TableHead>
-              <TableHead className={cn(STICKY_COMMODITY, 'z-40')}>Commodity</TableHead>
-              <TableHead>Ticker</TableHead>
-              <TableHead className="text-center">Recepção</TableHead>
-              <TableHead className="text-center">Pagamento</TableHead>
-              <TableHead className="text-center">Venda</TableHead>
-              <TableHead className="text-right">Basis Alvo</TableHead>
-              <TableHead className="text-right">Futuros (BRL)</TableHead>
-              <TableHead className="text-right">Câmbio</TableHead>
-              <TableHead className="text-right">Preço Originação</TableHead>
+              <TableHead className={cn(STICKY_PRACA, STICKY_HEAD, 'border-b border-border z-40')}>Praça</TableHead>
+              <TableHead className={cn(STICKY_COMMODITY, STICKY_HEAD, 'left-40 border-b border-border z-40')}>Commodity</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'border-b border-border')}>Ticker</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-center')}>Recepção</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-center')}>Pagamento</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-center')}>Venda</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-right')}>Basis Alvo</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-right')}>Futuros (BRL)</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-right')}>Câmbio</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-right')}>Preço Originação</TableHead>
             </TableRow>
           </TableHeader>
 
