@@ -23,6 +23,22 @@ export function getHoursAgo(updatedAt: string): number {
   return Math.floor((now.getTime() - updated.getTime()) / (1000 * 60 * 60));
 }
 
+/**
+ * Rótulo relativo de frescor, apenas para exibição. Não bloqueia nada:
+ * qualquer trava por cotação velha tem que nascer no backend.
+ */
+export function formatFreshness(updatedAt: string): { label: string; stale: boolean } {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(updatedAt).getTime()) / 60000));
+  const stale = minutes >= 24 * 60;
+  if (minutes < 1) return { label: 'agora', stale };
+  if (minutes < 60) return { label: `há ${minutes} min`, stale };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { label: `há ${hours} h`, stale };
+  const days = Math.floor(hours / 24);
+  return { label: `há ${days} d`, stale };
+}
+
+
 export function useUpsertMarketData() {
   const queryClient = useQueryClient();
   return useMutation({
