@@ -4,10 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { DateInput } from '@/components/ui/date-input';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
-  useCreateInsuranceOption, VALID_PAIRS, unitLabel,
+  useCreateInsuranceOption, useFuturesTickers, VALID_PAIRS, unitLabel, formatDateBr,
   type Benchmark, type Commodity,
 } from '@/hooks/useInsuranceOptions';
 
@@ -26,8 +30,12 @@ export function InsuranceOptionFormDialog({ open, onOpenChange }: Props) {
   const [optionType, setOptionType] = useState<'call' | 'put'>('call');
   const [strike, setStrike] = useState('');
   const [expiry, setExpiry] = useState('');
+  const [tickerOpen, setTickerOpen] = useState(false);
+  const [tickerSearch, setTickerSearch] = useState('');
 
   const allowedCommodities = VALID_PAIRS[benchmark];
+  const { data: futures = [], isLoading: loadingFutures } = useFuturesTickers(benchmark, commodity);
+  const selectedFuture = futures.find((f) => f.ticker === ticker);
 
   const handleBenchmark = (v: string) => {
     const b = v as Benchmark;
@@ -35,11 +43,32 @@ export function InsuranceOptionFormDialog({ open, onOpenChange }: Props) {
     // B3 só aceita milho — o banco recusa qualquer outro par.
     if (!VALID_PAIRS[b].includes(commodity)) setCommodity(VALID_PAIRS[b][0]);
     setStrike('');
+    setTicker('');
+  };
+
+  const handleCommodity = (v: string) => {
+    setCommodity(v as Commodity);
+    setTicker('');
+  };
+
+  const pickFuture = (f: { ticker: string; exp_date: string | null }) => {
+    setTicker(f.ticker);
+    // Vencimento do contrato é sugestão: a mesa pode editar depois.
+    if (f.exp_date) setExpiry(f.exp_date.slice(0, 10));
+    setTickerOpen(false);
+    setTickerSearch('');
+  };
+
+  const useFreeTicker = () => {
+    setTicker(tickerSearch.trim().toUpperCase());
+    setTickerOpen(false);
+    setTickerSearch('');
   };
 
   const reset = () => {
     setLabel(''); setTicker(''); setStrike(''); setExpiry('');
     setOptionType('call'); setBenchmark('cbot'); setCommodity('soybean');
+    setTickerSearch('');
   };
 
   const handleSubmit = async () => {
@@ -95,7 +124,7 @@ export function InsuranceOptionFormDialog({ open, onOpenChange }: Props) {
             </div>
             <div>
               <Label>Commodity</Label>
-              <Select value={commodity} onValueChange={(v) => setCommodity(v as Commodity)}>
+              <Select value={commodity} onValueChange={handleCommodity}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {allowedCommodities.map((c) => (
@@ -109,7 +138,60 @@ export function InsuranceOptionFormDialog({ open, onOpenChange }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Ticker do futuro</Label>
-              <Input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="ZSN26" />
+              <Popover open={tickerOpen} onOpenChange={setTickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className={cn('w-full justify-between font-normal', !ticker && 'text-muted-foreground')}
+                  >
+                    {ticker || 'Selecione o contrato'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command shouldFilter>
+                    <CommandInput
+                      placeholder="Buscar ou digitar ticker..."
+                      value={tickerSearch}
+                      onValueChange={setTickerSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {tickerSearch.trim()
+                          ? (
+                            <button
+                              type="button"
+                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-accent rounded-sm"
+                              onClick={useFreeTicker}
+                            >
+                              Usar «{tickerSearch.trim().toUpperCase()}» mesmo assim
+                            </button>
+                          )
+                          : loadingFutures ? 'Carregando...' : 'Nenhum contrato vigente'}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {futures.map((f) => (
+                          <CommandItem key={f.ticker} value={f.ticker} onSelect={() => pickFuture(f)}>
+                            <Check className={cn('mr-2 h-4 w-4', ticker === f.ticker ? 'opacity-100' : 'opacity-0')} />
+                            <span className="font-medium">{f.ticker}</span>
+                            {f.exp_date && (
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                vence {formatDateBr(f.exp_date)}
+                              </span>
+                            )}
+                          </CommandItem>
+                        ))}
+                        {tickerSearch.trim() && !futures.some((f) => f.ticker === tickerSearch.trim().toUpperCase()) && (
+                          <CommandItem value={`__free_${tickerSearch}`} onSelect={useFreeTicker}>
+                            Usar «{tickerSearch.trim().toUpperCase()}» mesmo assim
+                          </CommandItem>
+                        )}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Tipo</Label>
@@ -142,6 +224,11 @@ export function InsuranceOptionFormDialog({ open, onOpenChange }: Props) {
             <div>
               <Label>Vencimento</Label>
               <DateInput value={expiry} onChange={setExpiry} />
+              {selectedFuture?.exp_date && expiry !== selectedFuture.exp_date.slice(0, 10) && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Contrato vence em {formatDateBr(selectedFuture.exp_date)}
+                </p>
+              )}
             </div>
           </div>
         </div>
