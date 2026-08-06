@@ -81,16 +81,6 @@ const MarketFuturos = () => {
 
   // ---- Handlers ----
 
-  const handleFetchFX = async () => {
-    setFetchingOp('fx');
-    try {
-      const result = await runFetchQuotes();
-      await persistFX(deps, result);
-      toast.success('Câmbio atualizado');
-    } catch (err) {
-      toast.error(`Erro ao atualizar câmbio: ${err instanceof Error ? err.message : String(err)}`);
-    } finally { setFetchingOp(null); }
-  };
 
   const handleFetchSoybean = async () => {
     setFetchingOp('soybean');
