@@ -317,17 +317,27 @@ const MarketFuturos = () => {
             disabled={fetchingOp !== null}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${fetchingOp === 'markets' ? 'animate-spin' : ''}`} />
-            {fetchingOp === 'markets' ? 'Atualizando...' : 'Atualizar Mercados'}
+            {fetchingOp === 'markets' ? 'Atualizando...' : 'Atualizar futuros'}
           </Button>
           <Button
             onClick={handleFetchAll}
             disabled={fetchingOp !== null}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${fetchingOp === 'all' ? 'animate-spin' : ''}`} />
-            {fetchingOp === 'all' ? 'Atualizando...' : 'Atualizar Tudo'}
+            {fetchingOp === 'all' ? 'Atualizando...' : 'Atualizar câmbio + futuros'}
           </Button>
         </div>
       </div>
+
+      <FxQuoteCard
+        fxRow={fxRow}
+        onRefresh={handleFetchFX}
+        refreshing={fetchingOp === 'fx'}
+        disabled={fetchingOp !== null}
+        compact
+        footnote="O dólar entra no preço em reais de todos os futuros CBOT desta tela. Frescor é aviso, não trava."
+      />
+
 
       {isLoading ? (
         <div className="flex justify-center py-12">
