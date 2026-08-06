@@ -12,11 +12,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, AlertTriangle, Download, Filter, Shield } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Download, Filter } from 'lucide-react';
 import { GeneratePricingModal } from '@/components/GeneratePricingModal';
 import { ExportPricingModal } from '@/components/ExportPricingModal';
-import { InsuranceLayerModal } from '@/components/InsuranceLayerModal';
-import { useInsuranceSnapshots } from '@/hooks/useInsuranceSnapshots';
 
 const B3_CORN_TICKERS = ['CCMF27', 'CCMK27'];
 
@@ -39,8 +37,6 @@ const PricingTable = () => {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  
-  const [insuranceOpen, setInsuranceOpen] = useState(false);
   const [tickersExpanded, setTickersExpanded] = useState(false);
   const [detailSnap, setDetailSnap] = useState<any>(null);
   const [filterCommodity, setFilterCommodity] = useState<string[]>([]);
@@ -100,9 +96,6 @@ const PricingTable = () => {
       return a.ticker.localeCompare(b.ticker);
     });
   }, [snapshots, warehouseMap]);
-
-  const insuranceSnapshotIds = useMemo(() => allRows.map((r) => r.id), [allRows]);
-  const { data: insuranceMap } = useInsuranceSnapshots(insuranceSnapshotIds);
 
   const rows = useMemo(() => {
     return allRows.filter((s) => {
@@ -213,10 +206,6 @@ const PricingTable = () => {
             <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={loading || rows.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Exportar
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setInsuranceOpen(true)} disabled={loading || allRows.length === 0}>
-              <Shield className="mr-2 h-4 w-4" />
-              Aplicar Seguro
             </Button>
             <Button onClick={() => setModalOpen(true)} disabled={loading}>
               <RefreshCw className="mr-2 h-4 w-4" />
@@ -354,7 +343,6 @@ const PricingTable = () => {
                     <TableHead className="text-right">Futuros (BRL)</TableHead>
                     <TableHead className="text-right">Câmbio</TableHead>
                     <TableHead className="text-right">Preço Originação</TableHead>
-                    <TableHead className="text-right">Preço c/ Seguro</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -420,22 +408,7 @@ const PricingTable = () => {
                               <p className="border-t border-border pt-1 italic text-muted-foreground">Clique para criar uma operação com este preço.</p>
                             </TooltipContent>
                           </Tooltip>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {(() => {
-                            const ins = insuranceMap?.[snap.id];
-                            if (!ins || !ins.enabled) return <span className="text-muted-foreground">—</span>;
-                            return (
-                              <div className="flex items-center justify-end gap-1.5">
-                                <span className="font-semibold">R$ {Number(ins.adjusted_price_brl).toFixed(2)}</span>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                                  {Math.round(Number(ins.coverage_pct) * 100)}%
-                                </span>
-                              </div>
-                            );
-                          })()}
-                        </TableCell>
-                      </TableRow>
+                        </TableCell                      </TableRow>
                     );
                   })}
                 </TableBody>
@@ -528,36 +501,6 @@ const PricingTable = () => {
                 <p className="text-sm text-muted-foreground">Sem dados de custos</p>
               )}
 
-              {(() => {
-                const applied = insuranceMap?.[detailSnap.id];
-                if (!applied) return null;
-                if (!applied.enabled || applied.adjusted_price_brl == null) return null;
-
-                const carryOn = !!(applied as any).carry_enabled;
-                const carryCost = Number((applied as any).carry_cost_brl ?? 0);
-                const insuranceCost = Number(applied.insurance_cost_brl ?? 0);
-                return (
-                  <>
-                    <Separator />
-                    <h4 className="font-semibold text-sm">Seguro aplicado</h4>
-                    <DetailRow label="Status" value="Aplicado" />
-                    <DetailRow label="Prêmio usado" value={`R$ ${Number(applied.premium_brl).toFixed(2)}`} />
-                    <DetailRow label="Cobertura" value={`${(Number(applied.coverage_pct) * 100).toFixed(1)}%`} />
-                    <DetailRow label="Custo seguro" value={`R$ ${insuranceCost.toFixed(2)}`} />
-                    {carryOn && (
-                      <>
-                        <DetailRow label="Carrego" value={`R$ ${carryCost.toFixed(2)}`} />
-                        <DetailRow label="Custo total" value={`R$ ${(insuranceCost + carryCost).toFixed(2)}`} />
-                      </>
-                    )}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Preço ajustado</span>
-                      <span className="font-bold text-primary">R$ {Number(applied.adjusted_price_brl).toFixed(2)}</span>
-                    </div>
-                    
-                  </>
-                );
-              })()}
 
 
               <Separator />
@@ -578,9 +521,7 @@ const PricingTable = () => {
             })()}
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
-      <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} insuranceMap={insuranceMap} activeCommodity={filterCommodity.length === 1 ? filterCommodity[0] : 'all'} />
-      
-      <InsuranceLayerModal open={insuranceOpen} onOpenChange={setInsuranceOpen} rows={allRows as any} warehouseMap={warehouseMap} warehouseInterestMap={warehouseInterestMap} />
+      <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} activeCommodity={filterCommodity.length === 1 ? filterCommodity[0] : 'all'} />
     </div>
   );
 };

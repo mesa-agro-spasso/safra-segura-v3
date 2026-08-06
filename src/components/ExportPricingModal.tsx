@@ -363,7 +363,7 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
     for (const row of cRows) {
       // Build fields, treating warehouse as card title and origination price as highlight
       const warehouseCol = cols.find((c) => c.key === warehouseKey);
-      const warehouseName = warehouseCol ? warehouseCol.getValue(row, wm, im) : '';
+      const warehouseName = warehouseCol ? warehouseCol.getValue(row, wm) : '';
       const otherCols = cols.filter((c) => c.key !== warehouseKey && c.key !== originationKey);
       const originationCol = cols.find((c) => c.key === originationKey);
 
@@ -388,7 +388,7 @@ async function exportMobilePng(cols: ExportColumn[], rows: PricingSnapshot[], wm
       if (originationCol && cols.some((c) => c.key === originationKey)) {
         priceHighlight = `<div style="display:flex;justify-content:space-between;align-items:center;padding:22px 32px;background:#f0fdf4;">
           <span style="font-size:22px;color:#16a34a;font-weight:600;">${originationCol.label}</span>
-          <span style="font-size:32px;color:#16a34a;font-weight:800;">${originationCol.getValue(row, wm, im)}</span>
+          <span style="font-size:32px;color:#16a34a;font-weight:800;">${originationCol.getValue(row, wm)}</span>
         </div>`;
       }
 
