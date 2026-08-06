@@ -224,6 +224,11 @@ export function InsuranceOptionFormDialog({ open, onOpenChange }: Props) {
             <div>
               <Label>Vencimento</Label>
               <DateInput value={expiry} onChange={setExpiry} />
+              {selectedFuture?.exp_date && expiry !== selectedFuture.exp_date.slice(0, 10) && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Contrato vence em {formatDateBr(selectedFuture.exp_date)}
+                </p>
+              )}
             </div>
           </div>
         </div>
