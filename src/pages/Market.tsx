@@ -4,7 +4,9 @@ import { FEATURES } from '@/config/features';
 import MarketFisico from './market/MarketFisico';
 import MarketFuturos from './market/MarketFuturos';
 import MarketDolar from './market/MarketDolar';
+import MarketOpcoes from './market/MarketOpcoes';
 import MarketHistorico from './market/MarketHistorico';
+
 
 type TabSpec = {
   id: string;
