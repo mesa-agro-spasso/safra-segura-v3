@@ -400,7 +400,8 @@ const PricingTable = () => {
                               <p className="border-t border-border pt-1 italic text-muted-foreground">Clique para criar uma operação com este preço.</p>
                             </TooltipContent>
                           </Tooltip>
-                        </TableCell                      </TableRow>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
                 </TableBody>
