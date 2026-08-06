@@ -20,8 +20,10 @@ const TAB_SPECS: TabSpec[] = [
   { id: 'fisico', label: 'Físico', element: <MarketFisico />, enabled: FEATURES.MARKET_PHYSICAL },
   { id: 'futuros', label: 'Futuros', element: <MarketFuturos />, enabled: true },
   { id: 'dolar', label: 'Dólar', element: <MarketDolar />, enabled: true },
+  { id: 'opcoes', label: 'Opções', element: <MarketOpcoes />, enabled: FEATURES.MARKET_OPTIONS },
   { id: 'historico', label: 'Histórico', element: <MarketHistorico />, enabled: FEATURES.MARKET_HISTORICAL },
 ];
+
 
 /** Links antigos continuam funcionando. */
 const TAB_ALIASES: Record<string, string> = { bolsa: 'futuros' };
