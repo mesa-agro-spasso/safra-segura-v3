@@ -375,7 +375,7 @@ const MarketFuturos = () => {
             </CardHeader>
             <CardContent>
               {soybeanRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar Tudo".</p>
+                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar câmbio + futuros".</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -423,7 +423,7 @@ const MarketFuturos = () => {
             </CardHeader>
             <CardContent>
               {cornCbotRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar Tudo".</p>
+                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar câmbio + futuros".</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -494,7 +494,7 @@ const MarketFuturos = () => {
               ) : b3Error ? (
                 <p className="text-muted-foreground text-sm">Aguardando servidor acordar... ({b3Error})</p>
               ) : visibleB3Tickers.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Clique em "Atualizar Tudo" para carregar os tickers B3.</p>
+                <p className="text-muted-foreground text-sm">Clique em "Atualizar câmbio + futuros" para carregar os tickers B3.</p>
               ) : (
                 <Table>
                   <TableHeader>
