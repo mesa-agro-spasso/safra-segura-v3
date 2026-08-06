@@ -202,8 +202,50 @@ export type Database = {
           },
         ]
       }
+      insurance_option_quotes: {
+        Row: {
+          benchmark: string
+          created_at: string
+          created_by: string | null
+          id: string
+          option_id: string
+          premium_brl_sack: number | null
+          premium_usd_bushel: number | null
+          trade_date: string
+        }
+        Insert: {
+          benchmark: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          option_id: string
+          premium_brl_sack?: number | null
+          premium_usd_bushel?: number | null
+          trade_date: string
+        }
+        Update: {
+          benchmark?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          option_id?: string
+          premium_brl_sack?: number | null
+          premium_usd_bushel?: number | null
+          trade_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurance_option_quotes_option_fk"
+            columns: ["option_id", "benchmark"]
+            isOneToOne: false
+            referencedRelation: "insurance_options"
+            referencedColumns: ["id", "benchmark"]
+          },
+        ]
+      }
       insurance_options: {
         Row: {
+          active: boolean
           benchmark: string
           commodity: string
           created_at: string
@@ -213,13 +255,11 @@ export type Database = {
           id: string
           label: string
           option_type: string
-          premium_brl_sack: number | null
-          premium_usd_bushel: number | null
           strike_brl_sack: number | null
           strike_usd_bushel: number | null
-          trade_date: string
         }
         Insert: {
+          active?: boolean
           benchmark: string
           commodity: string
           created_at?: string
@@ -229,13 +269,11 @@ export type Database = {
           id?: string
           label: string
           option_type?: string
-          premium_brl_sack?: number | null
-          premium_usd_bushel?: number | null
           strike_brl_sack?: number | null
           strike_usd_bushel?: number | null
-          trade_date: string
         }
         Update: {
+          active?: boolean
           benchmark?: string
           commodity?: string
           created_at?: string
@@ -245,11 +283,8 @@ export type Database = {
           id?: string
           label?: string
           option_type?: string
-          premium_brl_sack?: number | null
-          premium_usd_bushel?: number | null
           strike_brl_sack?: number | null
           strike_usd_bushel?: number | null
-          trade_date?: string
         }
         Relationships: []
       }
@@ -864,6 +899,9 @@ export type Database = {
           exp_date: string | null
           grain_reception_date: string | null
           id: string
+          insurance_carry_until: string | null
+          insurance_coverage_pct: number | null
+          insurance_option_id: string | null
           interest_rate: number | null
           is_spot: boolean
           origination_price_net_brl: number | null
@@ -890,6 +928,9 @@ export type Database = {
           exp_date?: string | null
           grain_reception_date?: string | null
           id?: string
+          insurance_carry_until?: string | null
+          insurance_coverage_pct?: number | null
+          insurance_option_id?: string | null
           interest_rate?: number | null
           is_spot?: boolean
           origination_price_net_brl?: number | null
@@ -916,6 +957,9 @@ export type Database = {
           exp_date?: string | null
           grain_reception_date?: string | null
           id?: string
+          insurance_carry_until?: string | null
+          insurance_coverage_pct?: number | null
+          insurance_option_id?: string | null
           interest_rate?: number | null
           is_spot?: boolean
           origination_price_net_brl?: number | null
@@ -932,6 +976,13 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pricing_combinations_insurance_option_id_fkey"
+            columns: ["insurance_option_id"]
+            isOneToOne: false
+            referencedRelation: "insurance_options"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pricing_combinations_warehouse_id_fkey"
             columns: ["warehouse_id"]
@@ -989,7 +1040,11 @@ export type Database = {
           grain_reception_date: string
           id: string
           inputs_json: Json
+          insurance_carry_until: string | null
+          insurance_cost_brl: number | null
+          insurance_coverage_pct: number | null
           insurance_json: Json
+          insurance_quote_id: string | null
           origination_price_brl: number
           outputs_json: Json
           payment_date: string
@@ -1010,7 +1065,11 @@ export type Database = {
           grain_reception_date: string
           id?: string
           inputs_json?: Json
+          insurance_carry_until?: string | null
+          insurance_cost_brl?: number | null
+          insurance_coverage_pct?: number | null
           insurance_json?: Json
+          insurance_quote_id?: string | null
           origination_price_brl: number
           outputs_json?: Json
           payment_date: string
@@ -1031,7 +1090,11 @@ export type Database = {
           grain_reception_date?: string
           id?: string
           inputs_json?: Json
+          insurance_carry_until?: string | null
+          insurance_cost_brl?: number | null
+          insurance_coverage_pct?: number | null
           insurance_json?: Json
+          insurance_quote_id?: string | null
           origination_price_brl?: number
           outputs_json?: Json
           payment_date?: string
@@ -1047,6 +1110,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_snapshots_insurance_quote_id_fkey"
+            columns: ["insurance_quote_id"]
+            isOneToOne: false
+            referencedRelation: "insurance_option_quotes"
             referencedColumns: ["id"]
           },
           {
