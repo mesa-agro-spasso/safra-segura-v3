@@ -229,7 +229,7 @@ const MarketFuturos = () => {
   const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT' && isNotExpired(m) && m.price != null) ?? [])
     .sort(sortByExpDate).slice(0, cornCbotQty);
   const visibleB3Tickers = b3Tickers.filter(isNotExpired).slice(0, b3Qty);
-  const fxRow = dataMap['USD/BRL'];
+  
 
   // Conversão USD/bu → BRL/sc feita pela API, uma chamada por linha com NDF.
   const soybeanBrl = useConvertedPrices(soybeanRows, 'soybean');
