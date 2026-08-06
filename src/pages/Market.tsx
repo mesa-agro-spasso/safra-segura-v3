@@ -2,24 +2,37 @@ import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { FEATURES } from '@/config/features';
 import MarketFisico from './market/MarketFisico';
-import MarketBolsa from './market/MarketBolsa';
+import MarketFuturos from './market/MarketFuturos';
+import MarketDolar from './market/MarketDolar';
 import MarketHistorico from './market/MarketHistorico';
 
-type Tab = 'fisico' | 'bolsa' | 'historico';
+type TabSpec = {
+  id: string;
+  label: string;
+  element: React.ReactNode;
+  enabled: boolean;
+};
+
+/** Adicionar uma aba nova (ex.: Opções) = uma entrada nesta lista. */
+const TAB_SPECS: TabSpec[] = [
+  { id: 'fisico', label: 'Físico', element: <MarketFisico />, enabled: FEATURES.MARKET_PHYSICAL },
+  { id: 'futuros', label: 'Futuros', element: <MarketFuturos />, enabled: true },
+  { id: 'dolar', label: 'Dólar', element: <MarketDolar />, enabled: true },
+  { id: 'historico', label: 'Histórico', element: <MarketHistorico />, enabled: FEATURES.MARKET_HISTORICAL },
+];
+
+/** Links antigos continuam funcionando. */
+const TAB_ALIASES: Record<string, string> = { bolsa: 'futuros' };
 
 const Market = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Build the visible-tabs list from feature flags. Bolsa is always visible.
-  const visibleTabs: Tab[] = [
-    ...(FEATURES.MARKET_PHYSICAL ? (['fisico'] as const) : []),
-    'bolsa',
-    ...(FEATURES.MARKET_HISTORICAL ? (['historico'] as const) : []),
-  ];
-  const defaultTab: Tab = visibleTabs[0];
+  const tabs = TAB_SPECS.filter((t) => t.enabled);
+  const defaultTab = tabs[0].id;
 
-  const tabParam = searchParams.get('tab') as Tab | null;
-  const tab: Tab = tabParam && visibleTabs.includes(tabParam) ? tabParam : defaultTab;
+  const raw = searchParams.get('tab');
+  const resolved = raw ? (TAB_ALIASES[raw] ?? raw) : null;
+  const tab = resolved && tabs.some((t) => t.id === resolved) ? resolved : defaultTab;
 
   const setTab = (v: string) => {
     const next = new URLSearchParams(searchParams);
@@ -27,25 +40,20 @@ const Market = () => {
     setSearchParams(next, { replace: true });
   };
 
-  // Hide the tab bar entirely when only a single tab is visible (redundant UI).
-  const showTabsList = visibleTabs.length > 1;
+  const showTabsList = tabs.length > 1;
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-4">
       {showTabsList && (
         <TabsList>
-          {visibleTabs.includes('fisico') && <TabsTrigger value="fisico">Físico</TabsTrigger>}
-          <TabsTrigger value="bolsa">Bolsa</TabsTrigger>
-          {visibleTabs.includes('historico') && <TabsTrigger value="historico">Histórico</TabsTrigger>}
+          {tabs.map((t) => (
+            <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>
+          ))}
         </TabsList>
       )}
-      {visibleTabs.includes('fisico') && (
-        <TabsContent value="fisico"><MarketFisico /></TabsContent>
-      )}
-      <TabsContent value="bolsa"><MarketBolsa /></TabsContent>
-      {visibleTabs.includes('historico') && (
-        <TabsContent value="historico"><MarketHistorico /></TabsContent>
-      )}
+      {tabs.map((t) => (
+        <TabsContent key={t.id} value={t.id}>{t.element}</TabsContent>
+      ))}
     </Tabs>
   );
 };

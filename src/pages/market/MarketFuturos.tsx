@@ -26,7 +26,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@/components/ui/table';
 
-const MarketBolsa = () => {
+const MarketFuturos = () => {
   const { data: marketData, isLoading } = useMarketData();
   const { data: parameters } = usePricingParameters();
   const sojaQty = parameters?.find((p) => p.id === 'soybean_cbot')?.ticker_count ?? 8;
@@ -81,16 +81,6 @@ const MarketBolsa = () => {
 
   // ---- Handlers ----
 
-  const handleFetchFX = async () => {
-    setFetchingOp('fx');
-    try {
-      const result = await runFetchQuotes();
-      await persistFX(deps, result);
-      toast.success('Câmbio atualizado');
-    } catch (err) {
-      toast.error(`Erro ao atualizar câmbio: ${err instanceof Error ? err.message : String(err)}`);
-    } finally { setFetchingOp(null); }
-  };
 
   const handleFetchSoybean = async () => {
     setFetchingOp('soybean');
@@ -239,7 +229,7 @@ const MarketBolsa = () => {
   const cornCbotRows = (marketData?.filter(m => m.commodity === 'MILHO_CBOT' && isNotExpired(m) && m.price != null) ?? [])
     .sort(sortByExpDate).slice(0, cornCbotQty);
   const visibleB3Tickers = b3Tickers.filter(isNotExpired).slice(0, b3Qty);
-  const fxRow = dataMap['USD/BRL'];
+  
 
   // Conversão USD/bu → BRL/sc feita pela API, uma chamada por linha com NDF.
   const soybeanBrl = useConvertedPrices(soybeanRows, 'soybean');
@@ -345,26 +335,6 @@ const MarketBolsa = () => {
         </div>
       ) : (
         <>
-          {/* FX Card */}
-          {fxRow && (
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Dólar / Real (USD/BRL)</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={handleFetchFX} disabled={fetchingOp !== null}>
-                    <RefreshCw className={`h-3 w-3 ${fetchingOp === 'fx' ? 'animate-spin' : ''}`} />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="flex items-center gap-4">
-                <span className="text-2xl font-bold">{fxRow.price != null ? `R$ ${fxRow.price.toFixed(4)}` : '-'}</span>
-                <span className={`text-xs ${getHoursAgo(fxRow.updated_at) > 24 ? 'text-[hsl(var(--warning))]' : 'text-muted-foreground'}`}>
-                  {getHoursAgo(fxRow.updated_at)}h atrás · {fxRow.source}
-                </span>
-                {renderEditCell('USD/BRL', fxRow.price ?? undefined)}
-              </CardContent>
-            </Card>
-          )}
 
           {/* Soybean CBOT Table */}
           <Card>
@@ -537,4 +507,4 @@ const MarketBolsa = () => {
   );
 };
 
-export default MarketBolsa;
+export default MarketFuturos;
