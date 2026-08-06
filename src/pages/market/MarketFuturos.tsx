@@ -17,7 +17,9 @@ import {
   type B3CornQuote,
   type B3SavedPrice,
 } from '@/lib/marketWrites';
+import FxQuoteCard from '@/components/market/FxQuoteCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -143,6 +145,21 @@ const MarketFuturos = () => {
       toast.error(`Erro ao atualizar mercados: ${err instanceof Error ? err.message : String(err)}`);
     } finally { setFetchingOp(null); }
   };
+
+  // Mesma cotação da aba Dólar: mesma linha de market_data, mesma função.
+  const fxRow = marketData?.find((m) => m.ticker === 'USD/BRL');
+
+  const handleFetchFX = async () => {
+    setFetchingOp('fx');
+    try {
+      const result = await runFetchQuotes();
+      await persistFX(deps, result);
+      toast.success('Câmbio atualizado');
+    } catch (err) {
+      toast.error(`Erro ao atualizar câmbio: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
+  };
+
 
 
   const handleManualSave = async (ticker: string) => {
@@ -317,17 +334,27 @@ const MarketFuturos = () => {
             disabled={fetchingOp !== null}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${fetchingOp === 'markets' ? 'animate-spin' : ''}`} />
-            {fetchingOp === 'markets' ? 'Atualizando...' : 'Atualizar Mercados'}
+            {fetchingOp === 'markets' ? 'Atualizando...' : 'Atualizar futuros'}
           </Button>
           <Button
             onClick={handleFetchAll}
             disabled={fetchingOp !== null}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${fetchingOp === 'all' ? 'animate-spin' : ''}`} />
-            {fetchingOp === 'all' ? 'Atualizando...' : 'Atualizar Tudo'}
+            {fetchingOp === 'all' ? 'Atualizando...' : 'Atualizar câmbio + futuros'}
           </Button>
         </div>
       </div>
+
+      <FxQuoteCard
+        fxRow={fxRow}
+        onRefresh={handleFetchFX}
+        refreshing={fetchingOp === 'fx'}
+        disabled={fetchingOp !== null}
+        compact
+        footnote="O dólar entra no preço em reais de todos os futuros CBOT desta tela. Frescor é aviso, não trava."
+      />
+
 
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -348,7 +375,7 @@ const MarketFuturos = () => {
             </CardHeader>
             <CardContent>
               {soybeanRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar Tudo".</p>
+                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar câmbio + futuros".</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -396,7 +423,7 @@ const MarketFuturos = () => {
             </CardHeader>
             <CardContent>
               {cornCbotRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar Tudo".</p>
+                <p className="text-muted-foreground text-sm">Sem dados. Clique em "Atualizar câmbio + futuros".</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -467,7 +494,7 @@ const MarketFuturos = () => {
               ) : b3Error ? (
                 <p className="text-muted-foreground text-sm">Aguardando servidor acordar... ({b3Error})</p>
               ) : visibleB3Tickers.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Clique em "Atualizar Tudo" para carregar os tickers B3.</p>
+                <p className="text-muted-foreground text-sm">Clique em "Atualizar câmbio + futuros" para carregar os tickers B3.</p>
               ) : (
                 <Table>
                   <TableHeader>
