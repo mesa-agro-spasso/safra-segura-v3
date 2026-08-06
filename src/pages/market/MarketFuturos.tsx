@@ -146,6 +146,21 @@ const MarketFuturos = () => {
     } finally { setFetchingOp(null); }
   };
 
+  // Mesma cotação da aba Dólar: mesma linha de market_data, mesma função.
+  const fxRow = marketData?.find((m) => m.ticker === 'USD/BRL');
+
+  const handleFetchFX = async () => {
+    setFetchingOp('fx');
+    try {
+      const result = await runFetchQuotes();
+      await persistFX(deps, result);
+      toast.success('Câmbio atualizado');
+    } catch (err) {
+      toast.error(`Erro ao atualizar câmbio: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setFetchingOp(null); }
+  };
+
+
 
   const handleManualSave = async (ticker: string) => {
     const price = parseFloat(editValue);
