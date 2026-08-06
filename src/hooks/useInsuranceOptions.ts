@@ -44,6 +44,37 @@ export const VALID_PAIRS: Record<Benchmark, Commodity[]> = {
 
 export const todayISO = () => new Date().toISOString().slice(0, 10);
 
+/** Como o par (benchmark + commodity) aparece na coluna commodity de market_data. */
+export const MARKET_COMMODITY_BY_PAIR: Record<string, string> = {
+  'cbot:soybean': 'SOJA',
+  'cbot:corn': 'MILHO_CBOT',
+  'b3:corn': 'MILHO',
+};
+
+export interface FuturesTicker {
+  ticker: string;
+  exp_date: string | null;
+}
+
+/** Futuros vigentes do par, só leitura de market_data. Nunca escreve. */
+export function useFuturesTickers(benchmark: Benchmark, commodity: Commodity) {
+  const marketCommodity = MARKET_COMMODITY_BY_PAIR[`${benchmark}:${commodity}`];
+  return useQuery({
+    queryKey: ['market_data', 'futures_tickers', marketCommodity],
+    enabled: !!marketCommodity,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('market_data')
+        .select('ticker, exp_date')
+        .eq('commodity', marketCommodity!)
+        .gte('exp_date', todayISO())
+        .order('exp_date');
+      if (error) throw error;
+      return (data ?? []) as FuturesTicker[];
+    },
+  });
+}
+
 export function useInsuranceOptions() {
   return useQuery({
     queryKey: ['insurance_options', 'active'],
