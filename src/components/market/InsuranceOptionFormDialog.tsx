@@ -124,7 +124,7 @@ export function InsuranceOptionFormDialog({ open, onOpenChange }: Props) {
             </div>
             <div>
               <Label>Commodity</Label>
-              <Select value={commodity} onValueChange={(v) => setCommodity(v as Commodity)}>
+              <Select value={commodity} onValueChange={handleCommodity}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {allowedCommodities.map((c) => (
@@ -138,7 +138,60 @@ export function InsuranceOptionFormDialog({ open, onOpenChange }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Ticker do futuro</Label>
-              <Input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="ZSN26" />
+              <Popover open={tickerOpen} onOpenChange={setTickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className={cn('w-full justify-between font-normal', !ticker && 'text-muted-foreground')}
+                  >
+                    {ticker || 'Selecione o contrato'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command shouldFilter>
+                    <CommandInput
+                      placeholder="Buscar ou digitar ticker..."
+                      value={tickerSearch}
+                      onValueChange={setTickerSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {tickerSearch.trim()
+                          ? (
+                            <button
+                              type="button"
+                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-accent rounded-sm"
+                              onClick={useFreeTicker}
+                            >
+                              Usar «{tickerSearch.trim().toUpperCase()}» mesmo assim
+                            </button>
+                          )
+                          : loadingFutures ? 'Carregando...' : 'Nenhum contrato vigente'}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {futures.map((f) => (
+                          <CommandItem key={f.ticker} value={f.ticker} onSelect={() => pickFuture(f)}>
+                            <Check className={cn('mr-2 h-4 w-4', ticker === f.ticker ? 'opacity-100' : 'opacity-0')} />
+                            <span className="font-medium">{f.ticker}</span>
+                            {f.exp_date && (
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                vence {formatDateBr(f.exp_date)}
+                              </span>
+                            )}
+                          </CommandItem>
+                        ))}
+                        {tickerSearch.trim() && !futures.some((f) => f.ticker === tickerSearch.trim().toUpperCase()) && (
+                          <CommandItem value={`__free_${tickerSearch}`} onSelect={useFreeTicker}>
+                            Usar «{tickerSearch.trim().toUpperCase()}» mesmo assim
+                          </CommandItem>
+                        )}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Tipo</Label>
