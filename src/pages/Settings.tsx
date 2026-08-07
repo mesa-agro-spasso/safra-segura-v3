@@ -1010,6 +1010,11 @@ function CombinationsTab() {
                         <span className="text-xs">
                           {c.pricing_method === 'TARGET_PRICE' ? 'Target Price' : 'Long Basis'}
                         </span>
+                        {c.insurance_option_id && (
+                          <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-primary/10 text-primary">
+                            Seguro {((c.insurance_coverage_pct ?? 0) * 100).toFixed(0)}%
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {c.pricing_method === 'TARGET_PRICE'
