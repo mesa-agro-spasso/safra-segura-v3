@@ -549,12 +549,35 @@ function CombinationsTab() {
         toast.error('Target Price não permite desconto adicional'); return;
       }
     }
+
+    // Seguro: os três campos andam juntos ou nenhum.
+    const insFilled = [
+      editing.insurance_option_id != null && editing.insurance_option_id !== '',
+      editing.insurance_coverage_pct != null,
+      editing.insurance_carry_until != null,
+    ];
+    const insCount = insFilled.filter(Boolean).length;
+    if (insCount > 0 && insCount < 3) {
+      toast.error('Seguro incompleto: preencha opção, cobertura e carrego — ou remova o seguro');
+      return;
+    }
+    if (insCount === 3) {
+      const cov = editing.insurance_coverage_pct!;
+      if (!(cov > 0 && cov <= 1)) {
+        toast.error('Cobertura do seguro deve estar entre 0% e 100%');
+        return;
+      }
+    }
+
     const payload: Partial<PricingCombination> = {
       ...editing,
       pricing_method: method,
       target_basis: method === 'LONG_BASIS' ? editing.target_basis ?? null : null,
       origination_price_net_brl: method === 'TARGET_PRICE' ? editing.origination_price_net_brl ?? null : null,
       additional_discount_brl: method === 'TARGET_PRICE' ? 0 : (editing.additional_discount_brl ?? 0),
+      insurance_option_id: insCount === 3 ? editing.insurance_option_id ?? null : null,
+      insurance_coverage_pct: insCount === 3 ? editing.insurance_coverage_pct ?? null : null,
+      insurance_carry_until: insCount === 3 ? editing.insurance_carry_until ?? null : null,
     };
     try {
       await upsert.mutateAsync(payload);
