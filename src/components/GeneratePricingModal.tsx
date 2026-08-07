@@ -316,7 +316,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     }
 
     setGenerating(true);
-    setDiscarded(null);
+    setDiscarded(null); setInsuranceFailures([]);
     try {
       const result = await callApi<{
         results: Record<string, unknown>[];
