@@ -390,6 +390,7 @@ const PricingTable = () => {
                                   {costs.reception_brl != null && <p>Recepção: R$ {Number(costs.reception_brl).toFixed(2)}</p>}
                                   {costs.brokerage_brl != null && <p>Corretagem: R$ {Number(costs.brokerage_brl).toFixed(2)}</p>}
                                   {costs.desk_brl != null && <p>Mesa: R$ {Number(costs.desk_brl).toFixed(2)}</p>}
+                                  {costs.insurance_brl != null && <p>Seguro: R$ {Number(costs.insurance_brl).toFixed(2)}</p>}
                                   {totalCosts != null && <p className="font-semibold border-t border-border pt-1">Total: R$ {Number(totalCosts).toFixed(2)}</p>}
                                 </>
                               )}
