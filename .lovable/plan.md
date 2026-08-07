@@ -54,7 +54,11 @@ Quem grava a tabela é este frontend, ao salvar o resultado da precificação. Q
 
 Para casar resposta com payload, a cotação usada em cada linha fica guardada por índice no momento de montar o payload, e é recuperada pelo mesmo `keptIndexes` que já recasa resultado ↔ linha enviada após os descartes.
 
-Se a linha não teve seguro, as quatro vão nulas. Se teve seguro mas a resposta não trouxe `costs.insurance_brl`, a linha é gravada **sem seguro nenhum** (as quatro nulas) e a mesa recebe um aviso — nunca um trio incompleto, que o banco rejeitaria.
+Se a linha não teve seguro, as quatro vão nulas.
+
+Se teve seguro mas a resposta não trouxe `costs.insurance_brl`, a linha **não é gravada**. Gravar as quatro nulas produziria um snapshot com o preço já descontado do seguro e nenhum registro de que houve seguro — preço menor, sem explicação. Um snapshot faltando é problema óbvio que alguém resolve; um snapshot com preço inexplicável passa até a auditoria.
+
+Nesse caso: a linha é pulada, e a mesa recebe um aviso visível e persistente (não um toast que some) dizendo quais combinações não foram salvas e por quê. Na prática não deve acontecer — `costs.insurance_brl` vem sempre, inclusive zerado para linha sem seguro. O tratamento é para o caso impossível, e o caso impossível falha alto.
 
 O `quote_id` é o único registro de qual prêmio formou aquele preço: sem ele, meses depois o rastro resolveria para a cotação mais recente da opção, que não é a que formou o preço.
 
