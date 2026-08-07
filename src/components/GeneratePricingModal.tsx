@@ -44,9 +44,11 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
   
   const [generating, setGenerating] = useState(false);
   const [discarded, setDiscarded] = useState<DiscardedCombination[] | null>(null);
+  /** Linhas com seguro que a API devolveu sem custo de seguro — não gravadas. */
+  const [insuranceFailures, setInsuranceFailures] = useState<string[]>([]);
 
   const handleOpenChange = (next: boolean) => {
-    if (!next) setDiscarded(null);
+    if (!next) { setDiscarded(null); setInsuranceFailures([]); }
     onOpenChange(next);
   };
 
