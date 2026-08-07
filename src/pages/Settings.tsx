@@ -800,7 +800,101 @@ function CombinationsTab() {
                   </div>
                 </section>
 
-                {/* ---------- 4. CUSTOS ---------- */}
+                {/* ---------- 4. SEGURO ---------- */}
+                <section className="space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b pb-1">
+                    Seguro
+                  </p>
+                  <Collapsible open={insuranceOpen} onOpenChange={setInsuranceOpen}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="w-full justify-between text-xs text-muted-foreground">
+                        {editing.insurance_option_id
+                          ? `Seguro ${((editing.insurance_coverage_pct ?? 0) * 100).toFixed(0)}%`
+                          : 'Adicionar camada de seguro'}
+                        <ChevronDown className={cn('h-4 w-4 transition-transform', insuranceOpen && 'rotate-180')} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 pt-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Opção</Label>
+                        <Select
+                          value={editing.insurance_option_id ?? ''}
+                          onValueChange={(v) => setEditing({
+                            ...editing,
+                            insurance_option_id: v,
+                            insurance_carry_until: editing.insurance_carry_until ?? 'operation_end',
+                          })}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Selecione a opção" /></SelectTrigger>
+                          <SelectContent>
+                            {pairOptions.length === 0 && (
+                              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                Nenhuma opção ativa para este par
+                              </div>
+                            )}
+                            {pairOptions.map((o) => {
+                              const quote = latestQuotes?.[o.id];
+                              const hasToday = quote?.trade_date === todayISO();
+                              return (
+                                <SelectItem key={o.id} value={o.id} disabled={!hasToday}>
+                                  {o.label}
+                                  {hasToday ? '' : ' — sem cotação hoje: cadastre em Mercado > Opções'}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Cobertura (%)</Label>
+                          <Input
+                            type="number" step="any" placeholder="ex: 25"
+                            value={editing.insurance_coverage_pct != null ? editing.insurance_coverage_pct * 100 : ''}
+                            onChange={(e) => setEditing({
+                              ...editing,
+                              insurance_coverage_pct: e.target.value === '' ? null : Number(e.target.value) / 100,
+                            })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Carrego do prêmio</Label>
+                          <Select
+                            value={editing.insurance_carry_until ?? 'operation_end'}
+                            onValueChange={(v) => setEditing({
+                              ...editing,
+                              insurance_carry_until: v as 'operation_end' | 'grain_reception',
+                            })}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="operation_end">Até o término da operação</SelectItem>
+                              <SelectItem value="grain_reception">Até a recepção do grão</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {editing.insurance_option_id && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-destructive hover:text-destructive"
+                          onClick={() => setEditing({
+                            ...editing,
+                            insurance_option_id: null,
+                            insurance_coverage_pct: null,
+                            insurance_carry_until: null,
+                          })}
+                        >
+                          Remover seguro
+                        </Button>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
+                </section>
+
+                {/* ---------- 5. CUSTOS ---------- */}
                 <section className="space-y-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b pb-1">
                     Custos
