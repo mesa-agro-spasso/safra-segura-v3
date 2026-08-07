@@ -39,6 +39,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
   const { data: marketData } = useMarketData();
   const { data: combinations } = usePricingCombinations(true);
   const saveSnapshots = useSavePricingSnapshots();
+  const { data: latestQuotes } = useLatestOptionQuotes();
   const { user } = useAuth();
   
   const [generating, setGenerating] = useState(false);
