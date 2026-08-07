@@ -144,7 +144,7 @@ export function InsuranceOptionsCard({ onQuoteRegistered }: InsuranceOptionsCard
 
       <p className="px-1 text-xs text-muted-foreground">
         Aqui só se registra a cotação do dia. Para criar ou aposentar uma opção,{' '}
-        <Link to="/mercado/opcoes" className="inline-flex items-center gap-1 text-primary hover:underline">
+        <Link to="/mercado" className="inline-flex items-center gap-1 text-primary hover:underline">
           Mercado &gt; Opções <ExternalLink className="h-3 w-3" />
         </Link>
         .
