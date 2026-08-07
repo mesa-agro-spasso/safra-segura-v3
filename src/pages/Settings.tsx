@@ -423,14 +423,7 @@ function CombinationsTab() {
     return showActiveOnly ? combinations.filter((c) => c.active) : combinations;
   }, [combinations, showActiveOnly]);
 
-  /** Opções ativas do par (commodity + benchmark) da combinação em edição. */
-  const pairOptions = useMemo(() => {
-    if (!insuranceOptions || !editing) return [];
-    return insuranceOptions.filter(
-      (o) => o.commodity === (editing.commodity ?? 'soybean')
-        && o.benchmark === (editing.benchmark ?? 'cbot'),
-    );
-  }, [insuranceOptions, editing]);
+
 
   const handleCalculate = async () => {
     if (!editing) return;
