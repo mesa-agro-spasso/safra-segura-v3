@@ -653,7 +653,7 @@ function CombinationsTab() {
         </div>
         <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setCostsOpen(false); setCalcResult(null); } }}>
           <DialogTrigger asChild>
-            <Button onClick={() => { setEditing({ ...emptyCombination }); setCostsOpen(false); setCalcResult(null); }}>
+            <Button onClick={() => { setEditing({ ...emptyCombination }); setCostsOpen(false); setInsuranceOpen(false); setCalcResult(null); }}>
               <Plus className="mr-2 h-4 w-4" /> Nova Combinação
             </Button>
           </DialogTrigger>
@@ -1029,7 +1029,7 @@ function CombinationsTab() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); setCalcResult(null); }}>
+                          <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); setInsuranceOpen(!!c.insurance_option_id); setCalcResult(null); }}>
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <Button
@@ -1040,7 +1040,7 @@ function CombinationsTab() {
                               const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = c;
                               setEditing({ ...rest });
                               setOpen(true);
-                              setCostsOpen(false);
+                              setCostsOpen(false); setInsuranceOpen(!!c.insurance_option_id);
                               setCalcResult(null);
                             }}
                           >
