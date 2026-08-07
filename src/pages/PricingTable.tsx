@@ -369,6 +369,9 @@ const PricingTable = () => {
                         <TableCell className="text-right tabular-nums">R$ {snap.target_basis_brl.toFixed(2)}</TableCell>
                         <TableCell className="text-right tabular-nums">R$ {snap.futures_price_brl.toFixed(2)}</TableCell>
                         <TableCell className="text-right tabular-nums">{snap.exchange_rate?.toFixed(4) ?? '-'}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {costs?.insurance_brl != null ? `R$ ${Number(costs.insurance_brl).toFixed(2)}` : '-'}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Tooltip>
                             <TooltipTrigger asChild>
