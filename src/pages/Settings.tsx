@@ -400,6 +400,9 @@ function CombinationsTab() {
   const [open, setOpen] = useState(false);
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [costsOpen, setCostsOpen] = useState(false);
+  const [insuranceOpen, setInsuranceOpen] = useState(false);
+  const { data: insuranceOptions } = useInsuranceOptions();
+  const { data: latestQuotes } = useLatestOptionQuotes();
   const [calculating, setCalculating] = useState(false);
   const [calcResult, setCalcResult] = useState<{
     target_basis_brl: number;
