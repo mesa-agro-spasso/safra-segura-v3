@@ -1,4 +1,5 @@
 import type { PricingCombination, Warehouse, MarketData, PricingSnapshot } from '@/types';
+import type { OptionQuote } from '@/hooks/useInsuranceOptions';
 
 /** Campos editáveis no cockpit. Espelham colunas de pricing_combinations. */
 export interface CockpitOverrides {
@@ -94,9 +95,11 @@ export function buildCockpitPayload({
   warehouseMap,
   marketMap,
   overrides,
+  latestQuotes,
 }: BuildPayloadArgs): BuildPayloadResult {
   const payload: Record<string, unknown>[] = [];
   const comboIds: string[] = [];
+  const insuranceByIndex: (InsuranceUsed | null)[] = [];
   const skipped: BuildPayloadResult['skipped'] = [];
 
   for (const combo of combinations) {
@@ -174,6 +177,34 @@ export function buildCockpitPayload({
     const fxOverride = isCbot ? market.ndf_override ?? null : null;
     const pricingMethod = combo.pricing_method ?? 'LONG_BASIS';
 
+    // ---- Seguro: prêmio CRU da cotação, sem nenhuma conversão. ----
+    let insuranceFields: Record<string, unknown> = {};
+    let insuranceUsed: InsuranceUsed | null = null;
+    if (combo.insurance_option_id) {
+      const quote = latestQuotes?.[combo.insurance_option_id] ?? null;
+      if (!quote) {
+        skipped.push({
+          comboId: combo.id,
+          label,
+          reason: 'Seguro sem cotação — cadastre o prêmio em Mercado > Opções.',
+        });
+        continue;
+      }
+      insuranceUsed = {
+        quote,
+        coverage_pct: combo.insurance_coverage_pct ?? null,
+        carry_until: combo.insurance_carry_until ?? null,
+      };
+      insuranceFields = {
+        ...(isCbot
+          ? { insurance_premium_usd_bushel: quote.premium_usd_bushel }
+          : { insurance_premium_brl_sack: quote.premium_brl_sack }),
+        insurance_coverage_pct: combo.insurance_coverage_pct,
+        insurance_quote_trade_date: quote.trade_date,
+        ...(combo.insurance_carry_until ? { insurance_carry_until: combo.insurance_carry_until } : {}),
+      };
+    }
+
     const baseCombo: Record<string, unknown> = {
       warehouse_id: combo.warehouse_id,
       display_name: warehouse.display_name,
@@ -188,6 +219,7 @@ export function buildCockpitPayload({
       pricing_method: pricingMethod,
       futures_price: market.price,
       ...(fxOverride != null ? { exchange_rate_override: fxOverride } : {}),
+      ...insuranceFields,
       warehouse: warehouseLayer,
     };
 
@@ -206,6 +238,7 @@ export function buildCockpitPayload({
         },
       });
       comboIds.push(combo.id);
+      insuranceByIndex.push(insuranceUsed);
     } else if (pricingMethod === 'TARGET_PRICE') {
       if (combo.origination_price_net_brl == null) {
         skipped.push({ comboId: combo.id, label, reason: 'Target Price sem preço líquido alvo.' });
@@ -218,12 +251,13 @@ export function buildCockpitPayload({
         combination: { ...combinationLayer },
       });
       comboIds.push(combo.id);
+      insuranceByIndex.push(insuranceUsed);
     } else {
       skipped.push({ comboId: combo.id, label, reason: `Método de precificação desconhecido '${pricingMethod}'.` });
     }
   }
 
-  return { payload, comboIds, skipped };
+  return { payload, comboIds, insuranceByIndex, skipped };
 }
 
 export interface BuildSnapshotsArgs {
@@ -233,6 +267,14 @@ export interface BuildSnapshotsArgs {
   tradeDate: string;
   spotRate: number | null;
   userId: string | null;
+  /** Seguro por índice do payload, na mesma ordem devolvida por buildCockpitPayload. */
+  insuranceByIndex?: (InsuranceUsed | null)[];
+}
+
+export interface BuildSnapshotsResult {
+  rows: Omit<PricingSnapshot, 'id' | 'created_at'>[];
+  /** Linhas com seguro cuja resposta não trouxe costs.insurance_brl — NÃO gravadas. */
+  notSaved: string[];
 }
 
 /** Monta as linhas de pricing_snapshots. outputs_json vai por spread, objeto inteiro. */
@@ -243,9 +285,23 @@ export function buildCockpitSnapshots({
   tradeDate,
   spotRate,
   userId,
-}: BuildSnapshotsArgs): Omit<PricingSnapshot, 'id' | 'created_at'>[] {
-  return apiResults.map((r, idx) => {
-    const orig = payload[keptIndexes[idx] ?? idx] ?? {};
+  insuranceByIndex,
+}: BuildSnapshotsArgs): BuildSnapshotsResult {
+  const notSaved: string[] = [];
+  const rows = apiResults.map((r, idx) => {
+    const payloadIdx = keptIndexes[idx] ?? idx;
+    const orig = payload[payloadIdx] ?? {};
+    const ins = insuranceByIndex?.[payloadIdx] ?? null;
+    const costs = (r.costs ?? null) as Record<string, unknown> | null;
+    const insuranceCost = costs?.insurance_brl;
+
+    // Linha com seguro e sem custo na resposta: não grava. Gravar as quatro
+    // colunas nulas produziria preço já descontado do seguro sem registro dele.
+    if (ins && insuranceCost == null) {
+      notSaved.push(`${orig.display_name ?? orig.warehouse_id} / ${orig.ticker}`);
+      return null;
+    }
+
     return {
       warehouse_id: r.warehouse_id ?? orig.warehouse_id,
       commodity: r.commodity ?? orig.commodity,
@@ -263,6 +319,11 @@ export function buildCockpitSnapshots({
         r.additional_discount_brl
         ?? (orig.combination as Record<string, unknown> | undefined)?.additional_discount_brl
         ?? 0,
+      // As quatro juntas ou as quatro nulas — exigência do CHECK do banco.
+      insurance_quote_id: ins ? ins.quote.id : null,
+      insurance_coverage_pct: ins ? ins.coverage_pct : null,
+      insurance_cost_brl: ins ? Number(insuranceCost) : null,
+      insurance_carry_until: ins ? ins.carry_until : null,
       inputs_json: {
         pricing_method: orig.pricing_method,
         futures_price: orig.futures_price,
@@ -278,7 +339,9 @@ export function buildCockpitSnapshots({
       outputs_json: { ...r },
       created_by: userId,
     } as Omit<PricingSnapshot, 'id' | 'created_at'>;
-  });
+  }).filter((s): s is Omit<PricingSnapshot, 'id' | 'created_at'> => s !== null);
+
+  return { rows, notSaved };
 }
 
 /**
