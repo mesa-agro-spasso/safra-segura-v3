@@ -43,18 +43,34 @@ Entra na lista de motivos já exibida na confirmação de descartes, com texto v
 
 Nenhuma aritmética: o número exibido é exatamente o que veio de `costs.insurance_brl`.
 
+## 5. Gravação do seguro em `pricing_snapshots`
+
+Quem grava a tabela é este frontend, ao salvar o resultado da precificação. Quatro colunas, e o CHECK do banco exige as quatro juntas ou as quatro nulas:
+
+- `insurance_quote_id` — id da cotação que formou o preço (a mesma de onde saíram o prêmio e o `insurance_quote_trade_date` do payload)
+- `insurance_coverage_pct` — a cobertura enviada
+- `insurance_cost_brl` — `costs.insurance_brl` da resposta, sem recalcular
+- `insurance_carry_until` — a janela do carrego usada
+
+Para casar resposta com payload, a cotação usada em cada linha fica guardada por índice no momento de montar o payload, e é recuperada pelo mesmo `keptIndexes` que já recasa resultado ↔ linha enviada após os descartes.
+
+Se a linha não teve seguro, as quatro vão nulas. Se teve seguro mas a resposta não trouxe `costs.insurance_brl`, a linha é gravada **sem seguro nenhum** (as quatro nulas) e a mesa recebe um aviso — nunca um trio incompleto, que o banco rejeitaria.
+
+O `quote_id` é o único registro de qual prêmio formou aquele preço: sem ele, meses depois o rastro resolveria para a cotação mais recente da opção, que não é a que formou o preço.
+
 ## Fora de escopo
 
 - Aba Mercado (só é lida)
-- Schema de `insurance_options` / `pricing_combinations`
+- Schema de `insurance_options` / `pricing_combinations` / `pricing_snapshots`
 - `insurance_snapshots` (tabela morta, nenhuma escrita)
 - Cálculo ou exibição das outras linhas de custo
 
 ## Detalhes técnicos
 
 - `src/pages/Settings.tsx`: seção colapsável no formulário de combinação, usando `useInsuranceOptions` e `useLatestOptionQuotes` (`src/hooks/useInsuranceOptions.ts`) para listar e para marcar "sem cotação hoje"; validação do trio no salvamento.
-- `src/types/index.ts`: campos de seguro em `PricingCombination` (se ainda não tipados).
-- `src/components/GeneratePricingModal.tsx`: monta os campos de seguro no `baseCombo`, escolhendo o campo do prêmio pelo `benchmark` da linha.
+- `src/types/index.ts`: campos de seguro em `PricingCombination` e nas linhas de `PricingSnapshot` (se ainda não tipados).
+- `src/components/GeneratePricingModal.tsx`: monta os campos de seguro no `baseCombo`, escolhendo o campo do prêmio pelo `benchmark` da linha; guarda a cotação usada por índice e grava as quatro colunas de seguro nos snapshots.
 - `src/components/DiscardedCombinationsList.tsx`: novo case `INSURANCE_QUOTE_UNAVAILABLE`.
 - `src/pages/PricingTable.tsx`: linha "Seguro" no tooltip e no detalhe; coluna "Seguro (R$/sc)".
 - `src/components/ExportPricingModal.tsx`: entrada `insurance_brl` na lista de colunas (`defaultOn: false`).
+
