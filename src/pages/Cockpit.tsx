@@ -17,6 +17,14 @@ import { usePricingCombinations, useUpsertPricingCombination } from '@/hooks/use
 import { usePricingSnapshots, useSavePricingSnapshots } from '@/hooks/usePricingSnapshots';
 import { useAuth } from '@/contexts/AuthContext';
 import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
+import { useLatestOptionQuotes } from '@/hooks/useInsuranceOptions';
+import {
+  InsuranceFields,
+  validateInsuranceTrio,
+  insurancePatch,
+  type InsuranceValue,
+} from '@/components/pricing/InsuranceFields';
+import { InsuranceOptionsCard } from '@/components/cockpit/cards/InsuranceOptionsCard';
 import { CockpitShell, type CockpitCardSpec } from '@/components/cockpit/CockpitShell';
 import { PriceTableCard } from '@/components/cockpit/cards/PriceTableCard';
 import { MarketCard } from '@/components/cockpit/cards/MarketCard';
@@ -37,13 +45,14 @@ import {
   type CockpitOverrides,
   type OverridesMap,
 } from '@/lib/cockpitPayload';
-import type { Warehouse, MarketData, DiscardedCombination, PricingSnapshot } from '@/types';
+import type { Warehouse, MarketData, DiscardedCombination, PricingSnapshot, PricingCombination } from '@/types';
 
 const CARD_TITLES: Record<CockpitCardId, string> = {
   price_table: 'Tabela de preços',
   market: 'Mercado (bolsa)',
   physical_prices: 'Preços físicos',
   parameters: 'Parâmetros das combinações',
+  insurance_options: 'Opções de seguro',
 };
 
 const Cockpit = () => {
@@ -51,6 +60,7 @@ const Cockpit = () => {
   const { data: marketData } = useMarketData();
   const { data: combinations, isLoading } = usePricingCombinations(true);
   const { data: snapshots } = usePricingSnapshots();
+  const { data: latestQuotes } = useLatestOptionQuotes();
   const saveSnapshots = useSavePricingSnapshots();
   const upsertCombination = useUpsertPricingCombination();
   const { user } = useAuth();
@@ -71,6 +81,12 @@ const Cockpit = () => {
   const [skipped, setSkipped] = useState<{ comboId: string; label: string; reason: string }[]>([]);
   const [calcResults, setCalcResults] = useState<Record<string, Record<string, unknown>> | null>(null);
   const [partialFailure, setPartialFailure] = useState<{ labels: string[]; message: string } | null>(null);
+  /** Linhas com seguro não gravadas por falta de costs.insurance_brl na resposta. */
+  const [insuranceFailures, setInsuranceFailures] = useState<string[]>([]);
+  /** Combinação cujo seguro está sendo editado no modal. */
+  const [insuranceEditing, setInsuranceEditing] = useState<PricingCombination | null>(null);
+  const [insuranceDraft, setInsuranceDraft] = useState<InsuranceValue>({});
+  const [savingInsurance, setSavingInsurance] = useState(false);
   /** Cotações gravadas desde o último recálculo — trava o Publicar junto com os parâmetros. */
   const [quotesDirty, setQuotesDirty] = useState(false);
   const [quoteCount, setQuoteCount] = useState(0);
@@ -147,6 +163,7 @@ const Cockpit = () => {
       warehouseMap,
       marketMap,
       overrides,
+      latestQuotes,
     });
 
     setSkipped(skippedRows);
@@ -203,11 +220,12 @@ const Cockpit = () => {
   const handlePublish = async () => {
     if (!calcResults || !combinations) return;
 
-    const { payload, comboIds } = buildCockpitPayload({
+    const { payload, comboIds, insuranceByIndex } = buildCockpitPayload({
       combinations: sortedCombos,
       warehouseMap,
       marketMap,
       overrides,
+      latestQuotes,
     });
 
     const orderedComboIds = comboIds.filter((id) => calcResults[id]);
@@ -221,17 +239,20 @@ const Cockpit = () => {
 
     setPublishing(true);
     setPartialFailure(null);
+    setInsuranceFailures([]);
     try {
       // PRIMEIRO a tabela: é o que o comercial lê.
-      const rows = buildCockpitSnapshots({
+      const { rows, notSaved } = buildCockpitSnapshots({
         apiResults,
         payload,
         keptIndexes,
         tradeDate: getTradeDateBRT(),
         spotRate,
         userId: user?.id ?? null,
+        insuranceByIndex,
       });
-      await saveSnapshots.mutateAsync(rows);
+      if (notSaved.length > 0) setInsuranceFailures(notSaved);
+      if (rows.length > 0) await saveSnapshots.mutateAsync(rows);
     } catch (err) {
       setPublishing(false);
       const msg = err instanceof Error ? err.message : String(err);
@@ -271,6 +292,39 @@ const Cockpit = () => {
     }
   };
 
+  const openInsurance = (combo: PricingCombination) => {
+    setInsuranceEditing(combo);
+    setInsuranceDraft({
+      insurance_option_id: combo.insurance_option_id ?? null,
+      insurance_coverage_pct: combo.insurance_coverage_pct ?? null,
+      insurance_carry_until: combo.insurance_carry_until ?? null,
+    });
+  };
+
+  const handleSaveInsurance = async () => {
+    if (!insuranceEditing) return;
+    const error = validateInsuranceTrio(insuranceDraft);
+    if (error) { toast.error(error); return; }
+    setSavingInsurance(true);
+    try {
+      await upsertCombination.mutateAsync({
+        ...insuranceEditing,
+        ...insurancePatch(insuranceDraft),
+      } as never);
+      // Seguro é cadastro, não override de sessão: marca a linha como não recalculada.
+      setPendingMap((prev) => ({
+        ...prev,
+        [insuranceEditing.id]: { ...prev[insuranceEditing.id], insurance: true } as never,
+      }));
+      toast.success('Seguro da combinação salvo.');
+      setInsuranceEditing(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar seguro');
+    } finally {
+      setSavingInsurance(false);
+    }
+  };
+
   const canPublish = !!calcResults && !dirty && !publishing && !recalculating;
 
   const recalcButton = (
@@ -301,8 +355,10 @@ const Cockpit = () => {
         overrides={overrides}
         pendingMap={pendingMap}
         onChange={handleChange}
+        onEditInsurance={openInsurance}
       />
     ),
+    insurance_options: <InsuranceOptionsCard onQuoteRegistered={() => handleQuoteChanged(['seguro'])} />,
   };
 
   const cardActions: Partial<Record<CockpitCardId, React.ReactNode>> = {
@@ -411,6 +467,52 @@ const Cockpit = () => {
       ) : (
         <CockpitShell cards={cards} onReorder={handleReorder} onRemove={handleRemove} />
       )}
+
+      {insuranceFailures.length > 0 && (
+        <Card className="border-destructive">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-destructive">
+              Linhas com seguro NÃO gravadas
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>
+              A API não devolveu o custo do seguro nestas linhas. Gravar sem esse registro produziria
+              um preço menor sem explicação, então elas ficaram de fora da tabela publicada:
+            </p>
+            <ul className="list-disc pl-5">
+              {insuranceFailures.map((l) => <li key={l}>{l}</li>)}
+            </ul>
+            <Button variant="outline" size="sm" onClick={() => setInsuranceFailures([])}>Entendi</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={!!insuranceEditing} onOpenChange={(o) => { if (!o) setInsuranceEditing(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Seguro da combinação</DialogTitle>
+            <DialogDescription>
+              {insuranceEditing
+                ? `${warehouseMap[insuranceEditing.warehouse_id]?.display_name ?? insuranceEditing.warehouse_id} · ${insuranceEditing.ticker}`
+                : ''}
+              {' '}— grava direto no cadastro da combinação.
+            </DialogDescription>
+          </DialogHeader>
+          {insuranceEditing && (
+            <InsuranceFields
+              value={insuranceDraft}
+              commodity={insuranceEditing.commodity as 'soybean' | 'corn'}
+              benchmark={insuranceEditing.benchmark as 'cbot' | 'b3'}
+              onChange={setInsuranceDraft}
+            />
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInsuranceEditing(null)}>Cancelar</Button>
+            <Button onClick={handleSaveInsurance} disabled={savingInsurance}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!partialFailure} onOpenChange={(o) => { if (!o) setPartialFailure(null); }}>
         <DialogContent className="sm:max-w-md">

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Shield } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { DateInput } from '@/components/ui/date-input';
@@ -135,12 +136,14 @@ export interface ParametersCardProps {
   overrides: OverridesMap;
   pendingMap: PendingMap;
   onChange: (comboId: string, field: keyof CockpitOverrides, value: number | string | boolean | null) => void;
+  /** Abre o modal de seguro da combinação. Grava direto no cadastro. */
+  onEditInsurance?: (combo: PricingCombination) => void;
 }
 
-const COLUMN_COUNT = 17;
+const COLUMN_COUNT = 18;
 
 
-export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange }: ParametersCardProps) {
+export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange, onEditInsurance }: ParametersCardProps) {
   /** Todos os grupos nascem fechados: o cockpit é para ajuste pontual. */
   const [open, setOpen] = useState<Record<string, boolean>>({});
   /** Filtro de exibição por commodity. Não altera payload nem cálculo. */
@@ -227,6 +230,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
             <TableHead className={HEAD}>Pagamento</TableHead>
             <TableHead className={HEAD}>Recepção do grão</TableHead>
             <TableHead className={HEAD}>Venda</TableHead>
+            <TableHead className={HEAD}>Seguro</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -349,6 +353,22 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                             pending={!!pf.sale_date}
                             onChange={onChange}
                           />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              'h-7 gap-1 whitespace-nowrap text-xs',
+                              combo.insurance_option_id && 'border-primary text-primary',
+                            )}
+                            onClick={() => onEditInsurance?.(combo)}
+                          >
+                            <Shield className="h-3.5 w-3.5" />
+                            {combo.insurance_option_id
+                              ? `${((combo.insurance_coverage_pct ?? 0) * 100).toFixed(0)}%`
+                              : 'Configurar'}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );

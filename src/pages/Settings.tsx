@@ -28,7 +28,7 @@ import { toast } from 'sonner';
 import { usePricingParameters, useUpdatePricingParameter } from '@/hooks/usePricingParameters';
 import { useSpotSettings, useUpdateSpotSettings } from '@/hooks/useSpotSettings';
 import { useFxParameters, useUpdateFxParameters } from '@/hooks/useFxParameters';
-import { useInsuranceOptions, useLatestOptionQuotes, todayISO } from '@/hooks/useInsuranceOptions';
+import { InsuranceFields, validateInsuranceTrio, insurancePatch } from '@/components/pricing/InsuranceFields';
 import { callApi } from '@/lib/api';
 import type { Warehouse, PricingCombination, PricingParameter, SpotSettings } from '@/types';
 
@@ -402,8 +402,6 @@ function CombinationsTab() {
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [costsOpen, setCostsOpen] = useState(false);
   const [insuranceOpen, setInsuranceOpen] = useState(false);
-  const { data: insuranceOptions } = useInsuranceOptions();
-  const { data: latestQuotes } = useLatestOptionQuotes();
   const [calculating, setCalculating] = useState(false);
   const [calcResult, setCalcResult] = useState<{
     target_basis_brl: number;
@@ -423,14 +421,7 @@ function CombinationsTab() {
     return showActiveOnly ? combinations.filter((c) => c.active) : combinations;
   }, [combinations, showActiveOnly]);
 
-  /** Opções ativas do par (commodity + benchmark) da combinação em edição. */
-  const pairOptions = useMemo(() => {
-    if (!insuranceOptions || !editing) return [];
-    return insuranceOptions.filter(
-      (o) => o.commodity === (editing.commodity ?? 'soybean')
-        && o.benchmark === (editing.benchmark ?? 'cbot'),
-    );
-  }, [insuranceOptions, editing]);
+
 
   const handleCalculate = async () => {
     if (!editing) return;
@@ -551,23 +542,8 @@ function CombinationsTab() {
     }
 
     // Seguro: os três campos andam juntos ou nenhum.
-    const insFilled = [
-      editing.insurance_option_id != null && editing.insurance_option_id !== '',
-      editing.insurance_coverage_pct != null,
-      editing.insurance_carry_until != null,
-    ];
-    const insCount = insFilled.filter(Boolean).length;
-    if (insCount > 0 && insCount < 3) {
-      toast.error('Seguro incompleto: preencha opção, cobertura e carrego — ou remova o seguro');
-      return;
-    }
-    if (insCount === 3) {
-      const cov = editing.insurance_coverage_pct!;
-      if (!(cov > 0 && cov <= 1)) {
-        toast.error('Cobertura do seguro deve estar entre 0% e 100%');
-        return;
-      }
-    }
+    const insError = validateInsuranceTrio(editing);
+    if (insError) { toast.error(insError); return; }
 
     const payload: Partial<PricingCombination> = {
       ...editing,
@@ -575,10 +551,9 @@ function CombinationsTab() {
       target_basis: method === 'LONG_BASIS' ? editing.target_basis ?? null : null,
       origination_price_net_brl: method === 'TARGET_PRICE' ? editing.origination_price_net_brl ?? null : null,
       additional_discount_brl: method === 'TARGET_PRICE' ? 0 : (editing.additional_discount_brl ?? 0),
-      insurance_option_id: insCount === 3 ? editing.insurance_option_id ?? null : null,
-      insurance_coverage_pct: insCount === 3 ? editing.insurance_coverage_pct ?? null : null,
-      insurance_carry_until: insCount === 3 ? editing.insurance_carry_until ?? null : null,
+      ...insurancePatch(editing),
     };
+
     try {
       await upsert.mutateAsync(payload);
       toast.success('Combinação salva');
@@ -851,81 +826,13 @@ function CombinationsTab() {
                       </Button>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="space-y-3 pt-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Opção</Label>
-                        <Select
-                          value={editing.insurance_option_id ?? ''}
-                          onValueChange={(v) => setEditing({
-                            ...editing,
-                            insurance_option_id: v,
-                            insurance_carry_until: editing.insurance_carry_until ?? 'operation_end',
-                          })}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Selecione a opção" /></SelectTrigger>
-                          <SelectContent>
-                            {pairOptions.length === 0 && (
-                              <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                Nenhuma opção ativa para este par
-                              </div>
-                            )}
-                            {pairOptions.map((o) => {
-                              const quote = latestQuotes?.[o.id];
-                              const hasToday = quote?.trade_date === todayISO();
-                              return (
-                                <SelectItem key={o.id} value={o.id} disabled={!hasToday}>
-                                  {o.label}
-                                  {hasToday ? '' : ' — sem cotação hoje: cadastre em Mercado > Opções'}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Cobertura (%)</Label>
-                          <Input
-                            type="number" step="any" placeholder="ex: 25"
-                            value={editing.insurance_coverage_pct != null ? editing.insurance_coverage_pct * 100 : ''}
-                            onChange={(e) => setEditing({
-                              ...editing,
-                              insurance_coverage_pct: e.target.value === '' ? null : Number(e.target.value) / 100,
-                            })}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Carrego do prêmio</Label>
-                          <Select
-                            value={editing.insurance_carry_until ?? 'operation_end'}
-                            onValueChange={(v) => setEditing({
-                              ...editing,
-                              insurance_carry_until: v as 'operation_end' | 'grain_reception',
-                            })}
-                          >
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="operation_end">Até o término da operação</SelectItem>
-                              <SelectItem value="grain_reception">Até a recepção do grão</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      {editing.insurance_option_id && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-destructive hover:text-destructive"
-                          onClick={() => setEditing({
-                            ...editing,
-                            insurance_option_id: null,
-                            insurance_coverage_pct: null,
-                            insurance_carry_until: null,
-                          })}
-                        >
-                          Remover seguro
-                        </Button>
-                      )}
+                      <InsuranceFields
+                        value={editing}
+                        commodity={(editing.commodity ?? 'soybean') as 'soybean' | 'corn'}
+                        benchmark={(editing.benchmark ?? 'cbot') as 'cbot' | 'b3'}
+                        onChange={(patch) => setEditing({ ...editing, ...patch })}
+                      />
+
                     </CollapsibleContent>
                   </Collapsible>
                 </section>
