@@ -50,6 +50,15 @@ export interface BuildPayloadArgs {
   warehouseMap: Record<string, Warehouse>;
   marketMap: Record<string, MarketData>;
   overrides: OverridesMap;
+  /** Cotação mais recente por opção de seguro. Sem ela, linha com seguro é pulada. */
+  latestQuotes?: Record<string, OptionQuote>;
+}
+
+/** Seguro efetivamente enviado numa linha do payload. */
+export interface InsuranceUsed {
+  quote: OptionQuote;
+  coverage_pct: number | null;
+  carry_until: string | null;
 }
 
 export interface BuildPayloadResult {
@@ -57,9 +66,12 @@ export interface BuildPayloadResult {
   payload: Record<string, unknown>[];
   /** id da combinação para cada índice de `payload`. */
   comboIds: string[];
+  /** Seguro usado em cada índice de `payload` (null quando a linha não tem seguro). */
+  insuranceByIndex: (InsuranceUsed | null)[];
   /** Linhas puladas antes da chamada, com o motivo em português. */
   skipped: { comboId: string; label: string; reason: string }[];
 }
+
 
 /** Lê o valor efetivo de um campo: override da sessão, senão o cadastro da combinação. */
 export function effectiveValue<K extends keyof CockpitOverrides>(
