@@ -430,6 +430,35 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     }
   };
 
+  if (insuranceFailures.length > 0) {
+    return (
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Preços com seguro não gravados</DialogTitle>
+            <DialogDescription>
+              A API devolveu o preço destas linhas sem o custo do seguro. Gravar assim
+              produziria um preço já descontado do seguro sem nenhum registro de que houve
+              seguro — por isso nada foi salvo para elas. Avise o time técnico.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ul className="space-y-2 max-h-72 overflow-y-auto pr-1 py-2">
+            {insuranceFailures.map((label) => (
+              <li key={label} className="rounded border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                {label}
+              </li>
+            ))}
+          </ul>
+
+          <DialogFooter>
+            <Button onClick={() => handleOpenChange(false)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   if (discarded && discarded.length > 0) {
     return (
       <Dialog open={open} onOpenChange={handleOpenChange}>
