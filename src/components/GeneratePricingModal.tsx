@@ -410,6 +410,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         toast.success(
           `Tabela gerada: ${apiResults.length} preços calculados, ${apiDiscarded.length} combinação(ões) descartada(s)`,
         );
+      } else if (notSaved.length > 0) {
+        // O aviso persistente já está na tela: não fecha o modal.
+        toast.error(`${notSaved.length} linha(s) com seguro não foram salvas`);
       } else if (apiResults.length) {
         toast.success(`Tabela gerada: ${apiResults.length} preços calculados`);
         onOpenChange(false);
