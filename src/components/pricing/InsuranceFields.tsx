@@ -18,10 +18,12 @@ import {
  * Nenhum cálculo: só leitura de cadastro e escrita dos três campos.
  */
 
+export type InsuranceCarryUntil = 'operation_end' | 'grain_reception';
+
 export interface InsuranceValue {
   insurance_option_id?: string | null;
   insurance_coverage_pct?: number | null;
-  insurance_carry_until?: string | null;
+  insurance_carry_until?: InsuranceCarryUntil | null;
 }
 
 /** Os três andam juntos ou nenhum. Devolve a mensagem de erro, ou null se está ok. */
@@ -126,7 +128,7 @@ export function InsuranceFields({ value, commodity, benchmark, onChange }: Insur
           <Label className="text-xs">Carrego do prêmio</Label>
           <Select
             value={value.insurance_carry_until ?? 'operation_end'}
-            onValueChange={(v) => onChange({ ...value, insurance_carry_until: v })}
+            onValueChange={(v) => onChange({ ...value, insurance_carry_until: v as InsuranceCarryUntil })}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
