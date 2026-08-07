@@ -124,8 +124,10 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     const tradeDate = getTradeDateBRT();
 
     const payload: Record<string, unknown>[] = [];
-
-
+    // Cotação usada por índice do payload — o único vínculo entre o preço e o prêmio.
+    const quoteByIndex: (OptionQuote | null)[] = [];
+    const coverageByIndex: (number | null)[] = [];
+    const carryByIndex: (string | null)[] = [];
 
     for (const combo of combinations) {
       const market = marketMap[combo.ticker];
