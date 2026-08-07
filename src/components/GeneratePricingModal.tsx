@@ -10,6 +10,7 @@ import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLatestOptionQuotes, todayISO, type OptionQuote } from '@/hooks/useInsuranceOptions';
 
 import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
 import type { Warehouse, MarketData, PricingSnapshot, DiscardedCombination } from '@/types';
