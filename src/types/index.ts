@@ -58,6 +58,11 @@ export interface PricingSnapshot {
   outputs_json: Record<string, unknown>;
   /** Legado: camada de seguro teórico removida. Coluna mantida no banco com default '{}'. */
   insurance_json?: Record<string, unknown>;
+  /** Seguro efetivo: as quatro colunas juntas ou as quatro nulas (CHECK do banco). */
+  insurance_quote_id?: string | null;
+  insurance_coverage_pct?: number | null;
+  insurance_cost_brl?: number | null;
+  insurance_carry_until?: string | null;
   created_by: string | null;
   created_at: string;
 }
@@ -162,6 +167,10 @@ export interface PricingCombination {
   desk_cost_pct: number | null;
   shrinkage_rate_monthly: number | null;
   additional_discount_brl: number;
+  /** Seguro: os três andam juntos ou nenhum. */
+  insurance_option_id: string | null;
+  insurance_coverage_pct: number | null;
+  insurance_carry_until: 'operation_end' | 'grain_reception' | null;
   active: boolean;
   created_at: string;
   updated_at: string;

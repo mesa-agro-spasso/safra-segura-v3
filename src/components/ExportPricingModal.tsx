@@ -25,6 +25,10 @@ export const ALL_COLUMNS: ExportColumn[] = [
   { key: 'futures_price_brl', label: 'Futuros (BRL)', defaultOn: true, getValue: (s) => `R$ ${s.futures_price_brl.toFixed(2)}` },
   { key: 'exchange_rate', label: 'Câmbio', defaultOn: true, getValue: (s) => s.exchange_rate?.toFixed(4) ?? '-' },
   { key: 'origination_price_brl', label: 'Preço Originação', defaultOn: true, getValue: (s) => `R$ ${s.origination_price_brl.toFixed(2)}` },
+  { key: 'insurance_brl', label: 'Seguro (R$/sc)', defaultOn: false, getValue: (s) => {
+    const c = (s.outputs_json as Record<string, any> | null)?.costs as Record<string, any> | undefined;
+    return c?.insurance_brl != null ? `R$ ${Number(c.insurance_brl).toFixed(2)}` : '-';
+  } },
   { key: 'additional_discount_brl', label: 'Desconto', defaultOn: false, getValue: (s) => `R$ ${s.additional_discount_brl.toFixed(2)}` },
   { key: 'trade_date', label: 'Trade Date', defaultOn: false, getValue: (s) => fmtDate(s.trade_date) },
   { key: 'benchmark', label: 'Benchmark', defaultOn: false, getValue: (s) => s.benchmark?.toUpperCase() ?? '-' },

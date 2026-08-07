@@ -10,6 +10,7 @@ import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useMarketData, getHoursAgo } from '@/hooks/useMarketData';
 import { usePricingCombinations } from '@/hooks/usePricingCombinations';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLatestOptionQuotes, type OptionQuote } from '@/hooks/useInsuranceOptions';
 
 import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
 import type { Warehouse, MarketData, PricingSnapshot, DiscardedCombination } from '@/types';
@@ -38,13 +39,16 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
   const { data: marketData } = useMarketData();
   const { data: combinations } = usePricingCombinations(true);
   const saveSnapshots = useSavePricingSnapshots();
+  const { data: latestQuotes } = useLatestOptionQuotes();
   const { user } = useAuth();
   
   const [generating, setGenerating] = useState(false);
   const [discarded, setDiscarded] = useState<DiscardedCombination[] | null>(null);
+  /** Linhas com seguro que a API devolveu sem custo de seguro — não gravadas. */
+  const [insuranceFailures, setInsuranceFailures] = useState<string[]>([]);
 
   const handleOpenChange = (next: boolean) => {
-    if (!next) setDiscarded(null);
+    if (!next) { setDiscarded(null); setInsuranceFailures([]); }
     onOpenChange(next);
   };
 
@@ -124,8 +128,10 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     const tradeDate = getTradeDateBRT();
 
     const payload: Record<string, unknown>[] = [];
-
-
+    // Cotação usada por índice do payload — o único vínculo entre o preço e o prêmio.
+    const quoteByIndex: (OptionQuote | null)[] = [];
+    const coverageByIndex: (number | null)[] = [];
+    const carryByIndex: (string | null)[] = [];
 
     for (const combo of combinations) {
       const market = marketMap[combo.ticker];
@@ -222,6 +228,28 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
       const pricingMethod = combo.pricing_method ?? 'LONG_BASIS';
 
+      // ---- Seguro: prêmio CRU da cotação, sem nenhuma conversão. ----
+      let insuranceFields: Record<string, unknown> = {};
+      let usedQuote: OptionQuote | null = null;
+      if (combo.insurance_option_id) {
+        const quote = latestQuotes?.[combo.insurance_option_id] ?? null;
+        if (!quote) {
+          toast.warning(
+            `Combinação ${combo.ticker}/${warehouse.display_name} tem seguro sem cotação — cadastre o prêmio em Mercado > Opções`,
+          );
+          continue;
+        }
+        usedQuote = quote;
+        insuranceFields = {
+          ...(isCbot
+            ? { insurance_premium_usd_bushel: quote.premium_usd_bushel }
+            : { insurance_premium_brl_sack: quote.premium_brl_sack }),
+          insurance_coverage_pct: combo.insurance_coverage_pct,
+          insurance_quote_trade_date: quote.trade_date,
+          ...(combo.insurance_carry_until ? { insurance_carry_until: combo.insurance_carry_until } : {}),
+        };
+      }
+
       const baseCombo: Record<string, unknown> = {
         warehouse_id: combo.warehouse_id,
         display_name: warehouse.display_name,
@@ -238,8 +266,15 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
         futures_price: market.price,
         ...(fxOverride != null ? { exchange_rate_override: fxOverride } : {}),
+        ...insuranceFields,
 
         warehouse: warehouseLayer,
+      };
+
+      const trackInsurance = () => {
+        quoteByIndex.push(usedQuote);
+        coverageByIndex.push(usedQuote ? combo.insurance_coverage_pct ?? null : null);
+        carryByIndex.push(usedQuote ? combo.insurance_carry_until ?? null : null);
       };
 
       if (pricingMethod === 'LONG_BASIS') {
@@ -255,6 +290,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             additional_discount_brl: combo.additional_discount_brl,
           },
         });
+        trackInsurance();
       } else if (pricingMethod === 'TARGET_PRICE') {
         if (combo.origination_price_net_brl == null) {
           toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} (Target Price) sem origination_price_net_brl — pulando`);
@@ -267,6 +303,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
           // carimbaria origem falsa em resolved_inputs.
           combination: { ...combinationLayer },
         });
+        trackInsurance();
       } else {
         toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} com pricing_method desconhecido '${pricingMethod}' — pulando`);
         continue;
@@ -279,7 +316,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
     }
 
     setGenerating(true);
-    setDiscarded(null);
+    setDiscarded(null); setInsuranceFailures([]);
     try {
       const result = await callApi<{
         results: Record<string, unknown>[];
@@ -300,9 +337,26 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       const discardedIdx = new Set(apiDiscarded.map((d) => d.index));
       const keptIndexes = payload.map((_, i) => i).filter((i) => !discardedIdx.has(i));
 
+      // Linhas com seguro cuja resposta não trouxe costs.insurance_brl: não gravar.
+      // Gravar as quatro colunas nulas produziria um preço já descontado do seguro
+      // sem nenhum registro do seguro — pior que o snapshot faltando.
+      const notSaved: string[] = [];
+
       if (apiResults.length) {
         const snapshots = apiResults.map((r: Record<string, unknown>, idx: number) => {
-          const orig = payload[keptIndexes[idx] ?? idx] ?? {};
+          const payloadIdx = keptIndexes[idx] ?? idx;
+          const orig = payload[payloadIdx] ?? {};
+          const quote = quoteByIndex[payloadIdx] ?? null;
+          const costs = (r.costs ?? null) as Record<string, unknown> | null;
+          const insuranceCost = costs?.insurance_brl;
+
+          if (quote && (insuranceCost == null)) {
+            notSaved.push(
+              `${orig.display_name ?? orig.warehouse_id} / ${orig.ticker}`,
+            );
+            return null;
+          }
+
           return {
             warehouse_id: r.warehouse_id ?? orig.warehouse_id,
             commodity: r.commodity ?? orig.commodity,
@@ -321,6 +375,11 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               r.additional_discount_brl
               ?? (orig.combination as Record<string, unknown> | undefined)?.additional_discount_brl
               ?? 0,
+            // As quatro juntas ou as quatro nulas — exigência do CHECK do banco.
+            insurance_quote_id: quote ? quote.id : null,
+            insurance_coverage_pct: quote ? coverageByIndex[payloadIdx] ?? null : null,
+            insurance_cost_brl: quote ? Number(insuranceCost) : null,
+            insurance_carry_until: quote ? carryByIndex[payloadIdx] ?? null : null,
             inputs_json: {
               pricing_method: orig.pricing_method,
               futures_price: orig.futures_price,
@@ -334,12 +393,18 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               warehouse: orig.warehouse ?? null,
             },
             outputs_json: { ...r },
-            
+
             created_by: user?.id ?? null,
           } as Omit<PricingSnapshot, 'id' | 'created_at'>;
-        });
-        await saveSnapshots.mutateAsync(snapshots);
+        }).filter((s): s is Omit<PricingSnapshot, 'id' | 'created_at'> => s !== null);
+
+        if (snapshots.length) await saveSnapshots.mutateAsync(snapshots);
       }
+
+      if (notSaved.length > 0) {
+        setInsuranceFailures(notSaved);
+      }
+
 
       if (apiDiscarded.length > 0) {
         // Mantém o modal aberto: a tabela só aparece após a confirmação.
@@ -347,6 +412,9 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
         toast.success(
           `Tabela gerada: ${apiResults.length} preços calculados, ${apiDiscarded.length} combinação(ões) descartada(s)`,
         );
+      } else if (notSaved.length > 0) {
+        // O aviso persistente já está na tela: não fecha o modal.
+        toast.error(`${notSaved.length} linha(s) com seguro não foram salvas`);
       } else if (apiResults.length) {
         toast.success(`Tabela gerada: ${apiResults.length} preços calculados`);
         onOpenChange(false);
@@ -361,6 +429,35 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       setGenerating(false);
     }
   };
+
+  if (insuranceFailures.length > 0) {
+    return (
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Preços com seguro não gravados</DialogTitle>
+            <DialogDescription>
+              A API devolveu o preço destas linhas sem o custo do seguro. Gravar assim
+              produziria um preço já descontado do seguro sem nenhum registro de que houve
+              seguro — por isso nada foi salvo para elas. Avise o time técnico.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ul className="space-y-2 max-h-72 overflow-y-auto pr-1 py-2">
+            {insuranceFailures.map((label) => (
+              <li key={label} className="rounded border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                {label}
+              </li>
+            ))}
+          </ul>
+
+          <DialogFooter>
+            <Button onClick={() => handleOpenChange(false)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   if (discarded && discarded.length > 0) {
     return (

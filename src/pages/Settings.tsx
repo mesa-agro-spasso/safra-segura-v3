@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { usePricingParameters, useUpdatePricingParameter } from '@/hooks/usePricingParameters';
 import { useSpotSettings, useUpdateSpotSettings } from '@/hooks/useSpotSettings';
 import { useFxParameters, useUpdateFxParameters } from '@/hooks/useFxParameters';
+import { useInsuranceOptions, useLatestOptionQuotes, todayISO } from '@/hooks/useInsuranceOptions';
 import { callApi } from '@/lib/api';
 import type { Warehouse, PricingCombination, PricingParameter, SpotSettings } from '@/types';
 
@@ -376,6 +377,7 @@ const emptyCombination: Partial<PricingCombination> = {
   additional_discount_brl: 0, active: true,
   interest_rate: null, storage_cost: null, storage_cost_type: null, reception_cost: null,
   brokerage_per_contract: null, desk_cost_pct: null, shrinkage_rate_monthly: null,
+  insurance_option_id: null, insurance_coverage_pct: null, insurance_carry_until: null,
 };
 
 function DateField({ label, value, onChange }: { label: string; value: string | null; onChange: (v: string | null) => void }) {
@@ -399,6 +401,9 @@ function CombinationsTab() {
   const [open, setOpen] = useState(false);
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [costsOpen, setCostsOpen] = useState(false);
+  const [insuranceOpen, setInsuranceOpen] = useState(false);
+  const { data: insuranceOptions } = useInsuranceOptions();
+  const { data: latestQuotes } = useLatestOptionQuotes();
   const [calculating, setCalculating] = useState(false);
   const [calcResult, setCalcResult] = useState<{
     target_basis_brl: number;
@@ -417,6 +422,15 @@ function CombinationsTab() {
     if (!combinations) return [];
     return showActiveOnly ? combinations.filter((c) => c.active) : combinations;
   }, [combinations, showActiveOnly]);
+
+  /** Opções ativas do par (commodity + benchmark) da combinação em edição. */
+  const pairOptions = useMemo(() => {
+    if (!insuranceOptions || !editing) return [];
+    return insuranceOptions.filter(
+      (o) => o.commodity === (editing.commodity ?? 'soybean')
+        && o.benchmark === (editing.benchmark ?? 'cbot'),
+    );
+  }, [insuranceOptions, editing]);
 
   const handleCalculate = async () => {
     if (!editing) return;
@@ -535,12 +549,35 @@ function CombinationsTab() {
         toast.error('Target Price não permite desconto adicional'); return;
       }
     }
+
+    // Seguro: os três campos andam juntos ou nenhum.
+    const insFilled = [
+      editing.insurance_option_id != null && editing.insurance_option_id !== '',
+      editing.insurance_coverage_pct != null,
+      editing.insurance_carry_until != null,
+    ];
+    const insCount = insFilled.filter(Boolean).length;
+    if (insCount > 0 && insCount < 3) {
+      toast.error('Seguro incompleto: preencha opção, cobertura e carrego — ou remova o seguro');
+      return;
+    }
+    if (insCount === 3) {
+      const cov = editing.insurance_coverage_pct!;
+      if (!(cov > 0 && cov <= 1)) {
+        toast.error('Cobertura do seguro deve estar entre 0% e 100%');
+        return;
+      }
+    }
+
     const payload: Partial<PricingCombination> = {
       ...editing,
       pricing_method: method,
       target_basis: method === 'LONG_BASIS' ? editing.target_basis ?? null : null,
       origination_price_net_brl: method === 'TARGET_PRICE' ? editing.origination_price_net_brl ?? null : null,
       additional_discount_brl: method === 'TARGET_PRICE' ? 0 : (editing.additional_discount_brl ?? 0),
+      insurance_option_id: insCount === 3 ? editing.insurance_option_id ?? null : null,
+      insurance_coverage_pct: insCount === 3 ? editing.insurance_coverage_pct ?? null : null,
+      insurance_carry_until: insCount === 3 ? editing.insurance_carry_until ?? null : null,
     };
     try {
       await upsert.mutateAsync(payload);
@@ -616,7 +653,7 @@ function CombinationsTab() {
         </div>
         <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setCostsOpen(false); setCalcResult(null); } }}>
           <DialogTrigger asChild>
-            <Button onClick={() => { setEditing({ ...emptyCombination }); setCostsOpen(false); setCalcResult(null); }}>
+            <Button onClick={() => { setEditing({ ...emptyCombination }); setCostsOpen(false); setInsuranceOpen(false); setCalcResult(null); }}>
               <Plus className="mr-2 h-4 w-4" /> Nova Combinação
             </Button>
           </DialogTrigger>
@@ -799,7 +836,101 @@ function CombinationsTab() {
                   </div>
                 </section>
 
-                {/* ---------- 4. CUSTOS ---------- */}
+                {/* ---------- 4. SEGURO ---------- */}
+                <section className="space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b pb-1">
+                    Seguro
+                  </p>
+                  <Collapsible open={insuranceOpen} onOpenChange={setInsuranceOpen}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="w-full justify-between text-xs text-muted-foreground">
+                        {editing.insurance_option_id
+                          ? `Seguro ${((editing.insurance_coverage_pct ?? 0) * 100).toFixed(0)}%`
+                          : 'Adicionar camada de seguro'}
+                        <ChevronDown className={cn('h-4 w-4 transition-transform', insuranceOpen && 'rotate-180')} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 pt-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Opção</Label>
+                        <Select
+                          value={editing.insurance_option_id ?? ''}
+                          onValueChange={(v) => setEditing({
+                            ...editing,
+                            insurance_option_id: v,
+                            insurance_carry_until: editing.insurance_carry_until ?? 'operation_end',
+                          })}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Selecione a opção" /></SelectTrigger>
+                          <SelectContent>
+                            {pairOptions.length === 0 && (
+                              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                Nenhuma opção ativa para este par
+                              </div>
+                            )}
+                            {pairOptions.map((o) => {
+                              const quote = latestQuotes?.[o.id];
+                              const hasToday = quote?.trade_date === todayISO();
+                              return (
+                                <SelectItem key={o.id} value={o.id} disabled={!hasToday}>
+                                  {o.label}
+                                  {hasToday ? '' : ' — sem cotação hoje: cadastre em Mercado > Opções'}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Cobertura (%)</Label>
+                          <Input
+                            type="number" step="any" placeholder="ex: 25"
+                            value={editing.insurance_coverage_pct != null ? editing.insurance_coverage_pct * 100 : ''}
+                            onChange={(e) => setEditing({
+                              ...editing,
+                              insurance_coverage_pct: e.target.value === '' ? null : Number(e.target.value) / 100,
+                            })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Carrego do prêmio</Label>
+                          <Select
+                            value={editing.insurance_carry_until ?? 'operation_end'}
+                            onValueChange={(v) => setEditing({
+                              ...editing,
+                              insurance_carry_until: v as 'operation_end' | 'grain_reception',
+                            })}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="operation_end">Até o término da operação</SelectItem>
+                              <SelectItem value="grain_reception">Até a recepção do grão</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {editing.insurance_option_id && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-destructive hover:text-destructive"
+                          onClick={() => setEditing({
+                            ...editing,
+                            insurance_option_id: null,
+                            insurance_coverage_pct: null,
+                            insurance_carry_until: null,
+                          })}
+                        >
+                          Remover seguro
+                        </Button>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
+                </section>
+
+                {/* ---------- 5. CUSTOS ---------- */}
                 <section className="space-y-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b pb-1">
                     Custos
@@ -879,6 +1010,11 @@ function CombinationsTab() {
                         <span className="text-xs">
                           {c.pricing_method === 'TARGET_PRICE' ? 'Target Price' : 'Long Basis'}
                         </span>
+                        {c.insurance_option_id && (
+                          <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-primary/10 text-primary">
+                            Seguro {((c.insurance_coverage_pct ?? 0) * 100).toFixed(0)}%
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {c.pricing_method === 'TARGET_PRICE'
@@ -893,7 +1029,7 @@ function CombinationsTab() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); setCalcResult(null); }}>
+                          <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...c }); setOpen(true); setCostsOpen(false); setInsuranceOpen(!!c.insurance_option_id); setCalcResult(null); }}>
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <Button
@@ -904,7 +1040,7 @@ function CombinationsTab() {
                               const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = c;
                               setEditing({ ...rest });
                               setOpen(true);
-                              setCostsOpen(false);
+                              setCostsOpen(false); setInsuranceOpen(!!c.insurance_option_id);
                               setCalcResult(null);
                             }}
                           >

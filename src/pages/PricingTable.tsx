@@ -334,6 +334,7 @@ const PricingTable = () => {
                     <TableHead className="text-right">Basis Alvo</TableHead>
                     <TableHead className="text-right">Futuros (BRL)</TableHead>
                     <TableHead className="text-right">Câmbio</TableHead>
+                    <TableHead className="text-right">Seguro (R$/sc)</TableHead>
                     <TableHead className="text-right">Preço Originação</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -368,6 +369,9 @@ const PricingTable = () => {
                         <TableCell className="text-right tabular-nums">R$ {snap.target_basis_brl.toFixed(2)}</TableCell>
                         <TableCell className="text-right tabular-nums">R$ {snap.futures_price_brl.toFixed(2)}</TableCell>
                         <TableCell className="text-right tabular-nums">{snap.exchange_rate?.toFixed(4) ?? '-'}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {costs?.insurance_brl != null ? `R$ ${Number(costs.insurance_brl).toFixed(2)}` : '-'}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -390,6 +394,7 @@ const PricingTable = () => {
                                   {costs.reception_brl != null && <p>Recepção: R$ {Number(costs.reception_brl).toFixed(2)}</p>}
                                   {costs.brokerage_brl != null && <p>Corretagem: R$ {Number(costs.brokerage_brl).toFixed(2)}</p>}
                                   {costs.desk_brl != null && <p>Mesa: R$ {Number(costs.desk_brl).toFixed(2)}</p>}
+                                  {costs.insurance_brl != null && <p>Seguro: R$ {Number(costs.insurance_brl).toFixed(2)}</p>}
                                   {totalCosts != null && <p className="font-semibold border-t border-border pt-1">Total: R$ {Number(totalCosts).toFixed(2)}</p>}
                                 </>
                               )}
@@ -483,6 +488,7 @@ const PricingTable = () => {
                   {costs.reception_brl != null && <DetailRow label="Recepção" value={`R$ ${Number(costs.reception_brl).toFixed(2)}`} />}
                   {costs.brokerage_brl != null && <DetailRow label="Corretagem" value={`R$ ${Number(costs.brokerage_brl).toFixed(2)}`} />}
                   {costs.desk_cost_brl != null && <DetailRow label="Mesa" value={`R$ ${Number(costs.desk_cost_brl).toFixed(2)}`} />}
+                  {costs.insurance_brl != null && <DetailRow label="Seguro" value={`R$ ${Number(costs.insurance_brl).toFixed(2)}`} />}
                   {costs.total_brl != null && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Total custos</span>
