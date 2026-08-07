@@ -27,6 +27,8 @@ function reasonText(item: DiscardedCombination): string {
       return 'Câmbio resultante inválido. Verifique os parâmetros de câmbio.';
     case 'FX_PARAMETERS_UNAVAILABLE':
       return 'Parâmetros de câmbio indisponíveis. Tente novamente.';
+    case 'INSURANCE_QUOTE_UNAVAILABLE':
+      return 'Falta a cotação de hoje para a opção de seguro. Cadastre o prêmio em Mercado > Opções e gere a tabela de novo.';
     default:
       return item.detail?.trim() || item.reason;
   }
