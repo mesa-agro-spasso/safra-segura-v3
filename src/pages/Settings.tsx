@@ -376,6 +376,7 @@ const emptyCombination: Partial<PricingCombination> = {
   additional_discount_brl: 0, active: true,
   interest_rate: null, storage_cost: null, storage_cost_type: null, reception_cost: null,
   brokerage_per_contract: null, desk_cost_pct: null, shrinkage_rate_monthly: null,
+  insurance_option_id: null, insurance_coverage_pct: null, insurance_carry_until: null,
 };
 
 function DateField({ label, value, onChange }: { label: string; value: string | null; onChange: (v: string | null) => void }) {
