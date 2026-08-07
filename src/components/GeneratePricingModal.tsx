@@ -225,6 +225,28 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
       const pricingMethod = combo.pricing_method ?? 'LONG_BASIS';
 
+      // ---- Seguro: prêmio CRU da cotação, sem nenhuma conversão. ----
+      let insuranceFields: Record<string, unknown> = {};
+      let usedQuote: OptionQuote | null = null;
+      if (combo.insurance_option_id) {
+        const quote = latestQuotes?.[combo.insurance_option_id] ?? null;
+        if (!quote) {
+          toast.warning(
+            `Combinação ${combo.ticker}/${warehouse.display_name} tem seguro sem cotação — cadastre o prêmio em Mercado > Opções`,
+          );
+          continue;
+        }
+        usedQuote = quote;
+        insuranceFields = {
+          ...(isCbot
+            ? { insurance_premium_usd_bushel: quote.premium_usd_bushel }
+            : { insurance_premium_brl_sack: quote.premium_brl_sack }),
+          insurance_coverage_pct: combo.insurance_coverage_pct,
+          insurance_quote_trade_date: quote.trade_date,
+          ...(combo.insurance_carry_until ? { insurance_carry_until: combo.insurance_carry_until } : {}),
+        };
+      }
+
       const baseCombo: Record<string, unknown> = {
         warehouse_id: combo.warehouse_id,
         display_name: warehouse.display_name,
@@ -241,8 +263,15 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
 
         futures_price: market.price,
         ...(fxOverride != null ? { exchange_rate_override: fxOverride } : {}),
+        ...insuranceFields,
 
         warehouse: warehouseLayer,
+      };
+
+      const trackInsurance = () => {
+        quoteByIndex.push(usedQuote);
+        coverageByIndex.push(usedQuote ? combo.insurance_coverage_pct ?? null : null);
+        carryByIndex.push(usedQuote ? combo.insurance_carry_until ?? null : null);
       };
 
       if (pricingMethod === 'LONG_BASIS') {
@@ -258,6 +287,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
             additional_discount_brl: combo.additional_discount_brl,
           },
         });
+        trackInsurance();
       } else if (pricingMethod === 'TARGET_PRICE') {
         if (combo.origination_price_net_brl == null) {
           toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} (Target Price) sem origination_price_net_brl — pulando`);
@@ -270,6 +300,7 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
           // carimbaria origem falsa em resolved_inputs.
           combination: { ...combinationLayer },
         });
+        trackInsurance();
       } else {
         toast.warning(`Combinação ${combo.ticker}/${warehouse.display_name} com pricing_method desconhecido '${pricingMethod}' — pulando`);
         continue;
