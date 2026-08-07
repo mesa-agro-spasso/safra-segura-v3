@@ -334,6 +334,7 @@ const PricingTable = () => {
                     <TableHead className="text-right">Basis Alvo</TableHead>
                     <TableHead className="text-right">Futuros (BRL)</TableHead>
                     <TableHead className="text-right">Câmbio</TableHead>
+                    <TableHead className="text-right">Seguro (R$/sc)</TableHead>
                     <TableHead className="text-right">Preço Originação</TableHead>
                   </TableRow>
                 </TableHeader>
