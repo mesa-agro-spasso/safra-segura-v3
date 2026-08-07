@@ -335,9 +335,26 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       const discardedIdx = new Set(apiDiscarded.map((d) => d.index));
       const keptIndexes = payload.map((_, i) => i).filter((i) => !discardedIdx.has(i));
 
+      // Linhas com seguro cuja resposta não trouxe costs.insurance_brl: não gravar.
+      // Gravar as quatro colunas nulas produziria um preço já descontado do seguro
+      // sem nenhum registro do seguro — pior que o snapshot faltando.
+      const notSaved: string[] = [];
+
       if (apiResults.length) {
         const snapshots = apiResults.map((r: Record<string, unknown>, idx: number) => {
-          const orig = payload[keptIndexes[idx] ?? idx] ?? {};
+          const payloadIdx = keptIndexes[idx] ?? idx;
+          const orig = payload[payloadIdx] ?? {};
+          const quote = quoteByIndex[payloadIdx] ?? null;
+          const costs = (r.costs ?? null) as Record<string, unknown> | null;
+          const insuranceCost = costs?.insurance_brl;
+
+          if (quote && (insuranceCost == null)) {
+            notSaved.push(
+              `${orig.display_name ?? orig.warehouse_id} / ${orig.ticker}`,
+            );
+            return null;
+          }
+
           return {
             warehouse_id: r.warehouse_id ?? orig.warehouse_id,
             commodity: r.commodity ?? orig.commodity,
@@ -356,6 +373,11 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               r.additional_discount_brl
               ?? (orig.combination as Record<string, unknown> | undefined)?.additional_discount_brl
               ?? 0,
+            // As quatro juntas ou as quatro nulas — exigência do CHECK do banco.
+            insurance_quote_id: quote ? quote.id : null,
+            insurance_coverage_pct: quote ? coverageByIndex[payloadIdx] ?? null : null,
+            insurance_cost_brl: quote ? Number(insuranceCost) : null,
+            insurance_carry_until: quote ? carryByIndex[payloadIdx] ?? null : null,
             inputs_json: {
               pricing_method: orig.pricing_method,
               futures_price: orig.futures_price,
@@ -369,12 +391,18 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
               warehouse: orig.warehouse ?? null,
             },
             outputs_json: { ...r },
-            
+
             created_by: user?.id ?? null,
           } as Omit<PricingSnapshot, 'id' | 'created_at'>;
-        });
-        await saveSnapshots.mutateAsync(snapshots);
+        }).filter((s): s is Omit<PricingSnapshot, 'id' | 'created_at'> => s !== null);
+
+        if (snapshots.length) await saveSnapshots.mutateAsync(snapshots);
       }
+
+      if (notSaved.length > 0) {
+        setInsuranceFailures(notSaved);
+      }
+
 
       if (apiDiscarded.length > 0) {
         // Mantém o modal aberto: a tabela só aparece após a confirmação.
