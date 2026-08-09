@@ -568,11 +568,24 @@ ALTER TABLE public.historical_basis ADD CONSTRAINT historical_basis_created_by_f
 ALTER TABLE public.historical_basis ADD CONSTRAINT historical_basis_pkey PRIMARY KEY (id);
 ALTER TABLE public.historical_basis ADD CONSTRAINT historical_basis_unique_key UNIQUE (warehouse_id, commodity, benchmark, reference_date, series_year);
 ALTER TABLE public.historical_basis ADD CONSTRAINT historical_basis_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_pkey PRIMARY KEY (id);
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_premium_source_check CHECK ((premium_source = ANY (ARRAY['theoretical'::text, 'manual'::text])));
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_pricing_snapshot_id_fkey FOREIGN KEY (pricing_snapshot_id) REFERENCES pricing_snapshots(id) ON DELETE CASCADE;
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_pricing_snapshot_id_key UNIQUE (pricing_snapshot_id);
+ALTER TABLE public.cockpit_layouts ADD CONSTRAINT cockpit_layouts_pkey PRIMARY KEY (user_id);
+ALTER TABLE public.cockpit_layouts ADD CONSTRAINT cockpit_layouts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+-- A unicidade (id, benchmark) de insurance_options existe só para sustentar a FK
+-- composta de insurance_option_quotes: cotação nunca troca de benchmark.
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_pkey PRIMARY KEY (id);
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_id_benchmark_uk UNIQUE (id, benchmark);
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_commodity_chk CHECK ((commodity = ANY (ARRAY['soybean'::text, 'corn'::text])));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_benchmark_chk CHECK ((benchmark = ANY (ARRAY['cbot'::text, 'b3'::text])));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_pair_chk CHECK ((((commodity || '+'::text) || benchmark) = ANY (ARRAY['soybean+cbot'::text, 'corn+cbot'::text, 'corn+b3'::text])));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_type_chk CHECK ((option_type = ANY (ARRAY['call'::text, 'put'::text])));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_unit_chk CHECK ((((benchmark = 'cbot'::text) AND (strike_usd_bushel IS NOT NULL) AND (strike_brl_sack IS NULL)) OR ((benchmark = 'b3'::text) AND (strike_brl_sack IS NOT NULL) AND (strike_usd_bushel IS NULL))));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_positive_chk CHECK (((COALESCE(strike_usd_bushel, (1)::numeric) > (0)::numeric) AND (COALESCE(strike_brl_sack, (1)::numeric) > (0)::numeric)));
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_pkey PRIMARY KEY (id);
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_option_fk FOREIGN KEY (option_id, benchmark) REFERENCES insurance_options(id, benchmark);
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_unit_chk CHECK ((((benchmark = 'cbot'::text) AND (premium_usd_bushel IS NOT NULL) AND (premium_brl_sack IS NULL)) OR ((benchmark = 'b3'::text) AND (premium_brl_sack IS NOT NULL) AND (premium_usd_bushel IS NULL))));
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_positive_chk CHECK (((COALESCE(premium_usd_bushel, (1)::numeric) > (0)::numeric) AND (COALESCE(premium_brl_sack, (1)::numeric) > (0)::numeric)));
 ALTER TABLE public.market_data ADD CONSTRAINT market_data_commodity_check CHECK ((commodity = ANY (ARRAY['SOJA'::text, 'MILHO_CBOT'::text, 'MILHO'::text, 'FX'::text])));
 ALTER TABLE public.market_data ADD CONSTRAINT market_data_currency_check CHECK ((currency = ANY (ARRAY['USD'::text, 'BRL'::text])));
 ALTER TABLE public.market_data ADD CONSTRAINT market_data_pkey PRIMARY KEY (id);
