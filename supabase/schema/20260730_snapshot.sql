@@ -267,7 +267,7 @@ CREATE TABLE IF NOT EXISTS public.pricing_combinations (
 
 CREATE TABLE IF NOT EXISTS public.pricing_parameters (
   id text NOT NULL,
-  sigma numeric NOT NULL,
+  
   updated_at timestamp with time zone DEFAULT now(),
   target_profit_brl_per_sack numeric DEFAULT 2.0,
   execution_spread_pct numeric DEFAULT 0.05,
