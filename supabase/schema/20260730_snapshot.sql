@@ -262,7 +262,11 @@ CREATE TABLE IF NOT EXISTS public.pricing_combinations (
   created_at timestamp with time zone DEFAULT now() NOT NULL,
   updated_at timestamp with time zone DEFAULT now() NOT NULL,
   pricing_method text DEFAULT 'LONG_BASIS'::text NOT NULL,
-  origination_price_net_brl numeric
+  origination_price_net_brl numeric,
+  insurance_option_id uuid,
+  insurance_coverage_pct numeric,
+  insurance_carry_until text,
+  grain_already_delivered boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.pricing_parameters (
