@@ -37,6 +37,7 @@ export const EDITABLE_FIELDS: (keyof CockpitOverrides)[] = [
   'grain_reception_date',
   'sale_date',
   'is_spot',
+  'grain_already_delivered',
 ];
 
 
