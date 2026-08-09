@@ -239,6 +239,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
             <TableHead className={HEAD}>Basis alvo</TableHead>
             <TableHead className={HEAD}>À vista</TableHead>
             <TableHead className={HEAD}>Pagamento</TableHead>
+            <TableHead className={HEAD}>Grão já entregue</TableHead>
             <TableHead className={HEAD}>Recepção do grão</TableHead>
             <TableHead className={HEAD}>Venda</TableHead>
             <TableHead className={HEAD}>Seguro</TableHead>
