@@ -17,6 +17,8 @@ export interface CockpitOverrides {
   grain_reception_date?: string | null;
   sale_date?: string | null;
   is_spot?: boolean | null;
+  /** Grão já no armazém: a recepção é resolvida pela data da geração. */
+  grain_already_delivered?: boolean | null;
 }
 
 export type OverridesMap = Record<string, CockpitOverrides>;
@@ -35,6 +37,7 @@ export const EDITABLE_FIELDS: (keyof CockpitOverrides)[] = [
   'grain_reception_date',
   'sale_date',
   'is_spot',
+  'grain_already_delivered',
 ];
 
 
@@ -149,7 +152,8 @@ export function buildCockpitPayload({
       }
       paymentDate = ownPaymentDate;
     }
-    const grainReceptionDate = combo.grain_already_delivered
+    const grainDelivered = !!(effectiveValue(combo, ov, 'grain_already_delivered') ?? false);
+    const grainReceptionDate = grainDelivered
       ? tradeDate
       : effectiveValue(combo, ov, 'grain_reception_date') ?? paymentDate;
     const saleDate = effectiveValue(combo, ov, 'sale_date') ?? combo.sale_date;
