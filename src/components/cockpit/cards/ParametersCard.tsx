@@ -149,7 +149,7 @@ export interface ParametersCardProps {
   onToggleActive?: (id: string, active: boolean) => void;
 }
 
-const COLUMN_COUNT = 19;
+const COLUMN_COUNT = 20;
 
 
 export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange, onEditInsurance, inactive = [], onToggleActive }: ParametersCardProps) {
