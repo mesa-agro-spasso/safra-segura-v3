@@ -652,6 +652,11 @@ ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_pkey
 ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_pricing_method_valid CHECK ((pricing_method = ANY (ARRAY['LONG_BASIS'::text, 'TARGET_PRICE'::text])));
 ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_target_price_no_discount CHECK (((pricing_method <> 'TARGET_PRICE'::text) OR (COALESCE(additional_discount_brl, (0)::numeric) = (0)::numeric)));
 ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
+ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_insurance_option_id_fkey FOREIGN KEY (insurance_option_id) REFERENCES insurance_options(id);
+ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_insurance_coverage_chk CHECK (((insurance_coverage_pct IS NULL) OR ((insurance_coverage_pct > (0)::numeric) AND (insurance_coverage_pct <= (1)::numeric))));
+ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_insurance_carry_until_chk CHECK (((insurance_carry_until IS NULL) OR (insurance_carry_until = ANY (ARRAY['grain_reception'::text, 'operation_end'::text]))));
+-- Trio de seguro: opção, cobertura e carrego chegam juntos ou nenhum.
+ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_insurance_trio_chk CHECK ((num_nonnulls(insurance_option_id, insurance_coverage_pct, insurance_carry_until) = ANY (ARRAY[0, 3])));
 ALTER TABLE public.pricing_parameters ADD CONSTRAINT pricing_parameters_pkey PRIMARY KEY (id);
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_benchmark_check CHECK ((benchmark = ANY (ARRAY['cbot'::text, 'b3'::text])));
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_commodity_check CHECK ((commodity = ANY (ARRAY['soybean'::text, 'corn'::text])));
