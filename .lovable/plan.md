@@ -8,7 +8,7 @@ que apenas descreve o schema. Nenhum hook, página ou componente consulta essa v
 
 ## 1. Chave "Grão já entregue" na combinação
 
-Nova coluna no banco: `pricing_combinations.grain_already_delivered` (booleano, padrão falso).
+A coluna `pricing_combinations.grain_already_delivered` (booleano, padrão falso) **já existe no banco** — nenhuma migração será criada.
 
 Formulário da combinação (`src/pages/Settings.tsx`, seção DATAS):
 - Toggle "Grão já entregue", mesmo padrão visual do "Pagamento à vista".
@@ -38,11 +38,10 @@ atividade e a invalidação de cache já vêm de graça.
 
 ## Ordem de execução
 
-1. Migração da coluna `grain_already_delivered`.
-2. Tipo `PricingCombination` em `src/types/index.ts`.
-3. Formulário em `Settings.tsx`.
-4. Payload nos dois produtores.
-5. Ativar/reativar no cockpit.
+1. Tipo `PricingCombination` em `src/types/index.ts` (e remoção do `sigma` órfão de `PricingParameter`).
+2. Formulário em `Settings.tsx`.
+3. Payload nos dois produtores (`GeneratePricingModal` e `cockpitPayload`).
+4. Ativar/reativar no cockpit.
 
 ## Correção pendente (fora do escopo pedido)
 
