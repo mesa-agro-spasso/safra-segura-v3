@@ -39,15 +39,17 @@ Já lidas do catálogo do Postgres, e vão para o arquivo como estão:
 
 Índices e defaults das tabelas e colunas novas também saem do catálogo, não de suposição.
 
-## Duas divergências extras encontradas
+## Dois objetos que faltavam no arquivo
 
-Ao comparar o arquivo com o banco apareceram dois itens que o pedido não lista:
+Ao comparar o arquivo com o banco apareceram dois objetos existentes que o snapshot omite.
+Ambos entram:
 
-- a tabela `cockpit_layouts` existe no banco e **não** está no snapshot;
-- a view `pricing_snapshots_clean` existe no banco e não está no snapshot (o arquivo não tem seção de views).
-
-Proposta: incluir as duas, pelo mesmo motivo do resto — um snapshot incompleto engana.
-Se preferir manter o escopo estrito do pedido, é só dizer e eu deixo de fora.
+- `cockpit_layouts` — tabela, com colunas, PK, RLS e policies lidas do catálogo.
+- `pricing_snapshots_clean` — view, em uma seção nova de views, com a definição vinda de
+  `pg_get_viewdef`. Ao lado da definição fica registrado, em comentário, que a view **não** expõe as
+  quatro colunas de seguro (`insurance_quote_id`, `insurance_coverage_pct`, `insurance_cost_brl`,
+  `insurance_carry_until`): hoje nada a consome — nem o frontend nem a API Python — mas quem passar a
+  consumi-la veria snapshot sem seguro.
 
 ## Como será feito
 
