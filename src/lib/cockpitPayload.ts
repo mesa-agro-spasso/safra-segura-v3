@@ -17,6 +17,8 @@ export interface CockpitOverrides {
   grain_reception_date?: string | null;
   sale_date?: string | null;
   is_spot?: boolean | null;
+  /** Grão já no armazém: a recepção é resolvida pela data da geração. */
+  grain_already_delivered?: boolean | null;
 }
 
 export type OverridesMap = Record<string, CockpitOverrides>;
