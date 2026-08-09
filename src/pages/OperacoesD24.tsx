@@ -1146,8 +1146,8 @@ const OperacoesD24: React.FC = () => {
     setCalculating(true);
     try {
       const spotFx = marketData.find(m => m.commodity === 'FX')?.price ?? null;
+      // A coluna sigma não existe mais em pricing_parameters — valores fixos de fallback.
       const sigmaMap: Record<string, number> = {};
-      pricingParameters?.forEach(p => { sigmaMap[p.id] = p.sigma; });
 
       const positions = (await Promise.all(activeOpsForMtm.map(async (op) => {
         const opD24 = op as any;

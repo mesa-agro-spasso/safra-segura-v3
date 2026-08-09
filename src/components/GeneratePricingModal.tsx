@@ -191,8 +191,11 @@ export function GeneratePricingModal({ open, onOpenChange }: GeneratePricingModa
       // NOTA: o tratamento de payment_date vencido é responsabilidade da API
       // (está sendo implementado no backend). O frontend não empurra datas.
 
-      // Resolve grain_reception_date (para spot, ausente → a API resolve)
-      const grainReceptionDate = combo.grain_reception_date ?? paymentDate;
+      // Resolve grain_reception_date.
+      // Grão já entregue: a armazenagem corre da compra, então vale a data da geração.
+      const grainReceptionDate = combo.grain_already_delivered
+        ? tradeDate
+        : combo.grain_reception_date ?? paymentDate;
 
 
       // Herança de custos é do BACKEND. O frontend manda as duas camadas cruas,

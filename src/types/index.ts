@@ -154,6 +154,8 @@ export interface PricingCombination {
   payment_date: string | null;
   is_spot: boolean;
   grain_reception_date: string | null;
+  /** Grão já está no armazém: a recepção não importa, vale a data da geração. */
+  grain_already_delivered: boolean;
   pricing_method: 'LONG_BASIS' | 'TARGET_PRICE';
   target_basis: number | null;
   origination_price_net_brl: number | null;
@@ -176,7 +178,6 @@ export interface PricingCombination {
 
 export interface PricingParameter {
   id: string;
-  sigma: number;
   target_profit_brl_per_sack: number;
   execution_spread_pct: number;
   ticker_count: number;

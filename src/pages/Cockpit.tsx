@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { callApi } from '@/lib/api';
 import { useActiveArmazens } from '@/hooks/useWarehouses';
 import { useMarketData } from '@/hooks/useMarketData';
-import { usePricingCombinations, useUpsertPricingCombination } from '@/hooks/usePricingCombinations';
+import { usePricingCombinations, useUpsertPricingCombination, useTogglePricingCombinationActive } from '@/hooks/usePricingCombinations';
 import { usePricingSnapshots, useSavePricingSnapshots } from '@/hooks/usePricingSnapshots';
 import { useAuth } from '@/contexts/AuthContext';
 import { DiscardedCombinationsList } from '@/components/DiscardedCombinationsList';
@@ -58,11 +58,12 @@ const CARD_TITLES: Record<CockpitCardId, string> = {
 const Cockpit = () => {
   const { data: warehouses } = useActiveArmazens();
   const { data: marketData } = useMarketData();
-  const { data: combinations, isLoading } = usePricingCombinations(true);
+  const { data: allCombinations, isLoading } = usePricingCombinations();
   const { data: snapshots } = usePricingSnapshots();
   const { data: latestQuotes } = useLatestOptionQuotes();
   const saveSnapshots = useSavePricingSnapshots();
   const upsertCombination = useUpsertPricingCombination();
+  const toggleCombinationActive = useTogglePricingCombinationActive();
   const { user } = useAuth();
 
   const { data: savedLayout } = useCockpitLayout(user?.id);
@@ -122,6 +123,17 @@ const Cockpit = () => {
     return m;
   }, [latestBatch]);
 
+  /** Só as ativas alimentam tabela, payload e publicação. */
+  const combinations = useMemo(
+    () => (allCombinations ?? []).filter((c) => c.active),
+    [allCombinations],
+  );
+
+  const inactiveCombos = useMemo(
+    () => (allCombinations ?? []).filter((c) => !c.active),
+    [allCombinations],
+  );
+
   const sortedCombos = useMemo(() => {
     if (!combinations) return [];
     return [...combinations].sort((a, b) => {
@@ -163,6 +175,7 @@ const Cockpit = () => {
       warehouseMap,
       marketMap,
       overrides,
+      tradeDate: getTradeDateBRT(),
       latestQuotes,
     });
 
@@ -225,6 +238,7 @@ const Cockpit = () => {
       warehouseMap,
       marketMap,
       overrides,
+      tradeDate: getTradeDateBRT(),
       latestQuotes,
     });
 
@@ -356,6 +370,8 @@ const Cockpit = () => {
         pendingMap={pendingMap}
         onChange={handleChange}
         onEditInsurance={openInsurance}
+        inactive={inactiveCombos}
+        onToggleActive={(id, active) => toggleCombinationActive.mutate({ id, active })}
       />
     ),
     insurance_options: <InsuranceOptionsCard onQuoteRegistered={() => handleQuoteChanged(['seguro'])} />,

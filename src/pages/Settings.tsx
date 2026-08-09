@@ -371,6 +371,7 @@ function WarehousesTab() {
 const emptyCombination: Partial<PricingCombination> = {
   warehouse_id: '', commodity: 'soybean', benchmark: 'cbot', ticker: '', exp_date: null,
   sale_date: '', payment_date: null, is_spot: false, grain_reception_date: null,
+  grain_already_delivered: false,
   pricing_method: 'LONG_BASIS',
   target_basis: 0,
   origination_price_net_brl: null,
@@ -453,7 +454,9 @@ function CombinationsTab() {
       if (!editing.payment_date) { toast.error('Data de pagamento ausente'); return; }
       paymentDate = editing.payment_date;
     }
-    const grainReceptionDate = editing.grain_reception_date ?? paymentDate;
+    const grainReceptionDate = editing.grain_already_delivered
+      ? format(new Date(), 'yyyy-MM-dd')
+      : editing.grain_reception_date ?? paymentDate;
 
     const spotRate = marketData?.find((m) => m.ticker === 'USD/BRL')?.price ?? null;
     let exchangeRate: number | null = null;
@@ -805,8 +808,17 @@ function CombinationsTab() {
                   {!editing.is_spot && (
                     <DateField label="Data de pagamento" value={editing.payment_date ?? null} onChange={(v) => setEditing({ ...editing, payment_date: v })} />
                   )}
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={editing.grain_already_delivered ?? false}
+                      onCheckedChange={(v) => setEditing({ ...editing, grain_already_delivered: v, grain_reception_date: v ? null : editing.grain_reception_date })}
+                    />
+                    <Label className="text-xs">Grão já entregue (recepção = data da geração)</Label>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <DateField label="Recepção de grão (opcional)" value={editing.grain_reception_date ?? null} onChange={(v) => setEditing({ ...editing, grain_reception_date: v })} />
+                    {!editing.grain_already_delivered && (
+                      <DateField label="Recepção de grão (opcional)" value={editing.grain_reception_date ?? null} onChange={(v) => setEditing({ ...editing, grain_reception_date: v })} />
+                    )}
                     <DateField label="Data de venda" value={editing.sale_date ?? null} onChange={(v) => setEditing({ ...editing, sale_date: v ?? '' })} />
                   </div>
                 </section>
