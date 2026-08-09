@@ -118,8 +118,13 @@ function DateCell({
   );
 }
 
-function SpotCell({ combo, overrides, pending, onChange }: Omit<CellProps, 'field' | 'inherited'>) {
-  const field: keyof CockpitOverrides = 'is_spot';
+function SwitchCell({
+  combo,
+  field,
+  overrides,
+  pending,
+  onChange,
+}: Omit<CellProps, 'inherited'>) {
   const edited = !!overrides && Object.prototype.hasOwnProperty.call(overrides, field);
   const checked = !!(effectiveValue(combo, overrides, field) ?? false);
 
