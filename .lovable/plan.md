@@ -8,7 +8,7 @@ que apenas descreve o schema. Nenhum hook, página ou componente consulta essa v
 
 ## 1. Chave "Grão já entregue" na combinação
 
-Nova coluna no banco: `pricing_combinations.grain_already_delivered` (booleano, padrão falso).
+A coluna `pricing_combinations.grain_already_delivered` (booleano, padrão falso) **já existe no banco** — nenhuma migração será criada.
 
 Formulário da combinação (`src/pages/Settings.tsx`, seção DATAS):
 - Toggle "Grão já entregue", mesmo padrão visual do "Pagamento à vista".
