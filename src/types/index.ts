@@ -56,8 +56,6 @@ export interface PricingSnapshot {
   additional_discount_brl: number;
   inputs_json: Record<string, unknown>;
   outputs_json: Record<string, unknown>;
-  /** Legado: camada de seguro teórico removida. Coluna mantida no banco com default '{}'. */
-  insurance_json?: Record<string, unknown>;
   /** Seguro efetivo: as quatro colunas juntas ou as quatro nulas (CHECK do banco). */
   insurance_quote_id?: string | null;
   insurance_coverage_pct?: number | null;
