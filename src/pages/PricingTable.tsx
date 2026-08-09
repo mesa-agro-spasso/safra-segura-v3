@@ -465,10 +465,10 @@ const PricingTable = () => {
                 const bUsd = readTop('breakeven_basis_usd');
                 return (
                   <>
-                    <DetailRow label="Purchased basis" value={pBrl != null ? `R$ ${pBrl.toFixed(2)}` : '-'} />
-                    <DetailRow label="Breakeven basis" value={bBrl != null ? `R$ ${bBrl.toFixed(2)}` : '-'} />
-                    {pUsd != null && <DetailRow label="Purchased basis (USD)" value={`US$ ${pUsd.toFixed(4)}`} />}
-                    {bUsd != null && <DetailRow label="Breakeven basis (USD)" value={`US$ ${bUsd.toFixed(4)}`} />}
+                    <DetailRow label="Basis comprado" value={pBrl != null ? `R$ ${pBrl.toFixed(2)}` : '-'} />
+                    <DetailRow label="Basis de equilíbrio" value={bBrl != null ? `R$ ${bBrl.toFixed(2)}` : '-'} />
+                    {pUsd != null && <DetailRow label="Basis comprado (USD)" value={`US$ ${pUsd.toFixed(4)}`} />}
+                    {bUsd != null && <DetailRow label="Basis de equilíbrio (USD)" value={`US$ ${bUsd.toFixed(4)}`} />}
                   </>
                 );
               })()}

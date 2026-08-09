@@ -352,7 +352,6 @@ const MarketFuturos = () => {
         refreshing={fetchingOp === 'fx'}
         disabled={fetchingOp !== null}
         compact
-        footnote="O dólar entra no preço em reais de todos os futuros CBOT desta tela. Frescor é aviso, não trava."
       />
 
 
