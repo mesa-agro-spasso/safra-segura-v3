@@ -51,6 +51,8 @@ export interface BuildPayloadArgs {
   warehouseMap: Record<string, Warehouse>;
   marketMap: Record<string, MarketData>;
   overrides: OverridesMap;
+  /** Data de negócio da geração. Vale como recepção quando o grão já foi entregue. */
+  tradeDate: string;
   /** Cotação mais recente por opção de seguro. Sem ela, linha com seguro é pulada. */
   latestQuotes?: Record<string, OptionQuote>;
 }
@@ -95,6 +97,7 @@ export function buildCockpitPayload({
   warehouseMap,
   marketMap,
   overrides,
+  tradeDate,
   latestQuotes,
 }: BuildPayloadArgs): BuildPayloadResult {
   const payload: Record<string, unknown>[] = [];
@@ -146,7 +149,9 @@ export function buildCockpitPayload({
       }
       paymentDate = ownPaymentDate;
     }
-    const grainReceptionDate = effectiveValue(combo, ov, 'grain_reception_date') ?? paymentDate;
+    const grainReceptionDate = combo.grain_already_delivered
+      ? tradeDate
+      : effectiveValue(combo, ov, 'grain_reception_date') ?? paymentDate;
     const saleDate = effectiveValue(combo, ov, 'sale_date') ?? combo.sale_date;
 
 
