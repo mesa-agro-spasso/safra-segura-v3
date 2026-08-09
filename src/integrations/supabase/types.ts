@@ -821,6 +821,7 @@ export type Database = {
           created_at: string
           desk_cost_pct: number | null
           exp_date: string | null
+          grain_already_delivered: boolean
           grain_reception_date: string | null
           id: string
           insurance_carry_until: string | null
@@ -850,6 +851,7 @@ export type Database = {
           created_at?: string
           desk_cost_pct?: number | null
           exp_date?: string | null
+          grain_already_delivered?: boolean
           grain_reception_date?: string | null
           id?: string
           insurance_carry_until?: string | null
@@ -879,6 +881,7 @@ export type Database = {
           created_at?: string
           desk_cost_pct?: number | null
           exp_date?: string | null
+          grain_already_delivered?: boolean
           grain_reception_date?: string | null
           id?: string
           insurance_carry_until?: string | null
