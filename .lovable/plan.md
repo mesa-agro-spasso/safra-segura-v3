@@ -38,11 +38,10 @@ atividade e a invalidação de cache já vêm de graça.
 
 ## Ordem de execução
 
-1. Migração da coluna `grain_already_delivered`.
-2. Tipo `PricingCombination` em `src/types/index.ts`.
-3. Formulário em `Settings.tsx`.
-4. Payload nos dois produtores.
-5. Ativar/reativar no cockpit.
+1. Tipo `PricingCombination` em `src/types/index.ts` (e remoção do `sigma` órfão de `PricingParameter`).
+2. Formulário em `Settings.tsx`.
+3. Payload nos dois produtores (`GeneratePricingModal` e `cockpitPayload`).
+4. Ativar/reativar no cockpit.
 
 ## Correção pendente (fora do escopo pedido)
 
