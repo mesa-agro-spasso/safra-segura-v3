@@ -78,22 +78,41 @@ CREATE TABLE IF NOT EXISTS public.historical_basis (
   series_year text NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS public.insurance_snapshots (
+-- Layout persistido do cockpit, um registro por usuário.
+CREATE TABLE IF NOT EXISTS public.cockpit_layouts (
+  user_id uuid NOT NULL,
+  layout jsonb NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Cadastro das opções de seguro. A unidade do strike é exclusiva por benchmark:
+-- cbot usa USD/bushel, b3 usa BRL/saca (constraint insurance_options_unit_chk).
+CREATE TABLE IF NOT EXISTS public.insurance_options (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
-  pricing_snapshot_id uuid NOT NULL,
-  enabled boolean DEFAULT true NOT NULL,
-  premium_brl numeric NOT NULL,
-  coverage_pct numeric NOT NULL,
-  insurance_cost_brl numeric NOT NULL,
-  adjusted_price_brl numeric NOT NULL,
-  premium_source text DEFAULT 'theoretical'::text NOT NULL,
+  label text NOT NULL,
+  commodity text NOT NULL,
+  benchmark text NOT NULL,
+  futures_ticker text NOT NULL,
+  option_type text DEFAULT 'call'::text NOT NULL,
+  strike_usd_bushel numeric,
+  strike_brl_sack numeric,
+  expiry_date date NOT NULL,
+  active boolean DEFAULT true NOT NULL,
   created_by uuid,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  carry_enabled boolean DEFAULT false NOT NULL,
-  payment_receipt_date date,
-  carry_cost_brl numeric DEFAULT 0 NOT NULL,
-  carry_interest_rate numeric,
-  carry_interest_rate_period text
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Cotação diária do prêmio. O benchmark é replicado aqui para sustentar a FK
+-- composta (option_id, benchmark) e travar a unidade do prêmio.
+CREATE TABLE IF NOT EXISTS public.insurance_option_quotes (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  option_id uuid NOT NULL,
+  benchmark text NOT NULL,
+  premium_usd_bushel numeric,
+  premium_brl_sack numeric,
+  trade_date date NOT NULL,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.market_data (
