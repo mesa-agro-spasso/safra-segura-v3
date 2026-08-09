@@ -710,6 +710,7 @@ CREATE INDEX idx_signatures_batch ON public.signatures USING btree (batch_id) WH
 CREATE INDEX idx_signatures_operation_flow ON public.signatures USING btree (operation_id, flow_type);
 CREATE INDEX idx_signatures_signed_at ON public.signatures USING btree (signed_at DESC);
 CREATE INDEX idx_signatures_user ON public.signatures USING btree (user_id);
+CREATE INDEX insurance_option_quotes_lookup_idx ON public.insurance_option_quotes USING btree (option_id, trade_date DESC, created_at DESC);
 CREATE UNIQUE INDEX warehouses_abbr_unique_active ON public.warehouses USING btree (abbr) WHERE (deleted_at IS NULL);
 
 
