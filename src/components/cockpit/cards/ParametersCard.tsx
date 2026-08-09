@@ -287,6 +287,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                     const periodRaw = wh?.interest_rate_period ?? null;
                     const isSpot = !!(effectiveValue(combo, ov, 'is_spot') ?? false);
                     const paymentDate = (effectiveValue(combo, ov, 'payment_date') as string | null) ?? null;
+                    const grainDelivered = !!(effectiveValue(combo, ov, 'grain_already_delivered') ?? false);
 
                     const cell = (
                       field: keyof CockpitOverrides,
