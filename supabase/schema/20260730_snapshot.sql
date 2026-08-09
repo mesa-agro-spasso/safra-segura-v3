@@ -15,6 +15,15 @@
 -- Extraído do catálogo do Postgres do projeto ngwhatepvofvwgzbudth.
 -- Contém apenas dados de CONFIGURAÇÃO (pricing_parameters,
 -- spot_settings, fx_parameters, warehouses). Nenhum dado transacional.
+--
+-- REVISÃO — sincronizado com o banco após a camada de seguro:
+--  + tabelas cockpit_layouts, insurance_options, insurance_option_quotes
+--  + colunas de seguro em pricing_combinations e pricing_snapshots,
+--    e pricing_combinations.grain_already_delivered
+--  + view pricing_snapshots_clean (seção 11)
+--  - tabela insurance_snapshots (dropada)
+--  - pricing_snapshots.insurance_json (dropada)
+--  - pricing_parameters.sigma (dropada)
 -- =====================================================================
 
 
@@ -78,22 +87,41 @@ CREATE TABLE IF NOT EXISTS public.historical_basis (
   series_year text NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS public.insurance_snapshots (
+-- Layout persistido do cockpit, um registro por usuário.
+CREATE TABLE IF NOT EXISTS public.cockpit_layouts (
+  user_id uuid NOT NULL,
+  layout jsonb NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Cadastro das opções de seguro. A unidade do strike é exclusiva por benchmark:
+-- cbot usa USD/bushel, b3 usa BRL/saca (constraint insurance_options_unit_chk).
+CREATE TABLE IF NOT EXISTS public.insurance_options (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
-  pricing_snapshot_id uuid NOT NULL,
-  enabled boolean DEFAULT true NOT NULL,
-  premium_brl numeric NOT NULL,
-  coverage_pct numeric NOT NULL,
-  insurance_cost_brl numeric NOT NULL,
-  adjusted_price_brl numeric NOT NULL,
-  premium_source text DEFAULT 'theoretical'::text NOT NULL,
+  label text NOT NULL,
+  commodity text NOT NULL,
+  benchmark text NOT NULL,
+  futures_ticker text NOT NULL,
+  option_type text DEFAULT 'call'::text NOT NULL,
+  strike_usd_bushel numeric,
+  strike_brl_sack numeric,
+  expiry_date date NOT NULL,
+  active boolean DEFAULT true NOT NULL,
   created_by uuid,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  carry_enabled boolean DEFAULT false NOT NULL,
-  payment_receipt_date date,
-  carry_cost_brl numeric DEFAULT 0 NOT NULL,
-  carry_interest_rate numeric,
-  carry_interest_rate_period text
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Cotação diária do prêmio. O benchmark é replicado aqui para sustentar a FK
+-- composta (option_id, benchmark) e travar a unidade do prêmio.
+CREATE TABLE IF NOT EXISTS public.insurance_option_quotes (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  option_id uuid NOT NULL,
+  benchmark text NOT NULL,
+  premium_usd_bushel numeric,
+  premium_brl_sack numeric,
+  trade_date date NOT NULL,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.market_data (
@@ -262,12 +290,16 @@ CREATE TABLE IF NOT EXISTS public.pricing_combinations (
   created_at timestamp with time zone DEFAULT now() NOT NULL,
   updated_at timestamp with time zone DEFAULT now() NOT NULL,
   pricing_method text DEFAULT 'LONG_BASIS'::text NOT NULL,
-  origination_price_net_brl numeric
+  origination_price_net_brl numeric,
+  insurance_option_id uuid,
+  insurance_coverage_pct numeric,
+  insurance_carry_until text,
+  grain_already_delivered boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.pricing_parameters (
   id text NOT NULL,
-  sigma numeric NOT NULL,
+  
   updated_at timestamp with time zone DEFAULT now(),
   target_profit_brl_per_sack numeric DEFAULT 2.0,
   execution_spread_pct numeric DEFAULT 0.05,
@@ -293,7 +325,10 @@ CREATE TABLE IF NOT EXISTS public.pricing_snapshots (
   exchange_rate numeric,
   inputs_json jsonb DEFAULT '{}'::jsonb NOT NULL,
   outputs_json jsonb DEFAULT '{}'::jsonb NOT NULL,
-  insurance_json jsonb DEFAULT '{}'::jsonb NOT NULL,
+  insurance_quote_id uuid,
+  insurance_coverage_pct numeric,
+  insurance_cost_brl numeric,
+  insurance_carry_until text,
   additional_discount_brl numeric DEFAULT 0 NOT NULL,
   created_by uuid,
   created_at timestamp with time zone DEFAULT now() NOT NULL
@@ -431,7 +466,9 @@ ALTER TABLE public.activity_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.approval_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fx_parameters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.historical_basis ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.insurance_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cockpit_layouts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.insurance_options ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.insurance_option_quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.market_data ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.market_data_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mtm_snapshots ENABLE ROW LEVEL SECURITY;
@@ -529,13 +566,20 @@ CREATE POLICY fx_parameters_read ON public.fx_parameters AS PERMISSIVE FOR SELEC
 CREATE POLICY historical_basis_all_authenticated ON public.historical_basis AS PERMISSIVE FOR ALL TO authenticated
   USING (true)
   WITH CHECK (true);
-CREATE POLICY insurance_snapshots_insert_authenticated ON public.insurance_snapshots AS PERMISSIVE FOR INSERT TO authenticated
-  WITH CHECK (true);
-CREATE POLICY insurance_snapshots_select_authenticated ON public.insurance_snapshots AS PERMISSIVE FOR SELECT TO authenticated
-  USING (true);
-CREATE POLICY insurance_snapshots_update_authenticated ON public.insurance_snapshots AS PERMISSIVE FOR UPDATE TO authenticated
+CREATE POLICY "own layout insert" ON public.cockpit_layouts AS PERMISSIVE FOR INSERT TO public
+  WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "own layout select" ON public.cockpit_layouts AS PERMISSIVE FOR SELECT TO public
+  USING ((auth.uid() = user_id));
+CREATE POLICY "own layout update" ON public.cockpit_layouts AS PERMISSIVE FOR UPDATE TO public
+  USING ((auth.uid() = user_id))
+  WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY insurance_options_all_authenticated ON public.insurance_options AS PERMISSIVE FOR ALL TO authenticated
   USING (true)
   WITH CHECK (true);
+CREATE POLICY insurance_option_quotes_insert_authenticated ON public.insurance_option_quotes AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (true);
+CREATE POLICY insurance_option_quotes_select_authenticated ON public.insurance_option_quotes AS PERMISSIVE FOR SELECT TO authenticated
+  USING (true);
 CREATE POLICY market_data_history_all_authenticated ON public.market_data_history AS PERMISSIVE FOR ALL TO authenticated
   USING (true)
   WITH CHECK (true);
@@ -568,11 +612,24 @@ ALTER TABLE public.historical_basis ADD CONSTRAINT historical_basis_created_by_f
 ALTER TABLE public.historical_basis ADD CONSTRAINT historical_basis_pkey PRIMARY KEY (id);
 ALTER TABLE public.historical_basis ADD CONSTRAINT historical_basis_unique_key UNIQUE (warehouse_id, commodity, benchmark, reference_date, series_year);
 ALTER TABLE public.historical_basis ADD CONSTRAINT historical_basis_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_pkey PRIMARY KEY (id);
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_premium_source_check CHECK ((premium_source = ANY (ARRAY['theoretical'::text, 'manual'::text])));
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_pricing_snapshot_id_fkey FOREIGN KEY (pricing_snapshot_id) REFERENCES pricing_snapshots(id) ON DELETE CASCADE;
-ALTER TABLE public.insurance_snapshots ADD CONSTRAINT insurance_snapshots_pricing_snapshot_id_key UNIQUE (pricing_snapshot_id);
+ALTER TABLE public.cockpit_layouts ADD CONSTRAINT cockpit_layouts_pkey PRIMARY KEY (user_id);
+ALTER TABLE public.cockpit_layouts ADD CONSTRAINT cockpit_layouts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+-- A unicidade (id, benchmark) de insurance_options existe só para sustentar a FK
+-- composta de insurance_option_quotes: cotação nunca troca de benchmark.
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_pkey PRIMARY KEY (id);
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_id_benchmark_uk UNIQUE (id, benchmark);
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_commodity_chk CHECK ((commodity = ANY (ARRAY['soybean'::text, 'corn'::text])));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_benchmark_chk CHECK ((benchmark = ANY (ARRAY['cbot'::text, 'b3'::text])));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_pair_chk CHECK ((((commodity || '+'::text) || benchmark) = ANY (ARRAY['soybean+cbot'::text, 'corn+cbot'::text, 'corn+b3'::text])));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_type_chk CHECK ((option_type = ANY (ARRAY['call'::text, 'put'::text])));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_unit_chk CHECK ((((benchmark = 'cbot'::text) AND (strike_usd_bushel IS NOT NULL) AND (strike_brl_sack IS NULL)) OR ((benchmark = 'b3'::text) AND (strike_brl_sack IS NOT NULL) AND (strike_usd_bushel IS NULL))));
+ALTER TABLE public.insurance_options ADD CONSTRAINT insurance_options_positive_chk CHECK (((COALESCE(strike_usd_bushel, (1)::numeric) > (0)::numeric) AND (COALESCE(strike_brl_sack, (1)::numeric) > (0)::numeric)));
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_pkey PRIMARY KEY (id);
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_option_fk FOREIGN KEY (option_id, benchmark) REFERENCES insurance_options(id, benchmark);
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_unit_chk CHECK ((((benchmark = 'cbot'::text) AND (premium_usd_bushel IS NOT NULL) AND (premium_brl_sack IS NULL)) OR ((benchmark = 'b3'::text) AND (premium_brl_sack IS NOT NULL) AND (premium_usd_bushel IS NULL))));
+ALTER TABLE public.insurance_option_quotes ADD CONSTRAINT insurance_option_quotes_positive_chk CHECK (((COALESCE(premium_usd_bushel, (1)::numeric) > (0)::numeric) AND (COALESCE(premium_brl_sack, (1)::numeric) > (0)::numeric)));
 ALTER TABLE public.market_data ADD CONSTRAINT market_data_commodity_check CHECK ((commodity = ANY (ARRAY['SOJA'::text, 'MILHO_CBOT'::text, 'MILHO'::text, 'FX'::text])));
 ALTER TABLE public.market_data ADD CONSTRAINT market_data_currency_check CHECK ((currency = ANY (ARRAY['USD'::text, 'BRL'::text])));
 ALTER TABLE public.market_data ADD CONSTRAINT market_data_pkey PRIMARY KEY (id);
@@ -639,12 +696,23 @@ ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_pkey
 ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_pricing_method_valid CHECK ((pricing_method = ANY (ARRAY['LONG_BASIS'::text, 'TARGET_PRICE'::text])));
 ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_target_price_no_discount CHECK (((pricing_method <> 'TARGET_PRICE'::text) OR (COALESCE(additional_discount_brl, (0)::numeric) = (0)::numeric)));
 ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
+ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_insurance_option_id_fkey FOREIGN KEY (insurance_option_id) REFERENCES insurance_options(id);
+ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_insurance_coverage_chk CHECK (((insurance_coverage_pct IS NULL) OR ((insurance_coverage_pct > (0)::numeric) AND (insurance_coverage_pct <= (1)::numeric))));
+ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_insurance_carry_until_chk CHECK (((insurance_carry_until IS NULL) OR (insurance_carry_until = ANY (ARRAY['grain_reception'::text, 'operation_end'::text]))));
+-- Trio de seguro: opção, cobertura e carrego chegam juntos ou nenhum.
+ALTER TABLE public.pricing_combinations ADD CONSTRAINT pricing_combinations_insurance_trio_chk CHECK ((num_nonnulls(insurance_option_id, insurance_coverage_pct, insurance_carry_until) = ANY (ARRAY[0, 3])));
 ALTER TABLE public.pricing_parameters ADD CONSTRAINT pricing_parameters_pkey PRIMARY KEY (id);
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_benchmark_check CHECK ((benchmark = ANY (ARRAY['cbot'::text, 'b3'::text])));
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_commodity_check CHECK ((commodity = ANY (ARRAY['soybean'::text, 'corn'::text])));
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_pkey PRIMARY KEY (id);
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_quote_id_fkey FOREIGN KEY (insurance_quote_id) REFERENCES insurance_option_quotes(id);
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_coverage_chk CHECK (((insurance_coverage_pct IS NULL) OR ((insurance_coverage_pct > (0)::numeric) AND (insurance_coverage_pct <= (1)::numeric))));
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_cost_chk CHECK (((insurance_cost_brl IS NULL) OR (insurance_cost_brl >= (0)::numeric)));
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_carry_until_chk CHECK (((insurance_carry_until IS NULL) OR (insurance_carry_until = ANY (ARRAY['grain_reception'::text, 'operation_end'::text]))));
+-- Quarteto de seguro: ou os quatro campos vêm juntos, ou nenhum.
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_quartet_chk CHECK ((num_nonnulls(insurance_quote_id, insurance_coverage_pct, insurance_cost_brl, insurance_carry_until) = ANY (ARRAY[0, 4])));
 ALTER TABLE public.producers ADD CONSTRAINT producers_credit_rating_check CHECK (((credit_rating IS NULL) OR ((credit_rating >= 1) AND (credit_rating <= 3))));
 ALTER TABLE public.producers ADD CONSTRAINT producers_pkey PRIMARY KEY (id);
 ALTER TABLE public.signatures ADD CONSTRAINT signatures_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES warehouse_closing_batches(id);
@@ -710,6 +778,7 @@ CREATE INDEX idx_signatures_batch ON public.signatures USING btree (batch_id) WH
 CREATE INDEX idx_signatures_operation_flow ON public.signatures USING btree (operation_id, flow_type);
 CREATE INDEX idx_signatures_signed_at ON public.signatures USING btree (signed_at DESC);
 CREATE INDEX idx_signatures_user ON public.signatures USING btree (user_id);
+CREATE INDEX insurance_option_quotes_lookup_idx ON public.insurance_option_quotes USING btree (option_id, trade_date DESC, created_at DESC);
 CREATE UNIQUE INDEX warehouses_abbr_unique_active ON public.warehouses USING btree (abbr) WHERE (deleted_at IS NULL);
 
 
@@ -1176,9 +1245,9 @@ CREATE TRIGGER user_profiles_updated_at BEFORE UPDATE ON public.user_profiles FO
 -- =====================================================================
 
 -- pricing_parameters (3 linhas, uma por mercado)
-INSERT INTO public.pricing_parameters (id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('soybean_cbot', 0.4, 2, 0.02, 8, 6, 0.5, 8) ON CONFLICT (id) DO NOTHING;
-INSERT INTO public.pricing_parameters (id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('corn_cbot', 0.22, 2, 0.02, 8, 6, 0.25, 8) ON CONFLICT (id) DO NOTHING;
-INSERT INTO public.pricing_parameters (id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('corn_b3', 0.22, 2, 0.02, 8, 6, 0.25, 8) ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.pricing_parameters (id, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('soybean_cbot', 2, 0.02, 8, 6, 0.5, 8) ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.pricing_parameters (id, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('corn_cbot', 2, 0.02, 8, 6, 0.25, 8) ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.pricing_parameters (id, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('corn_b3', 2, 0.02, 8, 6, 0.25, 8) ON CONFLICT (id) DO NOTHING;
 
 -- spot_settings (linha única)
 INSERT INTO public.spot_settings (id, mode, weekday, skip_current_week) VALUES ('default', 'weekday', 2, true) ON CONFLICT (id) DO NOTHING;
@@ -1212,3 +1281,33 @@ INSERT INTO public.warehouses (id, display_name, city, state, type, active, basi
 --  - public.generate_hedge_order_display_code() e
 --    set_hedge_order_display_code() referenciam hedge_orders, tabela que
 --    não existe mais. Legado, sem trigger associado.
+
+
+-- =====================================================================
+-- 11. VIEWS
+-- =====================================================================
+
+-- pricing_snapshots_clean: mesma leitura de pricing_snapshots com a chave
+-- 'insurance' removida de outputs_json. Criada antes das colunas de seguro
+-- (insurance_quote_id, insurance_coverage_pct, insurance_cost_brl,
+-- insurance_carry_until) existirem — ela NÃO expõe essas colunas.
+CREATE OR REPLACE VIEW public.pricing_snapshots_clean AS
+ SELECT id,
+    warehouse_id,
+    commodity,
+    benchmark,
+    trade_date,
+    payment_date,
+    grain_reception_date,
+    sale_date,
+    ticker,
+    target_basis_brl,
+    origination_price_brl,
+    futures_price_brl,
+    exchange_rate,
+    inputs_json,
+    outputs_json - 'insurance'::text AS outputs_json,
+    additional_discount_brl,
+    created_by,
+    created_at
+   FROM pricing_snapshots;
