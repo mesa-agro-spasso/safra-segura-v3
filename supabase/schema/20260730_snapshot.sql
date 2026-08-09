@@ -529,13 +529,20 @@ CREATE POLICY fx_parameters_read ON public.fx_parameters AS PERMISSIVE FOR SELEC
 CREATE POLICY historical_basis_all_authenticated ON public.historical_basis AS PERMISSIVE FOR ALL TO authenticated
   USING (true)
   WITH CHECK (true);
-CREATE POLICY insurance_snapshots_insert_authenticated ON public.insurance_snapshots AS PERMISSIVE FOR INSERT TO authenticated
-  WITH CHECK (true);
-CREATE POLICY insurance_snapshots_select_authenticated ON public.insurance_snapshots AS PERMISSIVE FOR SELECT TO authenticated
-  USING (true);
-CREATE POLICY insurance_snapshots_update_authenticated ON public.insurance_snapshots AS PERMISSIVE FOR UPDATE TO authenticated
+CREATE POLICY "own layout insert" ON public.cockpit_layouts AS PERMISSIVE FOR INSERT TO public
+  WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "own layout select" ON public.cockpit_layouts AS PERMISSIVE FOR SELECT TO public
+  USING ((auth.uid() = user_id));
+CREATE POLICY "own layout update" ON public.cockpit_layouts AS PERMISSIVE FOR UPDATE TO public
+  USING ((auth.uid() = user_id))
+  WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY insurance_options_all_authenticated ON public.insurance_options AS PERMISSIVE FOR ALL TO authenticated
   USING (true)
   WITH CHECK (true);
+CREATE POLICY insurance_option_quotes_insert_authenticated ON public.insurance_option_quotes AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (true);
+CREATE POLICY insurance_option_quotes_select_authenticated ON public.insurance_option_quotes AS PERMISSIVE FOR SELECT TO authenticated
+  USING (true);
 CREATE POLICY market_data_history_all_authenticated ON public.market_data_history AS PERMISSIVE FOR ALL TO authenticated
   USING (true)
   WITH CHECK (true);
