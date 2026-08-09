@@ -658,6 +658,12 @@ ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_commodity_
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_pkey PRIMARY KEY (id);
 ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_quote_id_fkey FOREIGN KEY (insurance_quote_id) REFERENCES insurance_option_quotes(id);
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_coverage_chk CHECK (((insurance_coverage_pct IS NULL) OR ((insurance_coverage_pct > (0)::numeric) AND (insurance_coverage_pct <= (1)::numeric))));
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_cost_chk CHECK (((insurance_cost_brl IS NULL) OR (insurance_cost_brl >= (0)::numeric)));
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_carry_until_chk CHECK (((insurance_carry_until IS NULL) OR (insurance_carry_until = ANY (ARRAY['grain_reception'::text, 'operation_end'::text]))));
+-- Quarteto de seguro: ou os quatro campos vêm juntos, ou nenhum.
+ALTER TABLE public.pricing_snapshots ADD CONSTRAINT pricing_snapshots_insurance_quartet_chk CHECK ((num_nonnulls(insurance_quote_id, insurance_coverage_pct, insurance_cost_brl, insurance_carry_until) = ANY (ARRAY[0, 4])));
 ALTER TABLE public.producers ADD CONSTRAINT producers_credit_rating_check CHECK (((credit_rating IS NULL) OR ((credit_rating >= 1) AND (credit_rating <= 3))));
 ALTER TABLE public.producers ADD CONSTRAINT producers_pkey PRIMARY KEY (id);
 ALTER TABLE public.signatures ADD CONSTRAINT signatures_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES warehouse_closing_batches(id);
