@@ -293,7 +293,10 @@ CREATE TABLE IF NOT EXISTS public.pricing_snapshots (
   exchange_rate numeric,
   inputs_json jsonb DEFAULT '{}'::jsonb NOT NULL,
   outputs_json jsonb DEFAULT '{}'::jsonb NOT NULL,
-  insurance_json jsonb DEFAULT '{}'::jsonb NOT NULL,
+  insurance_quote_id uuid,
+  insurance_coverage_pct numeric,
+  insurance_cost_brl numeric,
+  insurance_carry_until text,
   additional_discount_brl numeric DEFAULT 0 NOT NULL,
   created_by uuid,
   created_at timestamp with time zone DEFAULT now() NOT NULL
