@@ -1176,9 +1176,9 @@ CREATE TRIGGER user_profiles_updated_at BEFORE UPDATE ON public.user_profiles FO
 -- =====================================================================
 
 -- pricing_parameters (3 linhas, uma por mercado)
-INSERT INTO public.pricing_parameters (id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('soybean_cbot', 0.4, 2, 0.02, 8, 6, 0.5, 8) ON CONFLICT (id) DO NOTHING;
-INSERT INTO public.pricing_parameters (id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('corn_cbot', 0.22, 2, 0.02, 8, 6, 0.25, 8) ON CONFLICT (id) DO NOTHING;
-INSERT INTO public.pricing_parameters (id, sigma, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('corn_b3', 0.22, 2, 0.02, 8, 6, 0.25, 8) ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.pricing_parameters (id, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('soybean_cbot', 2, 0.02, 8, 6, 0.5, 8) ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.pricing_parameters (id, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('corn_cbot', 2, 0.02, 8, 6, 0.25, 8) ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.pricing_parameters (id, target_profit_brl_per_sack, execution_spread_pct, cbot_ticker_count, b3_corn_ticker_count, rounding_increment, ticker_count) VALUES ('corn_b3', 2, 0.02, 8, 6, 0.25, 8) ON CONFLICT (id) DO NOTHING;
 
 -- spot_settings (linha única)
 INSERT INTO public.spot_settings (id, mode, weekday, skip_current_week) VALUES ('default', 'weekday', 2, true) ON CONFLICT (id) DO NOTHING;
