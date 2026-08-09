@@ -15,6 +15,15 @@
 -- Extraído do catálogo do Postgres do projeto ngwhatepvofvwgzbudth.
 -- Contém apenas dados de CONFIGURAÇÃO (pricing_parameters,
 -- spot_settings, fx_parameters, warehouses). Nenhum dado transacional.
+--
+-- REVISÃO — sincronizado com o banco após a camada de seguro:
+--  + tabelas cockpit_layouts, insurance_options, insurance_option_quotes
+--  + colunas de seguro em pricing_combinations e pricing_snapshots,
+--    e pricing_combinations.grain_already_delivered
+--  + view pricing_snapshots_clean (seção 11)
+--  - tabela insurance_snapshots (dropada)
+--  - pricing_snapshots.insurance_json (dropada)
+--  - pricing_parameters.sigma (dropada)
 -- =====================================================================
 
 
