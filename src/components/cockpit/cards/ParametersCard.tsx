@@ -335,7 +335,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                         <TableCell>{cell('additional_discount_brl', null, !isLongBasis)}</TableCell>
                         <TableCell>{cell('target_basis', null, !isLongBasis)}</TableCell>
                         <TableCell>
-                          <SpotCell combo={combo} overrides={ov} pending={!!pf.is_spot} onChange={onChange} />
+                          <SwitchCell combo={combo} field="is_spot" overrides={ov} pending={!!pf.is_spot} onChange={onChange} />
                         </TableCell>
                         <TableCell>
                           <DateCell
@@ -348,13 +348,22 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                           />
                         </TableCell>
                         <TableCell>
+                          <SwitchCell
+                            combo={combo}
+                            field="grain_already_delivered"
+                            overrides={ov}
+                            pending={!!pf.grain_already_delivered}
+                            onChange={onChange}
+                          />
+                        </TableCell>
+                        <TableCell>
                           <DateCell
                             combo={combo}
                             field="grain_reception_date"
                             overrides={ov}
                             pending={!!pf.grain_reception_date}
-                            disabled={!!combo.grain_already_delivered}
-                            fallback={combo.grain_already_delivered ? null : isSpot ? null : paymentDate}
+                            disabled={grainDelivered}
+                            fallback={grainDelivered ? null : isSpot ? null : paymentDate}
                             onChange={onChange}
                           />
                         </TableCell>
