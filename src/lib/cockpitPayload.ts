@@ -152,7 +152,8 @@ export function buildCockpitPayload({
       }
       paymentDate = ownPaymentDate;
     }
-    const grainReceptionDate = combo.grain_already_delivered
+    const grainDelivered = !!(effectiveValue(combo, ov, 'grain_already_delivered') ?? false);
+    const grainReceptionDate = grainDelivered
       ? tradeDate
       : effectiveValue(combo, ov, 'grain_reception_date') ?? paymentDate;
     const saleDate = effectiveValue(combo, ov, 'sale_date') ?? combo.sale_date;
