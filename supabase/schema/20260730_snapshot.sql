@@ -1272,3 +1272,33 @@ INSERT INTO public.warehouses (id, display_name, city, state, type, active, basi
 --  - public.generate_hedge_order_display_code() e
 --    set_hedge_order_display_code() referenciam hedge_orders, tabela que
 --    não existe mais. Legado, sem trigger associado.
+
+
+-- =====================================================================
+-- 11. VIEWS
+-- =====================================================================
+
+-- pricing_snapshots_clean: mesma leitura de pricing_snapshots com a chave
+-- 'insurance' removida de outputs_json. Criada antes das colunas de seguro
+-- (insurance_quote_id, insurance_coverage_pct, insurance_cost_brl,
+-- insurance_carry_until) existirem — ela NÃO expõe essas colunas.
+CREATE OR REPLACE VIEW public.pricing_snapshots_clean AS
+ SELECT id,
+    warehouse_id,
+    commodity,
+    benchmark,
+    trade_date,
+    payment_date,
+    grain_reception_date,
+    sale_date,
+    ticker,
+    target_basis_brl,
+    origination_price_brl,
+    futures_price_brl,
+    exchange_rate,
+    inputs_json,
+    outputs_json - 'insurance'::text AS outputs_json,
+    additional_discount_brl,
+    created_by,
+    created_at
+   FROM pricing_snapshots;
