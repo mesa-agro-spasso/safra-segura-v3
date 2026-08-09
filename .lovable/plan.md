@@ -43,3 +43,8 @@ atividade e a invalidação de cache já vêm de graça.
 3. Formulário em `Settings.tsx`.
 4. Payload nos dois produtores.
 5. Ativar/reativar no cockpit.
+
+## Correção pendente (fora do escopo pedido)
+
+`src/types/index.ts` ainda declara `sigma` em `PricingParameter`, campo que não existe mais na tabela —
+isso quebra o typecheck em `src/hooks/usePricingParameters.ts:15`. Removo essa propriedade junto.
