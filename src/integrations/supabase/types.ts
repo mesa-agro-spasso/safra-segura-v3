@@ -923,7 +923,6 @@ export type Database = {
           execution_spread_pct: number | null
           id: string
           rounding_increment: number | null
-          sigma: number
           target_profit_brl_per_sack: number | null
           ticker_count: number | null
           updated_at: string | null
@@ -934,7 +933,6 @@ export type Database = {
           execution_spread_pct?: number | null
           id: string
           rounding_increment?: number | null
-          sigma: number
           target_profit_brl_per_sack?: number | null
           ticker_count?: number | null
           updated_at?: string | null
@@ -945,7 +943,6 @@ export type Database = {
           execution_spread_pct?: number | null
           id?: string
           rounding_increment?: number | null
-          sigma?: number
           target_profit_brl_per_sack?: number | null
           ticker_count?: number | null
           updated_at?: string | null
@@ -967,7 +964,6 @@ export type Database = {
           insurance_carry_until: string | null
           insurance_cost_brl: number | null
           insurance_coverage_pct: number | null
-          insurance_json: Json
           insurance_quote_id: string | null
           origination_price_brl: number
           outputs_json: Json
@@ -992,7 +988,6 @@ export type Database = {
           insurance_carry_until?: string | null
           insurance_cost_brl?: number | null
           insurance_coverage_pct?: number | null
-          insurance_json?: Json
           insurance_quote_id?: string | null
           origination_price_brl: number
           outputs_json?: Json
@@ -1017,7 +1012,6 @@ export type Database = {
           insurance_carry_until?: string | null
           insurance_cost_brl?: number | null
           insurance_coverage_pct?: number | null
-          insurance_json?: Json
           insurance_quote_id?: string | null
           origination_price_brl?: number
           outputs_json?: Json
