@@ -6,7 +6,10 @@ export interface Warehouse {
   type: string;
   active: boolean;
   basis_config: Record<string, unknown>;
-  abbr: string;
+  location_id?: string | null;
+  trading_company_id?: string | null;
+  storage_company_id?: string | null;
+  capacity_kg?: number | null;
   created_at: string;
   // cost defaults (nullable — HQ has no defaults)
   interest_rate: number | null;

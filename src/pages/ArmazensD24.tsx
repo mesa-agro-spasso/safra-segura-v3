@@ -997,7 +997,7 @@ const ArmazensD24: React.FC = () => {
                     >
                       <TableCell>
                         <div className="font-medium">{r.warehouse.display_name}</div>
-                        <div className="text-xs text-muted-foreground">{r.warehouse.abbr}</div>
+                        <div className="text-xs text-muted-foreground">{r.warehouse.id}</div>
                       </TableCell>
                       {armazemCols.visible.has('commodity') && (
                         <TableCell>
@@ -1838,7 +1838,7 @@ const ConfigCard: React.FC<{
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <CardTitle className="text-base">{w.display_name}</CardTitle>
-            <Badge variant="secondary" className="text-[10px]">{w.abbr}</Badge>
+            <Badge variant="secondary" className="text-[10px]">{w.id}</Badge>
           </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3" />
