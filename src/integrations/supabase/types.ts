@@ -88,6 +88,57 @@ export type Database = {
           },
         ]
       }
+      brokers: {
+        Row: {
+          active: boolean
+          brokerage_per_contract_b3: number | null
+          brokerage_per_contract_cbot: number | null
+          client_code: string | null
+          cnpj: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          legal_name: string
+          notes: string | null
+          trade_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          brokerage_per_contract_b3?: number | null
+          brokerage_per_contract_cbot?: number | null
+          client_code?: string | null
+          cnpj?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id: string
+          legal_name: string
+          notes?: string | null
+          trade_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          brokerage_per_contract_b3?: number | null
+          brokerage_per_contract_cbot?: number | null
+          client_code?: string | null
+          cnpj?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          legal_name?: string
+          notes?: string | null
+          trade_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cockpit_layouts: {
         Row: {
           layout: Json
@@ -103,6 +154,69 @@ export type Database = {
           layout?: Json
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      companies: {
+        Row: {
+          active: boolean
+          activity: string
+          address_city: string | null
+          address_complement: string | null
+          address_district: string | null
+          address_number: string | null
+          address_state: string | null
+          address_street: string | null
+          address_zip: string | null
+          cnpj: string | null
+          created_at: string
+          id: string
+          legal_name: string
+          notes: string | null
+          sankhya_code: string | null
+          state_registration: string | null
+          trade_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          activity: string
+          address_city?: string | null
+          address_complement?: string | null
+          address_district?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
+          cnpj?: string | null
+          created_at?: string
+          id: string
+          legal_name: string
+          notes?: string | null
+          sankhya_code?: string | null
+          state_registration?: string | null
+          trade_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          activity?: string
+          address_city?: string | null
+          address_complement?: string | null
+          address_district?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          legal_name?: string
+          notes?: string | null
+          sankhya_code?: string | null
+          state_registration?: string | null
+          trade_name?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -142,6 +256,42 @@ export type Database = {
         }
         Relationships: []
       }
+      harvests: {
+        Row: {
+          active: boolean
+          commodity: string
+          created_at: string
+          end_date: string | null
+          id: string
+          name: string
+          notes: string | null
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          commodity: string
+          created_at?: string
+          end_date?: string | null
+          id: string
+          name: string
+          notes?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          commodity?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       historical_basis: {
         Row: {
           basis_brl_per_sack: number
@@ -150,6 +300,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          location_id: string | null
           notes: string | null
           reference_date: string
           series_year: string
@@ -164,6 +315,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          location_id?: string | null
           notes?: string | null
           reference_date: string
           series_year: string
@@ -178,6 +330,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          location_id?: string | null
           notes?: string | null
           reference_date?: string
           series_year?: string
@@ -191,6 +344,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_basis_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "trading_locations"
             referencedColumns: ["id"]
           },
           {
@@ -718,6 +878,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          location_id: string | null
           notes: string | null
           price_brl_per_sack: number
           reference_date: string
@@ -729,6 +890,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          location_id?: string | null
           notes?: string | null
           price_brl_per_sack: number
           reference_date: string
@@ -740,6 +902,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          location_id?: string | null
           notes?: string | null
           price_brl_per_sack?: number
           reference_date?: string
@@ -752,6 +915,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physical_prices_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "trading_locations"
             referencedColumns: ["id"]
           },
           {
@@ -1187,6 +1357,39 @@ export type Database = {
         }
         Relationships: []
       }
+      trading_locations: {
+        Row: {
+          active: boolean
+          city: string | null
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          city?: string | null
+          created_at?: string
+          id: string
+          name: string
+          notes?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          city?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           access_level: string
@@ -1352,11 +1555,11 @@ export type Database = {
       }
       warehouses: {
         Row: {
-          abbr: string
           active: boolean
           basis_config: Json
           brokerage_per_contract_b3: number | null
           brokerage_per_contract_cbot: number | null
+          capacity_kg: number | null
           city: string | null
           created_at: string
           deleted_at: string | null
@@ -1365,19 +1568,22 @@ export type Database = {
           id: string
           interest_rate: number | null
           interest_rate_period: string | null
+          location_id: string | null
           reception_cost: number | null
           shrinkage_rate_monthly: number | null
           state: string | null
+          storage_company_id: string | null
           storage_cost: number | null
           storage_cost_type: string | null
+          trading_company_id: string | null
           type: string
         }
         Insert: {
-          abbr: string
           active?: boolean
           basis_config?: Json
           brokerage_per_contract_b3?: number | null
           brokerage_per_contract_cbot?: number | null
+          capacity_kg?: number | null
           city?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -1386,19 +1592,22 @@ export type Database = {
           id: string
           interest_rate?: number | null
           interest_rate_period?: string | null
+          location_id?: string | null
           reception_cost?: number | null
           shrinkage_rate_monthly?: number | null
           state?: string | null
+          storage_company_id?: string | null
           storage_cost?: number | null
           storage_cost_type?: string | null
+          trading_company_id?: string | null
           type: string
         }
         Update: {
-          abbr?: string
           active?: boolean
           basis_config?: Json
           brokerage_per_contract_b3?: number | null
           brokerage_per_contract_cbot?: number | null
+          capacity_kg?: number | null
           city?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -1407,14 +1616,39 @@ export type Database = {
           id?: string
           interest_rate?: number | null
           interest_rate_period?: string | null
+          location_id?: string | null
           reception_cost?: number | null
           shrinkage_rate_monthly?: number | null
           state?: string | null
+          storage_company_id?: string | null
           storage_cost?: number | null
           storage_cost_type?: string | null
+          trading_company_id?: string | null
           type?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "warehouses_company_id_fkey"
+            columns: ["trading_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouses_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "trading_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouses_storage_company_id_fkey"
+            columns: ["storage_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1496,6 +1730,15 @@ export type Database = {
           },
         ]
       }
+      v_registry_pending: {
+        Row: {
+          entity: string | null
+          label: string | null
+          missing_field: string | null
+          record_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       execute_block_trade_physical: {
@@ -1507,14 +1750,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      generate_hedge_order_display_code: {
-        Args: {
-          p_commodity: string
-          p_trade_date: string
-          p_warehouse_id: string
-        }
-        Returns: string
-      }
       get_user_status: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -1524,6 +1759,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_valid_cnpj: { Args: { p_cnpj: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"
