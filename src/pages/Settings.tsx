@@ -27,14 +27,18 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from 'sonner';
 import { usePricingParameters, useUpdatePricingParameter } from '@/hooks/usePricingParameters';
 import { useSpotSettings, useUpdateSpotSettings } from '@/hooks/useSpotSettings';
+import { useReferenceRows } from '@/hooks/useReferenceData';
 import { useFxParameters, useUpdateFxParameters } from '@/hooks/useFxParameters';
 import { InsuranceFields, validateInsuranceTrio, insurancePatch } from '@/components/pricing/InsuranceFields';
 import { callApi } from '@/lib/api';
 import type { Warehouse, PricingCombination, PricingParameter, SpotSettings } from '@/types';
 
+const NONE = '__none__';
+
 const emptyWarehouse: Partial<Warehouse> & { id: string } = {
   id: '', display_name: '', city: '', state: '', type: 'ARMAZEM', active: true,
-  basis_config: {}, abbr: '',
+  basis_config: {},
+  location_id: null, trading_company_id: null, storage_company_id: null, capacity_kg: null,
   interest_rate: null, interest_rate_period: 'monthly',
   storage_cost: null, storage_cost_type: 'fixed',
   reception_cost: null,
@@ -47,7 +51,15 @@ function WarehousesTab() {
   const upsertWarehouse = useUpsertWarehouse();
   const [editing, setEditing] = useState<(Partial<Warehouse> & { id: string }) | null>(null);
   const [open, setOpen] = useState(false);
-  const [abbrError, setAbbrError] = useState('');
+
+  const { data: locations } = useReferenceRows('trading_locations');
+  const { data: companies } = useReferenceRows('companies');
+  const activeLocations = (locations ?? []).filter((l) => l.active);
+  const tradingCompanies = (companies ?? []).filter((c) => c.activity === 'TRADING');
+  const storageCompanies = (companies ?? []).filter((c) => c.activity === 'STORAGE');
+  const locationName = (id?: string | null) => activeLocations.find((l) => l.id === id)?.name
+    ?? (locations ?? []).find((l) => l.id === id)?.name ?? '-';
+  const companyName = (id?: string | null) => (companies ?? []).find((c) => c.id === id)?.legal_name ?? '-';
 
   const queryClient = useQueryClient();
   const isExisting = !!editing?.id && !!warehouses?.some((w) => w.id === editing.id);
@@ -72,18 +84,22 @@ function WarehousesTab() {
 
   const handleSave = async () => {
     if (!editing?.id || !editing?.display_name) { toast.error('ID e nome são obrigatórios'); return; }
-    const abbr = editing.abbr ?? '';
-    if (!/^[A-Z]{2,5}$/.test(abbr)) {
-      setAbbrError('2 a 5 letras maiúsculas');
-      return;
+    const state = (editing.state ?? '').trim().toUpperCase();
+    if (state && !/^[A-Z]{2}$/.test(state)) { toast.error('Estado deve ter exatamente 2 letras (UF)'); return; }
+    const capacity = editing.capacity_kg;
+    if (capacity !== null && capacity !== undefined && !(Number(capacity) > 0)) {
+      toast.error('Capacidade deve ser maior que zero'); return;
     }
-    setAbbrError('');
     try {
       await upsertWarehouse.mutateAsync({
         id: editing.id, display_name: editing.display_name,
-        city: editing.city ?? null, state: editing.state ?? null,
+        city: editing.city ?? null, state: state || null,
         type: editing.type ?? 'ARMAZEM', active: editing.active ?? true,
-        basis_config: editing.basis_config ?? {}, abbr,
+        basis_config: editing.basis_config ?? {},
+        location_id: editing.location_id ?? null,
+        trading_company_id: editing.trading_company_id ?? null,
+        storage_company_id: editing.storage_company_id ?? null,
+        capacity_kg: capacity === null || capacity === undefined ? null : Number(capacity),
         interest_rate: editing.interest_rate ?? null,
         interest_rate_period: editing.interest_rate_period ?? 'monthly',
         storage_cost: editing.storage_cost ?? null,
@@ -97,18 +113,14 @@ function WarehousesTab() {
       toast.success('Armazém salvo'); setOpen(false); setEditing(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao salvar';
-      if (msg.includes('23505') || msg.includes('unique') || msg.includes('duplicate')) {
-        toast.error(`Abreviação '${abbr}' já está em uso por outro armazém`);
-      } else {
-        toast.error(msg);
-      }
+      toast.error(msg);
     }
   };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setAbbrError(''); } }}>
+        <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditing({ ...emptyWarehouse })}><Plus className="mr-2 h-4 w-4" /> Novo Armazém</Button>
           </DialogTrigger>
@@ -129,23 +141,55 @@ function WarehousesTab() {
                     <Input value={editing.display_name ?? ''} onChange={(e) => setEditing({ ...editing, display_name: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Abreviação</Label>
-                    <Input value={editing.abbr ?? ''} onChange={(e) => { setEditing({ ...editing, abbr: e.target.value.toUpperCase() }); setAbbrError(''); }}
-                      placeholder="Ex: CON" maxLength={5} />
-                    <p className="text-[10px] text-muted-foreground">2 a 5 letras maiúsculas.</p>
-                    {abbrError && <p className="text-[10px] text-destructive">{abbrError}</p>}
-                  </div>
-                  <div className="space-y-1">
                     <Label className="text-xs">Cidade</Label>
                     <Input value={editing.city ?? ''} onChange={(e) => setEditing({ ...editing, city: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Estado</Label>
-                    <Input value={editing.state ?? ''} onChange={(e) => setEditing({ ...editing, state: e.target.value })} />
+                    <Label className="text-xs">Estado (UF)</Label>
+                    <Input value={editing.state ?? ''} maxLength={2}
+                      onChange={(e) => setEditing({ ...editing, state: e.target.value.toUpperCase() })} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Tipo</Label>
                     <Input value={editing.type ?? ''} onChange={(e) => setEditing({ ...editing, type: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Capacidade (kg)</Label>
+                    <Input type="number" step="any" min="0" value={editing.capacity_kg ?? ''}
+                      onChange={(e) => setEditing({ ...editing, capacity_kg: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">Praça</Label>
+                    <Select value={editing.location_id ?? NONE}
+                      onValueChange={(v) => setEditing({ ...editing, location_id: v === NONE ? null : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Nenhuma</SelectItem>
+                        {activeLocations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">Comercializadora</Label>
+                    <Select value={editing.trading_company_id ?? NONE}
+                      onValueChange={(v) => setEditing({ ...editing, trading_company_id: v === NONE ? null : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Nenhuma</SelectItem>
+                        {tradingCompanies.map((c) => <SelectItem key={c.id} value={c.id}>{c.legal_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">Empresa de armazenagem</Label>
+                    <Select value={editing.storage_company_id ?? NONE}
+                      onValueChange={(v) => setEditing({ ...editing, storage_company_id: v === NONE ? null : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Nenhuma</SelectItem>
+                        {storageCompanies.map((c) => <SelectItem key={c.id} value={c.id}>{c.legal_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
@@ -348,14 +392,17 @@ function WarehousesTab() {
           <CardHeader><CardTitle className="text-sm">Armazéns</CardTitle></CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Abreviação</TableHead><TableHead>Cidade</TableHead><TableHead>Estado</TableHead><TableHead>Tipo</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Cidade</TableHead><TableHead>Estado</TableHead><TableHead>Tipo</TableHead><TableHead>Praça</TableHead><TableHead>Comercializadora</TableHead><TableHead className="text-right">Capacidade (kg)</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
               <TableBody>
                 {warehouses?.map((w) => (
                   <TableRow key={w.id}>
                     <TableCell className="font-medium">{w.display_name}</TableCell>
-                    <TableCell className="font-mono text-xs">{(w as any).abbr ?? '-'}</TableCell>
                     <TableCell>{w.city ?? '-'}</TableCell><TableCell>{w.state ?? '-'}</TableCell>
-                    <TableCell>{w.type}</TableCell><TableCell>{w.active ? '✅ Ativo' : '❌ Inativo'}</TableCell>
+                    <TableCell>{w.type}</TableCell>
+                    <TableCell>{locationName(w.location_id)}</TableCell>
+                    <TableCell>{companyName(w.trading_company_id)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{w.capacity_kg != null ? Number(w.capacity_kg).toLocaleString('pt-BR') : '-'}</TableCell>
+                    <TableCell>{w.active ? '✅ Ativo' : '❌ Inativo'}</TableCell>
                     <TableCell><Button variant="ghost" size="sm" onClick={() => { setEditing({ ...w } as Partial<Warehouse> & { id: string }); setOpen(true); }}><Edit2 className="h-4 w-4" /></Button></TableCell>
                   </TableRow>
                 ))}
