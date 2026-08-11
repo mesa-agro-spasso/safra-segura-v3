@@ -119,7 +119,7 @@ function WarehousesTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setAbbrError(''); } }}>
+        <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditing({ ...emptyWarehouse })}><Plus className="mr-2 h-4 w-4" /> Novo Armazém</Button>
           </DialogTrigger>
@@ -140,23 +140,55 @@ function WarehousesTab() {
                     <Input value={editing.display_name ?? ''} onChange={(e) => setEditing({ ...editing, display_name: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Abreviação</Label>
-                    <Input value={editing.abbr ?? ''} onChange={(e) => { setEditing({ ...editing, abbr: e.target.value.toUpperCase() }); setAbbrError(''); }}
-                      placeholder="Ex: CON" maxLength={5} />
-                    <p className="text-[10px] text-muted-foreground">2 a 5 letras maiúsculas.</p>
-                    {abbrError && <p className="text-[10px] text-destructive">{abbrError}</p>}
-                  </div>
-                  <div className="space-y-1">
                     <Label className="text-xs">Cidade</Label>
                     <Input value={editing.city ?? ''} onChange={(e) => setEditing({ ...editing, city: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Estado</Label>
-                    <Input value={editing.state ?? ''} onChange={(e) => setEditing({ ...editing, state: e.target.value })} />
+                    <Label className="text-xs">Estado (UF)</Label>
+                    <Input value={editing.state ?? ''} maxLength={2}
+                      onChange={(e) => setEditing({ ...editing, state: e.target.value.toUpperCase() })} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Tipo</Label>
                     <Input value={editing.type ?? ''} onChange={(e) => setEditing({ ...editing, type: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Capacidade (kg)</Label>
+                    <Input type="number" step="any" min="0" value={editing.capacity_kg ?? ''}
+                      onChange={(e) => setEditing({ ...editing, capacity_kg: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">Praça</Label>
+                    <Select value={editing.location_id ?? NONE}
+                      onValueChange={(v) => setEditing({ ...editing, location_id: v === NONE ? null : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Nenhuma</SelectItem>
+                        {activeLocations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">Comercializadora</Label>
+                    <Select value={editing.trading_company_id ?? NONE}
+                      onValueChange={(v) => setEditing({ ...editing, trading_company_id: v === NONE ? null : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Nenhuma</SelectItem>
+                        {tradingCompanies.map((c) => <SelectItem key={c.id} value={c.id}>{c.legal_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">Empresa de armazenagem</Label>
+                    <Select value={editing.storage_company_id ?? NONE}
+                      onValueChange={(v) => setEditing({ ...editing, storage_company_id: v === NONE ? null : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Nenhuma</SelectItem>
+                        {storageCompanies.map((c) => <SelectItem key={c.id} value={c.id}>{c.legal_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
