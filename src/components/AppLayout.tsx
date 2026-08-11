@@ -14,6 +14,7 @@ import Market from '@/pages/Market';
 import Producers from '@/pages/Producers';
 import Settings from '@/pages/Settings';
 import AdminUsers from '@/pages/AdminUsers';
+import Cadastros from '@/pages/Cadastros';
 import Financial from '@/pages/Financial';
 import Profile from '@/pages/Profile';
 import Ajuda from '@/pages/Ajuda';
@@ -31,6 +32,7 @@ const routes: KeepAliveRoute[] = [
   { path: '/configuracoes', element: <Settings /> },
   { path: '/perfil', element: <Profile /> },
   { path: '/admin/usuarios', element: <AdminRoute><AdminUsers /></AdminRoute> },
+  { path: '/cadastros', element: <AdminRoute><Cadastros /></AdminRoute> },
 ];
 
 export function AppLayout() {
