@@ -392,14 +392,17 @@ function WarehousesTab() {
           <CardHeader><CardTitle className="text-sm">Armazéns</CardTitle></CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Abreviação</TableHead><TableHead>Cidade</TableHead><TableHead>Estado</TableHead><TableHead>Tipo</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Cidade</TableHead><TableHead>Estado</TableHead><TableHead>Tipo</TableHead><TableHead>Praça</TableHead><TableHead>Comercializadora</TableHead><TableHead className="text-right">Capacidade (kg)</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
               <TableBody>
                 {warehouses?.map((w) => (
                   <TableRow key={w.id}>
                     <TableCell className="font-medium">{w.display_name}</TableCell>
-                    <TableCell className="font-mono text-xs">{(w as any).abbr ?? '-'}</TableCell>
                     <TableCell>{w.city ?? '-'}</TableCell><TableCell>{w.state ?? '-'}</TableCell>
-                    <TableCell>{w.type}</TableCell><TableCell>{w.active ? '✅ Ativo' : '❌ Inativo'}</TableCell>
+                    <TableCell>{w.type}</TableCell>
+                    <TableCell>{locationName(w.location_id)}</TableCell>
+                    <TableCell>{companyName(w.trading_company_id)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{w.capacity_kg != null ? Number(w.capacity_kg).toLocaleString('pt-BR') : '-'}</TableCell>
+                    <TableCell>{w.active ? '✅ Ativo' : '❌ Inativo'}</TableCell>
                     <TableCell><Button variant="ghost" size="sm" onClick={() => { setEditing({ ...w } as Partial<Warehouse> & { id: string }); setOpen(true); }}><Edit2 className="h-4 w-4" /></Button></TableCell>
                   </TableRow>
                 ))}
