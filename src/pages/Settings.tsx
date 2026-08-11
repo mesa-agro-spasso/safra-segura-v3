@@ -32,9 +32,12 @@ import { InsuranceFields, validateInsuranceTrio, insurancePatch } from '@/compon
 import { callApi } from '@/lib/api';
 import type { Warehouse, PricingCombination, PricingParameter, SpotSettings } from '@/types';
 
+const NONE = '__none__';
+
 const emptyWarehouse: Partial<Warehouse> & { id: string } = {
   id: '', display_name: '', city: '', state: '', type: 'ARMAZEM', active: true,
-  basis_config: {}, abbr: '',
+  basis_config: {},
+  location_id: null, trading_company_id: null, storage_company_id: null, capacity_kg: null,
   interest_rate: null, interest_rate_period: 'monthly',
   storage_cost: null, storage_cost_type: 'fixed',
   reception_cost: null,
@@ -47,7 +50,15 @@ function WarehousesTab() {
   const upsertWarehouse = useUpsertWarehouse();
   const [editing, setEditing] = useState<(Partial<Warehouse> & { id: string }) | null>(null);
   const [open, setOpen] = useState(false);
-  const [abbrError, setAbbrError] = useState('');
+
+  const { data: locations } = useReferenceRows('trading_locations');
+  const { data: companies } = useReferenceRows('companies');
+  const activeLocations = (locations ?? []).filter((l) => l.active);
+  const tradingCompanies = (companies ?? []).filter((c) => c.activity === 'TRADING');
+  const storageCompanies = (companies ?? []).filter((c) => c.activity === 'STORAGE');
+  const locationName = (id?: string | null) => activeLocations.find((l) => l.id === id)?.name
+    ?? (locations ?? []).find((l) => l.id === id)?.name ?? '-';
+  const companyName = (id?: string | null) => (companies ?? []).find((c) => c.id === id)?.legal_name ?? '-';
 
   const queryClient = useQueryClient();
   const isExisting = !!editing?.id && !!warehouses?.some((w) => w.id === editing.id);
@@ -72,18 +83,22 @@ function WarehousesTab() {
 
   const handleSave = async () => {
     if (!editing?.id || !editing?.display_name) { toast.error('ID e nome são obrigatórios'); return; }
-    const abbr = editing.abbr ?? '';
-    if (!/^[A-Z]{2,5}$/.test(abbr)) {
-      setAbbrError('2 a 5 letras maiúsculas');
-      return;
+    const state = (editing.state ?? '').trim().toUpperCase();
+    if (state && !/^[A-Z]{2}$/.test(state)) { toast.error('Estado deve ter exatamente 2 letras (UF)'); return; }
+    const capacity = editing.capacity_kg;
+    if (capacity !== null && capacity !== undefined && !(Number(capacity) > 0)) {
+      toast.error('Capacidade deve ser maior que zero'); return;
     }
-    setAbbrError('');
     try {
       await upsertWarehouse.mutateAsync({
         id: editing.id, display_name: editing.display_name,
-        city: editing.city ?? null, state: editing.state ?? null,
+        city: editing.city ?? null, state: state || null,
         type: editing.type ?? 'ARMAZEM', active: editing.active ?? true,
-        basis_config: editing.basis_config ?? {}, abbr,
+        basis_config: editing.basis_config ?? {},
+        location_id: editing.location_id ?? null,
+        trading_company_id: editing.trading_company_id ?? null,
+        storage_company_id: editing.storage_company_id ?? null,
+        capacity_kg: capacity === null || capacity === undefined ? null : Number(capacity),
         interest_rate: editing.interest_rate ?? null,
         interest_rate_period: editing.interest_rate_period ?? 'monthly',
         storage_cost: editing.storage_cost ?? null,
@@ -97,11 +112,7 @@ function WarehousesTab() {
       toast.success('Armazém salvo'); setOpen(false); setEditing(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao salvar';
-      if (msg.includes('23505') || msg.includes('unique') || msg.includes('duplicate')) {
-        toast.error(`Abreviação '${abbr}' já está em uso por outro armazém`);
-      } else {
-        toast.error(msg);
-      }
+      toast.error(msg);
     }
   };
 
