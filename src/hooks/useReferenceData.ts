@@ -52,9 +52,8 @@ export function useUpdateReferenceRow<T extends ReferenceTable>(table: T) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: ReferenceUpdate<T> }) => {
-      const { data, error } = await supabase
-        .from(table)
-        .update(patch as never)
+      const { data, error } = await (supabase.from(table) as any)
+        .update(patch)
         .eq('id', id)
         .select()
         .single();
