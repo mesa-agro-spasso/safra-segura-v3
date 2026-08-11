@@ -27,6 +27,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from 'sonner';
 import { usePricingParameters, useUpdatePricingParameter } from '@/hooks/usePricingParameters';
 import { useSpotSettings, useUpdateSpotSettings } from '@/hooks/useSpotSettings';
+import { useReferenceRows } from '@/hooks/useReferenceData';
 import { useFxParameters, useUpdateFxParameters } from '@/hooks/useFxParameters';
 import { InsuranceFields, validateInsuranceTrio, insurancePatch } from '@/components/pricing/InsuranceFields';
 import { callApi } from '@/lib/api';
