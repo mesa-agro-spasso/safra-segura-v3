@@ -981,7 +981,7 @@ function CombinationsTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Armazém</TableHead><TableHead>Commodity</TableHead><TableHead>Ticker</TableHead>
+                    <TableHead>Armazém</TableHead><TableHead>Commodity</TableHead><TableHead>Safra</TableHead><TableHead>Ticker</TableHead>
                     <TableHead>Benchmark</TableHead><TableHead>Venda</TableHead><TableHead>Pagamento</TableHead>
                     <TableHead>Método</TableHead><TableHead>Input</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
                   </TableRow>
