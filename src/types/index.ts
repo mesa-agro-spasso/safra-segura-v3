@@ -152,6 +152,8 @@ export interface PricingCombination {
   commodity: string;
   benchmark: string;
   ticker: string;
+  /** Safra vinculada — escolha do usuário, nunca derivada de datas. */
+  harvest_id: string | null;
   exp_date: string | null;
   sale_date: string;
   payment_date: string | null;
