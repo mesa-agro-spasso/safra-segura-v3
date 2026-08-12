@@ -445,6 +445,7 @@ function CombinationsTab() {
   const upsert = useUpsertPricingCombination();
   const toggleActive = useTogglePricingCombinationActive();
   const deleteCombination = useDeletePricingCombination();
+  const { data: harvests } = useReferenceRows('harvests');
   const [editing, setEditing] = useState<Partial<PricingCombination> | null>(null);
   const [open, setOpen] = useState(false);
   const [showActiveOnly, setShowActiveOnly] = useState(false);
