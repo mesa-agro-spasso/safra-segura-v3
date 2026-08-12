@@ -416,7 +416,7 @@ function WarehousesTab() {
 }
 
 const emptyCombination: Partial<PricingCombination> = {
-  warehouse_id: '', commodity: 'soybean', benchmark: 'cbot', ticker: '', exp_date: null,
+  warehouse_id: '', commodity: 'soybean', benchmark: 'cbot', ticker: '', harvest_id: null, exp_date: null,
   sale_date: '', payment_date: null, is_spot: false, grain_reception_date: null,
   grain_already_delivered: false,
   pricing_method: 'LONG_BASIS',
