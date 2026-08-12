@@ -465,6 +465,13 @@ function CombinationsTab() {
     return m;
   }, [warehouses]);
 
+  const harvestMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    harvests?.forEach((h) => { m[h.id] = h.name; });
+    return m;
+  }, [harvests]);
+
+
   const filtered = useMemo(() => {
     if (!combinations) return [];
     return showActiveOnly ? combinations.filter((c) => c.active) : combinations;
