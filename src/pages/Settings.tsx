@@ -416,7 +416,7 @@ function WarehousesTab() {
 }
 
 const emptyCombination: Partial<PricingCombination> = {
-  warehouse_id: '', commodity: 'soybean', benchmark: 'cbot', ticker: '', exp_date: null,
+  warehouse_id: '', commodity: 'soybean', benchmark: 'cbot', ticker: '', harvest_id: null, exp_date: null,
   sale_date: '', payment_date: null, is_spot: false, grain_reception_date: null,
   grain_already_delivered: false,
   pricing_method: 'LONG_BASIS',
@@ -445,6 +445,7 @@ function CombinationsTab() {
   const upsert = useUpsertPricingCombination();
   const toggleActive = useTogglePricingCombinationActive();
   const deleteCombination = useDeletePricingCombination();
+  const { data: harvests } = useReferenceRows('harvests');
   const [editing, setEditing] = useState<Partial<PricingCombination> | null>(null);
   const [open, setOpen] = useState(false);
   const [showActiveOnly, setShowActiveOnly] = useState(false);
@@ -463,6 +464,13 @@ function CombinationsTab() {
     warehouses?.forEach((w) => { m[w.id] = w.display_name; });
     return m;
   }, [warehouses]);
+
+  const harvestMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    harvests?.forEach((h) => { m[h.id] = h.name; });
+    return m;
+  }, [harvests]);
+
 
   const filtered = useMemo(() => {
     if (!combinations) return [];
@@ -702,7 +710,7 @@ function CombinationsTab() {
                     <div className="space-y-1">
                       <Label className="text-xs">Commodity</Label>
                       <Select value={editing.commodity ?? 'soybean'} onValueChange={(v) => {
-                        const updates: Record<string, unknown> = { ...editing, commodity: v, ticker: '' };
+                        const updates: Record<string, unknown> = { ...editing, commodity: v, ticker: '', harvest_id: null };
                         if (v === 'soybean' && editing.benchmark === 'b3') updates.benchmark = 'cbot';
                         setEditing(updates as typeof editing);
                       }}>
@@ -738,6 +746,21 @@ function CombinationsTab() {
                             .map((m) => (
                               <SelectItem key={m.ticker} value={m.ticker}>{m.ticker}{m.exp_date ? ` (${m.exp_date})` : ''}</SelectItem>
                             ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Safra</Label>
+                      <Select
+                        value={editing.harvest_id ?? '__none__'}
+                        onValueChange={(v) => setEditing({ ...editing, harvest_id: v === '__none__' ? null : v })}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhuma</SelectItem>
+                          {harvests
+                            ?.filter((h) => h.active && h.commodity === (editing.commodity ?? 'soybean'))
+                            .map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -958,7 +981,7 @@ function CombinationsTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Armazém</TableHead><TableHead>Commodity</TableHead><TableHead>Ticker</TableHead>
+                    <TableHead>Armazém</TableHead><TableHead>Commodity</TableHead><TableHead>Safra</TableHead><TableHead>Ticker</TableHead>
                     <TableHead>Benchmark</TableHead><TableHead>Venda</TableHead><TableHead>Pagamento</TableHead>
                     <TableHead>Método</TableHead><TableHead>Input</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
                   </TableRow>
@@ -968,6 +991,7 @@ function CombinationsTab() {
                     <TableRow key={c.id} className={cn(!c.active && 'opacity-50')}>
                       <TableCell className="font-medium">{warehouseMap[c.warehouse_id] || c.warehouse_id}</TableCell>
                       <TableCell>{c.commodity}</TableCell>
+                      <TableCell>{c.harvest_id ? harvestMap[c.harvest_id] ?? c.harvest_id : '-'}</TableCell>
                       <TableCell>{c.ticker}</TableCell>
                       <TableCell>{c.benchmark}</TableCell>
                       <TableCell>{c.sale_date}</TableCell>
