@@ -993,6 +993,7 @@ export type Database = {
           exp_date: string | null
           grain_already_delivered: boolean
           grain_reception_date: string | null
+          harvest_id: string | null
           id: string
           insurance_carry_until: string | null
           insurance_coverage_pct: number | null
@@ -1023,6 +1024,7 @@ export type Database = {
           exp_date?: string | null
           grain_already_delivered?: boolean
           grain_reception_date?: string | null
+          harvest_id?: string | null
           id?: string
           insurance_carry_until?: string | null
           insurance_coverage_pct?: number | null
@@ -1053,6 +1055,7 @@ export type Database = {
           exp_date?: string | null
           grain_already_delivered?: boolean
           grain_reception_date?: string | null
+          harvest_id?: string | null
           id?: string
           insurance_carry_until?: string | null
           insurance_coverage_pct?: number | null
@@ -1073,6 +1076,13 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pricing_combinations_harvest_id_fkey"
+            columns: ["harvest_id"]
+            isOneToOne: false
+            referencedRelation: "harvests"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pricing_combinations_insurance_option_id_fkey"
             columns: ["insurance_option_id"]
