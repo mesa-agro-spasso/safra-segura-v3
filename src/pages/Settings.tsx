@@ -991,6 +991,7 @@ function CombinationsTab() {
                     <TableRow key={c.id} className={cn(!c.active && 'opacity-50')}>
                       <TableCell className="font-medium">{warehouseMap[c.warehouse_id] || c.warehouse_id}</TableCell>
                       <TableCell>{c.commodity}</TableCell>
+                      <TableCell>{c.harvest_id ? harvestMap[c.harvest_id] ?? c.harvest_id : '-'}</TableCell>
                       <TableCell>{c.ticker}</TableCell>
                       <TableCell>{c.benchmark}</TableCell>
                       <TableCell>{c.sale_date}</TableCell>
