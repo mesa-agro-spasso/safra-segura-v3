@@ -749,6 +749,21 @@ function CombinationsTab() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Safra</Label>
+                      <Select
+                        value={editing.harvest_id ?? '__none__'}
+                        onValueChange={(v) => setEditing({ ...editing, harvest_id: v === '__none__' ? null : v })}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhuma</SelectItem>
+                          {harvests
+                            ?.filter((h) => h.active && h.commodity === (editing.commodity ?? 'soybean'))
+                            .map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Exp Date (opcional — fallback market_data)</Label>
