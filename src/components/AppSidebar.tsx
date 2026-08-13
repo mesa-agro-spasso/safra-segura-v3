@@ -1,4 +1,4 @@
-import { TableProperties, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck, Sprout, HelpCircle, SlidersHorizontal, BookMarked } from 'lucide-react';
+import { TableProperties, BarChart3, DollarSign, Settings, LogOut, Users, ShieldCheck, HelpCircle, SlidersHorizontal, BookMarked } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -40,7 +40,6 @@ const items = [
 
   ...(FEATURES.FINANCIAL_CALENDAR ? [{ title: 'Financeiro', url: '/financeiro', icon: DollarSign }] : []),
   { title: 'Mercado', url: '/mercado', icon: BarChart3 },
-  ...(FEATURES.PRODUCERS ? [{ title: 'Produtores', url: '/produtores', icon: Sprout }] : []),
   { title: 'Configurações', url: '/configuracoes', icon: Settings },
 ];
 

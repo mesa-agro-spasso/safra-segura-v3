@@ -8,7 +8,6 @@
  */
 export const FEATURES = {
   FINANCIAL_CALENDAR: import.meta.env.VITE_FEATURE_FINANCIAL_CALENDAR === 'true',
-  PRODUCERS: import.meta.env.VITE_FEATURE_PRODUCERS === 'true',
   MARKET_PHYSICAL: import.meta.env.VITE_FEATURE_MARKET_PHYSICAL === 'true',
   MARKET_HISTORICAL: import.meta.env.VITE_FEATURE_MARKET_HISTORICAL === 'true',
   MARKET_OPTIONS: import.meta.env.VITE_FEATURE_MARKET_OPTIONS === 'true',
