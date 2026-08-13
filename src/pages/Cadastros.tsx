@@ -37,6 +37,7 @@ export default function Cadastros() {
               {c.label}
             </TabsTrigger>
           ))}
+          <TabsTrigger value="producers">Produtores</TabsTrigger>
           <TabsTrigger value="pending">Pendências{count > 0 ? ` (${count})` : ''}</TabsTrigger>
         </TabsList>
         {ENTITY_CONFIGS.map((c) => (
@@ -44,6 +45,9 @@ export default function Cadastros() {
             <EntityTab config={c} />
           </TabsContent>
         ))}
+        <TabsContent value="producers" className="mt-4">
+          <ProducersTab />
+        </TabsContent>
         <TabsContent value="pending" className="mt-4">
           <PendingTab />
         </TabsContent>
