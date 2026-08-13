@@ -206,16 +206,6 @@ export interface Producer {
   updated_at: string;
 }
 
-export interface ProducerOperation {
-  id: string;
-  display_code: string | null;
-  status: string;
-  commodity: string;
-  volume_sacks: number;
-  trade_date: string;
-  warehouse_id: string;
-  warehouses: { display_name: string } | null;
-}
 
 export interface OperationWithDetails {
   id: string;
