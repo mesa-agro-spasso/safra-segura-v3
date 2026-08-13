@@ -10,6 +10,7 @@ const ENTITY_LABELS: Record<string, string> = {
   companies: 'Empresa',
   brokers: 'Corretora',
   warehouses: 'Armazém',
+  producers: 'Produtor',
 };
 
 const MISSING_FIELD_LABELS: Record<string, string> = {
