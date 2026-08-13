@@ -23,6 +23,8 @@ const MISSING_FIELD_LABELS: Record<string, string> = {
   trading_company_id: 'Comercializadora',
   storage_company_id: 'Empresa de armazenagem',
   capacity_kg: 'Capacidade',
+  tax_id: 'CPF/CNPJ',
+  location_ids: 'Praças',
 };
 
 function labelForField(field: string): string {
