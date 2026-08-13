@@ -11,7 +11,6 @@ import Cockpit from '@/pages/Cockpit';
 
 import Approvals from '@/pages/Approvals';
 import Market from '@/pages/Market';
-import Producers from '@/pages/Producers';
 import Settings from '@/pages/Settings';
 import AdminUsers from '@/pages/AdminUsers';
 import Cadastros from '@/pages/Cadastros';
@@ -27,7 +26,6 @@ const routes: KeepAliveRoute[] = [
   { path: '/ajuda', element: <Ajuda /> },
   { path: '/aprovacoes', element: <Approvals /> },
   { path: '/mercado', element: <Market /> },
-  ...(FEATURES.PRODUCERS ? [{ path: '/produtores', element: <Producers /> }] : []),
   ...(FEATURES.FINANCIAL_CALENDAR ? [{ path: '/financeiro', element: <Financial /> }] : []),
   { path: '/configuracoes', element: <Settings /> },
   { path: '/perfil', element: <Profile /> },

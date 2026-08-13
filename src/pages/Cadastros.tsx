@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EntityTab } from '@/components/cadastros/EntityTab';
 import { PendingTab } from '@/components/cadastros/PendingTab';
+import { ProducersTab } from '@/components/cadastros/ProducersTab';
 import { ENTITY_CONFIGS } from '@/components/cadastros/entityConfigs';
 import { useRegistryPending } from '@/hooks/useRegistryPending';
 
@@ -9,7 +10,7 @@ export default function Cadastros() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { count } = useRegistryPending();
 
-  const validTabs = [...ENTITY_CONFIGS.map((c) => c.table), 'pending'];
+  const validTabs = [...ENTITY_CONFIGS.map((c) => c.table), 'producers', 'pending'];
   const defaultTab = ENTITY_CONFIGS[0].table;
   const tabParam = searchParams.get('tab');
   const tab = tabParam && validTabs.includes(tabParam) ? tabParam : defaultTab;
@@ -36,6 +37,7 @@ export default function Cadastros() {
               {c.label}
             </TabsTrigger>
           ))}
+          <TabsTrigger value="producers">Produtores</TabsTrigger>
           <TabsTrigger value="pending">Pendências{count > 0 ? ` (${count})` : ''}</TabsTrigger>
         </TabsList>
         {ENTITY_CONFIGS.map((c) => (
@@ -43,6 +45,9 @@ export default function Cadastros() {
             <EntityTab config={c} />
           </TabsContent>
         ))}
+        <TabsContent value="producers" className="mt-4">
+          <ProducersTab />
+        </TabsContent>
         <TabsContent value="pending" className="mt-4">
           <PendingTab />
         </TabsContent>
