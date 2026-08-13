@@ -1000,6 +1000,7 @@ export type Database = {
           insurance_option_id: string | null
           interest_rate: number | null
           is_spot: boolean
+          notes: string | null
           origination_price_net_brl: number | null
           payment_date: string | null
           pricing_method: string
@@ -1031,6 +1032,7 @@ export type Database = {
           insurance_option_id?: string | null
           interest_rate?: number | null
           is_spot?: boolean
+          notes?: string | null
           origination_price_net_brl?: number | null
           payment_date?: string | null
           pricing_method?: string
@@ -1062,6 +1064,7 @@ export type Database = {
           insurance_option_id?: string | null
           interest_rate?: number | null
           is_spot?: boolean
+          notes?: string | null
           origination_price_net_brl?: number | null
           payment_date?: string | null
           pricing_method?: string
@@ -1231,46 +1234,52 @@ export type Database = {
       }
       producers: {
         Row: {
+          active: boolean
           created_at: string
           credit_rating: number | null
           email: string | null
           farm_address: string | null
-          full_name: string | null
+          full_name: string
           id: string
+          location_ids: string[]
           notes: string | null
           phone: string | null
           responsible_name: string | null
+          sankhya_code: string | null
           tax_id: string | null
           updated_at: string
-          warehouse_ids: string[] | null
         }
         Insert: {
+          active?: boolean
           created_at?: string
           credit_rating?: number | null
           email?: string | null
           farm_address?: string | null
-          full_name?: string | null
+          full_name: string
           id?: string
+          location_ids?: string[]
           notes?: string | null
           phone?: string | null
           responsible_name?: string | null
+          sankhya_code?: string | null
           tax_id?: string | null
           updated_at?: string
-          warehouse_ids?: string[] | null
         }
         Update: {
+          active?: boolean
           created_at?: string
           credit_rating?: number | null
           email?: string | null
           farm_address?: string | null
-          full_name?: string | null
+          full_name?: string
           id?: string
+          location_ids?: string[]
           notes?: string | null
           phone?: string | null
           responsible_name?: string | null
+          sankhya_code?: string | null
           tax_id?: string | null
           updated_at?: string
-          warehouse_ids?: string[] | null
         }
         Relationships: []
       }
@@ -1770,6 +1779,7 @@ export type Database = {
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_valid_cnpj: { Args: { p_cnpj: string }; Returns: boolean }
+      is_valid_cpf: { Args: { p_cpf: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"
