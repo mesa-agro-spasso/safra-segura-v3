@@ -192,14 +192,15 @@ export interface PricingParameter {
 
 export interface Producer {
   id: string;
-  full_name: string | null;
+  full_name: string;
   responsible_name: string | null;
   tax_id: string | null;
   phone: string | null;
   email: string | null;
   farm_address: string | null;
-  warehouse_ids: string[] | null;
-  credit_rating: number | null;
+  location_ids: string[] | null;
+  sankhya_code: string | null;
+  active: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;
