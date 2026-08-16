@@ -1,26 +1,55 @@
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { useActiveArmazens } from '@/hooks/useWarehouses';
-import { usePhysicalPriceHistoryAll } from '@/hooks/usePhysicalPriceHistoryAll';
+import { useTradingLocations } from '@/hooks/useMyLocations';
 
 const COMMODITY_LABEL: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
 
-const HistoricoFisico = () => {
-  const [warehouseId, setWarehouseId] = useState<string>('all');
-  const [commodity, setCommodity] = useState<string>('all');
-  const { data: armazens = [] } = useActiveArmazens();
-  const { data: rows = [], isLoading } = usePhysicalPriceHistoryAll({
-    warehouseId: warehouseId === 'all' ? null : warehouseId,
-    commodity: commodity === 'all' ? null : commodity,
-  });
+interface DailyRow {
+  id: string;
+  location_id: string;
+  commodity: string;
+  reference_date: string;
+  price_brl_per_sack: number;
+  computed_at: string;
+}
 
-  const warehouseName = useMemo(() => {
+function useDailyHistory(locationId: string | null, commodity: string | null) {
+  return useQuery({
+    queryKey: ['physical-daily-history', locationId, commodity],
+    queryFn: async (): Promise<DailyRow[]> => {
+      let q = supabase
+        .from('physical_prices_daily')
+        .select('id, location_id, commodity, reference_date, price_brl_per_sack, computed_at')
+        .order('reference_date', { ascending: false })
+        .limit(1000);
+      if (locationId) q = q.eq('location_id', locationId);
+      if (commodity) q = q.eq('commodity', commodity);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as DailyRow[];
+    },
+  });
+}
+
+const HistoricoFisico = () => {
+  const [locationId, setLocationId] = useState<string>('all');
+  const [commodity, setCommodity] = useState<string>('all');
+  const { data: locations = [] } = useTradingLocations();
+  const { data: rows = [], isLoading } = useDailyHistory(
+    locationId === 'all' ? null : locationId,
+    commodity === 'all' ? null : commodity,
+  );
+
+  const locationName = useMemo(() => {
     const m: Record<string, string> = {};
-    armazens.forEach((w) => { m[w.id] = w.display_name; });
+    locations.forEach((l) => { m[l.id] = l.name; });
     return m;
-  }, [armazens]);
+  }, [locations]);
 
   return (
     <div className="space-y-6">
@@ -38,12 +67,12 @@ const HistoricoFisico = () => {
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Praça</label>
-          <Select value={warehouseId} onValueChange={setWarehouseId}>
+          <Select value={locationId} onValueChange={setLocationId}>
             <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
-              {armazens.map((w) => (
-                <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
+              {locations.map((l) => (
+                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -52,7 +81,7 @@ const HistoricoFisico = () => {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Histórico de preços físicos</CardTitle>
+          <CardTitle className="text-sm">Histórico de preços físicos canônicos (valor presente)</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -70,21 +99,19 @@ const HistoricoFisico = () => {
                     <TableHead>Praça</TableHead>
                     <TableHead>Commodity</TableHead>
                     <TableHead className="text-right">Preço (R$/sc)</TableHead>
-                    <TableHead>Cadastrado em</TableHead>
-                    <TableHead>Notas</TableHead>
+                    <TableHead>Calculado em</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell>{r.reference_date}</TableCell>
-                      <TableCell>{warehouseName[r.warehouse_id] ?? r.warehouse_id}</TableCell>
+                      <TableCell>{locationName[r.location_id] ?? r.location_id}</TableCell>
                       <TableCell>{COMMODITY_LABEL[r.commodity] ?? r.commodity}</TableCell>
                       <TableCell className="text-right font-mono">
                         R$ {Number(r.price_brl_per_sack).toFixed(2)}
                       </TableCell>
-                      <TableCell>{new Date(r.created_at).toLocaleString('pt-BR')}</TableCell>
-                      <TableCell className="max-w-[280px] truncate">{r.notes ?? '-'}</TableCell>
+                      <TableCell>{new Date(r.computed_at).toLocaleString('pt-BR')}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
