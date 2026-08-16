@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { logActivity } from '@/lib/activityLog';
 import { pgErrorDetail, pgErrorMessage } from '@/lib/pgError';
 import { useAuth } from '@/contexts/AuthContext';
-import { useActiveArmazens } from '@/hooks/useWarehouses';
+import { WarehouseMultiSelect, warehousesLabel, type WarehouseOption } from '@/components/common/WarehouseMultiSelect';
 import { maskPhoneBR } from '@/lib/masks';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +15,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
@@ -36,15 +35,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const SEDE = '__SEDE__';
-
 interface UserRow {
   id: string;
   email: string | null;
   full_name: string | null;
   job_title: string | null;
   phone: string | null;
-  warehouse_id: string | null;
+  warehouse_ids: string[] | null;
   roles: string[] | null;
   status: string;
   is_admin: boolean;
@@ -69,7 +66,7 @@ const normalize = (v: string) =>
 
 export function UsersTab() {
   const { user } = useAuth();
-  const { data: armazens = [] } = useActiveArmazens();
+  const [warehouses, setWarehouses] = useState<{ id: string; display_name: string; active: boolean }[]>([]);
 
   const [rows, setRows] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,24 +75,47 @@ export function UsersTab() {
   const [showDisabled, setShowDisabled] = useState(false);
 
   const [editing, setEditing] = useState<UserRow | null>(null);
-  const [form, setForm] = useState({ full_name: '', job_title: '', phone: '', unit: SEDE, is_admin: false });
+  const [form, setForm] = useState<{ full_name: string; job_title: string; phone: string; warehouse_ids: string[]; is_admin: boolean }>({ full_name: '', job_title: '', phone: '', warehouse_ids: [], is_admin: false });
   const [saving, setSaving] = useState(false);
 
   const [confirm, setConfirm] = useState<{ row: UserRow; action: 'approve' | 'disable' } | null>(null);
 
   const warehouseName = useMemo(() => {
     const map: Record<string, string> = {};
-    armazens.forEach((w) => {
+    warehouses.forEach((w) => {
       map[w.id] = w.display_name;
     });
     return map;
-  }, [armazens]);
+  }, [warehouses]);
+
+  useEffect(() => {
+    void (async () => {
+      const { data } = await supabase
+        .from('warehouses')
+        .select('id, display_name, active')
+        .is('deleted_at', null)
+        .order('display_name');
+      setWarehouses((data ?? []) as { id: string; display_name: string; active: boolean }[]);
+    })();
+  }, []);
+
+  // Opções do multi-select: unidades ativas + as inativas já vinculadas ao usuário.
+  const editOptions: WarehouseOption[] = useMemo(() => {
+    const selected = form.warehouse_ids;
+    const list: WarehouseOption[] = warehouses
+      .filter((w) => w.active || selected.includes(w.id))
+      .map((w) => ({ id: w.id, display_name: w.display_name, inactive: !w.active }));
+    selected
+      .filter((id) => !warehouses.some((w) => w.id === id))
+      .forEach((id) => list.push({ id, display_name: id, inactive: true }));
+    return list;
+  }, [warehouses, form.warehouse_ids]);
 
   const fetchRows = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, full_name, job_title, phone, warehouse_id, roles, status, is_admin, created_at, approved_at')
+      .select('id, email, full_name, job_title, phone, warehouse_ids, roles, status, is_admin, created_at, approved_at')
       .is('deleted_at', null)
       .eq('is_owner', false);
 
@@ -146,7 +166,7 @@ export function UsersTab() {
       full_name: row.full_name ?? '',
       job_title: row.job_title ?? '',
       phone: row.phone ?? '',
-      unit: row.warehouse_id || SEDE,
+      warehouse_ids: row.warehouse_ids ?? [],
       is_admin: row.is_admin,
     });
   };
@@ -164,7 +184,7 @@ export function UsersTab() {
         full_name: form.full_name.trim(),
         job_title: form.job_title.trim() || null,
         phone: form.phone.trim() || null,
-        warehouse_id: form.unit === SEDE ? null : form.unit,
+        warehouse_ids: form.warehouse_ids.length > 0 ? form.warehouse_ids : null,
         is_admin: form.is_admin,
       },
       'Usuário atualizado',
@@ -190,8 +210,7 @@ export function UsersTab() {
       });
   }, [rows, search, onlyPending, showDisabled]);
 
-  const unitLabel = (warehouseId: string | null) =>
-    warehouseId ? warehouseName[warehouseId] || warehouseId : 'Sede';
+  const unitLabel = (ids: string[] | null) => warehousesLabel(ids, warehouseName);
 
   return (
     <div className="space-y-4">
@@ -248,7 +267,7 @@ export function UsersTab() {
                   <TableCell className="font-medium">{r.full_name || '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{r.email || '—'}</TableCell>
                   <TableCell>{r.job_title || '—'}</TableCell>
-                  <TableCell>{unitLabel(r.warehouse_id)}</TableCell>
+                  <TableCell>{unitLabel(r.warehouse_ids)}</TableCell>
                   <TableCell>{r.phone || '—'}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn('text-xs', STATUS_CLASSES[r.status])}>
@@ -340,20 +359,12 @@ export function UsersTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="user-unit">Unidade</Label>
-              <Select value={form.unit} onValueChange={(v) => setForm((f) => ({ ...f, unit: v }))}>
-                <SelectTrigger id="user-unit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SEDE}>Sede</SelectItem>
-                  {armazens.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Unidades</Label>
+              <WarehouseMultiSelect
+                options={editOptions}
+                value={form.warehouse_ids}
+                onChange={(next) => setForm((f) => ({ ...f, warehouse_ids: next }))}
+              />
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>
@@ -400,7 +411,7 @@ export function UsersTab() {
                       </li>
                       <li>
                         <span className="font-medium text-foreground">Unidade:</span>{' '}
-                        {unitLabel(confirm?.row.warehouse_id ?? null)}
+                        {unitLabel(confirm?.row.warehouse_ids ?? null)}
                       </li>
                     </ul>
                     <p>Email: {confirm?.row.email || '—'}</p>
