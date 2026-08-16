@@ -116,18 +116,17 @@ const Profile = () => {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="full-name">Nome completo</Label>
-            <div className="flex gap-2">
-              <Input
-                id="full-name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Seu nome"
-              />
-              <Button onClick={handleSaveName} disabled={savingName || fullName === (profile?.full_name ?? '')}>
-                {savingName ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
+            <Input id="full-name" value={profile?.full_name ?? ''} readOnly disabled />
+            <p className="text-xs text-muted-foreground">
+              Para alterar seu nome, peça a um administrador.
+            </p>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="job-title">Cargo</Label>
+            <Input id="job-title" value={profile?.job_title ?? '—'} readOnly disabled />
+          </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
