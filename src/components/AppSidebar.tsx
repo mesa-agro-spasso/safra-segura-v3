@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
+import { usePendenciasCounts } from '@/hooks/usePendenciasCounts';
 import { supabase } from '@/integrations/supabase/client';
 
 import { FEATURES } from '@/config/features';
@@ -50,6 +51,8 @@ export function AppSidebar() {
   const { isAdmin } = useAuthorization();
   
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
+  const { data: pendencias = { registry: 0, users: 0 } } = usePendenciasCounts();
+  const pendenciasTotal = pendencias.registry + pendencias.users;
   const { data: userRoles = [] } = useQuery({
     queryKey: ['sidebar-user-roles', user?.id],
     enabled: !!user?.id,
@@ -121,7 +124,38 @@ export function AppSidebar() {
                     activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                   >
                     <ClipboardList className="mr-2 h-4 w-4" />
-                    {!collapsed && <span>Pendências</span>}
+                    {!collapsed && <span className="flex-1">Pendências</span>}
+                    {collapsed
+                      ? pendenciasTotal > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="absolute right-1 top-1 h-4 min-w-4 px-1 text-[10px]"
+                          >
+                            {pendenciasTotal}
+                          </Badge>
+                        )
+                      : (
+                        <span className="ml-auto flex items-center gap-1">
+                          {pendencias.registry > 0 && (
+                            <Badge
+                              variant="outline"
+                              title="Cadastros incompletos"
+                              className="h-5 min-w-5 px-1.5 font-normal border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                            >
+                              {pendencias.registry}
+                            </Badge>
+                          )}
+                          {pendencias.users > 0 && (
+                            <Badge
+                              variant="destructive"
+                              title="Usuários aguardando aprovação"
+                              className="h-5 min-w-5 px-1.5"
+                            >
+                              {pendencias.users}
+                            </Badge>
+                          )}
+                        </span>
+                      )}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

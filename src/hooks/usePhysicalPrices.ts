@@ -52,6 +52,27 @@ export function getHoursAgo(date: string): number {
   return Math.floor((Date.now() - new Date(date).getTime()) / 3600000);
 }
 
+/** Dias úteis (seg–sex) decorridos desde a data de referência até hoje. */
+export function businessDaysSince(iso: string): number {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const ref = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  if (ref >= today) return 0;
+  let count = 0;
+  const cur = new Date(ref);
+  while (cur < today) {
+    cur.setDate(cur.getDate() + 1);
+    const wd = cur.getDay();
+    if (wd !== 0 && wd !== 6) count += 1;
+  }
+  return count;
+}
+
+export function isWeekendISO(iso: string): boolean {
+  const wd = new Date(`${iso.slice(0, 10)}T12:00:00`).getDay();
+  return wd === 0 || wd === 6;
+}
+
 /** Dispara a normalização na API sem bloquear a interface (fire-and-forget). */
 export function triggerNormalize(): void {
   void callApi('/physical-prices/normalize', {}).catch(() => {
@@ -243,25 +264,33 @@ export function useQuotes(locationId: string | null, commodity: string | null, s
   });
 }
 
-/** Contagem de cotações por dia (calendário de cobertura). */
+export interface DayCount {
+  total: number;
+  byCommodity: Record<string, number>;
+}
+
+/** Contagem de cotações por dia (calendário de cobertura), detalhada por commodity. */
 export function useQuoteCounts(locationId: string | null, commodity: string | null, start: string, end: string) {
   return useQuery({
     queryKey: ['physical_prices', 'counts', locationId, commodity, start, end],
     enabled: !!locationId,
-    queryFn: async (): Promise<Record<string, number>> => {
+    queryFn: async (): Promise<Record<string, DayCount>> => {
       let q = supabase
         .from('physical_prices')
-        .select('reference_date')
+        .select('reference_date, commodity')
         .eq('location_id', locationId!)
         .gte('reference_date', start)
         .lte('reference_date', end)
-        .limit(2000);
+        .limit(5000);
       if (commodity) q = q.eq('commodity', commodity);
       const { data, error } = await q;
       if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const r of (data ?? []) as { reference_date: string }[]) {
-        counts[r.reference_date] = (counts[r.reference_date] ?? 0) + 1;
+      const counts: Record<string, DayCount> = {};
+      for (const r of (data ?? []) as { reference_date: string; commodity: string }[]) {
+        const entry = counts[r.reference_date] ?? { total: 0, byCommodity: {} };
+        entry.total += 1;
+        entry.byCommodity[r.commodity] = (entry.byCommodity[r.commodity] ?? 0) + 1;
+        counts[r.reference_date] = entry;
       }
       return counts;
     },

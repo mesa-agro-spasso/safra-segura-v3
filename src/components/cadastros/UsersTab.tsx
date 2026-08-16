@@ -78,7 +78,7 @@ export function UsersTab() {
   const [form, setForm] = useState<{ full_name: string; job_title: string; phone: string; warehouse_ids: string[]; is_admin: boolean }>({ full_name: '', job_title: '', phone: '', warehouse_ids: [], is_admin: false });
   const [saving, setSaving] = useState(false);
 
-  const [confirm, setConfirm] = useState<{ row: UserRow; action: 'approve' | 'disable' } | null>(null);
+  const [confirm, setConfirm] = useState<{ row: UserRow; action: 'approve' | 'disable' | 'reject' } | null>(null);
 
   const warehouseName = useMemo(() => {
     const map: Record<string, string> = {};
@@ -152,6 +152,8 @@ export function UsersTab() {
     );
 
   const handleDisable = (row: UserRow) => update(row.id, { status: 'disabled' }, 'Usuário desativado');
+
+  const handleReject = (row: UserRow) => update(row.id, { status: 'disabled' }, 'Cadastro recusado');
 
   const handleReactivate = (row: UserRow) =>
     update(
@@ -294,6 +296,16 @@ export function UsersTab() {
                           Aprovar
                         </Button>
                       )}
+                      {r.status === 'pending' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setConfirm({ row: r, action: 'reject' })}
+                        >
+                          Recusar
+                        </Button>
+                      )}
                       {r.status === 'active' && r.id !== user?.id && (
                         <Button
                           size="sm"
@@ -393,7 +405,11 @@ export function UsersTab() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirm?.action === 'approve' ? 'Aprovar usuário?' : 'Desativar usuário?'}
+              {confirm?.action === 'approve'
+                ? 'Aprovar usuário?'
+                : confirm?.action === 'reject'
+                  ? 'Recusar cadastro?'
+                  : 'Desativar usuário?'}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
@@ -416,6 +432,24 @@ export function UsersTab() {
                     </ul>
                     <p>Email: {confirm?.row.email || '—'}</p>
                   </>
+                ) : confirm?.action === 'reject' ? (
+                  <>
+                    <p>O cadastro será recusado e o usuário ficará desativado. Ele pode ser reativado depois.</p>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      <li>
+                        <span className="font-medium text-foreground">Nome:</span>{' '}
+                        {confirm?.row.full_name || '—'}
+                      </li>
+                      <li>
+                        <span className="font-medium text-foreground">Cargo:</span>{' '}
+                        {confirm?.row.job_title || '—'}
+                      </li>
+                      <li>
+                        <span className="font-medium text-foreground">Unidades:</span>{' '}
+                        {unitLabel(confirm?.row.warehouse_ids ?? null)}
+                      </li>
+                    </ul>
+                  </>
                 ) : (
                   <p>
                     {confirm?.row.full_name || confirm?.row.email} perderá o acesso ao sistema.
@@ -430,6 +464,7 @@ export function UsersTab() {
               onClick={() => {
                 if (!confirm) return;
                 if (confirm.action === 'approve') void handleApprove(confirm.row);
+                else if (confirm.action === 'reject') void handleReject(confirm.row);
                 else void handleDisable(confirm.row);
                 setConfirm(null);
               }}
