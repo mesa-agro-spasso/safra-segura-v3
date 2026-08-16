@@ -1,7 +1,41 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { logActivity } from '@/lib/activityLog';
+import { callApi } from '@/lib/api';
 
+/** Cotação bruta (uma linha por comprador × data de pagamento). */
+export interface PhysicalQuote {
+  id: string;
+  location_id: string;
+  commodity: string;
+  reference_date: string;
+  buyer: string;
+  payment_date: string;
+  price_brl_per_sack: number;
+  incoterm: string;
+  is_pf: boolean;
+  is_coop: boolean;
+  present_value_brl: number | null;
+  interest_rate_used: number | null;
+  source: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** Linha canônica do dia (escrita exclusivamente pela API Python). */
+export interface PhysicalDaily {
+  id: string;
+  location_id: string;
+  commodity: string;
+  reference_date: string;
+  price_brl_per_sack: number;
+  winning_quote_id: string;
+  interest_rate_used: number | null;
+  computed_at: string;
+}
+
+/** Shape legado consumido por MTM, Block Trade e card do Cockpit. */
 export interface PhysicalPrice {
   id: string;
   warehouse_id: string;
@@ -14,36 +48,84 @@ export interface PhysicalPrice {
   updated_at: string;
 }
 
-export interface PhysicalPriceInput {
-  warehouse_id: string;
-  commodity: 'soybean' | 'corn';
-  reference_date: string;
-  price_brl_per_sack: number;
-  notes?: string | null;
-}
-
 export function getHoursAgo(date: string): number {
   return Math.floor((Date.now() - new Date(date).getTime()) / 3600000);
 }
 
-/** Latest price per (warehouse, commodity). Done client-side via order+dedupe. */
+/** Dispara a normalização na API sem bloquear a interface (fire-and-forget). */
+export function triggerNormalize(): void {
+  void callApi('/physical-prices/normalize', {}).catch(() => {
+    /* silencioso: a API pode estar hibernando; o painel recupera na próxima visita */
+  });
+}
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function diffDays(fromISO: string, toISO: string): number {
+  const a = new Date(`${fromISO}T12:00:00`).getTime();
+  const b = new Date(`${toISO}T12:00:00`).getTime();
+  return Math.round((b - a) / 86400000);
+}
+
+export { addDaysISO };
+
+async function fetchWarehouseLocations(): Promise<{ id: string; location_id: string | null }[]> {
+  const { data, error } = await supabase
+    .from('warehouses')
+    .select('id, location_id')
+    .is('deleted_at', null);
+  if (error) throw error;
+  return (data ?? []) as { id: string; location_id: string | null }[];
+}
+
+/**
+ * Último preço canônico por (armazém × commodity), lido de physical_prices_daily.
+ * A praça é resolvida internamente via warehouses.location_id.
+ * Assinatura e shape preservados para os consumidores existentes.
+ */
 export function useLatestPhysicalPrices() {
   return useQuery({
     queryKey: ['physical_prices', 'latest'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('physical_prices')
-        .select('*')
-        .order('reference_date', { ascending: false })
-        .order('updated_at', { ascending: false });
-      if (error) throw error;
-      const seen = new Set<string>();
+    queryFn: async (): Promise<PhysicalPrice[]> => {
+      const [warehouses, dailyRes] = await Promise.all([
+        fetchWarehouseLocations(),
+        supabase
+          .from('physical_prices_daily')
+          .select('*')
+          .order('reference_date', { ascending: false })
+          .order('computed_at', { ascending: false }),
+      ]);
+      if (dailyRes.error) throw dailyRes.error;
+
+      const latestByLoc = new Map<string, PhysicalDaily>();
+      for (const row of (dailyRes.data ?? []) as PhysicalDaily[]) {
+        const key = `${row.location_id}::${row.commodity}`;
+        if (!latestByLoc.has(key)) latestByLoc.set(key, row);
+      }
+
       const out: PhysicalPrice[] = [];
-      for (const row of (data ?? []) as PhysicalPrice[]) {
-        const key = `${row.warehouse_id}::${row.commodity}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          out.push(row);
+      for (const w of warehouses) {
+        if (!w.location_id) continue;
+        for (const commodity of ['soybean', 'corn']) {
+          const row = latestByLoc.get(`${w.location_id}::${commodity}`);
+          if (!row) continue;
+          out.push({
+            id: row.id,
+            warehouse_id: w.id,
+            commodity: row.commodity,
+            reference_date: row.reference_date,
+            price_brl_per_sack: Number(row.price_brl_per_sack),
+            notes: null,
+            created_by: null,
+            created_at: row.computed_at,
+            updated_at: row.computed_at,
+          });
         }
       }
       return out;
@@ -51,66 +133,245 @@ export function useLatestPhysicalPrices() {
   });
 }
 
-export function usePhysicalPriceHistory(warehouseId: string | null, commodity: string | null) {
+export interface PanelRow {
+  location_id: string;
+  commodity: string;
+  reference_date: string;
+  price_brl_per_sack: number;
+  computed_at: string;
+  pending: boolean;
+}
+
+/** Painel: último preço canônico por praça × commodity + flag de VP em cálculo. */
+export function usePhysicalPricePanel() {
   return useQuery({
-    queryKey: ['physical_prices', 'history', warehouseId, commodity],
-    enabled: !!warehouseId && !!commodity,
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryKey: ['physical_prices', 'panel'],
+    queryFn: async (): Promise<PanelRow[]> => {
+      const [dailyRes, pendingRes] = await Promise.all([
+        supabase
+          .from('physical_prices_daily')
+          .select('*')
+          .order('reference_date', { ascending: false })
+          .order('computed_at', { ascending: false }),
+        supabase
+          .from('physical_prices')
+          .select('location_id, commodity, reference_date')
+          .is('present_value_brl', null)
+          .order('reference_date', { ascending: false })
+          .limit(2000),
+      ]);
+      if (dailyRes.error) throw dailyRes.error;
+      if (pendingRes.error) throw pendingRes.error;
+
+      const latest = new Map<string, PhysicalDaily>();
+      for (const row of (dailyRes.data ?? []) as PhysicalDaily[]) {
+        const key = `${row.location_id}::${row.commodity}`;
+        if (!latest.has(key)) latest.set(key, row);
+      }
+
+      const pendingMax = new Map<string, string>();
+      for (const q of (pendingRes.data ?? []) as { location_id: string; commodity: string; reference_date: string }[]) {
+        const key = `${q.location_id}::${q.commodity}`;
+        const cur = pendingMax.get(key);
+        if (!cur || q.reference_date > cur) pendingMax.set(key, q.reference_date);
+      }
+
+      const keys = new Set<string>([...latest.keys(), ...pendingMax.keys()]);
+      const rows: PanelRow[] = [];
+      for (const key of keys) {
+        const [location_id, commodity] = key.split('::');
+        const d = latest.get(key);
+        const pendingDate = pendingMax.get(key);
+        const pending = !!pendingDate && (!d || pendingDate > d.reference_date);
+        if (!d) continue;
+        rows.push({
+          location_id,
+          commodity,
+          reference_date: d.reference_date,
+          price_brl_per_sack: Number(d.price_brl_per_sack),
+          computed_at: d.computed_at,
+          pending,
+        });
+      }
+      return rows.sort((a, b) => a.location_id.localeCompare(b.location_id) || a.commodity.localeCompare(b.commodity));
+    },
+  });
+}
+
+/** Série diária de uma praça (vencedores do dia). */
+export function useDailySeries(locationId: string | null, commodity: string | null, start?: string, end?: string) {
+  return useQuery({
+    queryKey: ['physical_prices', 'daily-series', locationId, commodity, start ?? null, end ?? null],
+    enabled: !!locationId,
+    queryFn: async (): Promise<PhysicalDaily[]> => {
+      let q = supabase
+        .from('physical_prices_daily')
+        .select('*')
+        .eq('location_id', locationId!)
+        .order('reference_date', { ascending: false })
+        .limit(500);
+      if (commodity) q = q.eq('commodity', commodity);
+      if (start) q = q.gte('reference_date', start);
+      if (end) q = q.lte('reference_date', end);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as PhysicalDaily[];
+    },
+  });
+}
+
+/** Todas as cotações de uma praça no período. */
+export function useQuotes(locationId: string | null, commodity: string | null, start?: string, end?: string) {
+  return useQuery({
+    queryKey: ['physical_prices', 'quotes', locationId, commodity, start ?? null, end ?? null],
+    enabled: !!locationId,
+    queryFn: async (): Promise<PhysicalQuote[]> => {
+      let q = supabase
         .from('physical_prices')
         .select('*')
-        .eq('warehouse_id', warehouseId!)
-        .eq('commodity', commodity!)
-        .order('reference_date', { ascending: true });
+        .eq('location_id', locationId!)
+        .order('reference_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1000);
+      if (commodity) q = q.eq('commodity', commodity);
+      if (start) q = q.gte('reference_date', start);
+      if (end) q = q.lte('reference_date', end);
+      const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as PhysicalPrice[];
+      return (data ?? []) as unknown as PhysicalQuote[];
     },
   });
 }
 
-export function useUpsertPhysicalPrice() {
+/** Contagem de cotações por dia (calendário de cobertura). */
+export function useQuoteCounts(locationId: string | null, commodity: string | null, start: string, end: string) {
+  return useQuery({
+    queryKey: ['physical_prices', 'counts', locationId, commodity, start, end],
+    enabled: !!locationId,
+    queryFn: async (): Promise<Record<string, number>> => {
+      let q = supabase
+        .from('physical_prices')
+        .select('reference_date')
+        .eq('location_id', locationId!)
+        .gte('reference_date', start)
+        .lte('reference_date', end)
+        .limit(2000);
+      if (commodity) q = q.eq('commodity', commodity);
+      const { data, error } = await q;
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const r of (data ?? []) as { reference_date: string }[]) {
+        counts[r.reference_date] = (counts[r.reference_date] ?? 0) + 1;
+      }
+      return counts;
+    },
+  });
+}
+
+export interface QuoteInput {
+  location_id: string;
+  commodity: 'soybean' | 'corn';
+  reference_date: string;
+  buyer: string;
+  payment_date: string;
+  price_brl_per_sack: number;
+  incoterm?: string;
+  notes?: string | null;
+}
+
+export function useCreateQuote() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: PhysicalPriceInput) => {
+    mutationFn: async (input: QuoteInput) => {
       const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from('physical_prices')
-        .upsert(
-          { ...input, created_by: user?.id ?? null, updated_at: new Date().toISOString() },
-          { onConflict: 'warehouse_id,commodity,reference_date' },
-        );
+      const { error } = await supabase.from('physical_prices').insert({
+        location_id: input.location_id,
+        commodity: input.commodity,
+        reference_date: input.reference_date,
+        buyer: input.buyer,
+        payment_date: input.payment_date,
+        price_brl_per_sack: input.price_brl_per_sack,
+        incoterm: input.incoterm ?? 'FOB',
+        is_pf: false,
+        is_coop: false,
+        source: 'manual',
+        notes: input.notes ?? null,
+        created_by: user?.id ?? null,
+      });
       if (error) throw error;
-      void logActivity('physical_price.upsert', 'physical_price', null, {
-        warehouse_id: input.warehouse_id, commodity: input.commodity,
-        reference_date: input.reference_date, price_brl_per_sack: input.price_brl_per_sack,
+      void logActivity('physical_price.quote_created', 'physical_price', null, {
+        location_id: input.location_id, commodity: input.commodity,
+        reference_date: input.reference_date, buyer: input.buyer,
       });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['physical_prices'] }),
+    onSuccess: () => {
+      triggerNormalize();
+      void qc.invalidateQueries({ queryKey: ['physical_prices'] });
+    },
   });
 }
 
-export function useUpsertPhysicalPricesBulk() {
+/** Cotação vencedora de ontem para (praça × commodity), se houver linha diária. */
+export function useYesterdayWinner(locationId: string | null, commodity: string | null) {
+  const yesterday = addDaysISO(todayISO(), -1);
+  return useQuery({
+    queryKey: ['physical_prices', 'yesterday-winner', locationId, commodity, yesterday],
+    enabled: !!locationId && !!commodity,
+    queryFn: async (): Promise<PhysicalQuote | null> => {
+      const { data: daily, error: dErr } = await supabase
+        .from('physical_prices_daily')
+        .select('winning_quote_id')
+        .eq('location_id', locationId!)
+        .eq('commodity', commodity!)
+        .eq('reference_date', yesterday)
+        .maybeSingle();
+      if (dErr) throw dErr;
+      if (!daily?.winning_quote_id) return null;
+      const { data: quote, error: qErr } = await supabase
+        .from('physical_prices')
+        .select('*')
+        .eq('id', daily.winning_quote_id)
+        .maybeSingle();
+      if (qErr) throw qErr;
+      return (quote as unknown as PhysicalQuote | null) ?? null;
+    },
+  });
+}
+
+export function useRepeatYesterday() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (items: PhysicalPriceInput[]) => {
-      if (items.length === 0) return;
+    mutationFn: async (quote: PhysicalQuote) => {
       const { data: { user } } = await supabase.auth.getUser();
-      const payload = items.map((i) => ({
-        ...i,
+      const today = todayISO();
+      const term = diffDays(quote.reference_date, quote.payment_date);
+      const { error } = await supabase.from('physical_prices').insert({
+        location_id: quote.location_id,
+        commodity: quote.commodity,
+        reference_date: today,
+        buyer: quote.buyer,
+        payment_date: addDaysISO(today, Math.max(term, 0)),
+        price_brl_per_sack: quote.price_brl_per_sack,
+        incoterm: quote.incoterm,
+        is_pf: quote.is_pf,
+        is_coop: quote.is_coop,
+        source: 'repeat_previous',
+        notes: quote.notes,
         created_by: user?.id ?? null,
-        updated_at: new Date().toISOString(),
-      }));
-      const { error } = await supabase
-        .from('physical_prices')
-        .upsert(payload, { onConflict: 'warehouse_id,commodity,reference_date' });
+      });
       if (error) throw error;
-      void logActivity('physical_price.bulk_upsert', 'physical_price', null, { count: items.length });
+      void logActivity('physical_price.repeat_previous', 'physical_price', null, {
+        location_id: quote.location_id, commodity: quote.commodity, buyer: quote.buyer,
+      });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['physical_prices'] }),
+    onSuccess: () => {
+      triggerNormalize();
+      void qc.invalidateQueries({ queryKey: ['physical_prices'] });
+    },
   });
 }
 
-export function useDeletePhysicalPrice() {
+export function useDeleteQuote() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
@@ -118,6 +379,9 @@ export function useDeletePhysicalPrice() {
       if (error) throw error;
       void logActivity('physical_price.delete', 'physical_price', id);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['physical_prices'] }),
+    onSuccess: () => {
+      triggerNormalize();
+      void qc.invalidateQueries({ queryKey: ['physical_prices'] });
+    },
   });
 }
