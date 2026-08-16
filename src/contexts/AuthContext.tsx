@@ -11,7 +11,7 @@ export interface SignUpMetadata {
   job_title: string;
   phone?: string;
   /** '' ou ausente = Sede */
-  warehouse_id?: string;
+  warehouse_ids?: string[];
 }
 
 interface AuthContextType {
@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data, error } = await supabasePublic
         .from('users')
-        .select('id, email, full_name, job_title, phone, warehouse_id, roles, status, is_admin, is_owner, theme, created_at, approved_at, approved_by, deleted_at')
+        .select('id, email, full_name, job_title, phone, warehouse_ids, roles, status, is_admin, is_owner, theme, created_at, approved_at, approved_by, deleted_at')
         .eq('id', userId)
         .is('deleted_at', null)
         .maybeSingle();
@@ -172,7 +172,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: meta.full_name,
           job_title: meta.job_title,
           phone: meta.phone ?? '',
-          warehouse_id: meta.warehouse_id ?? '',
+          // Sede = sem unidades: a chave é omitida por completo.
+          ...(meta.warehouse_ids && meta.warehouse_ids.length > 0
+            ? { warehouse_ids: meta.warehouse_ids }
+            : {}),
         },
       },
     });
