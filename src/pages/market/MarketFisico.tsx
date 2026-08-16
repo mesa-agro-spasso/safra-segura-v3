@@ -17,27 +17,66 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { pgErrorMessage } from '@/lib/pgError';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 import { useMyLocations } from '@/hooks/useMyLocations';
 import {
   usePhysicalPricePanel, useDailySeries, useQuotes, useQuoteCounts,
-  useYesterdayWinner, useRepeatYesterday, triggerNormalize, getHoursAgo,
+  useYesterdayWinner, useRepeatYesterday, triggerNormalize,
+  businessDaysSince, isWeekendISO,
 } from '@/hooks/usePhysicalPrices';
 import { PhysicalQuoteDialog } from '@/components/market/PhysicalQuoteDialog';
 
 const COMMODITY_LABEL: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
 const SOURCE_LABEL: Record<string, string> = { manual: 'Manual', repeat_previous: 'Repetida' };
+const ALL = 'all';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const fmtDate = (iso?: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '-');
 const fmtBRL = (v: number | null | undefined) =>
   v == null ? '-' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** 0 dias úteis = atual (sem selo); 1–2 = atenção; 3+ = defasado. */
+function freshnessLevel(referenceDate: string): 0 | 1 | 2 {
+  const d = businessDaysSince(referenceDate);
+  if (d >= 3) return 2;
+  if (d >= 1) return 1;
+  return 0;
+}
+
 function FreshnessBadge({ referenceDate }: { referenceDate: string }) {
-  const hours = getHoursAgo(`${referenceDate}T12:00:00`);
-  if (hours > 72) return <Badge variant="destructive">Defasado ({Math.floor(hours / 24)}d)</Badge>;
-  if (hours > 36) return <Badge className="bg-amber-500 text-black hover:bg-amber-500">Atenção ({Math.floor(hours / 24)}d)</Badge>;
-  return <Badge variant="outline">Atual</Badge>;
+  const days = businessDaysSince(referenceDate);
+  const level = freshnessLevel(referenceDate);
+  if (level === 0) return null;
+  const label = `${days}d ${days === 1 ? 'útil' : 'úteis'}`;
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'font-normal',
+        level === 1
+          ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+          : 'border-destructive/40 bg-destructive/10 text-destructive',
+      )}
+    >
+      {level === 1 ? 'Atenção' : 'Defasado'} ({label})
+    </Badge>
+  );
+}
+
+function CommoditySelect({
+  value, onChange, includeAll = true, className,
+}: { value: string; onChange: (v: string) => void; includeAll?: boolean; className?: string }) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className={className ?? 'w-[160px]'}><SelectValue /></SelectTrigger>
+      <SelectContent>
+        {includeAll && <SelectItem value={ALL}>Todas</SelectItem>}
+        <SelectItem value="soybean">Soja</SelectItem>
+        <SelectItem value="corn">Milho</SelectItem>
+      </SelectContent>
+    </Select>
+  );
 }
 
 /* ============================ A) PAINEL ============================ */
@@ -45,6 +84,8 @@ function FreshnessBadge({ referenceDate }: { referenceDate: string }) {
 function PainelView({ onRegister }: { onRegister: (locationId: string, commodity: string) => void }) {
   const { data: rows = [], isLoading } = usePhysicalPricePanel();
   const { allLocations, locations } = useMyLocations();
+  const [commodity, setCommodity] = useState(ALL);
+  const [locationId, setLocationId] = useState(ALL);
 
   const nameById = useMemo(() => {
     const m: Record<string, string> = {};
@@ -56,56 +97,86 @@ function PainelView({ onRegister }: { onRegister: (locationId: string, commodity
 
   useEffect(() => { triggerNormalize(); }, []);
 
+  const visible = useMemo(
+    () => rows.filter(
+      (r) => (commodity === ALL || r.commodity === commodity) && (locationId === ALL || r.location_id === locationId),
+    ),
+    [rows, commodity, locationId],
+  );
+
+  const filterBar = (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Praça</Label>
+        <Select value={locationId} onValueChange={setLocationId}>
+          <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todas</SelectItem>
+            {allLocations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Commodity</Label>
+        <CommoditySelect value={commodity} onChange={setCommodity} />
+      </div>
+    </div>
+  );
+
   if (isLoading) return <p className="text-sm text-muted-foreground">Carregando painel…</p>;
-  if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nenhum preço canônico publicado ainda.</p>;
-  }
 
   return (
-    <div className="rounded-md border border-border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Praça</TableHead>
-            <TableHead>Commodity</TableHead>
-            <TableHead className="text-right">Preço (R$/sc)</TableHead>
-            <TableHead className="text-center">Referência</TableHead>
-            <TableHead className="text-center">Situação</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((r) => (
-            <TableRow key={`${r.location_id}-${r.commodity}`}>
-              <TableCell className="font-medium">{nameById[r.location_id] ?? r.location_id}</TableCell>
-              <TableCell>{COMMODITY_LABEL[r.commodity] ?? r.commodity}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtBRL(r.price_brl_per_sack)}</TableCell>
-              <TableCell className="text-center">{fmtDate(r.reference_date)}</TableCell>
-              <TableCell className="text-center">
-                <div className="flex items-center justify-center gap-1.5">
-                  <FreshnessBadge referenceDate={r.reference_date} />
-                  {r.pending && <Badge variant="secondary" className="text-[10px]">calculando VP</Badge>}
-                </div>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
-                  <RepeatYesterdayButton
-                    locationId={r.location_id}
-                    commodity={r.commodity}
-                    locationName={nameById[r.location_id] ?? r.location_id}
-                    allowed={myIds.has(r.location_id)}
-                  />
-                  {myIds.has(r.location_id) && (
-                    <Button variant="outline" size="sm" onClick={() => onRegister(r.location_id, r.commodity)}>
-                      Nova cotação
-                    </Button>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    <div className="space-y-4">
+      {filterBar}
+      {visible.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhum preço canônico publicado para o filtro selecionado.</p>
+      ) : (
+        <div className="rounded-md border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Praça</TableHead>
+                <TableHead>Commodity</TableHead>
+                <TableHead className="text-right">Valor presente (R$/sc)</TableHead>
+                <TableHead className="text-center">Referência</TableHead>
+                <TableHead className="text-center">Situação</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visible.map((r) => (
+                <TableRow key={`${r.location_id}-${r.commodity}`}>
+                  <TableCell className="font-medium">{nameById[r.location_id] ?? r.location_id}</TableCell>
+                  <TableCell>{COMMODITY_LABEL[r.commodity] ?? r.commodity}</TableCell>
+                  <TableCell className="text-right tabular-nums">{fmtBRL(r.price_brl_per_sack)}</TableCell>
+                  <TableCell className="text-center">{fmtDate(r.reference_date)}</TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <FreshnessBadge referenceDate={r.reference_date} />
+                      {r.pending && <Badge variant="outline" className="text-[10px] font-normal">calculando VP</Badge>}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <RepeatYesterdayButton
+                        locationId={r.location_id}
+                        commodity={r.commodity}
+                        locationName={nameById[r.location_id] ?? r.location_id}
+                        allowed={myIds.has(r.location_id)}
+                      />
+                      {myIds.has(r.location_id) && (
+                        <Button variant="outline" size="sm" onClick={() => onRegister(r.location_id, r.commodity)}>
+                          Nova cotação
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }
@@ -149,7 +220,10 @@ function RepeatYesterdayButton({
               <div className="space-y-1 text-sm">
                 <p>Será criada uma nova cotação para hoje em {locationName} ({COMMODITY_LABEL[commodity] ?? commodity}):</p>
                 <p><span className="font-medium text-foreground">Comprador:</span> {winner?.buyer}</p>
-                <p><span className="font-medium text-foreground">Preço:</span> R$ {fmtBRL(winner?.price_brl_per_sack)}/sc</p>
+                <p><span className="font-medium text-foreground">Preço nominal:</span> R$ {fmtBRL(winner?.price_brl_per_sack)}/sc</p>
+                {winner?.present_value_brl != null && (
+                  <p><span className="font-medium text-foreground">Valor presente:</span> R$ {fmtBRL(Number(winner.present_value_brl))}/sc</p>
+                )}
                 <p><span className="font-medium text-foreground">Prazo preservado</span> a partir de hoje.</p>
               </div>
             </AlertDialogDescription>
@@ -169,7 +243,7 @@ function RepeatYesterdayButton({
 function PorPracaView() {
   const { locations } = useMyLocations();
   const [locationId, setLocationId] = useState('');
-  const [commodity, setCommodity] = useState('soybean');
+  const [commodity, setCommodity] = useState(ALL);
   const [showAll, setShowAll] = useState(false);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
@@ -178,8 +252,11 @@ function PorPracaView() {
     if (!locationId && locations.length > 0) setLocationId(locations[0].id);
   }, [locations, locationId]);
 
-  const daily = useDailySeries(locationId || null, commodity, start || undefined, end || undefined);
-  const quotes = useQuotes(showAll ? (locationId || null) : null, commodity, start || undefined, end || undefined);
+  const commodityFilter = commodity === ALL ? null : commodity;
+  const isAll = commodity === ALL;
+
+  const daily = useDailySeries(locationId || null, commodityFilter, start || undefined, end || undefined);
+  const quotes = useQuotes(showAll ? (locationId || null) : null, commodityFilter, start || undefined, end || undefined);
 
   const locationName = locations.find((l) => l.id === locationId)?.name ?? '';
 
@@ -197,13 +274,7 @@ function PorPracaView() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Commodity</Label>
-          <Select value={commodity} onValueChange={setCommodity}>
-            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="soybean">Soja</SelectItem>
-              <SelectItem value="corn">Milho</SelectItem>
-            </SelectContent>
-          </Select>
+          <CommoditySelect value={commodity} onChange={setCommodity} />
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Início</Label>
@@ -217,7 +288,7 @@ function PorPracaView() {
           <Switch id="all-quotes" checked={showAll} onCheckedChange={setShowAll} />
           <Label htmlFor="all-quotes" className="text-sm">Todas as cotações</Label>
         </div>
-        {locationId && (
+        {locationId && !isAll && (
           <div className="pb-1">
             <RepeatYesterdayButton
               locationId={locationId}
@@ -242,7 +313,8 @@ function PorPracaView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Data</TableHead>
-                    <TableHead className="text-right">Preço canônico (R$/sc)</TableHead>
+                    {isAll && <TableHead>Commodity</TableHead>}
+                    <TableHead className="text-right">Valor presente (R$/sc)</TableHead>
                     <TableHead className="text-right">Calculado em</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -250,6 +322,7 @@ function PorPracaView() {
                   {(daily.data ?? []).map((d) => (
                     <TableRow key={d.id}>
                       <TableCell>{fmtDate(d.reference_date)}</TableCell>
+                      {isAll && <TableCell>{COMMODITY_LABEL[d.commodity] ?? d.commodity}</TableCell>}
                       <TableCell className="text-right tabular-nums">{fmtBRL(Number(d.price_brl_per_sack))}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">{fmtDate(d.computed_at)}</TableCell>
                     </TableRow>
@@ -261,7 +334,12 @@ function PorPracaView() {
         </Card>
       ) : (
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Todas as cotações</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Todas as cotações</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              O preço nominal não é comparável entre prazos distintos; use o valor presente.
+            </p>
+          </CardHeader>
           <CardContent>
             {quotes.isLoading ? (
               <p className="text-sm text-muted-foreground">Carregando…</p>
@@ -272,10 +350,11 @@ function PorPracaView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Data</TableHead>
+                    {isAll && <TableHead>Commodity</TableHead>}
                     <TableHead>Comprador</TableHead>
                     <TableHead className="text-right">Nominal (R$/sc)</TableHead>
                     <TableHead className="text-center">Pagamento</TableHead>
-                    <TableHead className="text-right">VP (R$/sc)</TableHead>
+                    <TableHead className="text-right">Valor presente (R$/sc)</TableHead>
                     <TableHead>Origem</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -283,12 +362,13 @@ function PorPracaView() {
                   {(quotes.data ?? []).map((q) => (
                     <TableRow key={q.id}>
                       <TableCell>{fmtDate(q.reference_date)}</TableCell>
+                      {isAll && <TableCell>{COMMODITY_LABEL[q.commodity] ?? q.commodity}</TableCell>}
                       <TableCell className="font-medium">{q.buyer}</TableCell>
                       <TableCell className="text-right tabular-nums">{fmtBRL(Number(q.price_brl_per_sack))}</TableCell>
                       <TableCell className="text-center">{fmtDate(q.payment_date)}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {q.present_value_brl == null
-                          ? <Badge variant="secondary" className="text-[10px]">calculando</Badge>
+                          ? <Badge variant="outline" className="text-[10px] font-normal">calculando</Badge>
                           : fmtBRL(Number(q.present_value_brl))}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{SOURCE_LABEL[q.source] ?? q.source}</TableCell>
@@ -312,30 +392,103 @@ function monthBounds(year: number, month: number) {
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
-const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+const isoOf = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+function startOfWeek(d: Date) {
+  const r = new Date(d);
+  r.setHours(12, 0, 0, 0);
+  r.setDate(r.getDate() - r.getDay());
+  return r;
+}
 
 function CalendarioView({ onPickDay }: { onPickDay: (locationId: string, commodity: string, date: string) => void }) {
   const { locations } = useMyLocations();
+  const isMobile = useIsMobile();
   const now = new Date();
   const [locationId, setLocationId] = useState('');
-  const [commodity, setCommodity] = useState('soybean');
+  const [commodity, setCommodity] = useState(ALL);
   const [cursor, setCursor] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
 
   useEffect(() => {
     if (!locationId && locations.length > 0) setLocationId(locations[0].id);
   }, [locations, locationId]);
 
-  const { start, end } = monthBounds(cursor.year, cursor.month);
-  const { data: counts = {} } = useQuoteCounts(locationId || null, commodity, start, end);
+  const commodityFilter = commodity === ALL ? null : commodity;
+  const isAll = commodity === ALL;
 
-  const firstWeekday = new Date(Date.UTC(cursor.year, cursor.month, 1)).getUTCDay();
-  const daysInMonth = new Date(Date.UTC(cursor.year, cursor.month + 1, 0)).getUTCDate();
+  const monthRange = monthBounds(cursor.year, cursor.month);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const range = isMobile ? { start: isoOf(weekStart), end: isoOf(weekEnd) } : monthRange;
 
-  const shift = (delta: number) => {
+  const { data: counts = {} } = useQuoteCounts(locationId || null, commodityFilter, range.start, range.end);
+
+  const today = todayISO();
+
+  const cellClass = (iso: string) => {
+    const entry = counts[iso];
+    const total = entry?.total ?? 0;
+    if (total > 0) return 'border-primary/40 bg-primary/10 hover:bg-primary/20';
+    if (isWeekendISO(iso) || iso > today) {
+      return 'border-dashed border-border bg-muted/20 text-muted-foreground hover:bg-muted/40';
+    }
+    // dias úteis sem cotação: pior nível entre as commodities exigidas
+    const needed = isAll ? ['soybean', 'corn'] : [commodity];
+    const missing = needed.filter((c) => !(entry?.byCommodity[c]));
+    if (missing.length === 0) return 'border-primary/40 bg-primary/10 hover:bg-primary/20';
+    const level = freshnessLevel(iso);
+    if (level === 2) return 'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20';
+    if (level === 1) return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20';
+    return 'border-dashed border-border bg-background hover:bg-muted/40';
+  };
+
+  const cellLabel = (iso: string) => {
+    const entry = counts[iso];
+    const total = entry?.total ?? 0;
+    if (total === 0) return 'sem cotação';
+    if (isAll) {
+      const s = entry?.byCommodity.soybean ?? 0;
+      const c = entry?.byCommodity.corn ?? 0;
+      return `${total} cotaç${total > 1 ? 'ões' : 'ão'} · S${s}/M${c}`;
+    }
+    return `${total} cotaç${total > 1 ? 'ões' : 'ão'}`;
+  };
+
+  const DayCell = ({ iso, day }: { iso: string; day: number }) => (
+    <button
+      key={iso}
+      type="button"
+      disabled={!locationId}
+      onClick={() => onPickDay(locationId, isAll ? 'soybean' : commodity, iso)}
+      className={cn(
+        'flex h-24 flex-col items-center justify-center gap-1 rounded-md border text-sm transition-colors sm:h-28',
+        iso === today && 'ring-2 ring-primary/50',
+        cellClass(iso),
+      )}
+    >
+      <span className="text-lg font-semibold">{day}</span>
+      <span className="px-1 text-[11px] leading-tight">{cellLabel(iso)}</span>
+    </button>
+  );
+
+  const shiftMonth = (delta: number) => {
     const d = new Date(Date.UTC(cursor.year, cursor.month + delta, 1));
     setCursor({ year: d.getUTCFullYear(), month: d.getUTCMonth() });
   };
+
+  const shiftWeek = (delta: number) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + delta * 7);
+    setWeekStart(d);
+  };
+
+  const firstWeekday = new Date(Date.UTC(cursor.year, cursor.month, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(cursor.year, cursor.month + 1, 0)).getUTCDate();
 
   return (
     <div className="space-y-4">
@@ -351,50 +504,50 @@ function CalendarioView({ onPickDay }: { onPickDay: (locationId: string, commodi
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Commodity</Label>
-          <Select value={commodity} onValueChange={setCommodity}>
-            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="soybean">Soja</SelectItem>
-              <SelectItem value="corn">Milho</SelectItem>
-            </SelectContent>
-          </Select>
+          <CommoditySelect value={commodity} onChange={setCommodity} />
         </div>
         <div className="ml-auto flex items-center gap-2 pb-1">
-          <Button variant="outline" size="sm" onClick={() => shift(-1)}>Anterior</Button>
-          <span className="min-w-[150px] text-center text-sm font-medium">{MONTHS[cursor.month]} {cursor.year}</span>
-          <Button variant="outline" size="sm" onClick={() => shift(1)}>Próximo</Button>
+          {isMobile ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => shiftWeek(-1)}>Anterior</Button>
+              <span className="min-w-[150px] text-center text-sm font-medium">
+                {fmtDate(isoOf(weekStart))} – {fmtDate(isoOf(weekEnd))}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => shiftWeek(1)}>Próxima</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" size="sm" onClick={() => shiftMonth(-1)}>Anterior</Button>
+              <span className="min-w-[150px] text-center text-sm font-medium">{MONTHS[cursor.month]} {cursor.year}</span>
+              <Button variant="outline" size="sm" onClick={() => shiftMonth(1)}>Próximo</Button>
+            </>
+          )}
         </div>
       </div>
 
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="grid grid-cols-7 gap-2">
             {WEEKDAYS.map((w, i) => (
               <div key={i} className="pb-1 text-center text-xs text-muted-foreground">{w}</div>
             ))}
-            {Array.from({ length: firstWeekday }).map((_, i) => <div key={`e${i}`} />)}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const iso = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const count = counts[iso] ?? 0;
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  disabled={!locationId}
-                  onClick={() => onPickDay(locationId, commodity, iso)}
-                  className={cn(
-                    'flex h-16 flex-col items-center justify-center rounded-md border text-sm transition-colors',
-                    count > 0
-                      ? 'border-primary/40 bg-primary/10 hover:bg-primary/20'
-                      : 'border-dashed border-border bg-muted/20 text-muted-foreground hover:bg-muted/40',
-                  )}
-                >
-                  <span className="font-medium">{day}</span>
-                  <span className="text-[10px]">{count > 0 ? `${count} cotação${count > 1 ? 'ões' : ''}` : 'sem cotação'}</span>
-                </button>
-              );
-            })}
+            {isMobile
+              ? Array.from({ length: 7 }).map((_, i) => {
+                  const d = new Date(weekStart);
+                  d.setDate(d.getDate() + i);
+                  const iso = isoOf(d);
+                  return <DayCell key={iso} iso={iso} day={d.getDate()} />;
+                })
+              : (
+                <>
+                  {Array.from({ length: firstWeekday }).map((_, i) => <div key={`e${i}`} />)}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const iso = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    return <DayCell key={iso} iso={iso} day={day} />;
+                  })}
+                </>
+              )}
           </div>
         </CardContent>
       </Card>
