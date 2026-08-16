@@ -32,7 +32,7 @@ O `ProtectedRoute` continua com a mesma estrutura de três casos (falha técnica
 | `src/types/index.ts` | `UserProfile` vira o formato da linha de `users`; saem `access_level` e `forced_env`, entram `job_title`, `phone`, `warehouse_id`, `roles`, `is_owner`, `deleted_at` |
 | `src/contexts/AuthContext.tsx` | leitura do perfil vai para `users`; tema continua aplicado ao `documentElement` |
 | `src/hooks/useAuthorization.ts` | `isAdmin` por `users.is_admin` + `status === 'active'`; remove `hasAccessLevel` |
-| `src/pages/Profile.tsx` | nome e tema gravam só em `users`; o `UPDATE` de tema envia **somente** a coluna `theme` |
+| `src/pages/Profile.tsx` | nome vira somente leitura (campo e botão de salvar removidos — o gatilho do banco rejeita qualquer UPDATE de não-admin fora de `theme`; alteração de nome ficará com o admin em tarefa futura); tema grava em `users` enviando **somente** a coluna `theme` |
 | `src/pages/AdminUsers.tsx` | migração mecânica: lista, aprova, desativa, reativa, alterna admin e exclui (soft delete) direto em `users`; a coluna "Acesso" (access_level) sai da tabela; papéis continuam como estão |
 | `src/components/ProtectedRoute.test.tsx` | fixture atualizada para o novo formato |
 | `docs/auth-access-control.md` | documentação atualizada para refletir `users` |
