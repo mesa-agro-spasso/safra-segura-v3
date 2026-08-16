@@ -47,6 +47,13 @@ O frontend não calcula valor presente nem desconto — apenas exibe o que a API
 - Seção 2: "Cadastros de usuários aguardando aprovação" — nome, cargo e unidades dos usuários com `status='pending'`; atalho "Aprovar" apenas para admins (não-admins veem só a lista); a aprovação em si continua em /cadastros > Usuários.
 - Aba "Pendências" removida de `Cadastros.tsx`; links profundos existentes para `?tab=pending` passam a apontar para a nova rota.
 
+## Ajustes adicionais
+
+- **Unidades em todas as telas de aprovação**: o diálogo de confirmação de aprovação em UsersTab e a seção de usuários pendentes em /pendencias exibem as unidades a partir de `warehouse_ids` (nomes concatenados, ou "Sede"). Nenhuma superfície de aprovação continua lendo o `warehouse_id` singular.
+- **Unidades inativas na edição**: se `warehouse_ids` contiver armazém já inativo, o multi-select ainda o exibe (marcado como "inativo") e o mantém selecionado até que o admin o remova explicitamente. O salvamento nunca descarta silenciosamente unidades ausentes da lista de ativos.
+
+
+
 ## Notas técnicas
 
 - Praças do usuário: derivadas de `users.warehouse_ids` → `warehouses.location_id` (distintos); vazio/nulo = Sede (todas). Hook novo `useMyLocations`.
