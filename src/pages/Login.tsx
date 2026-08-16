@@ -7,19 +7,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { warmUpApi } from '@/lib/warmup';
+import { useActiveArmazens } from '@/hooks/useWarehouses';
+import { maskPhoneBR } from '@/lib/masks';
+
+const SEDE = '__SEDE__';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
+  const [phone, setPhone] = useState('');
+  const [unit, setUnit] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'login' | 'forgot'>('login');
   const [forgotEmail, setForgotEmail] = useState('');
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
+  const { data: armazens = [] } = useActiveArmazens();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +48,18 @@ const Login = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fullName.trim()) {
+      toast.error('Informe seu nome completo');
+      return;
+    }
+    if (!jobTitle.trim()) {
+      toast.error('Informe seu cargo');
+      return;
+    }
+    if (!unit) {
+      toast.error('Selecione sua unidade');
+      return;
+    }
     if (password !== confirmPassword) {
       toast.error('As senhas não coincidem');
       return;
@@ -49,7 +70,12 @@ const Login = () => {
     }
     setLoading(true);
     try {
-      await signUp(email, password, fullName);
+      await signUp(email, password, {
+        full_name: fullName.trim(),
+        job_title: jobTitle.trim(),
+        phone: phone.trim(),
+        warehouse_id: unit === SEDE ? '' : unit,
+      });
       toast.success('Cadastro realizado! Seu acesso será analisado por um administrador.');
       navigate('/aguardando-aprovacao');
     } catch (err: unknown) {
@@ -151,6 +177,28 @@ const Login = () => {
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Nome completo</Label>
                   <Input id="signup-name" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} required placeholder="Seu nome" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-job">Cargo</Label>
+                  <Input id="signup-job" type="text" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} required placeholder="Ex.: Analista de mesa" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-phone">Telefone <span className="text-muted-foreground">(opcional)</span></Label>
+                  <Input id="signup-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(maskPhoneBR(e.target.value))} placeholder="(00) 00000-0000" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-unit">Unidade</Label>
+                  <Select value={unit} onValueChange={setUnit}>
+                    <SelectTrigger id="signup-unit">
+                      <SelectValue placeholder="Selecione sua unidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SEDE}>Sede</SelectItem>
+                      {armazens.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>

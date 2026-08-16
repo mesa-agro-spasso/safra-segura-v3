@@ -131,19 +131,24 @@ export interface MtmSnapshot {
   snapshot_date: string;
 }
 
+/** Linha de public.users — fonte única de dados do usuário. */
 export interface UserProfile {
   id: string;
-  email: string;
+  email: string | null;
   full_name: string | null;
+  job_title: string | null;
+  phone: string | null;
+  /** null = Sede (matriz) */
+  warehouse_id: string | null;
+  roles: string[];
   status: 'pending' | 'active' | 'disabled';
-  access_level: 'limited' | 'full';
   is_admin: boolean;
+  is_owner: boolean;
   theme: 'dark' | 'light';
-  forced_env: 'staging' | null;
   created_at: string;
-  updated_at: string;
   approved_at: string | null;
   approved_by: string | null;
+  deleted_at: string | null;
 }
 
 export interface PricingCombination {

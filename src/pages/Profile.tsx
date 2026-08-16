@@ -23,9 +23,6 @@ const formatRole = (r: string) =>
 const Profile = () => {
   const { user, profile, refreshProfile } = useAuth();
 
-  const [fullName, setFullName] = useState(profile?.full_name ?? '');
-  const [savingName, setSavingName] = useState(false);
-
   const [theme, setTheme] = useState<'dark' | 'light'>(profile?.theme ?? 'dark');
   const [savingTheme, setSavingTheme] = useState(false);
 
@@ -35,7 +32,6 @@ const Profile = () => {
   const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
-    setFullName(profile?.full_name ?? '');
     if (profile?.theme) setTheme(profile.theme);
   }, [profile]);
 
@@ -54,33 +50,6 @@ const Profile = () => {
 
   const roles = Array.isArray(rolesData) ? rolesData : [];
 
-  const handleSaveName = async () => {
-    if (!user) return;
-    if (!fullName.trim()) {
-      toast.error('Nome não pode ser vazio');
-      return;
-    }
-    setSavingName(true);
-    try {
-      const { error: e1 } = await supabase
-        .from('user_profiles')
-        .update({ full_name: fullName.trim() })
-        .eq('id', user.id);
-      if (e1) throw e1;
-      const { error: e2 } = await (supabase.from('users') as any)
-        .update({ full_name: fullName.trim() })
-        .eq('id', user.id);
-      if (e2) throw e2;
-      await refreshProfile();
-      toast.success('Nome atualizado');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro ao salvar nome';
-      toast.error(message);
-    } finally {
-      setSavingName(false);
-    }
-  };
-
   const handleToggleTheme = async (checked: boolean) => {
     if (!user) return;
     const newTheme: 'dark' | 'light' = checked ? 'dark' : 'light';
@@ -88,8 +57,8 @@ const Profile = () => {
     document.documentElement.classList.toggle('dark', newTheme === 'dark');
     setSavingTheme(true);
     try {
-      const { error } = await supabase
-        .from('user_profiles')
+      // Regra do banco: não-admin só pode atualizar a coluna `theme` da própria linha.
+      const { error } = await (supabase.from('users') as any)
         .update({ theme: newTheme })
         .eq('id', user.id);
       if (error) throw error;
@@ -147,18 +116,17 @@ const Profile = () => {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="full-name">Nome completo</Label>
-            <div className="flex gap-2">
-              <Input
-                id="full-name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Seu nome"
-              />
-              <Button onClick={handleSaveName} disabled={savingName || fullName === (profile?.full_name ?? '')}>
-                {savingName ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
+            <Input id="full-name" value={profile?.full_name ?? ''} readOnly disabled />
+            <p className="text-xs text-muted-foreground">
+              Para alterar seu nome, peça a um administrador.
+            </p>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="job-title">Cargo</Label>
+            <Input id="job-title" value={profile?.job_title ?? '—'} readOnly disabled />
+          </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>

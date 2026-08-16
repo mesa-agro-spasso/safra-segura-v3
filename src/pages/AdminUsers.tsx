@@ -157,27 +157,19 @@ const UsersTab = () => {
   const fetchProfiles = async () => {
     setLoading(true);
     const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
+      .from('users')
+      .select('id, email, full_name, job_title, phone, warehouse_id, roles, status, is_admin, is_owner, theme, created_at, approved_at, approved_by, deleted_at')
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) {
       toast.error('Erro ao carregar usuários');
+      setProfiles([]);
     } else {
-      setProfiles((data as UserProfile[]) || []);
-    }
-
-    const { data: userRoles, error: rolesError } = await supabase
-      .from('users')
-      .select('id, roles')
-      .is('deleted_at', null);
-
-    if (rolesError) {
-      setRolesMap({});
-    } else {
+      const rows = (data as unknown as UserProfile[]) || [];
+      setProfiles(rows);
       const map: Record<string, string[]> = {};
-      (userRoles || []).forEach((u: { id: string; roles: string[] | null }) => {
+      rows.forEach((u) => {
         map[u.id] = u.roles || [];
       });
       setRolesMap(map);
@@ -193,7 +185,7 @@ const UsersTab = () => {
   const updateProfile = async (id: string, updates: Record<string, unknown>) => {
     try {
       const { error } = await supabase
-        .from('user_profiles')
+        .from('users')
         .update(updates as never)
         .eq('id', id);
 
@@ -201,7 +193,7 @@ const UsersTab = () => {
         toast.error('Erro ao atualizar usuário: ' + error.message);
         return false;
       }
-      void logActivity('user_profile.update', 'user_profile', id, { fields: Object.keys(updates) });
+      void logActivity('user.update', 'user', id, { fields: Object.keys(updates) });
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro desconhecido';
@@ -265,22 +257,14 @@ const UsersTab = () => {
     }
   };
 
-  const handleChangeAccessLevel = async (id: string, level: 'limited' | 'full') => {
-    const ok = await updateProfile(id, { access_level: level });
-    if (ok) {
-      toast.success('Nível de acesso alterado');
-      fetchProfiles();
-    }
-  };
-
   const handleDelete = async (id: string) => {
     try {
       const nowIso = new Date().toISOString();
-      const [{ error: e1 }, { error: e2 }] = await Promise.all([
-        supabase.from('user_profiles').update({ deleted_at: nowIso } as never).eq('id', id),
-        supabase.from('users').update({ deleted_at: nowIso } as never).eq('id', id),
-      ]);
-      if (e1 || e2) throw new Error(e1?.message || e2?.message || 'Erro ao excluir');
+      const { error } = await supabase
+        .from('users')
+        .update({ deleted_at: nowIso } as never)
+        .eq('id', id);
+      if (error) throw new Error(error.message);
       void logActivity('user.delete', 'user', id, {});
       toast.success('Usuário excluído');
       fetchProfiles();
@@ -332,7 +316,6 @@ const UsersTab = () => {
               <TableHead>Nome</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Acesso</TableHead>
               <TableHead>Função</TableHead>
               <TableHead>Admin</TableHead>
               <TableHead>Criado em</TableHead>
@@ -343,13 +326,13 @@ const UsersTab = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Carregando...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Nenhum usuário encontrado.
                 </TableCell>
               </TableRow>
@@ -362,20 +345,6 @@ const UsersTab = () => {
                     <Badge variant={statusVariants[p.status] || 'outline'}>
                       {statusLabels[p.status] || p.status}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={p.access_level}
-                      onValueChange={(val) => handleChangeAccessLevel(p.id, val as 'limited' | 'full')}
-                    >
-                      <SelectTrigger className="w-24 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="limited">Limited</SelectItem>
-                        <SelectItem value="full">Full</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </TableCell>
                   <TableCell>
                     <RolesEditor

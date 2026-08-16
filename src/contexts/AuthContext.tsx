@@ -5,6 +5,15 @@ import { logActivity } from '@/lib/activityLog';
 import { queryClient } from '@/lib/queryClient';
 import type { UserProfile } from '@/types';
 
+/** Chaves lidas pelo gatilho do banco ao criar a linha em public.users. */
+export interface SignUpMetadata {
+  full_name: string;
+  job_title: string;
+  phone?: string;
+  /** '' ou ausente = Sede */
+  warehouse_id?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -13,7 +22,7 @@ interface AuthContextType {
   loading: boolean;
   isPasswordRecovery: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  signUp: (email: string, password: string, meta: SignUpMetadata) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -37,9 +46,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfileError(null);
     try {
       const { data, error } = await supabasePublic
-        .from('user_profiles')
-        .select('*')
+        .from('users')
+        .select('id, email, full_name, job_title, phone, warehouse_id, roles, status, is_admin, is_owner, theme, created_at, approved_at, approved_by, deleted_at')
         .eq('id', userId)
+        .is('deleted_at', null)
         .maybeSingle();
 
       if (error) {
@@ -49,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
 
-      const p = data as UserProfile | null;
+      const p = (data as unknown as UserProfile | null) ?? null;
       setProfile(p);
       // Apply theme preference to document root
       if (p?.theme === 'light') {
@@ -151,14 +161,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, meta: SignUpMetadata) => {
+    // As chaves abaixo são contrato com o gatilho do banco — não renomear.
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        emailRedirectTo: window.location.origin,
+        data: {
+          full_name: meta.full_name,
+          job_title: meta.job_title,
+          phone: meta.phone ?? '',
+          warehouse_id: meta.warehouse_id ?? '',
+        },
+      },
     });
     if (error) throw error;
-    void logActivity('auth.signup', 'user', null, { email, full_name: fullName });
+    void logActivity('auth.signup', 'user', null, { email, full_name: meta.full_name });
   };
 
   const signOut = async () => {
