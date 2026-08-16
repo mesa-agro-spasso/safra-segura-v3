@@ -264,25 +264,33 @@ export function useQuotes(locationId: string | null, commodity: string | null, s
   });
 }
 
-/** Contagem de cotações por dia (calendário de cobertura). */
+export interface DayCount {
+  total: number;
+  byCommodity: Record<string, number>;
+}
+
+/** Contagem de cotações por dia (calendário de cobertura), detalhada por commodity. */
 export function useQuoteCounts(locationId: string | null, commodity: string | null, start: string, end: string) {
   return useQuery({
     queryKey: ['physical_prices', 'counts', locationId, commodity, start, end],
     enabled: !!locationId,
-    queryFn: async (): Promise<Record<string, number>> => {
+    queryFn: async (): Promise<Record<string, DayCount>> => {
       let q = supabase
         .from('physical_prices')
-        .select('reference_date')
+        .select('reference_date, commodity')
         .eq('location_id', locationId!)
         .gte('reference_date', start)
         .lte('reference_date', end)
-        .limit(2000);
+        .limit(5000);
       if (commodity) q = q.eq('commodity', commodity);
       const { data, error } = await q;
       if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const r of (data ?? []) as { reference_date: string }[]) {
-        counts[r.reference_date] = (counts[r.reference_date] ?? 0) + 1;
+      const counts: Record<string, DayCount> = {};
+      for (const r of (data ?? []) as { reference_date: string; commodity: string }[]) {
+        const entry = counts[r.reference_date] ?? { total: 0, byCommodity: {} };
+        entry.total += 1;
+        entry.byCommodity[r.commodity] = (entry.byCommodity[r.commodity] ?? 0) + 1;
+        counts[r.reference_date] = entry;
       }
       return counts;
     },
