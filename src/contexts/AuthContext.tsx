@@ -5,6 +5,15 @@ import { logActivity } from '@/lib/activityLog';
 import { queryClient } from '@/lib/queryClient';
 import type { UserProfile } from '@/types';
 
+/** Chaves lidas pelo gatilho do banco ao criar a linha em public.users. */
+export interface SignUpMetadata {
+  full_name: string;
+  job_title: string;
+  phone?: string;
+  /** '' ou ausente = Sede */
+  warehouse_id?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -13,7 +22,7 @@ interface AuthContextType {
   loading: boolean;
   isPasswordRecovery: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  signUp: (email: string, password: string, meta: SignUpMetadata) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
