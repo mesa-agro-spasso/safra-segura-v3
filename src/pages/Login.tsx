@@ -7,19 +7,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { warmUpApi } from '@/lib/warmup';
+import { useActiveArmazens } from '@/hooks/useWarehouses';
+import { maskPhoneBR } from '@/lib/masks';
+
+const SEDE = '__SEDE__';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
+  const [phone, setPhone] = useState('');
+  const [unit, setUnit] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'login' | 'forgot'>('login');
   const [forgotEmail, setForgotEmail] = useState('');
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
+  const { data: armazens = [] } = useActiveArmazens();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +48,18 @@ const Login = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fullName.trim()) {
+      toast.error('Informe seu nome completo');
+      return;
+    }
+    if (!jobTitle.trim()) {
+      toast.error('Informe seu cargo');
+      return;
+    }
+    if (!unit) {
+      toast.error('Selecione sua unidade');
+      return;
+    }
     if (password !== confirmPassword) {
       toast.error('As senhas não coincidem');
       return;
@@ -49,7 +70,12 @@ const Login = () => {
     }
     setLoading(true);
     try {
-      await signUp(email, password, fullName);
+      await signUp(email, password, {
+        full_name: fullName.trim(),
+        job_title: jobTitle.trim(),
+        phone: phone.trim(),
+        warehouse_id: unit === SEDE ? '' : unit,
+      });
       toast.success('Cadastro realizado! Seu acesso será analisado por um administrador.');
       navigate('/aguardando-aprovacao');
     } catch (err: unknown) {
