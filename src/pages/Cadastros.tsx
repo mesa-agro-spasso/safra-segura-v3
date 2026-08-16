@@ -3,6 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EntityTab } from '@/components/cadastros/EntityTab';
 import { PendingTab } from '@/components/cadastros/PendingTab';
 import { ProducersTab } from '@/components/cadastros/ProducersTab';
+import { UsersTab } from '@/components/cadastros/UsersTab';
+import ActivityLogTab from '@/components/admin/ActivityLogTab';
 import { ENTITY_CONFIGS } from '@/components/cadastros/entityConfigs';
 import { useRegistryPending } from '@/hooks/useRegistryPending';
 
@@ -10,7 +12,7 @@ export default function Cadastros() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { count } = useRegistryPending();
 
-  const validTabs = [...ENTITY_CONFIGS.map((c) => c.table), 'producers', 'pending'];
+  const validTabs = [...ENTITY_CONFIGS.map((c) => c.table), 'producers', 'users', 'pending', 'logs'];
   const defaultTab = ENTITY_CONFIGS[0].table;
   const tabParam = searchParams.get('tab');
   const tab = tabParam && validTabs.includes(tabParam) ? tabParam : defaultTab;
@@ -38,7 +40,9 @@ export default function Cadastros() {
             </TabsTrigger>
           ))}
           <TabsTrigger value="producers">Produtores</TabsTrigger>
+          <TabsTrigger value="users">Usuários</TabsTrigger>
           <TabsTrigger value="pending">Pendências{count > 0 ? ` (${count})` : ''}</TabsTrigger>
+          <TabsTrigger value="logs">Registros</TabsTrigger>
         </TabsList>
         {ENTITY_CONFIGS.map((c) => (
           <TabsContent key={c.table} value={c.table} className="mt-4">
@@ -48,8 +52,14 @@ export default function Cadastros() {
         <TabsContent value="producers" className="mt-4">
           <ProducersTab />
         </TabsContent>
+        <TabsContent value="users" className="mt-4">
+          <UsersTab />
+        </TabsContent>
         <TabsContent value="pending" className="mt-4">
           <PendingTab />
+        </TabsContent>
+        <TabsContent value="logs" className="mt-4">
+          <ActivityLogTab />
         </TabsContent>
       </Tabs>
     </div>

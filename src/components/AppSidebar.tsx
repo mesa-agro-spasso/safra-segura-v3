@@ -127,18 +127,6 @@ export function AppSidebar() {
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to="/admin/usuarios"
-                        className="hover:bg-sidebar-accent"
-                        activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                      >
-                        <Users className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>Administração</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                 </>
               )}
               <SidebarMenuItem>
