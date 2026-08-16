@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
 import { usePendingApprovalsCount } from '@/hooks/usePendingApprovalsCount';
+import { usePendenciasCounts } from '@/hooks/usePendenciasCounts';
 import { supabase } from '@/integrations/supabase/client';
 
 import { FEATURES } from '@/config/features';
