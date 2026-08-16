@@ -874,40 +874,64 @@ export type Database = {
       }
       physical_prices: {
         Row: {
+          buyer: string
           commodity: string
           created_at: string
           created_by: string | null
           id: string
-          location_id: string | null
+          incoterm: string
+          interest_rate_used: number | null
+          is_coop: boolean
+          is_pf: boolean
+          location_id: string
           notes: string | null
+          payment_date: string
+          present_value_brl: number | null
           price_brl_per_sack: number
           reference_date: string
+          source: string
           updated_at: string
-          warehouse_id: string
+          warehouse_id: string | null
         }
         Insert: {
+          buyer: string
           commodity: string
           created_at?: string
           created_by?: string | null
           id?: string
-          location_id?: string | null
+          incoterm?: string
+          interest_rate_used?: number | null
+          is_coop?: boolean
+          is_pf?: boolean
+          location_id: string
           notes?: string | null
+          payment_date: string
+          present_value_brl?: number | null
           price_brl_per_sack: number
           reference_date: string
+          source?: string
           updated_at?: string
-          warehouse_id: string
+          warehouse_id?: string | null
         }
         Update: {
+          buyer?: string
           commodity?: string
           created_at?: string
           created_by?: string | null
           id?: string
-          location_id?: string | null
+          incoterm?: string
+          interest_rate_used?: number | null
+          is_coop?: boolean
+          is_pf?: boolean
+          location_id?: string
           notes?: string | null
+          payment_date?: string
+          present_value_brl?: number | null
           price_brl_per_sack?: number
           reference_date?: string
+          source?: string
           updated_at?: string
-          warehouse_id?: string
+          warehouse_id?: string | null
         }
         Relationships: [
           {
@@ -929,6 +953,54 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      physical_prices_daily: {
+        Row: {
+          commodity: string
+          computed_at: string
+          id: string
+          interest_rate_used: number | null
+          location_id: string
+          price_brl_per_sack: number
+          reference_date: string
+          winning_quote_id: string
+        }
+        Insert: {
+          commodity: string
+          computed_at?: string
+          id?: string
+          interest_rate_used?: number | null
+          location_id: string
+          price_brl_per_sack: number
+          reference_date: string
+          winning_quote_id: string
+        }
+        Update: {
+          commodity?: string
+          computed_at?: string
+          id?: string
+          interest_rate_used?: number | null
+          location_id?: string
+          price_brl_per_sack?: number
+          reference_date?: string
+          winning_quote_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physical_prices_daily_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "trading_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physical_prices_daily_winning_quote_id_fkey"
+            columns: ["winning_quote_id"]
+            isOneToOne: false
+            referencedRelation: "physical_prices"
             referencedColumns: ["id"]
           },
         ]
@@ -1409,57 +1481,8 @@ export type Database = {
         }
         Relationships: []
       }
-      user_profiles: {
-        Row: {
-          access_level: string
-          approved_at: string | null
-          approved_by: string | null
-          created_at: string
-          deleted_at: string | null
-          email: string
-          forced_env: string | null
-          full_name: string | null
-          id: string
-          is_admin: boolean
-          status: string
-          theme: string
-          updated_at: string
-        }
-        Insert: {
-          access_level?: string
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          email: string
-          forced_env?: string | null
-          full_name?: string | null
-          id: string
-          is_admin?: boolean
-          status?: string
-          theme?: string
-          updated_at?: string
-        }
-        Update: {
-          access_level?: string
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          email?: string
-          forced_env?: string | null
-          full_name?: string | null
-          id?: string
-          is_admin?: boolean
-          status?: string
-          theme?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       users: {
         Row: {
-          active: boolean
           approved_at: string | null
           approved_by: string | null
           created_at: string
@@ -1475,9 +1498,9 @@ export type Database = {
           status: string
           theme: string
           warehouse_id: string | null
+          warehouse_ids: string[] | null
         }
         Insert: {
-          active?: boolean
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
@@ -1493,9 +1516,9 @@ export type Database = {
           status?: string
           theme?: string
           warehouse_id?: string | null
+          warehouse_ids?: string[] | null
         }
         Update: {
-          active?: boolean
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
@@ -1511,6 +1534,7 @@ export type Database = {
           status?: string
           theme?: string
           warehouse_id?: string | null
+          warehouse_ids?: string[] | null
         }
         Relationships: [
           {
