@@ -179,6 +179,28 @@ const Login = () => {
                   <Input id="signup-name" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} required placeholder="Seu nome" />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="signup-job">Cargo</Label>
+                  <Input id="signup-job" type="text" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} required placeholder="Ex.: Analista de mesa" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-phone">Telefone <span className="text-muted-foreground">(opcional)</span></Label>
+                  <Input id="signup-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(maskPhoneBR(e.target.value))} placeholder="(00) 00000-0000" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-unit">Unidade</Label>
+                  <Select value={unit} onValueChange={setUnit}>
+                    <SelectTrigger id="signup-unit">
+                      <SelectValue placeholder="Selecione sua unidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SEDE}>Sede</SelectItem>
+                      {armazens.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
                   <Input id="signup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="seu@email.com" />
                 </div>
