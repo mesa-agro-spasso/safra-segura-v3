@@ -12,7 +12,7 @@ const ROUTE_TO_SECTION: Record<string, string> = {
   '/mercado': 'mercado',
   '/configuracoes': 'configuracoes',
   '/aprovacoes': 'aprovacoes',
-  '/admin/usuarios': 'administracao',
+  '/cadastros': 'administracao',
   '/perfil': 'perfil',
 };
 

@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { warmUpApi } from '@/lib/warmup';
-import { useActiveArmazens } from '@/hooks/useWarehouses';
+import { useSignupUnits } from '@/hooks/useWarehouses';
 import { maskPhoneBR } from '@/lib/masks';
 
 const SEDE = '__SEDE__';
@@ -28,7 +28,7 @@ const Login = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
-  const { data: armazens = [] } = useActiveArmazens();
+  const { data: signupUnits = [] } = useSignupUnits();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,7 +194,7 @@ const Login = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={SEDE}>Sede</SelectItem>
-                      {armazens.map((w) => (
+                      {signupUnits.map((w) => (
                         <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
                       ))}
                     </SelectContent>

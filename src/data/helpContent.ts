@@ -119,7 +119,7 @@ export const helpSections: HelpSection[] = [
   {
     id: 'administracao',
     title: '6. Administração',
-    route: '/admin/usuarios',
+    route: '/cadastros',
     blocks: [
       { type: 'p', text: 'Gestão de usuários do sistema. Visível apenas para administradores.' },
       { type: 'table', headers: ['Nível de acesso', 'Descrição'], rows: [
