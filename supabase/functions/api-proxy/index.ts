@@ -17,6 +17,7 @@ const ALLOWED_POST_ENDPOINTS = [
   '/closing-batches/allocate',
   '/mtm/run',
   '/mtm/run-d24',
+  '/physical-prices/normalize',
 ]
 
 const ALLOWED_GET_ENDPOINTS = [
