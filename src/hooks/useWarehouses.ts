@@ -33,6 +33,18 @@ export function useActiveArmazens() {
   });
 }
 
+/** Unidades disponíveis no autocadastro — via RPC acessível a visitantes anônimos. */
+export function useSignupUnits() {
+  return useQuery({
+    queryKey: ['signup-units'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('list_signup_units');
+      if (error) throw error;
+      return (data as { id: string; display_name: string }[]) ?? [];
+    },
+  });
+}
+
 export function useUpsertWarehouse() {
   const queryClient = useQueryClient();
   return useMutation({
