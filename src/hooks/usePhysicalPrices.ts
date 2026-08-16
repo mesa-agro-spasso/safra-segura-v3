@@ -52,6 +52,27 @@ export function getHoursAgo(date: string): number {
   return Math.floor((Date.now() - new Date(date).getTime()) / 3600000);
 }
 
+/** Dias úteis (seg–sex) decorridos desde a data de referência até hoje. */
+export function businessDaysSince(iso: string): number {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const ref = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  if (ref >= today) return 0;
+  let count = 0;
+  const cur = new Date(ref);
+  while (cur < today) {
+    cur.setDate(cur.getDate() + 1);
+    const wd = cur.getDay();
+    if (wd !== 0 && wd !== 6) count += 1;
+  }
+  return count;
+}
+
+export function isWeekendISO(iso: string): boolean {
+  const wd = new Date(`${iso.slice(0, 10)}T12:00:00`).getDay();
+  return wd === 0 || wd === 6;
+}
+
 /** Dispara a normalização na API sem bloquear a interface (fire-and-forget). */
 export function triggerNormalize(): void {
   void callApi('/physical-prices/normalize', {}).catch(() => {
