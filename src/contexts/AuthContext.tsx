@@ -10,7 +10,7 @@ export interface SignUpMetadata {
   full_name: string;
   job_title: string;
   phone?: string;
-  /** '' ou ausente = Sede */
+  /** ausente ou vazio = Sede (acesso a todas as unidades) */
   warehouse_ids?: string[];
 }
 
