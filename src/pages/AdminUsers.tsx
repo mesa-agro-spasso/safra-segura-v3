@@ -348,20 +348,6 @@ const UsersTab = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Select
-                      value={p.access_level}
-                      onValueChange={(val) => handleChangeAccessLevel(p.id, val as 'limited' | 'full')}
-                    >
-                      <SelectTrigger className="w-24 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="limited">Limited</SelectItem>
-                        <SelectItem value="full">Full</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
                     <RolesEditor
                       userId={p.id}
                       roles={rolesMap[p.id] || []}
