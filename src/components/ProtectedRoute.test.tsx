@@ -17,7 +17,7 @@ const makeProfile = (overrides: Partial<UserProfile> = {}): UserProfile => ({
   full_name: 'Usuário Teste',
   job_title: 'Analista',
   phone: null,
-  warehouse_id: null,
+  warehouse_ids: null,
   roles: [],
   status: 'active',
   is_admin: false,
