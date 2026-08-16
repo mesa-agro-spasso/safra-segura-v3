@@ -37,9 +37,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfileError(null);
     try {
       const { data, error } = await supabasePublic
-        .from('user_profiles')
-        .select('*')
+        .from('users')
+        .select('id, email, full_name, job_title, phone, warehouse_id, roles, status, is_admin, is_owner, theme, created_at, approved_at, approved_by, deleted_at')
         .eq('id', userId)
+        .is('deleted_at', null)
         .maybeSingle();
 
       if (error) {
@@ -49,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
 
-      const p = data as UserProfile | null;
+      const p = (data as unknown as UserProfile | null) ?? null;
       setProfile(p);
       // Apply theme preference to document root
       if (p?.theme === 'light') {
