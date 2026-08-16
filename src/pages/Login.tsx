@@ -7,13 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { WarehouseMultiSelect } from '@/components/common/WarehouseMultiSelect';
 import { toast } from 'sonner';
 import { warmUpApi } from '@/lib/warmup';
 import { useSignupUnits } from '@/hooks/useWarehouses';
 import { maskPhoneBR } from '@/lib/masks';
-
-const SEDE = '__SEDE__';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -22,7 +24,8 @@ const Login = () => {
   const [fullName, setFullName] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [phone, setPhone] = useState('');
-  const [unit, setUnit] = useState<string>('');
+  const [units, setUnits] = useState<string[]>([]);
+  const [confirmSignup, setConfirmSignup] = useState(false);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'login' | 'forgot'>('login');
   const [forgotEmail, setForgotEmail] = useState('');
@@ -46,35 +49,40 @@ const Login = () => {
     }
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateSignUp = () => {
     if (!fullName.trim()) {
       toast.error('Informe seu nome completo');
-      return;
+      return false;
     }
     if (!jobTitle.trim()) {
       toast.error('Informe seu cargo');
-      return;
-    }
-    if (!unit) {
-      toast.error('Selecione sua unidade');
-      return;
+      return false;
     }
     if (password !== confirmPassword) {
       toast.error('As senhas não coincidem');
-      return;
+      return false;
     }
     if (password.length < 6) {
       toast.error('A senha deve ter pelo menos 6 caracteres');
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const handleSignUpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validateSignUp()) setConfirmSignup(true);
+  };
+
+  const handleSignUp = async () => {
+    setConfirmSignup(false);
     setLoading(true);
     try {
       await signUp(email, password, {
         full_name: fullName.trim(),
         job_title: jobTitle.trim(),
         phone: phone.trim(),
-        warehouse_id: unit === SEDE ? '' : unit,
+        warehouse_ids: units.length > 0 ? units : undefined,
       });
       toast.success('Cadastro realizado! Seu acesso será analisado por um administrador.');
       navigate('/aguardando-aprovacao');
@@ -173,7 +181,7 @@ const Login = () => {
             </TabsContent>
 
             <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
+              <form onSubmit={handleSignUpSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Nome completo</Label>
                   <Input id="signup-name" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} required placeholder="Seu nome" />
@@ -187,18 +195,12 @@ const Login = () => {
                   <Input id="signup-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(maskPhoneBR(e.target.value))} placeholder="(00) 00000-0000" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-unit">Unidade</Label>
-                  <Select value={unit} onValueChange={setUnit}>
-                    <SelectTrigger id="signup-unit">
-                      <SelectValue placeholder="Selecione sua unidade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SEDE}>Sede</SelectItem>
-                      {signupUnits.map((w) => (
-                        <SelectItem key={w.id} value={w.id}>{w.display_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Unidades</Label>
+                  <WarehouseMultiSelect
+                    options={signupUnits.map((w) => ({ id: w.id, display_name: w.display_name }))}
+                    value={units}
+                    onChange={setUnits}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
@@ -220,6 +222,31 @@ const Login = () => {
           </Tabs>
         </CardContent>
       </Card>
+
+      <AlertDialog open={confirmSignup} onOpenChange={setConfirmSignup}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar cadastro</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <p>Confira as unidades solicitadas antes de enviar:</p>
+                <div className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 font-medium text-foreground">
+                  {units.length === 0
+                    ? 'Sede (acesso a todas as unidades)'
+                    : units
+                        .map((id) => signupUnits.find((w) => w.id === id)?.display_name ?? id)
+                        .join(' · ')}
+                </div>
+                <p className="text-muted-foreground">O acesso será liberado após aprovação de um administrador.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleSignUp()}>Confirmar cadastro</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

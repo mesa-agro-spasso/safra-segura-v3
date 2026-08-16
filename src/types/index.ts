@@ -138,8 +138,8 @@ export interface UserProfile {
   full_name: string | null;
   job_title: string | null;
   phone: string | null;
-  /** null = Sede (matriz) */
-  warehouse_id: string | null;
+  /** null/vazio = Sede (matriz, acesso a todas as unidades) */
+  warehouse_ids: string[] | null;
   roles: string[];
   status: 'pending' | 'active' | 'disabled';
   is_admin: boolean;
