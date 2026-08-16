@@ -257,22 +257,14 @@ const UsersTab = () => {
     }
   };
 
-  const handleChangeAccessLevel = async (id: string, level: 'limited' | 'full') => {
-    const ok = await updateProfile(id, { access_level: level });
-    if (ok) {
-      toast.success('Nível de acesso alterado');
-      fetchProfiles();
-    }
-  };
-
   const handleDelete = async (id: string) => {
     try {
       const nowIso = new Date().toISOString();
-      const [{ error: e1 }, { error: e2 }] = await Promise.all([
-        supabase.from('user_profiles').update({ deleted_at: nowIso } as never).eq('id', id),
-        supabase.from('users').update({ deleted_at: nowIso } as never).eq('id', id),
-      ]);
-      if (e1 || e2) throw new Error(e1?.message || e2?.message || 'Erro ao excluir');
+      const { error } = await supabase
+        .from('users')
+        .update({ deleted_at: nowIso } as never)
+        .eq('id', id);
+      if (error) throw new Error(error.message);
       void logActivity('user.delete', 'user', id, {});
       toast.success('Usuário excluído');
       fetchProfiles();
