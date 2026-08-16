@@ -1814,6 +1814,13 @@ export type Database = {
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_valid_cnpj: { Args: { p_cnpj: string }; Returns: boolean }
       is_valid_cpf: { Args: { p_cpf: string }; Returns: boolean }
+      list_signup_units: {
+        Args: never
+        Returns: {
+          display_name: string
+          id: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "user"
