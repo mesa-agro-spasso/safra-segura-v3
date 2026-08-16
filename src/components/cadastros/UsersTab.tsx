@@ -15,8 +15,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -54,29 +52,6 @@ interface UserRow {
   approved_at: string | null;
 }
 
-const AVAILABLE_ROLES: { value: string; label: string }[] = [
-  { value: 'mesa', label: 'Mesa' },
-  { value: 'comercial_n1', label: 'Comercial N1' },
-  { value: 'comercial_n2', label: 'Comercial N2' },
-  { value: 'financeiro_n1', label: 'Financeiro N1' },
-  { value: 'financeiro_n2', label: 'Financeiro N2' },
-  { value: 'presidencia', label: 'Presidência' },
-];
-
-const ROLE_COLORS: Record<string, string> = {
-  mesa: 'bg-blue-500 text-white hover:bg-blue-500/80',
-  comercial_n1: 'bg-orange-400 text-white hover:bg-orange-400/80',
-  comercial_n2: 'bg-orange-600 text-white hover:bg-orange-600/80',
-  financeiro_n1: 'bg-purple-400 text-white hover:bg-purple-400/80',
-  financeiro_n2: 'bg-purple-600 text-white hover:bg-purple-600/80',
-  presidencia: 'bg-amber-500 text-white hover:bg-amber-500/80',
-};
-
-const ROLE_LABEL_BY_VALUE: Record<string, string> = AVAILABLE_ROLES.reduce(
-  (acc, r) => ({ ...acc, [r.value]: r.label }),
-  {} as Record<string, string>,
-);
-
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendente',
   active: 'Ativo',
@@ -92,74 +67,6 @@ const STATUS_CLASSES: Record<string, string> = {
 const normalize = (v: string) =>
   v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-interface RolesEditorProps {
-  userId: string;
-  roles: string[];
-  onSave: (userId: string, newRoles: string[]) => Promise<void>;
-}
-
-const RolesEditor = ({ userId, roles, onSave }: RolesEditorProps) => {
-  const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<string[]>(roles);
-
-  useEffect(() => {
-    setSelected(roles);
-  }, [roles]);
-
-  const trigger = (
-    <div className="flex flex-wrap gap-1 min-h-[24px] items-center">
-      {roles.length === 0 ? (
-        <span className="text-muted-foreground">—</span>
-      ) : (
-        roles.map((r) => (
-          <Badge key={r} className={cn('text-xs border-transparent', ROLE_COLORS[r] || 'bg-muted text-foreground')}>
-            {ROLE_LABEL_BY_VALUE[r] || r}
-          </Badge>
-        ))
-      )}
-    </div>
-  );
-
-  const toggle = (value: string, checked: boolean) => {
-    setSelected((prev) => (checked ? [...prev, value] : prev.filter((v) => v !== value)));
-  };
-
-  const handleOpenChange = async (next: boolean) => {
-    setOpen(next);
-    if (!next) {
-      const a = [...roles].sort().join(',');
-      const b = [...selected].sort().join(',');
-      if (a !== b) await onSave(userId, selected);
-    }
-  };
-
-  return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <button type="button" className="cursor-pointer text-left w-full">
-          {trigger}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-2" align="start">
-        <div className="space-y-1">
-          {AVAILABLE_ROLES.map((r) => (
-            <label
-              key={r.value}
-              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm"
-            >
-              <Checkbox
-                checked={selected.includes(r.value)}
-                onCheckedChange={(c) => toggle(r.value, c === true)}
-              />
-              <span>{r.label}</span>
-            </label>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-};
-
 export function UsersTab() {
   const { user } = useAuth();
   const { data: armazens = [] } = useActiveArmazens();
@@ -168,6 +75,7 @@ export function UsersTab() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [onlyPending, setOnlyPending] = useState(false);
+  const [showDisabled, setShowDisabled] = useState(false);
 
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [form, setForm] = useState({ full_name: '', job_title: '', phone: '', unit: SEDE, is_admin: false });
@@ -232,17 +140,6 @@ export function UsersTab() {
       'Usuário reativado',
     );
 
-  const handleUpdateRoles = async (userId: string, newRoles: string[]) => {
-    const { error } = await supabase.from('users').update({ roles: newRoles }).eq('id', userId);
-    if (error) {
-      toast.error(pgErrorMessage(error), { description: pgErrorDetail(error) });
-      return;
-    }
-    void logActivity('user_roles.update', 'user', userId, { roles: newRoles });
-    setRows((prev) => prev.map((r) => (r.id === userId ? { ...r, roles: newRoles } : r)));
-    toast.success('Função atualizada');
-  };
-
   const openEdit = (row: UserRow) => {
     setEditing(row);
     setForm({
@@ -280,6 +177,7 @@ export function UsersTab() {
     const q = normalize(search.trim());
     return rows
       .filter((r) => (onlyPending ? r.status === 'pending' : true))
+      .filter((r) => (showDisabled ? true : r.status !== 'disabled'))
       .filter((r) => {
         if (!q) return true;
         return [r.full_name, r.email, r.job_title, r.phone].some((v) => v && normalize(String(v)).includes(q));
@@ -290,7 +188,10 @@ export function UsersTab() {
         if (pa !== pb) return pa - pb;
         return (a.full_name || a.email || '').localeCompare(b.full_name || b.email || '', 'pt-BR');
       });
-  }, [rows, search, onlyPending]);
+  }, [rows, search, onlyPending, showDisabled]);
+
+  const unitLabel = (warehouseId: string | null) =>
+    warehouseId ? warehouseName[warehouseId] || warehouseId : 'Sede';
 
   return (
     <div className="space-y-4">
@@ -308,6 +209,10 @@ export function UsersTab() {
           <Switch checked={onlyPending} onCheckedChange={setOnlyPending} />
           Somente pendentes
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Switch checked={showDisabled} onCheckedChange={setShowDisabled} />
+          Mostrar desativados
+        </label>
       </div>
 
       <div className="border rounded-md">
@@ -319,7 +224,6 @@ export function UsersTab() {
               <TableHead>Cargo</TableHead>
               <TableHead>Unidade</TableHead>
               <TableHead>Telefone</TableHead>
-              <TableHead>Função</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Admin</TableHead>
               <TableHead className="text-right">Ações</TableHead>
@@ -328,13 +232,13 @@ export function UsersTab() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Carregando...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Nenhum usuário encontrado.
                 </TableCell>
               </TableRow>
@@ -344,11 +248,8 @@ export function UsersTab() {
                   <TableCell className="font-medium">{r.full_name || '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{r.email || '—'}</TableCell>
                   <TableCell>{r.job_title || '—'}</TableCell>
-                  <TableCell>{r.warehouse_id ? warehouseName[r.warehouse_id] || r.warehouse_id : 'Sede'}</TableCell>
+                  <TableCell>{unitLabel(r.warehouse_id)}</TableCell>
                   <TableCell>{r.phone || '—'}</TableCell>
-                  <TableCell>
-                    <RolesEditor userId={r.id} roles={r.roles || []} onSave={handleUpdateRoles} />
-                  </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn('text-xs', STATUS_CLASSES[r.status])}>
                       {STATUS_LABELS[r.status] || r.status}
@@ -483,10 +384,33 @@ export function UsersTab() {
             <AlertDialogTitle>
               {confirm?.action === 'approve' ? 'Aprovar usuário?' : 'Desativar usuário?'}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirm?.action === 'approve'
-                ? `${confirm?.row.full_name || confirm?.row.email} passará a ter acesso ao sistema.`
-                : `${confirm?.row.full_name || confirm?.row.email} perderá o acesso ao sistema.`}
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {confirm?.action === 'approve' ? (
+                  <>
+                    <p>Confirme os dados informados pelo usuário antes de aprovar o acesso:</p>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      <li>
+                        <span className="font-medium text-foreground">Nome:</span>{' '}
+                        {confirm?.row.full_name || '—'}
+                      </li>
+                      <li>
+                        <span className="font-medium text-foreground">Cargo:</span>{' '}
+                        {confirm?.row.job_title || '—'}
+                      </li>
+                      <li>
+                        <span className="font-medium text-foreground">Unidade:</span>{' '}
+                        {unitLabel(confirm?.row.warehouse_id ?? null)}
+                      </li>
+                    </ul>
+                    <p>Email: {confirm?.row.email || '—'}</p>
+                  </>
+                ) : (
+                  <p>
+                    {confirm?.row.full_name || confirm?.row.email} perderá o acesso ao sistema.
+                  </p>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -155,7 +155,7 @@ export default function ActivityLogTab() {
         </div>
         <div>
           <Label className="text-xs">Tipo de entidade</Label>
-          <Input value={draft.entityType} onChange={(e) => set('entityType', e.target.value)} placeholder="ex.: user_profile" />
+          <Input value={draft.entityType} onChange={(e) => set('entityType', e.target.value)} placeholder="ex.: user" />
         </div>
         <div>
           <Label className="text-xs">ID da entidade</Label>
