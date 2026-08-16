@@ -152,14 +152,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, meta: SignUpMetadata) => {
+    // As chaves abaixo são contrato com o gatilho do banco — não renomear.
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        emailRedirectTo: window.location.origin,
+        data: {
+          full_name: meta.full_name,
+          job_title: meta.job_title,
+          phone: meta.phone ?? '',
+          warehouse_id: meta.warehouse_id ?? '',
+        },
+      },
     });
     if (error) throw error;
-    void logActivity('auth.signup', 'user', null, { email, full_name: fullName });
+    void logActivity('auth.signup', 'user', null, { email, full_name: meta.full_name });
   };
 
   const signOut = async () => {
