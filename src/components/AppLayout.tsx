@@ -13,6 +13,7 @@ import Approvals from '@/pages/Approvals';
 import Market from '@/pages/Market';
 import Settings from '@/pages/Settings';
 import Cadastros from '@/pages/Cadastros';
+import Pendencias from '@/pages/Pendencias';
 import Financial from '@/pages/Financial';
 import Profile from '@/pages/Profile';
 import Ajuda from '@/pages/Ajuda';
@@ -29,6 +30,7 @@ const routes: KeepAliveRoute[] = [
   { path: '/configuracoes', element: <Settings /> },
   { path: '/perfil', element: <Profile /> },
   { path: '/cadastros', element: <AdminRoute><Cadastros /></AdminRoute> },
+  { path: '/pendencias', element: <Pendencias /> },
 ];
 
 export function AppLayout() {
