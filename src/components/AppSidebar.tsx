@@ -50,6 +50,8 @@ export function AppSidebar() {
   const { isAdmin } = useAuthorization();
   
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
+  const { data: pendencias = { registry: 0, users: 0 } } = usePendenciasCounts();
+  const pendenciasTotal = pendencias.registry + pendencias.users;
   const { data: userRoles = [] } = useQuery({
     queryKey: ['sidebar-user-roles', user?.id],
     enabled: !!user?.id,
