@@ -1460,32 +1460,66 @@ export type Database = {
       users: {
         Row: {
           active: boolean
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           deleted_at: string | null
+          email: string | null
           full_name: string
           id: string
+          is_admin: boolean
+          is_owner: boolean
+          job_title: string | null
+          phone: string | null
           roles: string[]
-          warehouse_id: string
+          status: string
+          theme: string
+          warehouse_id: string | null
         }
         Insert: {
           active?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           deleted_at?: string | null
+          email?: string | null
           full_name: string
           id: string
+          is_admin?: boolean
+          is_owner?: boolean
+          job_title?: string | null
+          phone?: string | null
           roles?: string[]
-          warehouse_id: string
+          status?: string
+          theme?: string
+          warehouse_id?: string | null
         }
         Update: {
           active?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           deleted_at?: string | null
+          email?: string | null
           full_name?: string
           id?: string
+          is_admin?: boolean
+          is_owner?: boolean
+          job_title?: string | null
+          phone?: string | null
           roles?: string[]
-          warehouse_id?: string
+          status?: string
+          theme?: string
+          warehouse_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "users_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "users_warehouse_id_fkey"
             columns: ["warehouse_id"]
