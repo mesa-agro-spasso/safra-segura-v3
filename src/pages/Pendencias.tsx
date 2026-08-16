@@ -12,6 +12,10 @@ import { PendingTab } from '@/components/cadastros/PendingTab';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface PendingUser {
   id: string;
@@ -27,6 +31,7 @@ function PendingUsersSection() {
   const [rows, setRows] = useState<PendingUser[]>([]);
   const [warehouses, setWarehouses] = useState<{ id: string; display_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirm, setConfirm] = useState<PendingUser | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -69,6 +74,18 @@ function PendingUsersSection() {
     await load();
   };
 
+  const reject = async (row: PendingUser) => {
+    const { error } = await supabase.from('users').update({ status: 'disabled' }).eq('id', row.id);
+    if (error) {
+      toast.error(pgErrorMessage(error), { description: pgErrorDetail(error) });
+      return;
+    }
+    void logActivity('user.update', 'user', row.id, { fields: ['status'] });
+    toast.success('Cadastro recusado');
+    setConfirm(null);
+    await load();
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -101,9 +118,19 @@ function PendingUsersSection() {
                   <TableCell>{warehousesLabel(r.warehouse_ids, nameById)}</TableCell>
                   {isAdmin && (
                     <TableCell className="text-right">
-                      <Button size="sm" className="h-7 text-xs" onClick={() => void approve(r)}>
-                        Aprovar
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" className="h-7 text-xs" onClick={() => void approve(r)}>
+                          Aprovar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setConfirm(r)}
+                        >
+                          Recusar
+                        </Button>
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
@@ -112,6 +139,36 @@ function PendingUsersSection() {
           </Table>
         )}
       </CardContent>
+
+      <AlertDialog open={!!confirm} onOpenChange={(open) => !open && setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Recusar cadastro?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>O cadastro será recusado e o usuário ficará desativado. Ele pode ser reativado depois.</p>
+                <ul className="list-disc space-y-0.5 pl-5">
+                  <li>
+                    <span className="font-medium text-foreground">Nome:</span>{' '}
+                    {confirm?.full_name || confirm?.email || '—'}
+                  </li>
+                  <li>
+                    <span className="font-medium text-foreground">Cargo:</span> {confirm?.job_title || '—'}
+                  </li>
+                  <li>
+                    <span className="font-medium text-foreground">Unidades:</span>{' '}
+                    {warehousesLabel(confirm?.warehouse_ids ?? null, nameById)}
+                  </li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirm && void reject(confirm)}>Confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
