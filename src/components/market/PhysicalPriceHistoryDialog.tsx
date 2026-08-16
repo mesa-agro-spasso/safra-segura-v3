@@ -42,7 +42,7 @@ export function PhysicalPriceHistoryDialog({
   const upsert = useUpsertPhysicalPrice();
   const del = useDeletePhysicalPrice();
   const auth = useAuthorization();
-  const canEdit = auth.hasAccessLevel('full') || auth.isAdmin();
+  const canEdit = auth.isActive();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
