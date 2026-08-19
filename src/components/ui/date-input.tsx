@@ -17,6 +17,8 @@ interface DateInputProps {
   required?: boolean;
   id?: string;
   placeholder?: string;
+  /** Quando true, a data só pode ser escolhida no calendário (digitação bloqueada). */
+  pickerOnly?: boolean;
 }
 
 const ISO = 'yyyy-MM-dd';
@@ -36,7 +38,7 @@ const maskBr = (s: string) => {
 };
 
 export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
-  ({ value, onChange, className, disabled, required, id, placeholder = 'dd/mm/aaaa' }, ref) => {
+  ({ value, onChange, className, disabled, required, id, placeholder = 'dd/mm/aaaa', pickerOnly = false }, ref) => {
     const [text, setText] = React.useState<string>(isoToBr(value));
     const [open, setOpen] = React.useState(false);
 
@@ -69,9 +71,15 @@ export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
           ref={ref}
           id={id}
           value={text}
-          onChange={(e) => setText(maskBr(e.target.value))}
-          onBlur={() => commit(text)}
+          readOnly={pickerOnly}
+          onClick={() => { if (pickerOnly && !disabled) setOpen(true); }}
+          onChange={(e) => { if (!pickerOnly) setText(maskBr(e.target.value)); }}
+          onBlur={() => { if (!pickerOnly) commit(text); }}
           onKeyDown={(e) => {
+            if (pickerOnly) {
+              if (e.key !== 'Tab') e.preventDefault();
+              return;
+            }
             if (e.key === 'Enter') {
               e.preventDefault();
               commit(text);
@@ -81,7 +89,7 @@ export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
           disabled={disabled}
           required={required}
           inputMode="numeric"
-          className={cn('pr-9', className)}
+          className={cn('pr-9', pickerOnly && 'cursor-pointer', className)}
         />
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
