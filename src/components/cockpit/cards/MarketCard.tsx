@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumericInput } from '@/components/ui/numeric-input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -93,7 +94,8 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
   const [fetchingOp, setFetchingOp] = useState<'all' | 'markets' | 'fx' | null>(null);
   const [confirmingB3, setConfirmingB3] = useState(false);
   const [editingTicker, setEditingTicker] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
+  const [editValue, setEditValue] = useState<number | null>(null);
+  const [editValid, setEditValid] = useState(true);
   /** Tickers gravados nesta sessão desde o último recálculo (marca âmbar). */
   const [touched, setTouched] = useState<Set<string>>(new Set());
 
@@ -148,8 +150,8 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
   // ---- Gravação manual (mesma mecânica da aba Mercado) ----
 
   const handleManualSave = async (ticker: string) => {
-    const price = parseFloat(editValue.replace(',', '.'));
-    if (isNaN(price)) { toast.error('Valor inválido'); return; }
+    const price = editValue;
+    if (price === null || !editValid) { toast.error('Valor inválido'); return; }
     const existing = dataMap[ticker];
     try {
       await upsertMarket.mutateAsync({
@@ -168,8 +170,8 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
   };
 
   const handleB3Save = async (ticker: string, expDate: string) => {
-    const price = parseFloat(editValue.replace(',', '.'));
-    if (isNaN(price)) { toast.error('Valor inválido'); return; }
+    const price = editValue;
+    if (price === null || !editValid) { toast.error('Valor inválido'); return; }
     try {
       await upsertMarket.mutateAsync({
         ticker,
@@ -283,18 +285,26 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
 
   // ---- Células ----
 
-  const editCell = (ticker: string, current: number | null | undefined, onSave: () => void) => {
+  const editCell = (
+    ticker: string,
+    current: number | null | undefined,
+    onSave: () => void,
+    precision: 2 | 4 = 4,
+  ) => {
     if (editingTicker === ticker) {
       return (
         <div className="flex gap-1 items-center justify-end">
-          <Input
+          <NumericInput
+            precision={precision}
             value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            className="h-7 w-24"
+            onChange={setEditValue}
+            onValidityChange={setEditValid}
+            showError={false}
+            className="h-7 w-28"
             autoFocus
             onKeyDown={(e) => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') setEditingTicker(null); }}
           />
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={onSave}>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={!editValid} onClick={onSave}>
             <Check className="h-3 w-3" />
           </Button>
         </div>
@@ -305,7 +315,7 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
         variant="ghost"
         size="sm"
         className="h-7 px-2"
-        onClick={() => { setEditingTicker(ticker); setEditValue(current?.toString() ?? ''); }}
+        onClick={() => { setEditingTicker(ticker); setEditValue(current ?? null); setEditValid(true); }}
       >
         <Edit2 className="h-3 w-3" />
       </Button>
@@ -449,7 +459,7 @@ export function MarketCard({ onQuoteChanged, clearMarksKey = 0 }: MarketCardProp
                       {saved?.updated_at ? `${getHoursAgo(saved.updated_at)}h · ${saved.source}` : '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {editCell(t.ticker, saved?.price, () => handleB3Save(t.ticker, t.exp_date))}
+                      {editCell(t.ticker, saved?.price, () => handleB3Save(t.ticker, t.exp_date), 2)}
                     </TableCell>
                   </TableRow>
                 );
