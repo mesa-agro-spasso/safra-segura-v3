@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useMyLocations } from '@/hooks/useMyLocations';
 import {
   usePhysicalPricePanel, useDailySeries, useQuotes, useQuoteCounts,
-  useYesterdayWinner, useRepeatYesterday, triggerNormalize,
+  useYesterdayWinner, useRepeatYesterday, useDeleteQuote, triggerNormalize,
   businessDaysSince, isWeekendISO,
 } from '@/hooks/usePhysicalPrices';
 import { PhysicalQuoteDialog } from '@/components/market/PhysicalQuoteDialog';
@@ -356,6 +356,7 @@ function PorPracaView() {
                     <TableHead className="text-center">Pagamento</TableHead>
                     <TableHead className="text-right">Valor presente (R$/sc)</TableHead>
                     <TableHead>Origem</TableHead>
+                    <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -372,6 +373,7 @@ function PorPracaView() {
                           : fmtBRL(Number(q.present_value_brl))}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{SOURCE_LABEL[q.source] ?? q.source}</TableCell>
+                      <TableCell className="text-right"><DeleteQuoteButton id={q.id} /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -381,6 +383,49 @@ function PorPracaView() {
         </Card>
       )}
     </div>
+  );
+}
+
+/** Exclusão de cotação (soft delete no backend), com confirmação. */
+function DeleteQuoteButton({ id }: { id: string }) {
+  const [open, setOpen] = useState(false);
+  const del = useDeleteQuote();
+
+  const confirm = async () => {
+    try {
+      await del.mutateAsync(id);
+      toast.success('Cotação excluída');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao excluir a cotação');
+    }
+    setOpen(false);
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+        aria-label="Excluir cotação"
+        onClick={() => setOpen(true)}
+        disabled={del.isPending}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Excluir esta cotação?</AlertDialogTitle>
+          <AlertDialogDescription>
+            A cotação sai das telas, mas fica preservada e auditada. A série diária é refeita pela API.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={confirm}>Excluir</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
