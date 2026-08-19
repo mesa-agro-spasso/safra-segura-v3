@@ -546,10 +546,20 @@ function CalendarioView({ onPickDay }: { onPickDay: (locationId: string, commodi
 
 export default function MarketFisico() {
   const { locations } = useMyLocations();
-  const [dialog, setDialog] = useState<{ open: boolean; locationId?: string; commodity?: 'soybean' | 'corn'; date?: string }>({ open: false });
+  const [dialog, setDialog] = useState<{
+    open: boolean; locationId?: string; commodity?: 'soybean' | 'corn'; date?: string; quote?: PhysicalQuote | null;
+  }>({ open: false });
 
   const openDialog = (locationId?: string, commodity?: string, date?: string) =>
-    setDialog({ open: true, locationId, commodity: (commodity as 'soybean' | 'corn') ?? 'soybean', date: date ?? todayISO() });
+    setDialog({
+      open: true,
+      locationId,
+      commodity: (commodity as 'soybean' | 'corn') ?? 'soybean',
+      date: date ?? todayISO(),
+      quote: null,
+    });
+
+  const openEdit = (quote: PhysicalQuote) => setDialog({ open: true, quote });
 
   return (
     <div className="space-y-4">
@@ -572,9 +582,11 @@ export default function MarketFisico() {
           <TabsTrigger value="calendario">Calendário</TabsTrigger>
         </TabsList>
         <TabsContent value="painel">
-          <PainelView onRegister={(loc, com) => openDialog(loc, com)} />
+          <PainelView onCreate={openDialog} onEdit={openEdit} />
         </TabsContent>
-        <TabsContent value="praca"><PorPracaView /></TabsContent>
+        <TabsContent value="praca">
+          <PorPracaView onCreate={openDialog} onEdit={openEdit} />
+        </TabsContent>
         <TabsContent value="calendario">
           <CalendarioView onPickDay={(loc, com, date) => openDialog(loc, com, date)} />
         </TabsContent>
@@ -587,7 +599,9 @@ export default function MarketFisico() {
         defaultLocationId={dialog.locationId}
         defaultCommodity={dialog.commodity}
         defaultDate={dialog.date}
+        editQuote={dialog.quote}
       />
     </div>
   );
 }
+
