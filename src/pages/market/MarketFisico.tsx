@@ -330,6 +330,9 @@ function PorPracaView() {
                     <TableHead className="text-right">Nominal (R$/sc)</TableHead>
                     <TableHead className="text-center">Pagamento</TableHead>
                     <TableHead className="text-right">Valor presente (R$/sc)</TableHead>
+                    <TableHead className="text-center">Incoterm</TableHead>
+                    <TableHead>Notas</TableHead>
+                    <TableHead>Registrado por</TableHead>
                     <TableHead>Origem</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
