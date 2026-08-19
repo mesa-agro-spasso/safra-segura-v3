@@ -5,7 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTradingLocations } from '@/hooks/useMyLocations';
+import { useQuotesForDay } from '@/hooks/usePhysicalPrices';
+import { QuoteDetailsTable } from '@/components/market/QuoteDetails';
 
 const COMMODITY_LABEL: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
 
@@ -40,6 +43,7 @@ const HistoricoFisico = () => {
   const [locationId, setLocationId] = useState<string>('all');
   const [commodity, setCommodity] = useState<string>('all');
   const { data: locations = [] } = useTradingLocations();
+  const [detail, setDetail] = useState<DailyRow | null>(null);
   const { data: rows = [], isLoading } = useDailyHistory(
     locationId === 'all' ? null : locationId,
     commodity === 'all' ? null : commodity,
@@ -104,7 +108,11 @@ const HistoricoFisico = () => {
                 </TableHeader>
                 <TableBody>
                   {rows.map((r) => (
-                    <TableRow key={r.id}>
+                    <TableRow
+                      key={r.id}
+                      className="cursor-pointer"
+                      onClick={() => setDetail(r)}
+                    >
                       <TableCell>{r.reference_date}</TableCell>
                       <TableCell>{locationName[r.location_id] ?? r.location_id}</TableCell>
                       <TableCell>{COMMODITY_LABEL[r.commodity] ?? r.commodity}</TableCell>
@@ -120,8 +128,28 @@ const HistoricoFisico = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>
+              Cotações de {detail ? detail.reference_date.split('-').reverse().join('/') : ''}
+              {detail ? ` — ${locationName[detail.location_id] ?? detail.location_id}` : ''}
+              {detail ? ` · ${COMMODITY_LABEL[detail.commodity] ?? detail.commodity}` : ''}
+            </DialogTitle>
+          </DialogHeader>
+          {detail && <QuoteDetailsForDaily row={detail} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+
+function QuoteDetailsForDaily({ row }: { row: DailyRow }) {
+  const { data: quotes = [], isLoading } = useQuotesForDay(row.location_id, row.commodity, row.reference_date);
+  return (
+    <QuoteDetailsTable quotes={quotes} isLoading={isLoading} emptyLabel="Nenhuma cotação nesta data." />
+  );
+}
 
 export default HistoricoFisico;
