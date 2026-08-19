@@ -250,6 +250,7 @@ export function useQuotes(locationId: string | null, commodity: string | null, s
       let q = supabase
         .from('physical_prices')
         .select('*')
+        .is('deleted_at', null)
         .eq('location_id', locationId!)
         .order('reference_date', { ascending: false })
         .order('created_at', { ascending: false })
@@ -278,6 +279,7 @@ export function useQuoteCounts(locationId: string | null, commodity: string | nu
       let q = supabase
         .from('physical_prices')
         .select('reference_date, commodity')
+        .is('deleted_at', null)
         .eq('location_id', locationId!)
         .gte('reference_date', start)
         .lte('reference_date', end)
