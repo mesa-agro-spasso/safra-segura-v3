@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DateInput } from '@/components/ui/date-input';
 import { NumericInput } from '@/components/ui/numeric-input';
 import { ApiError } from '@/lib/api';
-import { addBusinessSafeDays, addDaysISO, useCreateQuote } from '@/hooks/usePhysicalPrices';
+import { addBusinessSafeDays, addDaysISO, useCreateQuote, type PhysicalQuote } from '@/hooks/usePhysicalPrices';
 import type { TradingLocationLite } from '@/hooks/useMyLocations';
 
 interface Props {
@@ -20,12 +20,14 @@ interface Props {
   defaultLocationId?: string;
   defaultCommodity?: 'soybean' | 'corn';
   defaultDate?: string;
+  /** Quando presente, o formulário abre pré-preenchido para edição da cotação. */
+  editQuote?: PhysicalQuote | null;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export function PhysicalQuoteDialog({
-  open, onOpenChange, locations, defaultLocationId, defaultCommodity, defaultDate,
+  open, onOpenChange, locations, defaultLocationId, defaultCommodity, defaultDate, editQuote,
 }: Props) {
   const create = useCreateQuote();
 
@@ -41,8 +43,23 @@ export function PhysicalQuoteDialog({
   const [fieldErrors, setFieldErrors] = useState<{ location?: string; buyer?: string; price?: string; payment?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
 
+  const isEdit = !!editQuote;
+
   useEffect(() => {
     if (!open) return;
+    if (editQuote) {
+      setLocationId(editQuote.location_id);
+      setCommodity(editQuote.commodity as 'soybean' | 'corn');
+      setReferenceDate(editQuote.reference_date.slice(0, 10));
+      setPaymentDate(editQuote.payment_date.slice(0, 10));
+      setBuyer(editQuote.buyer);
+      setPrice(Number(editQuote.price_brl_per_sack));
+      setPriceValid(true);
+      setNotes(editQuote.notes ?? '');
+      setFieldErrors({});
+      setFormError(null);
+      return;
+    }
     setLocationId(defaultLocationId ?? locations[0]?.id ?? '');
     setCommodity(defaultCommodity ?? 'soybean');
     const d = defaultDate ?? todayISO();
@@ -54,7 +71,8 @@ export function PhysicalQuoteDialog({
     setNotes('');
     setFieldErrors({});
     setFormError(null);
-  }, [open, defaultLocationId, defaultCommodity, defaultDate, locations]);
+  }, [open, defaultLocationId, defaultCommodity, defaultDate, locations, editQuote]);
+
 
   const handleSubmit = async () => {
     const errs: typeof fieldErrors = {};
