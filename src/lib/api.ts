@@ -49,6 +49,15 @@ export async function callApi<T = unknown>(
     throw new ApiError(error.message || 'Erro ao chamar API', 0);
   }
 
+  if (data && typeof data === 'object' && '__api_proxy_error' in (data as Record<string, unknown>)) {
+    const envelope = data as Record<string, unknown>;
+    const status = typeof envelope.status === 'number' ? envelope.status : 0;
+    throw new ApiError(
+      extractMessage(envelope.payload, 'Erro ao chamar API'),
+      status,
+    );
+  }
+
   if (data && typeof data === 'object' && 'error' in (data as Record<string, unknown>)) {
     const d = data as Record<string, unknown>;
     if (d.error) throw new ApiError(extractMessage(d, 'Erro ao chamar API'), 0);
