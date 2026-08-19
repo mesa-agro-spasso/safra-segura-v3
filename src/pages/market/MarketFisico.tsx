@@ -1,6 +1,6 @@
-import { forwardRef, useEffect, useMemo, useState } from 'react';
+import { Fragment, forwardRef, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,10 +22,11 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useMyLocations } from '@/hooks/useMyLocations';
 import {
   usePhysicalPricePanel, useDailySeries, useQuotes, useQuoteCounts,
-  useYesterdayWinner, useRepeatYesterday, useDeleteQuote, triggerNormalize,
+  useQuotesForDay, triggerNormalize,
   businessDaysSince, isWeekendISO,
 } from '@/hooks/usePhysicalPrices';
 import { PhysicalQuoteDialog } from '@/components/market/PhysicalQuoteDialog';
+import { QuoteDetailsTable } from '@/components/market/QuoteDetails';
 
 const COMMODITY_LABEL: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
 const SOURCE_LABEL: Record<string, string> = { manual: 'Manual', repeat_previous: 'Repetida' };
@@ -86,6 +87,7 @@ function PainelView({ onRegister }: { onRegister: (locationId: string, commodity
   const { allLocations, locations } = useMyLocations();
   const [commodity, setCommodity] = useState(ALL);
   const [locationId, setLocationId] = useState(ALL);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const nameById = useMemo(() => {
     const m: Record<string, string> = {};
