@@ -273,16 +273,6 @@ function PorPracaView() {
           <Switch id="all-quotes" checked={showAll} onCheckedChange={setShowAll} />
           <Label htmlFor="all-quotes" className="text-sm">Todas as cotações</Label>
         </div>
-        {locationId && !isAll && (
-          <div className="pb-1">
-            <RepeatYesterdayButton
-              locationId={locationId}
-              commodity={commodity}
-              locationName={locationName}
-              allowed
-            />
-          </div>
-        )}
       </div>
 
       {!showAll ? (
