@@ -18,6 +18,7 @@ const ALLOWED_POST_ENDPOINTS = [
   '/mtm/run',
   '/mtm/run-d24',
   '/physical-prices/normalize',
+  '/basis/physical-prices',
 ]
 
 const ALLOWED_GET_ENDPOINTS = [
@@ -26,6 +27,12 @@ const ALLOWED_GET_ENDPOINTS = [
   '/market/b3-corn-quotes',
   '/market/fx-parameters',
 ]
+
+// Caminhos com id dinâmico: prefixo permitido para DELETE.
+const ALLOWED_DELETE_PREFIXES = [
+  '/basis/physical-prices/',
+]
+
 
 const API_BASE = 'https://safra-segura-api.onrender.com'
 
@@ -40,7 +47,8 @@ Deno.serve(async (req) => {
 
     const isAllowed =
       (method === 'POST' && ALLOWED_POST_ENDPOINTS.includes(endpoint)) ||
-      (method === 'GET' && ALLOWED_GET_ENDPOINTS.some(e => endpoint.startsWith(e)))
+      (method === 'GET' && ALLOWED_GET_ENDPOINTS.some(e => endpoint.startsWith(e))) ||
+      (method === 'DELETE' && ALLOWED_DELETE_PREFIXES.some(e => endpoint.startsWith(e) && endpoint.length > e.length))
 
     if (!isAllowed) {
       return new Response(
@@ -61,10 +69,11 @@ Deno.serve(async (req) => {
     const timeout = setTimeout(() => controller.abort(), 120000)
 
     let url = `${API_BASE}${endpoint}`
-    if (method === 'GET' && query) {
+    if ((method === 'GET' || method === 'DELETE') && query) {
       const params = new URLSearchParams(query)
       url += `?${params.toString()}`
     }
+
 
     const fetchOptions: RequestInit = {
       method,

@@ -31,6 +31,7 @@ import { useReferenceRows } from '@/hooks/useReferenceData';
 import { useFxParameters, useUpdateFxParameters } from '@/hooks/useFxParameters';
 import { InsuranceFields, validateInsuranceTrio, insurancePatch } from '@/components/pricing/InsuranceFields';
 import { callApi } from '@/lib/api';
+import { commodityLabel } from '@/lib/commodityLabel';
 import type { Warehouse, PricingCombination, PricingParameter, SpotSettings } from '@/types';
 
 const NONE = '__none__';
@@ -715,7 +716,7 @@ function CombinationsTab() {
                         setEditing(updates as typeof editing);
                       }}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="soybean">Soja (soybean)</SelectItem><SelectItem value="corn">Milho (corn)</SelectItem></SelectContent>
+                        <SelectContent><SelectItem value="soybean">Soja</SelectItem><SelectItem value="corn">Milho</SelectItem></SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
@@ -990,7 +991,7 @@ function CombinationsTab() {
                   {filtered.map((c) => (
                     <TableRow key={c.id} className={cn(!c.active && 'opacity-50')}>
                       <TableCell className="font-medium">{warehouseMap[c.warehouse_id] || c.warehouse_id}</TableCell>
-                      <TableCell>{c.commodity}</TableCell>
+                      <TableCell>{commodityLabel(c.commodity)}</TableCell>
                       <TableCell>{c.harvest_id ? harvestMap[c.harvest_id] ?? c.harvest_id : '-'}</TableCell>
                       <TableCell>{c.ticker}</TableCell>
                       <TableCell>{c.benchmark}</TableCell>
@@ -1046,7 +1047,7 @@ function CombinationsTab() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Excluir combinação?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Esta ação é permanente. A combinação {warehouseMap[c.warehouse_id] || c.warehouse_id} / {c.commodity} / {c.ticker} será removida.
+                                  Esta ação é permanente. A combinação {warehouseMap[c.warehouse_id] || c.warehouse_id} / {commodityLabel(c.commodity)} / {c.ticker} será removida.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>

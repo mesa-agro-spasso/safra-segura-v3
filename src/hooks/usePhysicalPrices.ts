@@ -250,6 +250,7 @@ export function useQuotes(locationId: string | null, commodity: string | null, s
       let q = supabase
         .from('physical_prices')
         .select('*')
+        .is('deleted_at', null)
         .eq('location_id', locationId!)
         .order('reference_date', { ascending: false })
         .order('created_at', { ascending: false })
@@ -278,6 +279,7 @@ export function useQuoteCounts(locationId: string | null, commodity: string | nu
       let q = supabase
         .from('physical_prices')
         .select('reference_date, commodity')
+        .is('deleted_at', null)
         .eq('location_id', locationId!)
         .gte('reference_date', start)
         .lte('reference_date', end)
@@ -308,12 +310,18 @@ export interface QuoteInput {
   notes?: string | null;
 }
 
+async function currentUserId(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.id) throw new Error('Sessão expirada. Entre novamente.');
+  return user.id;
+}
+
 export function useCreateQuote() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: QuoteInput) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase.from('physical_prices').insert({
+      const updated_by = await currentUserId();
+      await callApi('/basis/physical-prices', {
         location_id: input.location_id,
         commodity: input.commodity,
         reference_date: input.reference_date,
@@ -325,9 +333,8 @@ export function useCreateQuote() {
         is_coop: false,
         source: 'manual',
         notes: input.notes ?? null,
-        created_by: user?.id ?? null,
+        updated_by,
       });
-      if (error) throw error;
       void logActivity('physical_price.quote_created', 'physical_price', null, {
         location_id: input.location_id, commodity: input.commodity,
         reference_date: input.reference_date, buyer: input.buyer,
@@ -360,6 +367,7 @@ export function useYesterdayWinner(locationId: string | null, commodity: string 
         .from('physical_prices')
         .select('*')
         .eq('id', daily.winning_quote_id)
+        .is('deleted_at', null)
         .maybeSingle();
       if (qErr) throw qErr;
       return (quote as unknown as PhysicalQuote | null) ?? null;
@@ -371,10 +379,10 @@ export function useRepeatYesterday() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (quote: PhysicalQuote) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const updated_by = await currentUserId();
       const today = todayISO();
       const term = diffDays(quote.reference_date, quote.payment_date);
-      const { error } = await supabase.from('physical_prices').insert({
+      await callApi('/basis/physical-prices', {
         location_id: quote.location_id,
         commodity: quote.commodity,
         reference_date: today,
@@ -386,9 +394,8 @@ export function useRepeatYesterday() {
         is_coop: quote.is_coop,
         source: 'repeat_previous',
         notes: quote.notes,
-        created_by: user?.id ?? null,
+        updated_by,
       });
-      if (error) throw error;
       void logActivity('physical_price.repeat_previous', 'physical_price', null, {
         location_id: quote.location_id, commodity: quote.commodity, buyer: quote.buyer,
       });
@@ -404,13 +411,17 @@ export function useDeleteQuote() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('physical_prices').delete().eq('id', id);
-      if (error) throw error;
+      const deleted_by = await currentUserId();
+      await callApi(`/basis/physical-prices/${id}`, undefined, {
+        method: 'DELETE',
+        query: { deleted_by },
+      });
       void logActivity('physical_price.delete', 'physical_price', id);
     },
+    // Exclusão é soft delete: a API já refaz a série diária, sem normalize aqui.
     onSuccess: () => {
-      triggerNormalize();
       void qc.invalidateQueries({ queryKey: ['physical_prices'] });
     },
   });
 }
+

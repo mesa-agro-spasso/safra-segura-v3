@@ -51,8 +51,8 @@ export function AppSidebar() {
   const { isAdmin } = useAuthorization();
   
   const { data: pendingCount = 0 } = usePendingApprovalsCount();
-  const { data: pendencias = { registry: 0, users: 0 } } = usePendenciasCounts();
-  const pendenciasTotal = pendencias.registry + pendencias.users;
+  const { data: pendencias = { registry: 0, users: 0, priceAlerts: 0 } } = usePendenciasCounts();
+  const pendenciasTotal = pendencias.registry + pendencias.users + pendencias.priceAlerts;
   const { data: userRoles = [] } = useQuery({
     queryKey: ['sidebar-user-roles', user?.id],
     enabled: !!user?.id,
@@ -136,6 +136,15 @@ export function AppSidebar() {
                         )
                       : (
                         <span className="ml-auto flex items-center gap-1">
+                          {pendencias.priceAlerts > 0 && (
+                            <Badge
+                              variant="outline"
+                              title="Alterações de preço físico"
+                              className="h-5 min-w-5 px-1.5 font-normal border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                            >
+                              {pendencias.priceAlerts}
+                            </Badge>
+                          )}
                           {pendencias.registry > 0 && (
                             <Badge
                               variant="outline"

@@ -92,6 +92,8 @@ const Cockpit = () => {
   const [quotesDirty, setQuotesDirty] = useState(false);
   const [quoteCount, setQuoteCount] = useState(0);
   const [recalcNonce, setRecalcNonce] = useState(0);
+  /** Falso enquanto algum campo numérico do card de parâmetros estiver inválido. */
+  const [paramsValid, setParamsValid] = useState(true);
 
   const warehouseMap = useMemo(() => {
     const m: Record<string, Warehouse> = {};
@@ -339,7 +341,7 @@ const Cockpit = () => {
     }
   };
 
-  const canPublish = !!calcResults && !dirty && !publishing && !recalculating;
+  const canPublish = !!calcResults && !dirty && !publishing && !recalculating && paramsValid;
 
   const recalcButton = (
     <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRecalculate} disabled={recalculating || publishing}>
@@ -364,6 +366,7 @@ const Cockpit = () => {
     physical_prices: <PhysicalPricesCard warehouseMap={warehouseMap} />,
     parameters: (
       <ParametersCard
+        onValidityChange={setParamsValid}
         combos={sortedCombos}
         warehouseMap={warehouseMap}
         overrides={overrides}

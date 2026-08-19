@@ -8,6 +8,7 @@ import { pgErrorDetail, pgErrorMessage } from '@/lib/pgError';
 import { useAuth } from '@/contexts/AuthContext';
 import { warehousesLabel } from '@/components/common/WarehouseMultiSelect';
 import { PendingTab } from '@/components/cadastros/PendingTab';
+import { PriceAlertsSection } from '@/components/pendencias/PriceAlertsSection';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -179,11 +180,13 @@ export default function Pendencias() {
       <div>
         <h1 className="text-2xl font-semibold">Pendências</h1>
         <p className="text-sm text-muted-foreground">
-          Cadastros incompletos e solicitações de acesso aguardando análise.
+          Cadastros incompletos, solicitações de acesso e alterações de preço físico aguardando análise.
         </p>
       </div>
 
       <PendingUsersSection />
+
+      <PriceAlertsSection />
 
       <div className="space-y-2">
         <h2 className="text-base font-medium">Cadastros incompletos</h2>
