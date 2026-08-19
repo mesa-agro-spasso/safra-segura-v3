@@ -221,7 +221,9 @@ export function usePhysicalPricePanel() {
           price_brl_per_sack: Number(d.price_brl_per_sack),
           computed_at: d.computed_at,
           pending,
+          winning_quote_id: d.winning_quote_id ?? null,
         });
+
       }
       return rows.sort((a, b) => a.location_id.localeCompare(b.location_id) || a.commodity.localeCompare(b.commodity));
     },
