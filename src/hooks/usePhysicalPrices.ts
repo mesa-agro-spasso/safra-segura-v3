@@ -80,8 +80,6 @@ export function triggerNormalize(): void {
   });
 }
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
 function addDaysISO(iso: string, days: number): string {
   const d = new Date(`${iso}T12:00:00`);
   d.setDate(d.getDate() + days);
@@ -92,6 +90,15 @@ export function diffDays(fromISO: string, toISO: string): number {
   const a = new Date(`${fromISO}T12:00:00`).getTime();
   const b = new Date(`${toISO}T12:00:00`).getTime();
   return Math.round((b - a) / 86400000);
+}
+
+/** Dias corridos, empurrando para segunda-feira quando cair no fim de semana. */
+export function addBusinessSafeDays(iso: string, days: number): string {
+  const d = new Date(`${addDaysISO(iso, days)}T12:00:00`);
+  const wd = d.getDay();
+  if (wd === 6) d.setDate(d.getDate() + 2);
+  else if (wd === 0) d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 export { addDaysISO };
@@ -347,65 +354,45 @@ export function useCreateQuote() {
   });
 }
 
-/** Cotação vencedora de ontem para (praça × commodity), se houver linha diária. */
-export function useYesterdayWinner(locationId: string | null, commodity: string | null) {
-  const yesterday = addDaysISO(todayISO(), -1);
+/** Cotações de um dia específico (praça × commodity), para detalhamento. */
+export function useQuotesForDay(locationId: string | null, commodity: string | null, referenceDate: string | null) {
   return useQuery({
-    queryKey: ['physical_prices', 'yesterday-winner', locationId, commodity, yesterday],
-    enabled: !!locationId && !!commodity,
-    queryFn: async (): Promise<PhysicalQuote | null> => {
-      const { data: daily, error: dErr } = await supabase
-        .from('physical_prices_daily')
-        .select('winning_quote_id')
-        .eq('location_id', locationId!)
-        .eq('commodity', commodity!)
-        .eq('reference_date', yesterday)
-        .maybeSingle();
-      if (dErr) throw dErr;
-      if (!daily?.winning_quote_id) return null;
-      const { data: quote, error: qErr } = await supabase
+    queryKey: ['physical_prices', 'quotes-day', locationId, commodity, referenceDate],
+    enabled: !!locationId && !!commodity && !!referenceDate,
+    queryFn: async (): Promise<PhysicalQuote[]> => {
+      const { data, error } = await supabase
         .from('physical_prices')
         .select('*')
-        .eq('id', daily.winning_quote_id)
         .is('deleted_at', null)
-        .maybeSingle();
-      if (qErr) throw qErr;
-      return (quote as unknown as PhysicalQuote | null) ?? null;
+        .eq('location_id', locationId!)
+        .eq('commodity', commodity!)
+        .eq('reference_date', referenceDate!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as PhysicalQuote[];
     },
   });
 }
 
-export function useRepeatYesterday() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (quote: PhysicalQuote) => {
-      const updated_by = await currentUserId();
-      const today = todayISO();
-      const term = diffDays(quote.reference_date, quote.payment_date);
-      await callApi('/basis/physical-prices', {
-        location_id: quote.location_id,
-        commodity: quote.commodity,
-        reference_date: today,
-        buyer: quote.buyer,
-        payment_date: addDaysISO(today, Math.max(term, 0)),
-        price_brl_per_sack: quote.price_brl_per_sack,
-        incoterm: quote.incoterm,
-        is_pf: quote.is_pf,
-        is_coop: quote.is_coop,
-        source: 'repeat_previous',
-        notes: quote.notes,
-        updated_by,
-      });
-      void logActivity('physical_price.repeat_previous', 'physical_price', null, {
-        location_id: quote.location_id, commodity: quote.commodity, buyer: quote.buyer,
-      });
-    },
-    onSuccess: () => {
-      triggerNormalize();
-      void qc.invalidateQueries({ queryKey: ['physical_prices'] });
+/** Nomes dos usuários que registraram cotações (id → nome). */
+export function useQuoteAuthors(ids: (string | null)[]) {
+  const unique = Array.from(new Set(ids.filter((v): v is string => !!v))).sort();
+  return useQuery({
+    queryKey: ['physical_prices', 'authors', unique.join(',')],
+    enabled: unique.length > 0,
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, full_name')
+        .in('id', unique);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const u of (data ?? []) as { id: string; full_name: string }[]) map[u.id] = u.full_name;
+      return map;
     },
   });
 }
+
 
 export function useDeleteQuote() {
   const qc = useQueryClient();

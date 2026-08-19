@@ -66,6 +66,26 @@ export function parseNumericInput(raw: string, precision: Precision): ParseResul
   return { value: negative ? -num : num, error: null };
 }
 
+/**
+ * Formatação "ao vivo" estilo caixa eletrônico: os dígitos entram pelas casas
+ * decimais e empurram o valor para a esquerda. Apenas formatação de texto.
+ * Ex.: precisão 2 → "4" vira "0,04"; "4567" vira "45,67".
+ */
+export function formatDigitsLive(digits: string, precision: Precision): { text: string; value: number | null } {
+  const clean = digits.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  if (clean === '') return { text: '', value: null };
+  const padded = clean.padStart(precision + 1, '0');
+  const intPart = padded.slice(0, padded.length - precision);
+  const decPart = padded.slice(padded.length - precision);
+  const value = Number(`${intPart}.${decPart || '0'}`);
+  return { text: formatNumericDisplay(value, precision), value };
+}
+
+/** Extrai apenas os dígitos de um texto formatado (para continuar a digitação). */
+export function digitsOf(text: string): string {
+  return text.replace(/\D/g, '');
+}
+
 /** Exibição pt-BR com precisão fixa: "11.111,11", "78,4300". */
 export function formatNumericDisplay(value: number | null | undefined, precision: Precision): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '';
