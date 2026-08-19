@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 
@@ -64,20 +64,20 @@ function FreshnessBadge({ referenceDate }: { referenceDate: string }) {
   );
 }
 
-function CommoditySelect({
-  value, onChange, includeAll = true, className,
-}: { value: string; onChange: (v: string) => void; includeAll?: boolean; className?: string }) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={className ?? 'w-[160px]'}><SelectValue /></SelectTrigger>
-      <SelectContent>
-        {includeAll && <SelectItem value={ALL}>Todas</SelectItem>}
-        <SelectItem value="soybean">Soja</SelectItem>
-        <SelectItem value="corn">Milho</SelectItem>
-      </SelectContent>
-    </Select>
-  );
-}
+const CommoditySelect = forwardRef<
+  HTMLButtonElement,
+  { value: string; onChange: (v: string) => void; includeAll?: boolean; className?: string }
+>(({ value, onChange, includeAll = true, className }, ref) => (
+  <Select value={value} onValueChange={onChange}>
+    <SelectTrigger ref={ref} className={className ?? 'w-[160px]'}><SelectValue /></SelectTrigger>
+    <SelectContent>
+      {includeAll && <SelectItem value={ALL}>Todas</SelectItem>}
+      <SelectItem value="soybean">Soja</SelectItem>
+      <SelectItem value="corn">Milho</SelectItem>
+    </SelectContent>
+  </Select>
+));
+CommoditySelect.displayName = 'CommoditySelect';
 
 /* ============================ A) PAINEL ============================ */
 
