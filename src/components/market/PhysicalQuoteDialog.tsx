@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DateInput } from '@/components/ui/date-input';
 import { NumericInput } from '@/components/ui/numeric-input';
 import { ApiError } from '@/lib/api';
-import { addDaysISO, useCreateQuote } from '@/hooks/usePhysicalPrices';
+import { addBusinessSafeDays, addDaysISO, useCreateQuote } from '@/hooks/usePhysicalPrices';
 import type { TradingLocationLite } from '@/hooks/useMyLocations';
 
 interface Props {
@@ -186,7 +186,7 @@ export function PhysicalQuoteDialog({
                 value={paymentDate}
                 onChange={(v) => { setPaymentDate(v); setFieldErrors((p) => ({ ...p, payment: undefined })); }}
               />
-              <Button type="button" variant="outline" size="sm" onClick={() => setPaymentDate(addDaysISO(referenceDate, 3))}>+3d</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setPaymentDate(addBusinessSafeDays(referenceDate, 3))}>+3d</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => setPaymentDate(addDaysISO(referenceDate, 30))}>+30d</Button>
             </div>
             {fieldErrors.payment && <p className="text-xs text-destructive">{fieldErrors.payment}</p>}
