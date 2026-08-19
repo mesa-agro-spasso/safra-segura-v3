@@ -33,7 +33,7 @@ Novo `src/components/ui/numeric-input.tsx` com precisão fixa por campo (2 ou 4 
 - Exibição sempre pt-BR com precisão fixa.
 - Expõe estado de validade; enquanto houver campo inválido, o botão de envio/publicação do formulário fica desabilitado.
 
-Aplicado a todos os campos numéricos editáveis dos cards do Cockpit (`MarketCard`, `ParametersCard`, `PhysicalPricesCard`) e ao diálogo de cotação física. Os payloads continuam levando números simples; nenhuma conta muda de lugar.
+Aplicado somente a campos que o usuário edita: os overrides numéricos do `MarketCard` (câmbio, preços de ticker, milho B3) e as células numéricas editáveis do `ParametersCard`, além do diálogo de cotação física. `PhysicalPricesCard` é somente leitura e fica fora — valores vindos da API ou calculados mantêm a formatação atual e não são envolvidos em input. Os payloads continuam levando números simples; nenhuma conta muda de lugar.
 
 ## 6. Diálogo de cotação física (PhysicalQuoteDialog)
 
