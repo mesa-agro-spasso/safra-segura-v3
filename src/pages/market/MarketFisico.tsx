@@ -22,11 +22,11 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useMyLocations } from '@/hooks/useMyLocations';
 import {
   usePhysicalPricePanel, useDailySeries, useQuotes, useQuoteCounts,
-  useQuotesForDay, triggerNormalize,
+  useQuotesForDay, useQuoteAuthors, triggerNormalize,
   businessDaysSince, isWeekendISO,
 } from '@/hooks/usePhysicalPrices';
 import { PhysicalQuoteDialog } from '@/components/market/PhysicalQuoteDialog';
-import { QuoteDetailsTable } from '@/components/market/QuoteDetails';
+import { DeleteQuoteButton, QuoteDetailsTable } from '@/components/market/QuoteDetails';
 
 const COMMODITY_LABEL: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
 const SOURCE_LABEL: Record<string, string> = { manual: 'Manual', repeat_previous: 'Repetida' };
@@ -243,7 +243,7 @@ function PorPracaView() {
   const daily = useDailySeries(locationId || null, commodityFilter, start || undefined, end || undefined);
   const quotes = useQuotes(showAll ? (locationId || null) : null, commodityFilter, start || undefined, end || undefined);
 
-  const locationName = locations.find((l) => l.id === locationId)?.name ?? '';
+  const { data: authors = {} } = useQuoteAuthors((quotes.data ?? []).map((q) => q.created_by));
 
   return (
     <div className="space-y-4">
@@ -350,6 +350,9 @@ function PorPracaView() {
                           ? <Badge variant="outline" className="text-[10px] font-normal">calculando</Badge>
                           : fmtBRL(Number(q.present_value_brl))}
                       </TableCell>
+                      <TableCell className="text-center">{q.incoterm}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground" title={q.notes ?? ''}>{q.notes || '—'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{(q.created_by && authors[q.created_by]) || '—'}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{SOURCE_LABEL[q.source] ?? q.source}</TableCell>
                       <TableCell className="text-right"><DeleteQuoteButton id={q.id} /></TableCell>
                     </TableRow>
@@ -361,49 +364,6 @@ function PorPracaView() {
         </Card>
       )}
     </div>
-  );
-}
-
-/** Exclusão de cotação (soft delete no backend), com confirmação. */
-function DeleteQuoteButton({ id }: { id: string }) {
-  const [open, setOpen] = useState(false);
-  const del = useDeleteQuote();
-
-  const confirm = async () => {
-    try {
-      await del.mutateAsync(id);
-      toast.success('Cotação excluída');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao excluir a cotação');
-    }
-    setOpen(false);
-  };
-
-  return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-        aria-label="Excluir cotação"
-        onClick={() => setOpen(true)}
-        disabled={del.isPending}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </Button>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Excluir esta cotação?</AlertDialogTitle>
-          <AlertDialogDescription>
-            A cotação sai das telas, mas fica preservada e auditada. A série diária é refeita pela API.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={confirm}>Excluir</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }
 
