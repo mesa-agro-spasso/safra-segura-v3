@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronRight, Shield, PowerOff, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumericInput } from '@/components/ui/numeric-input';
 import { Switch } from '@/components/ui/switch';
 import { DateInput } from '@/components/ui/date-input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -45,7 +46,20 @@ interface CellProps {
   pending: boolean;
   disabled?: boolean;
   onChange: (comboId: string, field: keyof CockpitOverrides, value: number | string | boolean | null) => void;
+  onFieldValidity?: (key: string, valid: boolean) => void;
 }
+
+/** Precisão fixa por campo: valores monetários com 2 casas, taxas com 4. */
+const FIELD_PRECISION: Partial<Record<keyof CockpitOverrides, 2 | 4>> = {
+  storage_cost: 2,
+  reception_cost: 2,
+  brokerage_per_contract: 2,
+  additional_discount_brl: 2,
+  target_basis: 2,
+  interest_rate: 4,
+  desk_cost_pct: 4,
+  shrinkage_rate_monthly: 4,
+};
 
 /** Classe da marca: âmbar enquanto não recalculado, primária depois de aplicado. */
 function markClass(edited: boolean, pending: boolean) {
@@ -54,22 +68,22 @@ function markClass(edited: boolean, pending: boolean) {
   return 'border-2 border-primary';
 }
 
-function NumberCell({ combo, field, inherited, overrides, pending, disabled, onChange }: CellProps) {
+function NumberCell({ combo, field, inherited, overrides, pending, disabled, onChange, onFieldValidity }: CellProps) {
   const edited = !!overrides && Object.prototype.hasOwnProperty.call(overrides, field);
   const own = effectiveValue(combo, overrides, field);
   const shown = own ?? inherited ?? null;
-  const [text, setText] = useState<string>(toText(shown));
+  const precision = FIELD_PRECISION[field] ?? 2;
+  const numeric = typeof shown === 'number' ? shown : shown === null || shown === '' ? null : Number(shown);
 
   return (
-    <Input
-      value={text}
+    <NumericInput
+      precision={precision}
+      value={Number.isFinite(numeric as number) ? (numeric as number) : null}
       disabled={disabled}
-      onChange={(e) => {
-        setText(e.target.value);
-        onChange(combo.id, field, parseDecimal(e.target.value));
-      }}
-      inputMode="decimal"
-      className={cn('h-7 w-24 text-xs tabular-nums', markClass(edited, pending))}
+      showError={false}
+      onValidityChange={(valid) => onFieldValidity?.(`${combo.id}:${String(field)}`, valid)}
+      onChange={(v) => onChange(combo.id, field, v)}
+      className={cn('h-7 w-28 text-xs tabular-nums', markClass(edited, pending))}
       placeholder="—"
     />
   );
@@ -147,12 +161,26 @@ export interface ParametersCardProps {
   inactive?: PricingCombination[];
   /** Escreve a coluna `active` de pricing_combinations. */
   onToggleActive?: (id: string, active: boolean) => void;
+  /** Informa ao cockpit se há campo numérico inválido (trava o Publicar). */
+  onValidityChange?: (valid: boolean) => void;
 }
 
 const COLUMN_COUNT = 20;
 
 
-export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange, onEditInsurance, inactive = [], onToggleActive }: ParametersCardProps) {
+export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange, onEditInsurance, inactive = [], onToggleActive, onValidityChange }: ParametersCardProps) {
+  const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set());
+  const handleFieldValidity = (key: string, valid: boolean) => {
+    setInvalidFields((prev) => {
+      const has = prev.has(key);
+      if (valid && !has) return prev;
+      if (!valid && has) return prev;
+      const next = new Set(prev);
+      if (valid) next.delete(key); else next.add(key);
+      onValidityChange?.(next.size === 0);
+      return next;
+    });
+  };
   /** Todos os grupos nascem fechados: o cockpit é para ajuste pontual. */
   const [open, setOpen] = useState<Record<string, boolean>>({});
   /** Filtro de exibição por commodity. Não altera payload nem cálculo. */
@@ -304,6 +332,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                         pending={!!pf[field]}
                         disabled={disabled}
                         onChange={onChange}
+                        onFieldValidity={handleFieldValidity}
                       />
                     );
 
