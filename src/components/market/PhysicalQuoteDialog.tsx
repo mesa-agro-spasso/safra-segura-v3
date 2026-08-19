@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
-import { pgErrorMessage } from '@/lib/pgError';
+import { NumericInput } from '@/components/ui/numeric-input';
+import { ApiError } from '@/lib/api';
 import { addDaysISO, useCreateQuote } from '@/hooks/usePhysicalPrices';
 import type { TradingLocationLite } from '@/hooks/useMyLocations';
 
@@ -32,9 +33,13 @@ export function PhysicalQuoteDialog({
   const [commodity, setCommodity] = useState<'soybean' | 'corn'>(defaultCommodity ?? 'soybean');
   const [referenceDate, setReferenceDate] = useState(defaultDate ?? todayISO());
   const [buyer, setBuyer] = useState('');
-  const [price, setPrice] = useState('');
+  const [price, setPrice] = useState<number | null>(null);
+  const [priceValid, setPriceValid] = useState(true);
   const [paymentDate, setPaymentDate] = useState(defaultDate ?? todayISO());
   const [notes, setNotes] = useState('');
+
+  const [fieldErrors, setFieldErrors] = useState<{ location?: string; buyer?: string; price?: string; payment?: string }>({});
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -44,19 +49,23 @@ export function PhysicalQuoteDialog({
     setReferenceDate(d);
     setPaymentDate(d);
     setBuyer('');
-    setPrice('');
+    setPrice(null);
+    setPriceValid(true);
     setNotes('');
+    setFieldErrors({});
+    setFormError(null);
   }, [open, defaultLocationId, defaultCommodity, defaultDate, locations]);
 
   const handleSubmit = async () => {
-    const p = parseFloat(price.replace(',', '.'));
-    if (!locationId) { toast.error('Selecione a praça'); return; }
-    if (!buyer.trim()) { toast.error('Informe o comprador'); return; }
-    if (!Number.isFinite(p) || p <= 0) { toast.error('Preço inválido'); return; }
-    if (paymentDate < referenceDate) {
-      toast.error('A data de pagamento não pode ser anterior à data de referência');
-      return;
-    }
+    const errs: typeof fieldErrors = {};
+    if (!locationId) errs.location = 'Selecione a praça.';
+    if (!buyer.trim()) errs.buyer = 'Informe o comprador.';
+    if (price === null) errs.price = 'Informe o preço.';
+    if (paymentDate < referenceDate) errs.payment = 'A data de pagamento não pode ser anterior à data de referência.';
+    setFieldErrors(errs);
+    setFormError(null);
+    if (Object.keys(errs).length > 0) return;
+
     try {
       await create.mutateAsync({
         location_id: locationId,
@@ -64,16 +73,24 @@ export function PhysicalQuoteDialog({
         reference_date: referenceDate,
         buyer: buyer.trim(),
         payment_date: paymentDate,
-        price_brl_per_sack: p,
+        price_brl_per_sack: price as number,
         incoterm: 'FOB',
         notes: notes.trim() || null,
       });
       toast.success('Cotação registrada. O valor presente será calculado em instantes.');
       onOpenChange(false);
     } catch (err) {
-      toast.error(pgErrorMessage(err));
+      const message = err instanceof Error ? err.message : 'Erro ao registrar a cotação.';
+      const status = err instanceof ApiError ? err.status : 0;
+      if (status === 422) {
+        setFieldErrors((prev) => ({ ...prev, price: message }));
+      } else {
+        setFormError(message);
+      }
     }
   };
+
+  const canSubmit = priceValid && !create.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -90,10 +107,16 @@ export function PhysicalQuoteDialog({
           <span>Preços PF ou de cooperativa não devem ser lançados.</span>
         </div>
 
+        {formError && (
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+            {formError}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label>Praça</Label>
-            <Select value={locationId} onValueChange={setLocationId}>
+            <Select value={locationId} onValueChange={(v) => { setLocationId(v); setFieldErrors((p) => ({ ...p, location: undefined })); }}>
               <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
               <SelectContent>
                 {locations.map((l) => (
@@ -101,6 +124,7 @@ export function PhysicalQuoteDialog({
                 ))}
               </SelectContent>
             </Select>
+            {fieldErrors.location && <p className="text-xs text-destructive">{fieldErrors.location}</p>}
           </div>
           <div className="space-y-1">
             <Label>Commodity</Label>
@@ -114,15 +138,31 @@ export function PhysicalQuoteDialog({
           </div>
           <div className="space-y-1">
             <Label>Data de referência</Label>
-            <DateInput value={referenceDate} onChange={(v) => { setReferenceDate(v); if (paymentDate < v) setPaymentDate(v); }} />
+            <DateInput
+              pickerOnly
+              value={referenceDate}
+              onChange={(v) => { setReferenceDate(v); if (paymentDate < v) setPaymentDate(v); }}
+            />
           </div>
           <div className="space-y-1">
             <Label>Comprador</Label>
-            <Input value={buyer} onChange={(e) => setBuyer(e.target.value)} placeholder="Nome do comprador" />
+            <Input
+              value={buyer}
+              onChange={(e) => { setBuyer(e.target.value); setFieldErrors((p) => ({ ...p, buyer: undefined })); }}
+              placeholder="Nome do comprador"
+            />
+            {fieldErrors.buyer && <p className="text-xs text-destructive">{fieldErrors.buyer}</p>}
           </div>
           <div className="space-y-1">
             <Label>Preço (R$/sc)</Label>
-            <Input inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0,00" />
+            <NumericInput
+              precision={2}
+              value={price}
+              onChange={(v) => { setPrice(v); setFieldErrors((p) => ({ ...p, price: undefined })); }}
+              onValidityChange={setPriceValid}
+              placeholder="0,00"
+            />
+            {fieldErrors.price && <p className="text-xs text-destructive">{fieldErrors.price}</p>}
           </div>
           <div className="space-y-1">
             <Label>Incoterm</Label>
@@ -136,10 +176,15 @@ export function PhysicalQuoteDialog({
           <div className="col-span-2 space-y-1">
             <Label>Data de pagamento</Label>
             <div className="flex items-center gap-2">
-              <DateInput value={paymentDate} onChange={setPaymentDate} />
+              <DateInput
+                pickerOnly
+                value={paymentDate}
+                onChange={(v) => { setPaymentDate(v); setFieldErrors((p) => ({ ...p, payment: undefined })); }}
+              />
               <Button type="button" variant="outline" size="sm" onClick={() => setPaymentDate(addDaysISO(referenceDate, 3))}>+3d</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => setPaymentDate(addDaysISO(referenceDate, 30))}>+30d</Button>
             </div>
+            {fieldErrors.payment && <p className="text-xs text-destructive">{fieldErrors.payment}</p>}
           </div>
           <div className="col-span-2 space-y-1">
             <Label>Notas (opcional)</Label>
@@ -149,7 +194,7 @@ export function PhysicalQuoteDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={create.isPending}>
+          <Button onClick={handleSubmit} disabled={!canSubmit}>
             {create.isPending ? 'Salvando...' : 'Salvar cotação'}
           </Button>
         </DialogFooter>
