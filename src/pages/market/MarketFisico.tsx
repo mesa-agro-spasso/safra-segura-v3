@@ -1,10 +1,9 @@
 import { Fragment, forwardRef, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,21 +14,20 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 import { useMyLocations } from '@/hooks/useMyLocations';
 import {
-  usePhysicalPricePanel, useDailySeries, useQuotes, useQuoteCounts,
-  useQuotesForDay, useQuoteAuthors, triggerNormalize,
-  businessDaysSince, isWeekendISO,
+  usePhysicalPricePanel, useDailySeries, useQuoteCounts,
+  useQuotesForDay, useWinningQuotes, triggerNormalize,
+  businessDaysSince, isWeekendISO, type PhysicalQuote,
 } from '@/hooks/usePhysicalPrices';
 import { PhysicalQuoteDialog } from '@/components/market/PhysicalQuoteDialog';
-import { DeleteQuoteButton, QuoteDetailsTable } from '@/components/market/QuoteDetails';
+import { QuoteActions, QuoteDetailsTable } from '@/components/market/QuoteDetails';
 
 const COMMODITY_LABEL: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
-const SOURCE_LABEL: Record<string, string> = { manual: 'Manual', repeat_previous: 'Repetida' };
 const ALL = 'all';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const fmtDate = (iso?: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '-');
 const fmtBRL = (v: number | null | undefined) =>
-  v == null ? '-' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  v == null ? '-' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** 0 dias úteis = atual (sem selo); 1–2 = atenção; 3+ = defasado. */
 function freshnessLevel(referenceDate: string): 0 | 1 | 2 {
@@ -74,14 +72,160 @@ const CommoditySelect = forwardRef<
 ));
 CommoditySelect.displayName = 'CommoditySelect';
 
+/* ===================== TABELA COMPARTILHADA ===================== */
+
+interface DailyRow {
+  key: string;
+  location_id: string;
+  commodity: string;
+  reference_date: string;
+  winning_quote_id: string | null;
+  pending?: boolean;
+}
+
+interface DailyRowsTableProps {
+  rows: DailyRow[];
+  nameById: Record<string, string>;
+  editableLocations: Set<string>;
+  onCreate: (locationId: string, commodity: string, date?: string) => void;
+  onEdit: (quote: PhysicalQuote) => void;
+}
+
+/** Linhas canônicas (vencedor do dia) com expansão de detalhes. Colunas idênticas nas duas visões. */
+function DailyRowsTable({ rows, nameById, editableLocations, onCreate, onEdit }: DailyRowsTableProps) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const { data: winners = {} } = useWinningQuotes(rows.map((r) => r.winning_quote_id));
+
+  return (
+    <div className="rounded-md border border-border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-10" />
+            <TableHead>Praça</TableHead>
+            <TableHead>Commodity</TableHead>
+            <TableHead className="text-center">Data de referência</TableHead>
+            <TableHead className="text-right">Nominal (R$/sc)</TableHead>
+            <TableHead className="text-center">Pagamento</TableHead>
+            <TableHead className="text-center">Situação</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => {
+            const isOpen = expanded === r.key;
+            const winner = r.winning_quote_id ? winners[r.winning_quote_id] : undefined;
+            const canEdit = editableLocations.has(r.location_id);
+            return (
+              <Fragment key={r.key}>
+                <TableRow>
+                  <TableCell className="py-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      aria-label={isOpen ? 'Ocultar cotações' : 'Ver cotações'}
+                      onClick={() => setExpanded(isOpen ? null : r.key)}
+                    >
+                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </Button>
+                  </TableCell>
+                  <TableCell className="font-medium">{nameById[r.location_id] ?? r.location_id}</TableCell>
+                  <TableCell>{COMMODITY_LABEL[r.commodity] ?? r.commodity}</TableCell>
+                  <TableCell className="text-center">{fmtDate(r.reference_date)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{fmtBRL(winner?.price_brl_per_sack)}</TableCell>
+                  <TableCell className="text-center">{fmtDate(winner?.payment_date)}</TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <FreshnessBadge referenceDate={r.reference_date} />
+                      {r.pending && <Badge variant="outline" className="text-[10px] font-normal">calculando VP</Badge>}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <QuoteActions
+                      onCreate={canEdit ? () => onCreate(r.location_id, r.commodity, r.reference_date) : undefined}
+                      onEdit={canEdit && winner ? () => onEdit(winner) : undefined}
+                      deleteId={canEdit ? r.winning_quote_id : null}
+                    />
+                  </TableCell>
+                </TableRow>
+                {isOpen && (
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableCell colSpan={8} className="p-3">
+                      <QuotesOfDay
+                        locationId={r.location_id}
+                        commodity={r.commodity}
+                        referenceDate={r.reference_date}
+                        winningQuoteId={r.winning_quote_id}
+                        canEdit={canEdit}
+                        onCreate={() => onCreate(r.location_id, r.commodity, r.reference_date)}
+                        onEdit={onEdit}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+/** Cotações do dia de referência de uma praça × commodity (inclui as perdedoras). */
+function QuotesOfDay({
+  locationId, commodity, referenceDate, winningQuoteId, canEdit, onCreate, onEdit,
+}: {
+  locationId: string;
+  commodity: string;
+  referenceDate: string;
+  winningQuoteId?: string | null;
+  canEdit: boolean;
+  onCreate: () => void;
+  onEdit: (quote: PhysicalQuote) => void;
+}) {
+  const { data: quotes = [], isLoading } = useQuotesForDay(locationId, commodity, referenceDate);
+  const winner = quotes.find((q) => q.id === winningQuoteId);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Cotações de {fmtDate(referenceDate)} — {COMMODITY_LABEL[commodity] ?? commodity}
+        </p>
+        {canEdit && (
+          <QuoteActions
+            showLabels
+            onCreate={onCreate}
+            onEdit={winner ? () => onEdit(winner) : undefined}
+            deleteId={winningQuoteId ?? null}
+          />
+        )}
+      </div>
+      <QuoteDetailsTable
+        quotes={quotes}
+        isLoading={isLoading}
+        emptyLabel="Nenhuma cotação nesta data."
+        canDelete={canEdit}
+        onEdit={canEdit ? onEdit : undefined}
+      />
+    </div>
+  );
+}
+
 /* ============================ A) PAINEL ============================ */
 
-function PainelView({ onRegister }: { onRegister: (locationId: string, commodity: string) => void }) {
+function PainelView({
+  onCreate, onEdit,
+}: {
+  onCreate: (locationId: string, commodity: string, date?: string) => void;
+  onEdit: (quote: PhysicalQuote) => void;
+}) {
   const { data: rows = [], isLoading } = usePhysicalPricePanel();
   const { allLocations, locations } = useMyLocations();
   const [commodity, setCommodity] = useState(ALL);
   const [locationId, setLocationId] = useState(ALL);
-  const [expanded, setExpanded] = useState<string | null>(null);
 
   const nameById = useMemo(() => {
     const m: Record<string, string> = {};
@@ -94,136 +238,66 @@ function PainelView({ onRegister }: { onRegister: (locationId: string, commodity
   useEffect(() => { triggerNormalize(); }, []);
 
   const visible = useMemo(
-    () => rows.filter(
-      (r) => (commodity === ALL || r.commodity === commodity) && (locationId === ALL || r.location_id === locationId),
-    ),
+    () => rows
+      .filter((r) => (commodity === ALL || r.commodity === commodity) && (locationId === ALL || r.location_id === locationId))
+      .map((r): DailyRow => ({
+        key: `${r.location_id}-${r.commodity}`,
+        location_id: r.location_id,
+        commodity: r.commodity,
+        reference_date: r.reference_date,
+        winning_quote_id: r.winning_quote_id,
+        pending: r.pending,
+      })),
     [rows, commodity, locationId],
-  );
-
-  const filterBar = (
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Praça</Label>
-        <Select value={locationId} onValueChange={setLocationId}>
-          <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todas</SelectItem>
-            {allLocations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Commodity</Label>
-        <CommoditySelect value={commodity} onChange={setCommodity} />
-      </div>
-    </div>
   );
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Carregando painel…</p>;
 
   return (
     <div className="space-y-4">
-      {filterBar}
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Praça</Label>
+          <Select value={locationId} onValueChange={setLocationId}>
+            <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas</SelectItem>
+              {allLocations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Commodity</Label>
+          <CommoditySelect value={commodity} onChange={setCommodity} />
+        </div>
+      </div>
+
       {visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum preço canônico publicado para o filtro selecionado.</p>
       ) : (
-        <div className="rounded-md border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10" />
-                <TableHead>Praça</TableHead>
-                <TableHead>Commodity</TableHead>
-                <TableHead className="text-right">Valor presente (R$/sc)</TableHead>
-                <TableHead className="text-center">Referência</TableHead>
-                <TableHead className="text-center">Situação</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((r) => {
-                const key = `${r.location_id}-${r.commodity}`;
-                const isOpen = expanded === key;
-                return (
-                  <Fragment key={key}>
-                    <TableRow>
-                      <TableCell className="py-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          aria-label={isOpen ? 'Ocultar cotações' : 'Ver cotações'}
-                          onClick={() => setExpanded(isOpen ? null : key)}
-                        >
-                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </Button>
-                      </TableCell>
-                      <TableCell className="font-medium">{nameById[r.location_id] ?? r.location_id}</TableCell>
-                      <TableCell>{COMMODITY_LABEL[r.commodity] ?? r.commodity}</TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtBRL(r.price_brl_per_sack)}</TableCell>
-                      <TableCell className="text-center">{fmtDate(r.reference_date)}</TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <FreshnessBadge referenceDate={r.reference_date} />
-                          {r.pending && <Badge variant="outline" className="text-[10px] font-normal">calculando VP</Badge>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {myIds.has(r.location_id) && (
-                          <Button variant="outline" size="sm" onClick={() => onRegister(r.location_id, r.commodity)}>
-                            Nova cotação
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                    {isOpen && (
-                      <TableRow className="bg-muted/30 hover:bg-muted/30">
-                        <TableCell colSpan={7} className="p-3">
-                          <QuotesOfDay
-                            locationId={r.location_id}
-                            commodity={r.commodity}
-                            referenceDate={r.reference_date}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <DailyRowsTable
+          rows={visible}
+          nameById={nameById}
+          editableLocations={myIds}
+          onCreate={onCreate}
+          onEdit={onEdit}
+        />
       )}
-    </div>
-  );
-}
-
-/** Cotações do dia de referência de uma praça × commodity. */
-function QuotesOfDay({
-  locationId, commodity, referenceDate,
-}: { locationId: string; commodity: string; referenceDate: string }) {
-  const { data: quotes = [], isLoading } = useQuotesForDay(locationId, commodity, referenceDate);
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Cotações de {fmtDate(referenceDate)} — {COMMODITY_LABEL[commodity] ?? commodity}
-      </p>
-      <QuoteDetailsTable
-        quotes={quotes}
-        isLoading={isLoading}
-        emptyLabel="Nenhuma cotação nesta data."
-      />
     </div>
   );
 }
 
 /* =========================== B) POR PRAÇA =========================== */
 
-function PorPracaView() {
-  const { locations } = useMyLocations();
+function PorPracaView({
+  onCreate, onEdit,
+}: {
+  onCreate: (locationId: string, commodity: string, date?: string) => void;
+  onEdit: (quote: PhysicalQuote) => void;
+}) {
+  const { locations, allLocations } = useMyLocations();
   const [locationId, setLocationId] = useState('');
   const [commodity, setCommodity] = useState(ALL);
-  const [showAll, setShowAll] = useState(false);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
 
@@ -232,12 +306,26 @@ function PorPracaView() {
   }, [locations, locationId]);
 
   const commodityFilter = commodity === ALL ? null : commodity;
-  const isAll = commodity === ALL;
-
   const daily = useDailySeries(locationId || null, commodityFilter, start || undefined, end || undefined);
-  const quotes = useQuotes(showAll ? (locationId || null) : null, commodityFilter, start || undefined, end || undefined);
 
-  const { data: authors = {} } = useQuoteAuthors((quotes.data ?? []).map((q) => q.created_by));
+  const nameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    allLocations.forEach((l) => { m[l.id] = l.name; });
+    return m;
+  }, [allLocations]);
+
+  const myIds = useMemo(() => new Set(locations.map((l) => l.id)), [locations]);
+
+  const rows = useMemo(
+    () => (daily.data ?? []).map((d): DailyRow => ({
+      key: d.id,
+      location_id: d.location_id,
+      commodity: d.commodity,
+      reference_date: d.reference_date,
+      winning_quote_id: d.winning_quote_id ?? null,
+    })),
+    [daily.data],
+  );
 
   return (
     <div className="space-y-4">
@@ -263,103 +351,25 @@ function PorPracaView() {
           <Label className="text-xs text-muted-foreground">Fim</Label>
           <DateInput value={end} onChange={setEnd} />
         </div>
-        <div className="flex items-center gap-2 pb-1">
-          <Switch id="all-quotes" checked={showAll} onCheckedChange={setShowAll} />
-          <Label htmlFor="all-quotes" className="text-sm">Todas as cotações</Label>
-        </div>
       </div>
 
-      {!showAll ? (
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Vencedores diários (valor presente)</CardTitle></CardHeader>
-          <CardContent>
-            {daily.isLoading ? (
-              <p className="text-sm text-muted-foreground">Carregando…</p>
-            ) : (daily.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum preço diário no período.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    {isAll && <TableHead>Commodity</TableHead>}
-                    <TableHead className="text-right">Valor presente (R$/sc)</TableHead>
-                    <TableHead className="text-right">Calculado em</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(daily.data ?? []).map((d) => (
-                    <TableRow key={d.id}>
-                      <TableCell>{fmtDate(d.reference_date)}</TableCell>
-                      {isAll && <TableCell>{COMMODITY_LABEL[d.commodity] ?? d.commodity}</TableCell>}
-                      <TableCell className="text-right tabular-nums">{fmtBRL(Number(d.price_brl_per_sack))}</TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">{fmtDate(d.computed_at)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+      {daily.isLoading ? (
+        <p className="text-sm text-muted-foreground">Carregando…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhum preço diário no período.</p>
       ) : (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Todas as cotações</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              O preço nominal não é comparável entre prazos distintos; use o valor presente.
-            </p>
-          </CardHeader>
-          <CardContent>
-            {quotes.isLoading ? (
-              <p className="text-sm text-muted-foreground">Carregando…</p>
-            ) : (quotes.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma cotação no período.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    {isAll && <TableHead>Commodity</TableHead>}
-                    <TableHead>Comprador</TableHead>
-                    <TableHead className="text-right">Nominal (R$/sc)</TableHead>
-                    <TableHead className="text-center">Pagamento</TableHead>
-                    <TableHead className="text-right">Valor presente (R$/sc)</TableHead>
-                    <TableHead className="text-center">Incoterm</TableHead>
-                    <TableHead>Notas</TableHead>
-                    <TableHead>Registrado por</TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead className="w-10" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(quotes.data ?? []).map((q) => (
-                    <TableRow key={q.id}>
-                      <TableCell>{fmtDate(q.reference_date)}</TableCell>
-                      {isAll && <TableCell>{COMMODITY_LABEL[q.commodity] ?? q.commodity}</TableCell>}
-                      <TableCell className="font-medium">{q.buyer}</TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtBRL(Number(q.price_brl_per_sack))}</TableCell>
-                      <TableCell className="text-center">{fmtDate(q.payment_date)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {q.present_value_brl == null
-                          ? <Badge variant="outline" className="text-[10px] font-normal">calculando</Badge>
-                          : fmtBRL(Number(q.present_value_brl))}
-                      </TableCell>
-                      <TableCell className="text-center">{q.incoterm}</TableCell>
-                      <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground" title={q.notes ?? ''}>{q.notes || '—'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{(q.created_by && authors[q.created_by]) || '—'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{SOURCE_LABEL[q.source] ?? q.source}</TableCell>
-                      <TableCell className="text-right"><DeleteQuoteButton id={q.id} /></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+        <DailyRowsTable
+          rows={rows}
+          nameById={nameById}
+          editableLocations={myIds}
+          onCreate={onCreate}
+          onEdit={onEdit}
+        />
       )}
     </div>
   );
 }
+
 
 /* =========================== C) CALENDÁRIO =========================== */
 
