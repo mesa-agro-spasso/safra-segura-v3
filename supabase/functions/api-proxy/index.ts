@@ -94,6 +94,28 @@ Deno.serve(async (req) => {
 
     const data = await response.text()
 
+    // O SDK do Supabase transforma qualquer resposta não-2xx da Edge Function
+    // em FunctionsHttpError e a plataforma a registra como erro de runtime.
+    // Transportamos o erro da API em um envelope 2xx; o cliente restaura o
+    // status original como ApiError para a interface tratar (ex.: validação 422).
+    if (!response.ok) {
+      let payload: unknown = data
+      try {
+        payload = JSON.parse(data)
+      } catch {
+        // Respostas não JSON continuam disponíveis como texto.
+      }
+
+      return new Response(JSON.stringify({
+        __api_proxy_error: true,
+        status: response.status,
+        payload,
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     return new Response(data, {
       status: response.status,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
