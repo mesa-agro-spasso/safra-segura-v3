@@ -168,7 +168,9 @@ export interface PanelRow {
   price_brl_per_sack: number;
   computed_at: string;
   pending: boolean;
+  winning_quote_id: string | null;
 }
+
 
 /** Painel: último preço canônico por praça × commodity + flag de VP em cálculo. */
 export function usePhysicalPricePanel() {
