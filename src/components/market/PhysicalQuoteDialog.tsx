@@ -122,10 +122,11 @@ export function PhysicalQuoteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Registrar cotação física</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar cotação física' : 'Registrar cotação física'}</DialogTitle>
           <DialogDescription>
             Uma cotação por comprador e prazo de pagamento. O valor presente é calculado pela API.
           </DialogDescription>
+
         </DialogHeader>
 
         <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
