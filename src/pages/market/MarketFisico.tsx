@@ -135,6 +135,7 @@ function PainelView({ onRegister }: { onRegister: (locationId: string, commodity
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10" />
                 <TableHead>Praça</TableHead>
                 <TableHead>Commodity</TableHead>
                 <TableHead className="text-right">Valor presente (R$/sc)</TableHead>
@@ -144,99 +145,57 @@ function PainelView({ onRegister }: { onRegister: (locationId: string, commodity
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visible.map((r) => (
-                <TableRow key={`${r.location_id}-${r.commodity}`}>
-                  <TableCell className="font-medium">{nameById[r.location_id] ?? r.location_id}</TableCell>
-                  <TableCell>{COMMODITY_LABEL[r.commodity] ?? r.commodity}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBRL(r.price_brl_per_sack)}</TableCell>
-                  <TableCell className="text-center">{fmtDate(r.reference_date)}</TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <FreshnessBadge referenceDate={r.reference_date} />
-                      {r.pending && <Badge variant="outline" className="text-[10px] font-normal">calculando VP</Badge>}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <RepeatYesterdayButton
-                        locationId={r.location_id}
-                        commodity={r.commodity}
-                        locationName={nameById[r.location_id] ?? r.location_id}
-                        allowed={myIds.has(r.location_id)}
-                      />
-                      {myIds.has(r.location_id) && (
-                        <Button variant="outline" size="sm" onClick={() => onRegister(r.location_id, r.commodity)}>
-                          Nova cotação
+              {visible.map((r) => {
+                const key = `${r.location_id}-${r.commodity}`;
+                const isOpen = expanded === key;
+                return (
+                  <Fragment key={key}>
+                    <TableRow>
+                      <TableCell className="py-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label={isOpen ? 'Ocultar cotações' : 'Ver cotações'}
+                          onClick={() => setExpanded(isOpen ? null : key)}
+                        >
+                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      </TableCell>
+                      <TableCell className="font-medium">{nameById[r.location_id] ?? r.location_id}</TableCell>
+                      <TableCell>{COMMODITY_LABEL[r.commodity] ?? r.commodity}</TableCell>
+                      <TableCell className="text-right tabular-nums">{fmtBRL(r.price_brl_per_sack)}</TableCell>
+                      <TableCell className="text-center">{fmtDate(r.reference_date)}</TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <FreshnessBadge referenceDate={r.reference_date} />
+                          {r.pending && <Badge variant="outline" className="text-[10px] font-normal">calculando VP</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {myIds.has(r.location_id) && (
+                          <Button variant="outline" size="sm" onClick={() => onRegister(r.location_id, r.commodity)}>
+                            Nova cotação
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    {isOpen && (
+                      <TableRow className="bg-muted/30 hover:bg-muted/30">
+                        <TableCell colSpan={7} className="p-3">
+                          <QuotesOfDay
+                            locationId={r.location_id}
+                            commodity={r.commodity}
+                            referenceDate={r.reference_date}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
             </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
-  );
-}
 
-function RepeatYesterdayButton({
-  locationId, commodity, locationName, allowed,
-}: { locationId: string; commodity: string; locationName: string; allowed: boolean }) {
-  const { data: winner } = useYesterdayWinner(allowed ? locationId : null, allowed ? commodity : null);
-  const repeat = useRepeatYesterday();
-  const [open, setOpen] = useState(false);
-
-  if (!allowed) return null;
-
-  const confirm = async () => {
-    if (!winner) return;
-    try {
-      await repeat.mutateAsync(winner);
-      toast.success('Cotação de ontem repetida para hoje.');
-      setOpen(false);
-    } catch (err) {
-      toast.error(pgErrorMessage(err));
-    }
-  };
-
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={!winner || repeat.isPending}
-        onClick={() => setOpen(true)}
-        title={winner ? 'Repetir cotação de ontem' : 'Sem cotação vencedora de ontem'}
-      >
-        <RefreshCw className="mr-1 h-3.5 w-3.5" /> Repetir ontem
-      </Button>
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Repetir cotação de ontem</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-1 text-sm">
-                <p>Será criada uma nova cotação para hoje em {locationName} ({COMMODITY_LABEL[commodity] ?? commodity}):</p>
-                <p><span className="font-medium text-foreground">Comprador:</span> {winner?.buyer}</p>
-                <p><span className="font-medium text-foreground">Preço nominal:</span> R$ {fmtBRL(winner?.price_brl_per_sack)}/sc</p>
-                {winner?.present_value_brl != null && (
-                  <p><span className="font-medium text-foreground">Valor presente:</span> R$ {fmtBRL(Number(winner.present_value_brl))}/sc</p>
-                )}
-                <p><span className="font-medium text-foreground">Prazo preservado</span> a partir de hoje.</p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirm}>Repetir</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-}
 
 /* =========================== B) POR PRAÇA =========================== */
 
