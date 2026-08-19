@@ -95,7 +95,10 @@ export function PhysicalQuoteDialog({
         incoterm: 'FOB',
         notes: notes.trim() || null,
       });
-      toast.success('Cotação registrada. O valor presente será calculado em instantes.');
+      toast.success(isEdit
+        ? 'Cotação atualizada. O valor presente será recalculado em instantes.'
+        : 'Cotação registrada. O valor presente será calculado em instantes.');
+
       onOpenChange(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao registrar a cotação.';
