@@ -18,6 +18,7 @@ const ALLOWED_POST_ENDPOINTS = [
   '/mtm/run',
   '/mtm/run-d24',
   '/physical-prices/normalize',
+  '/basis/physical-prices',
 ]
 
 const ALLOWED_GET_ENDPOINTS = [
@@ -26,6 +27,12 @@ const ALLOWED_GET_ENDPOINTS = [
   '/market/b3-corn-quotes',
   '/market/fx-parameters',
 ]
+
+// Caminhos com id dinâmico: prefixo permitido para DELETE.
+const ALLOWED_DELETE_PREFIXES = [
+  '/basis/physical-prices/',
+]
+
 
 const API_BASE = 'https://safra-segura-api.onrender.com'
 
