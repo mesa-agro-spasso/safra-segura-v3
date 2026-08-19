@@ -80,8 +80,6 @@ export function triggerNormalize(): void {
   });
 }
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
 function addDaysISO(iso: string, days: number): string {
   const d = new Date(`${iso}T12:00:00`);
   d.setDate(d.getDate() + days);
@@ -92,6 +90,15 @@ export function diffDays(fromISO: string, toISO: string): number {
   const a = new Date(`${fromISO}T12:00:00`).getTime();
   const b = new Date(`${toISO}T12:00:00`).getTime();
   return Math.round((b - a) / 86400000);
+}
+
+/** Dias corridos, empurrando para segunda-feira quando cair no fim de semana. */
+export function addBusinessSafeDays(iso: string, days: number): string {
+  const d = new Date(`${addDaysISO(iso, days)}T12:00:00`);
+  const wd = d.getDay();
+  if (wd === 6) d.setDate(d.getDate() + 2);
+  else if (wd === 0) d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 export { addDaysISO };
