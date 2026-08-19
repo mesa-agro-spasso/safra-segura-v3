@@ -83,11 +83,16 @@ export function PhysicalQuoteDialog({
       const message = err instanceof Error ? err.message : 'Erro ao registrar a cotação.';
       const status = err instanceof ApiError ? err.status : 0;
       if (status === 422) {
+        // Validação de negócio da API (ex.: preço fora da banda). Não é falha do app.
         setFieldErrors((prev) => ({ ...prev, price: message }));
+        setFormError(message);
+        toast.error('Cotação recusada pela validação de preço.', { description: message });
       } else {
         setFormError(message);
+        toast.error(message);
       }
     }
+
   };
 
   const canSubmit = priceValid && !create.isPending;
