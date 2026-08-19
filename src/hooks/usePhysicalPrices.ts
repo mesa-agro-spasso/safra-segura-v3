@@ -168,7 +168,9 @@ export interface PanelRow {
   price_brl_per_sack: number;
   computed_at: string;
   pending: boolean;
+  winning_quote_id: string | null;
 }
+
 
 /** Painel: último preço canônico por praça × commodity + flag de VP em cálculo. */
 export function usePhysicalPricePanel() {
@@ -219,7 +221,9 @@ export function usePhysicalPricePanel() {
           price_brl_per_sack: Number(d.price_brl_per_sack),
           computed_at: d.computed_at,
           pending,
+          winning_quote_id: d.winning_quote_id ?? null,
         });
+
       }
       return rows.sort((a, b) => a.location_id.localeCompare(b.location_id) || a.commodity.localeCompare(b.commodity));
     },
@@ -374,8 +378,28 @@ export function useQuotesForDay(locationId: string | null, commodity: string | n
   });
 }
 
+/** Cotações vencedoras por id (para exibir nominal/pagamento na linha principal). */
+export function useWinningQuotes(ids: (string | null | undefined)[]) {
+  const unique = Array.from(new Set(ids.filter((v): v is string => !!v))).sort();
+  return useQuery({
+    queryKey: ['physical_prices', 'winners', unique.join(',')],
+    enabled: unique.length > 0,
+    queryFn: async (): Promise<Record<string, PhysicalQuote>> => {
+      const { data, error } = await supabase
+        .from('physical_prices')
+        .select('*')
+        .in('id', unique);
+      if (error) throw error;
+      const map: Record<string, PhysicalQuote> = {};
+      for (const q of (data ?? []) as unknown as PhysicalQuote[]) map[q.id] = q;
+      return map;
+    },
+  });
+}
+
 /** Nomes dos usuários que registraram cotações (id → nome). */
 export function useQuoteAuthors(ids: (string | null)[]) {
+
   const unique = Array.from(new Set(ids.filter((v): v is string => !!v))).sort();
   return useQuery({
     queryKey: ['physical_prices', 'authors', unique.join(',')],
