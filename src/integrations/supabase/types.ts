@@ -872,12 +872,47 @@ export type Database = {
           },
         ]
       }
+      physical_price_change_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          change_type: string
+          changed_by: string | null
+          changes: Json | null
+          created_at: string
+          id: string
+          price_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          change_type: string
+          changed_by?: string | null
+          changes?: Json | null
+          created_at?: string
+          id?: string
+          price_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          change_type?: string
+          changed_by?: string | null
+          changes?: Json | null
+          created_at?: string
+          id?: string
+          price_id?: string
+        }
+        Relationships: []
+      }
       physical_prices: {
         Row: {
           buyer: string
           commodity: string
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           incoterm: string
           interest_rate_used: number | null
@@ -891,6 +926,7 @@ export type Database = {
           reference_date: string
           source: string
           updated_at: string
+          updated_by: string | null
           warehouse_id: string | null
         }
         Insert: {
@@ -898,6 +934,8 @@ export type Database = {
           commodity: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           incoterm?: string
           interest_rate_used?: number | null
@@ -911,6 +949,7 @@ export type Database = {
           reference_date: string
           source?: string
           updated_at?: string
+          updated_by?: string | null
           warehouse_id?: string | null
         }
         Update: {
@@ -918,6 +957,8 @@ export type Database = {
           commodity?: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           incoterm?: string
           interest_rate_used?: number | null
@@ -931,6 +972,7 @@ export type Database = {
           reference_date?: string
           source?: string
           updated_at?: string
+          updated_by?: string | null
           warehouse_id?: string | null
         }
         Relationships: [
@@ -956,6 +998,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      physical_prices_audit: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          id: string
+          old_row: Json
+          operation: string
+          price_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          old_row: Json
+          operation: string
+          price_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          old_row?: Json
+          operation?: string
+          price_id?: string
+        }
+        Relationships: []
       }
       physical_prices_daily: {
         Row: {
