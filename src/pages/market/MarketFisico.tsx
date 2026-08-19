@@ -195,7 +195,31 @@ function PainelView({ onRegister }: { onRegister: (locationId: string, commodity
                 );
               })}
             </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
 
+/** Cotações do dia de referência de uma praça × commodity. */
+function QuotesOfDay({
+  locationId, commodity, referenceDate,
+}: { locationId: string; commodity: string; referenceDate: string }) {
+  const { data: quotes = [], isLoading } = useQuotesForDay(locationId, commodity, referenceDate);
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Cotações de {fmtDate(referenceDate)} — {COMMODITY_LABEL[commodity] ?? commodity}
+      </p>
+      <QuoteDetailsTable
+        quotes={quotes}
+        isLoading={isLoading}
+        emptyLabel="Nenhuma cotação nesta data."
+      />
+    </div>
+  );
+}
 
 /* =========================== B) POR PRAÇA =========================== */
 
