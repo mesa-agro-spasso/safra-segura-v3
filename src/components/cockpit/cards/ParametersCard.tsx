@@ -22,19 +22,6 @@ const PERIOD_LABELS: Record<string, string> = {
 const STICKY_PRACA = 'sticky left-0 z-20 bg-card w-40 min-w-[10rem]';
 const STICKY_COMMODITY = 'sticky left-40 z-20 bg-card w-24 min-w-[6rem] shadow-[inset_-1px_0_0_hsl(var(--border))]';
 
-/** Converte texto digitado (vírgula ou ponto) em número. Sem aritmética financeira. */
-function parseDecimal(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (trimmed === '') return null;
-  const n = Number(trimmed.replace(/\./g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : null;
-}
-
-function toText(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  return String(value).replace('.', ',');
-}
-
 export type PendingMap = Record<string, Partial<Record<keyof CockpitOverrides, true>>>;
 
 interface CellProps {

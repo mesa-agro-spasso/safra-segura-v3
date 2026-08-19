@@ -339,7 +339,7 @@ const Cockpit = () => {
     }
   };
 
-  const canPublish = !!calcResults && !dirty && !publishing && !recalculating;
+  const canPublish = !!calcResults && !dirty && !publishing && !recalculating && paramsValid;
 
   const recalcButton = (
     <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRecalculate} disabled={recalculating || publishing}>
@@ -364,6 +364,7 @@ const Cockpit = () => {
     physical_prices: <PhysicalPricesCard warehouseMap={warehouseMap} />,
     parameters: (
       <ParametersCard
+        onValidityChange={setParamsValid}
         combos={sortedCombos}
         warehouseMap={warehouseMap}
         overrides={overrides}
