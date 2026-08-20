@@ -54,7 +54,9 @@ const CARD_TITLES: Record<CockpitCardId, string> = {
   physical_prices: 'Preços físicos',
   parameters: 'Parâmetros das combinações',
   insurance_options: 'Opções de seguro',
+  simulation: 'Simulação livre',
 };
+
 
 const Cockpit = () => {
   const { data: warehouses } = useActiveArmazens();
