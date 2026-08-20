@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Upload, AlertTriangle, Plus, Save, Calculator } from 'lucide-react';
+import { RefreshCw, Upload, AlertTriangle, Plus, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +26,7 @@ import {
 } from '@/components/pricing/InsuranceFields';
 import { InsuranceOptionsCard } from '@/components/cockpit/cards/InsuranceOptionsCard';
 import { CockpitShell, type CockpitCardSpec } from '@/components/cockpit/CockpitShell';
-import { SimulationDialog } from '@/components/simulation/SimulationDialog';
+import { SimulationPanel } from '@/components/simulation/SimulationPanel';
 import { PriceTableCard } from '@/components/cockpit/cards/PriceTableCard';
 import { MarketCard } from '@/components/cockpit/cards/MarketCard';
 import { PhysicalPricesCard } from '@/components/cockpit/cards/PhysicalPricesCard';
@@ -97,7 +97,7 @@ const Cockpit = () => {
   const [recalcNonce, setRecalcNonce] = useState(0);
   /** Falso enquanto algum campo numérico do card de parâmetros estiver inválido. */
   const [paramsValid, setParamsValid] = useState(true);
-  const [simOpen, setSimOpen] = useState(false);
+  
 
   const warehouseMap = useMemo(() => {
     const m: Record<string, Warehouse> = {};
