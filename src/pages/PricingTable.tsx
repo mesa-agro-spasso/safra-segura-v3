@@ -427,6 +427,17 @@ const PricingTable = () => {
                             </TooltipContent>
                           </Tooltip>
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Gerar PDF do DRE"
+                            onClick={(e) => { e.stopPropagation(); void handleRowPdf(snap); }}
+                          >
+                            <FileDown className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
