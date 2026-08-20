@@ -72,10 +72,9 @@ export function buildDreLines(outputs: Record<string, unknown> | null | undefine
     lines.push({ key: 'basis', label: 'Basis alvo', value: basis, kind: 'add' });
   }
 
-  const gross = num(o.gross_price_brl);
-  if (gross != null) {
-    lines.push({ key: 'gross', label: 'Preço bruto', value: gross, kind: 'subtotal' });
-  }
+  // "Preço bruto" saiu da cascata: a leitura vai direto de futuros + basis para os custos.
+
+
 
   for (const c of COST_LINES) {
     const v = num(costs[c.key]);
@@ -124,10 +123,13 @@ export function formatBrl(v: number): string {
 /** Sinal exibido ao lado da linha — apresentação, não operação. */
 export function dreSign(kind: DreKind, value: number): string {
   if (kind === 'cost') return '−';
-  if (kind === 'add') return '+';
-  if (kind === 'adjust') return value < 0 ? '−' : '+';
+  // Basis pode ser negativo: o sinal segue o valor devolvido pela API.
+  if (kind === 'add') return value < 0 ? '−' : '+';
+  // O ajuste de arredondamento sempre reduz o preço.
+  if (kind === 'adjust') return '−';
   return '';
 }
+
 
 export function dreAbs(value: number): number {
   return value < 0 ? -value : value;

@@ -2,7 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 /** Identificadores dos cards do cockpit. */
-export type CockpitCardId = 'price_table' | 'market' | 'physical_prices' | 'parameters' | 'insurance_options';
+export type CockpitCardId =
+  | 'price_table'
+  | 'market'
+  | 'physical_prices'
+  | 'parameters'
+  | 'insurance_options'
+  | 'simulation';
+
 
 export interface CockpitLayout {
   version: 1;
