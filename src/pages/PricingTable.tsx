@@ -553,6 +553,11 @@ const PricingTable = () => {
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
       <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} activeCommodity={filterCommodity.length === 1 ? filterCommodity[0] : 'all'} />
+      <SimulationDialog
+        open={simOpen}
+        onOpenChange={setSimOpen}
+        currentBatchCreatedAt={allRows[0]?.created_at ?? null}
+      />
     </div>
   );
 };
