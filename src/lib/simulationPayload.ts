@@ -78,6 +78,41 @@ export function emptySimulationForm(tradeDate: string): SimulationForm {
   };
 }
 
+/**
+ * Resolução em camadas dos custos, igual à do cockpit: valor da combinação
+ * quando existe, senão o do armazém. Só escolha de camada — nenhuma aritmética.
+ */
+export function resolveCosts(
+  combo: Pick<
+    PricingCombination,
+    | 'interest_rate'
+    | 'storage_cost'
+    | 'storage_cost_type'
+    | 'reception_cost'
+    | 'brokerage_per_contract'
+    | 'desk_cost_pct'
+    | 'shrinkage_rate_monthly'
+  > | null,
+  warehouse: Warehouse | undefined,
+  benchmark: SimulationForm['benchmark'],
+): SimulationCosts {
+  const whBrokerage =
+    benchmark === 'cbot'
+      ? warehouse?.brokerage_per_contract_cbot ?? null
+      : warehouse?.brokerage_per_contract_b3 ?? null;
+  return {
+    interest_rate: combo?.interest_rate ?? warehouse?.interest_rate ?? null,
+    interest_rate_period: warehouse?.interest_rate_period ?? 'monthly',
+    storage_cost: combo?.storage_cost ?? warehouse?.storage_cost ?? null,
+    storage_cost_type: combo?.storage_cost_type ?? warehouse?.storage_cost_type ?? 'fixed',
+    reception_cost: combo?.reception_cost ?? warehouse?.reception_cost ?? null,
+    brokerage_per_contract: combo?.brokerage_per_contract ?? whBrokerage,
+    desk_cost_pct: combo?.desk_cost_pct ?? warehouse?.desk_cost_pct ?? null,
+    shrinkage_rate_monthly:
+      combo?.shrinkage_rate_monthly ?? warehouse?.shrinkage_rate_monthly ?? null,
+  };
+}
+
 /** Preenche o formulário a partir de uma combinação cadastrada. Só cópia. */
 export function formFromCombination(
   combo: PricingCombination,
@@ -114,16 +149,7 @@ export function formFromCombination(
       insurance_coverage_pct: combo.insurance_coverage_pct,
       insurance_carry_until: combo.insurance_carry_until,
     },
-    manual: {
-      interest_rate: combo.interest_rate,
-      interest_rate_period: warehouse?.interest_rate_period ?? null,
-      storage_cost: combo.storage_cost,
-      storage_cost_type: combo.storage_cost_type,
-      reception_cost: combo.reception_cost,
-      brokerage_per_contract: combo.brokerage_per_contract,
-      desk_cost_pct: combo.desk_cost_pct,
-      shrinkage_rate_monthly: combo.shrinkage_rate_monthly,
-    },
+    manual: resolveCosts(combo, warehouse, combo.benchmark as SimulationForm['benchmark']),
   };
 }
 
@@ -165,17 +191,8 @@ export function costsFromCombinations(
   const combo =
     (warehouseId ? compatible.find((c) => c.warehouse_id === warehouseId) : undefined) ??
     compatible[0];
-  if (!combo) return null;
-  return {
-    interest_rate: combo.interest_rate,
-    interest_rate_period: warehouse?.interest_rate_period ?? null,
-    storage_cost: combo.storage_cost,
-    storage_cost_type: combo.storage_cost_type,
-    reception_cost: combo.reception_cost,
-    brokerage_per_contract: combo.brokerage_per_contract,
-    desk_cost_pct: combo.desk_cost_pct,
-    shrinkage_rate_monthly: combo.shrinkage_rate_monthly,
-  };
+  if (!combo && !warehouse) return null;
+  return resolveCosts(combo ?? null, warehouse, benchmark);
 }
 
 /** Erros por campo, exibidos ao lado do input. Sem regra financeira: só campos obrigatórios. */
