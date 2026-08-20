@@ -26,6 +26,7 @@ import {
 } from '@/components/pricing/InsuranceFields';
 import { InsuranceOptionsCard } from '@/components/cockpit/cards/InsuranceOptionsCard';
 import { CockpitShell, type CockpitCardSpec } from '@/components/cockpit/CockpitShell';
+import { SimulationDialog } from '@/components/simulation/SimulationDialog';
 import { PriceTableCard } from '@/components/cockpit/cards/PriceTableCard';
 import { MarketCard } from '@/components/cockpit/cards/MarketCard';
 import { PhysicalPricesCard } from '@/components/cockpit/cards/PhysicalPricesCard';
