@@ -149,16 +149,7 @@ export function formFromCombination(
       insurance_coverage_pct: combo.insurance_coverage_pct,
       insurance_carry_until: combo.insurance_carry_until,
     },
-    manual: {
-      interest_rate: combo.interest_rate,
-      interest_rate_period: warehouse?.interest_rate_period ?? null,
-      storage_cost: combo.storage_cost,
-      storage_cost_type: combo.storage_cost_type,
-      reception_cost: combo.reception_cost,
-      brokerage_per_contract: combo.brokerage_per_contract,
-      desk_cost_pct: combo.desk_cost_pct,
-      shrinkage_rate_monthly: combo.shrinkage_rate_monthly,
-    },
+    manual: resolveCosts(combo, warehouse, combo.benchmark as SimulationForm['benchmark']),
   };
 }
 
@@ -200,17 +191,8 @@ export function costsFromCombinations(
   const combo =
     (warehouseId ? compatible.find((c) => c.warehouse_id === warehouseId) : undefined) ??
     compatible[0];
-  if (!combo) return null;
-  return {
-    interest_rate: combo.interest_rate,
-    interest_rate_period: warehouse?.interest_rate_period ?? null,
-    storage_cost: combo.storage_cost,
-    storage_cost_type: combo.storage_cost_type,
-    reception_cost: combo.reception_cost,
-    brokerage_per_contract: combo.brokerage_per_contract,
-    desk_cost_pct: combo.desk_cost_pct,
-    shrinkage_rate_monthly: combo.shrinkage_rate_monthly,
-  };
+  if (!combo && !warehouse) return null;
+  return resolveCosts(combo ?? null, warehouse, benchmark);
 }
 
 /** Erros por campo, exibidos ao lado do input. Sem regra financeira: só campos obrigatórios. */
