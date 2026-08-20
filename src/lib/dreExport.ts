@@ -9,9 +9,10 @@ import {
 } from '@/lib/dre';
 
 /**
- * PDF do DRE. Mesmo mecanismo do export da Tabela de Preços
+ * PDF da simulação de precificação. Mesmo mecanismo do export da Tabela de Preços
  * (iframe + html2canvas), com a imagem final embutida em um PDF.
  */
+
 
 function getDateStr(): string {
   const d = new Date();
@@ -94,7 +95,7 @@ export async function exportDrePdf({ outputs, warehouseName, fileTag }: DrePdfOp
 </style></head><body>
   <div class="header">
     <img class="logo" src="${logoUrl}" alt="Grupo Spasso" crossorigin="anonymous" />
-    <div class="title">SIMULAÇÃO DE PRECIFICAÇÃO — DRE</div>
+    <div class="title">SIMULAÇÃO DE PRECIFICAÇÃO</div>
     <div class="date">${dateStr}</div>
   </div>
   <div class="meta">${metaHtml}</div>
@@ -155,7 +156,7 @@ export async function exportDrePdf({ outputs, warehouseName, fileTag }: DrePdfOp
       renderH,
     );
     const tag = (fileTag ?? head.ticker ?? 'simulacao').toString().replace(/[^\w-]+/g, '_');
-    pdf.save(`dre_${tag}_${getDateStr()}.pdf`);
+    pdf.save(`simulacao_${tag}_${getDateStr()}.pdf`);
   } finally {
     document.body.removeChild(iframe);
   }

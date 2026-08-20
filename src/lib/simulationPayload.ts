@@ -135,24 +135,80 @@ export interface BuildSimulationResult {
   insuranceUsed: { quote: OptionQuote; coverage_pct: number | null; carry_until: string | null } | null;
 }
 
-/** Erros de preenchimento que impedem o envio. Sem regra financeira: só campos obrigatórios. */
-export function validateSimulationForm(form: SimulationForm, quote: OptionQuote | null): string | null {
-  if (!form.ticker.trim()) return 'Informe o ticker.';
-  if (form.futures_price == null) return 'Informe o preço de futuros.';
-  if (!form.trade_date) return 'Informe a data de negócio.';
-  if (!form.sale_date) return 'Informe a data de venda.';
-  if (!form.is_spot && !form.payment_date) return 'Informe a data de pagamento (ou marque à vista).';
+/**
+ * Chave de commodity em `market_data` para o par commodity+bolsa.
+ * Soja só existe na CBOT; milho tem CBOT e B3.
+ */
+export function marketCommodityKey(
+  commodity: SimulationForm['commodity'],
+  benchmark: SimulationForm['benchmark'],
+): string | null {
+  if (commodity === 'soybean') return benchmark === 'cbot' ? 'SOJA' : null;
+  return benchmark === 'cbot' ? 'MILHO_CBOT' : 'MILHO';
+}
+
+/**
+ * Custos herdados de uma combinação já cadastrada com a mesma commodity e bolsa.
+ * Só cópia de campos: preenche o formulário, não altera nada no cadastro.
+ * Prioriza combinação da praça escolhida; depois qualquer combinação ativa compatível.
+ */
+export function costsFromCombinations(
+  combos: PricingCombination[] | undefined,
+  commodity: SimulationForm['commodity'],
+  benchmark: SimulationForm['benchmark'],
+  warehouseId: string | null,
+  warehouse: Warehouse | undefined,
+): SimulationCosts | null {
+  const compatible = (combos ?? []).filter(
+    (c) => c.commodity === commodity && c.benchmark === benchmark && c.active,
+  );
+  const combo =
+    (warehouseId ? compatible.find((c) => c.warehouse_id === warehouseId) : undefined) ??
+    compatible[0];
+  if (!combo) return null;
+  return {
+    interest_rate: combo.interest_rate,
+    interest_rate_period: warehouse?.interest_rate_period ?? null,
+    storage_cost: combo.storage_cost,
+    storage_cost_type: combo.storage_cost_type,
+    reception_cost: combo.reception_cost,
+    brokerage_per_contract: combo.brokerage_per_contract,
+    desk_cost_pct: combo.desk_cost_pct,
+    shrinkage_rate_monthly: combo.shrinkage_rate_monthly,
+  };
+}
+
+/** Erros por campo, exibidos ao lado do input. Sem regra financeira: só campos obrigatórios. */
+export function validateSimulationFields(
+  form: SimulationForm,
+  quote: OptionQuote | null,
+): Record<string, string> {
+  const e: Record<string, string> = {};
+  if (!form.ticker.trim()) e.ticker = 'Selecione o ticker.';
+  if (form.futures_price == null) e.futures_price = 'Informe o preço de futuros.';
+  if (!form.trade_date) e.trade_date = 'Informe a data de negócio.';
+  if (!form.sale_date) e.sale_date = 'Informe a data de venda.';
+  if (!form.is_spot && !form.payment_date) e.payment_date = 'Informe a data (ou marque à vista).';
+  if (form.benchmark === 'cbot' && form.spot_usd_brl == null) e.spot_usd_brl = 'Informe o dólar à vista.';
   if (form.pricing_method === 'LONG_BASIS' && form.target_basis == null) {
-    return 'Long Basis exige basis alvo.';
+    e.target_basis = 'Long Basis exige basis alvo.';
   }
   if (form.pricing_method === 'TARGET_PRICE' && form.origination_price_net_brl == null) {
-    return 'Target Price exige preço líquido alvo.';
+    e.origination_price_net_brl = 'Target Price exige preço líquido alvo.';
   }
   if (form.insurance.insurance_option_id && !quote) {
-    return 'Seguro sem cotação — registre o prêmio em Mercado > Opções.';
+    e.insurance = 'Seguro sem cotação — registre o prêmio em Mercado > Opções.';
   }
-  return null;
+  return e;
 }
+
+/** Erros de preenchimento que impedem o envio. Sem regra financeira: só campos obrigatórios. */
+export function validateSimulationForm(form: SimulationForm, quote: OptionQuote | null): string | null {
+  const errors = validateSimulationFields(form, quote);
+  const first = Object.values(errors)[0];
+  return first ?? null;
+}
+
 
 export function buildSimulationRequest(
   form: SimulationForm,
@@ -208,7 +264,7 @@ export function buildSimulationRequest(
     ...(form.exchange_rate_override != null
       ? { exchange_rate_override: form.exchange_rate_override }
       : {}),
-    ...(form.rounding_increment != null ? { rounding_increment: form.rounding_increment } : {}),
+    // rounding_increment não é mais enviado: quem arredonda é a API, com o parâmetro dela.
     ...insuranceFields,
     // Camada de custos digitada à mão. `combination` é a chave do contrato em uso;
     // `manual_override` acompanha o mesmo conteúdo para o contrato novo.

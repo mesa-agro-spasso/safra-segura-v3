@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Upload, AlertTriangle, Plus, Save, Calculator } from 'lucide-react';
+import { RefreshCw, Upload, AlertTriangle, Plus, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +26,7 @@ import {
 } from '@/components/pricing/InsuranceFields';
 import { InsuranceOptionsCard } from '@/components/cockpit/cards/InsuranceOptionsCard';
 import { CockpitShell, type CockpitCardSpec } from '@/components/cockpit/CockpitShell';
-import { SimulationDialog } from '@/components/simulation/SimulationDialog';
+import { SimulationPanel } from '@/components/simulation/SimulationPanel';
 import { PriceTableCard } from '@/components/cockpit/cards/PriceTableCard';
 import { MarketCard } from '@/components/cockpit/cards/MarketCard';
 import { PhysicalPricesCard } from '@/components/cockpit/cards/PhysicalPricesCard';
@@ -54,7 +54,9 @@ const CARD_TITLES: Record<CockpitCardId, string> = {
   physical_prices: 'Preços físicos',
   parameters: 'Parâmetros das combinações',
   insurance_options: 'Opções de seguro',
+  simulation: 'Simulação livre',
 };
+
 
 const Cockpit = () => {
   const { data: warehouses } = useActiveArmazens();
@@ -95,7 +97,7 @@ const Cockpit = () => {
   const [recalcNonce, setRecalcNonce] = useState(0);
   /** Falso enquanto algum campo numérico do card de parâmetros estiver inválido. */
   const [paramsValid, setParamsValid] = useState(true);
-  const [simOpen, setSimOpen] = useState(false);
+  
 
   const warehouseMap = useMemo(() => {
     const m: Record<string, Warehouse> = {};
@@ -380,6 +382,8 @@ const Cockpit = () => {
       />
     ),
     insurance_options: <InsuranceOptionsCard onQuoteRegistered={() => handleQuoteChanged(['seguro'])} />,
+    simulation: <SimulationPanel variant="card" currentBatchCreatedAt={latestBatch[0]?.created_at ?? null} />,
+
   };
 
   const cardActions: Partial<Record<CockpitCardId, React.ReactNode>> = {
@@ -434,10 +438,6 @@ const Cockpit = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setSimOpen(true)}>
-            <Calculator className="mr-1.5 h-4 w-4" />
-            Simulação livre
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={availableToAdd.length === 0}>
@@ -513,11 +513,7 @@ const Cockpit = () => {
         </Card>
       )}
 
-      <SimulationDialog
-        open={simOpen}
-        onOpenChange={setSimOpen}
-        currentBatchCreatedAt={latestBatch[0]?.created_at ?? null}
-      />
+
 
       <Dialog open={!!insuranceEditing} onOpenChange={(o) => { if (!o) setInsuranceEditing(null); }}>
         <DialogContent className="sm:max-w-md">

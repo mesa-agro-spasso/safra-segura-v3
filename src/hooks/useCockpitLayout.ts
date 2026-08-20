@@ -2,7 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 /** Identificadores dos cards do cockpit. */
-export type CockpitCardId = 'price_table' | 'market' | 'physical_prices' | 'parameters' | 'insurance_options';
+export type CockpitCardId =
+  | 'price_table'
+  | 'market'
+  | 'physical_prices'
+  | 'parameters'
+  | 'insurance_options'
+  | 'simulation';
+
 
 export interface CockpitLayout {
   version: 1;
@@ -15,7 +22,7 @@ export const DEFAULT_LAYOUT: CockpitLayout = {
   cards: [{ id: 'price_table' }, { id: 'parameters' }, { id: 'market' }],
 };
 
-const VALID_IDS: CockpitCardId[] = ['price_table', 'market', 'physical_prices', 'parameters', 'insurance_options'];
+const VALID_IDS: CockpitCardId[] = ['price_table', 'market', 'physical_prices', 'parameters', 'insurance_options', 'simulation'];
 
 /** Normaliza o JSON salvo: descarta ids desconhecidos e garante o card fixo. */
 export function normalizeLayout(raw: unknown): CockpitLayout {
