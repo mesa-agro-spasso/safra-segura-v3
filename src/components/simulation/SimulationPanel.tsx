@@ -92,15 +92,14 @@ const F = ({
 function Section({
   title,
   collapsible,
-  defaultOpen,
   children,
 }: {
   title: string;
   collapsible: boolean;
-  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(!!defaultOpen);
+  // Toda seção nasce fechada — sem exceção, a cada abertura do card.
+  const [open, setOpen] = useState(false);
   if (!collapsible) {
     return (
       <div className="space-y-3">
@@ -200,7 +199,7 @@ export function SimulationPanel({
   };
 
   /** Troca de commodity/bolsa: limpa o ticker e herda custos de uma combinação compatível. */
-  const applyMarketScope = (p: Partial<SimulationForm>) => {
+  const applyMarketScope = (p: Partial<SimulationForm>, keepTicker = false) => {
     setForm((f) => {
       const next = { ...f, ...p };
       const costs = costsFromCombinations(
@@ -212,9 +211,7 @@ export function SimulationPanel({
       );
       return {
         ...next,
-        ticker: '',
-        futures_price: null,
-        exp_date: null,
+        ...(keepTicker ? {} : { ticker: '', futures_price: null, exp_date: null }),
         manual: costs ?? next.manual,
       };
     });
@@ -412,10 +409,9 @@ export function SimulationPanel({
                     <Select onValueChange={applyCombination}>
                       <SelectTrigger><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
                       <SelectContent className="max-h-72">
-                        {(combinations ?? []).map((c) => (
+                        {(combinations ?? []).filter((c) => c.active).map((c) => (
                           <SelectItem key={c.id} value={c.id}>
                             {(warehouseMap[c.warehouse_id]?.display_name ?? c.warehouse_id)} · {c.ticker}
-                            {c.active ? '' : ' (inativa)'}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -425,12 +421,12 @@ export function SimulationPanel({
                 <Button variant="outline" size="sm" onClick={resetAll}>Do zero</Button>
               </div>
 
-              <Section title="Identidade" collapsible={isCard} defaultOpen>
+              <Section title="Identidade" collapsible={isCard}>
                 <div className="grid grid-cols-2 gap-3">
                   <F label="Praça (só para gravar)">
                     <Select
                       value={form.warehouse_id ?? ''}
-                      onValueChange={(v) => patch({ warehouse_id: v })}
+                      onValueChange={(v) => applyMarketScope({ warehouse_id: v }, true)}
                     >
                       <SelectTrigger><SelectValue placeholder="Sem praça" /></SelectTrigger>
                       <SelectContent className="max-h-72">
@@ -533,7 +529,7 @@ export function SimulationPanel({
                 </div>
               </Section>
 
-              <Section title="Preço e ajustes" collapsible={isCard} defaultOpen>
+              <Section title="Preço e ajustes" collapsible={isCard}>
                 <div className="grid grid-cols-2 gap-3">
                   {form.pricing_method === 'LONG_BASIS' ? (
                     <F label="Basis alvo (R$/sc)" error={fieldErrors.target_basis}>
@@ -570,7 +566,7 @@ export function SimulationPanel({
 
               <Section title="Custos" collapsible={isCard}>
                 <div className="grid grid-cols-2 gap-3">
-                  <F label="Taxa de juros">
+                  <F label="Taxa de juros (%)">
                     <NumericInput
                       precision={4}
                       value={form.manual.interest_rate}
@@ -582,7 +578,7 @@ export function SimulationPanel({
                       value={form.manual.interest_rate_period ?? ''}
                       onValueChange={(v) => patch({ manual: { ...form.manual, interest_rate_period: v } })}
                     >
-                      <SelectTrigger><SelectValue placeholder="Herdar" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Mensal" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="monthly">Mensal</SelectItem>
                         <SelectItem value="yearly">Anual</SelectItem>
@@ -601,7 +597,7 @@ export function SimulationPanel({
                       value={form.manual.storage_cost_type ?? ''}
                       onValueChange={(v) => patch({ manual: { ...form.manual, storage_cost_type: v } })}
                     >
-                      <SelectTrigger><SelectValue placeholder="Herdar" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Fixo" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="fixed">Fixo</SelectItem>
                         <SelectItem value="monthly">Mensal</SelectItem>
