@@ -438,10 +438,6 @@ const Cockpit = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setSimOpen(true)}>
-            <Calculator className="mr-1.5 h-4 w-4" />
-            Simulação livre
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={availableToAdd.length === 0}>
