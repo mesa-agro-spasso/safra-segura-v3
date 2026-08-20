@@ -211,6 +211,10 @@ const PricingTable = () => {
             })()}
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setSimOpen(true)}>
+              <Calculator className="mr-2 h-4 w-4" />
+              Simulação livre
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={loading || rows.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Exportar
