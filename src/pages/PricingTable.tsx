@@ -356,6 +356,7 @@ const PricingTable = () => {
                     <TableHead className="text-right">Câmbio</TableHead>
                     <TableHead className="text-right">Seguro (R$/sc)</TableHead>
                     <TableHead className="text-right">Preço Originação</TableHead>
+                    <TableHead className="text-center w-10">PDF</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
