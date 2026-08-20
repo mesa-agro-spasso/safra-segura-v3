@@ -382,6 +382,8 @@ const Cockpit = () => {
       />
     ),
     insurance_options: <InsuranceOptionsCard onQuoteRegistered={() => handleQuoteChanged(['seguro'])} />,
+    simulation: <SimulationPanel variant="card" currentBatchCreatedAt={latestBatch[0]?.created_at ?? null} />,
+
   };
 
   const cardActions: Partial<Record<CockpitCardId, React.ReactNode>> = {
