@@ -125,9 +125,9 @@ export async function exportDrePdf({ outputs, warehouseName, fileTag }: DrePdfOp
 
       pdf.setFont('helvetica', isTotal || isSubtotal ? 'bold' : 'normal');
       pdf.setFontSize(isTotal ? 12 : 10);
-      pdf.setTextColor(
-        ...(isTotal ? ([255, 255, 255] as const) : line.kind === 'cost' ? ([100, 116, 139] as const) : ([31, 41, 55] as const)),
-      );
+      if (isTotal) pdf.setTextColor(255, 255, 255);
+      else if (line.kind === 'cost') pdf.setTextColor(100, 116, 139);
+      else pdf.setTextColor(31, 41, 55);
       const labelX = margin + 12 + (line.kind === 'cost' ? 12 : 0);
       pdf.text(line.label, labelX, y + 20);
       if (line.hint) {
@@ -140,7 +140,8 @@ export async function exportDrePdf({ outputs, warehouseName, fileTag }: DrePdfOp
 
       pdf.setFont('helvetica', isTotal ? 'bold' : 'normal');
       pdf.setFontSize(isTotal ? 12 : 10);
-      pdf.setTextColor(...(isTotal ? ([255, 255, 255] as const) : ([31, 41, 55] as const)));
+      if (isTotal) pdf.setTextColor(255, 255, 255);
+      else pdf.setTextColor(31, 41, 55);
       const value = `${dreSign(line.kind, line.value)} R$ ${formatBrl(dreAbs(line.value))}`;
       pdf.text(value, pageWidth - margin - 12, y + 20, { align: 'right' });
       y += rowHeight;
