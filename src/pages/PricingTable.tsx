@@ -46,6 +46,19 @@ const PricingTable = () => {
   const [filterWarehouse, setFilterWarehouse] = useState<string[]>([]);
   const [filterTicker, setFilterTicker] = useState<string[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [simOpen, setSimOpen] = useState(false);
+
+  const handleRowPdf = async (snap: any) => {
+    try {
+      await exportDrePdf({
+        outputs: snap.outputs_json as Record<string, unknown> | null,
+        warehouseName: warehouseMap[snap.warehouse_id] ?? snap.warehouse_id,
+        fileTag: snap.ticker,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao gerar PDF');
+    }
+  };
 
   // Restrict displayed/monitored market data to the configured ticker quantities,
   // ordered by exp_date. FX is always included.
