@@ -12,9 +12,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, AlertTriangle, Download, Filter } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Download, Filter, Calculator, FileDown } from 'lucide-react';
+import { toast } from 'sonner';
 import { GeneratePricingModal } from '@/components/GeneratePricingModal';
 import { ExportPricingModal } from '@/components/ExportPricingModal';
+import { SimulationDialog } from '@/components/simulation/SimulationDialog';
+import { exportDrePdf } from '@/lib/dreExport';
 
 const B3_CORN_TICKERS = ['CCMF27', 'CCMK27'];
 
@@ -43,6 +46,19 @@ const PricingTable = () => {
   const [filterWarehouse, setFilterWarehouse] = useState<string[]>([]);
   const [filterTicker, setFilterTicker] = useState<string[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [simOpen, setSimOpen] = useState(false);
+
+  const handleRowPdf = async (snap: any) => {
+    try {
+      await exportDrePdf({
+        outputs: snap.outputs_json as Record<string, unknown> | null,
+        warehouseName: warehouseMap[snap.warehouse_id] ?? snap.warehouse_id,
+        fileTag: snap.ticker,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao gerar PDF');
+    }
+  };
 
   // Restrict displayed/monitored market data to the configured ticker quantities,
   // ordered by exp_date. FX is always included.
@@ -195,6 +211,10 @@ const PricingTable = () => {
             })()}
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setSimOpen(true)}>
+              <Calculator className="mr-2 h-4 w-4" />
+              Simulação livre
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={loading || rows.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Exportar
@@ -336,6 +356,7 @@ const PricingTable = () => {
                     <TableHead className="text-right">Câmbio</TableHead>
                     <TableHead className="text-right">Seguro (R$/sc)</TableHead>
                     <TableHead className="text-right">Preço Originação</TableHead>
+                    <TableHead className="text-center w-10">PDF</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -405,6 +426,17 @@ const PricingTable = () => {
                               <p className="border-t border-border pt-1 italic text-muted-foreground">Clique para criar uma operação com este preço.</p>
                             </TooltipContent>
                           </Tooltip>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Gerar PDF do DRE"
+                            onClick={(e) => { e.stopPropagation(); void handleRowPdf(snap); }}
+                          >
+                            <FileDown className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
@@ -521,6 +553,11 @@ const PricingTable = () => {
 
       <GeneratePricingModal open={modalOpen} onOpenChange={setModalOpen} />
       <ExportPricingModal open={exportOpen} onOpenChange={setExportOpen} rows={rows} warehouseMap={warehouseMap} activeCommodity={filterCommodity.length === 1 ? filterCommodity[0] : 'all'} />
+      <SimulationDialog
+        open={simOpen}
+        onOpenChange={setSimOpen}
+        currentBatchCreatedAt={allRows[0]?.created_at ?? null}
+      />
     </div>
   );
 };
