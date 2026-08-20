@@ -208,7 +208,7 @@ export function buildSimulationRequest(
     ...(form.exchange_rate_override != null
       ? { exchange_rate_override: form.exchange_rate_override }
       : {}),
-    ...(form.rounding_increment != null ? { rounding_increment: form.rounding_increment } : {}),
+    // rounding_increment não é mais enviado: quem arredonda é a API, com o parâmetro dela.
     ...insuranceFields,
     // Camada de custos digitada à mão. `combination` é a chave do contrato em uso;
     // `manual_override` acompanha o mesmo conteúdo para o contrato novo.
