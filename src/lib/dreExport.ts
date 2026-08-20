@@ -143,9 +143,17 @@ export async function exportDrePdf({ outputs, warehouseName, fileTag }: DrePdfOp
       if (isTotal) pdf.setTextColor(255, 255, 255);
       else pdf.setTextColor(31, 41, 55);
       const displaySign = dreSign(line.kind, line.value);
-      const sign = line.kind === 'cost' || line.kind === 'adjust' || displaySign !== '+' && displaySign !== '' ? '-' : displaySign;
-      const value = `${sign} R$ ${formatBrl(dreAbs(line.value))}`;
-      pdf.text(value, pageWidth - margin - 12, y + 20, { align: 'right' });
+      const isNegative = line.kind === 'cost' || line.kind === 'adjust' || displaySign !== '+' && displaySign !== '';
+      const amount = `R$ ${formatBrl(dreAbs(line.value))}`;
+      const value = `${displaySign === '+' ? '+ ' : ''}${amount}`;
+      const valueRight = pageWidth - margin - 12;
+      pdf.text(value, valueRight, y + 20, { align: 'right' });
+      if (isNegative) {
+        const valueLeft = valueRight - pdf.getTextWidth(amount);
+        pdf.setDrawColor(isTotal ? 255 : 31, isTotal ? 255 : 41, isTotal ? 255 : 55);
+        pdf.setLineWidth(1);
+        pdf.line(valueLeft - 10, y + 16, valueLeft - 4, y + 16);
+      }
       y += rowHeight;
     });
 
