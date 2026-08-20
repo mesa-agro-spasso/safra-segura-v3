@@ -94,6 +94,7 @@ const Cockpit = () => {
   const [recalcNonce, setRecalcNonce] = useState(0);
   /** Falso enquanto algum campo numérico do card de parâmetros estiver inválido. */
   const [paramsValid, setParamsValid] = useState(true);
+  const [simOpen, setSimOpen] = useState(false);
 
   const warehouseMap = useMemo(() => {
     const m: Record<string, Warehouse> = {};
