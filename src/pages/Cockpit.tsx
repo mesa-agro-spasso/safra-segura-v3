@@ -513,11 +513,7 @@ const Cockpit = () => {
         </Card>
       )}
 
-      <SimulationDialog
-        open={simOpen}
-        onOpenChange={setSimOpen}
-        currentBatchCreatedAt={latestBatch[0]?.created_at ?? null}
-      />
+
 
       <Dialog open={!!insuranceEditing} onOpenChange={(o) => { if (!o) setInsuranceEditing(null); }}>
         <DialogContent className="sm:max-w-md">
