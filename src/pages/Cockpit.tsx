@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Upload, AlertTriangle, Plus, Save } from 'lucide-react';
+import { RefreshCw, Upload, AlertTriangle, Plus, Save, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
