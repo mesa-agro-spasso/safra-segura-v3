@@ -156,7 +156,16 @@ export async function exportDrePdf({ outputs, warehouseName, fileTag }: DrePdfOp
       renderH,
     );
     const tag = (fileTag ?? head.ticker ?? 'simulacao').toString().replace(/[^\w-]+/g, '_');
-    pdf.save(`simulacao_${tag}_${getDateStr()}.pdf`);
+    // Download explícito: o save() interno do jsPDF não dispara em todos os contextos.
+    const blob = pdf.output('blob') as Blob;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `simulacao_${tag}_${getDateStr()}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   } finally {
     document.body.removeChild(iframe);
   }
