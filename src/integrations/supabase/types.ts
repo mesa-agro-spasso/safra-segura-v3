@@ -1493,6 +1493,33 @@ export type Database = {
           },
         ]
       }
+      simulation_drafts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          request_json: Json
+          response_json: Json | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          request_json: Json
+          response_json?: Json | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          request_json?: Json
+          response_json?: Json | null
+        }
+        Relationships: []
+      }
       spot_settings: {
         Row: {
           id: string
