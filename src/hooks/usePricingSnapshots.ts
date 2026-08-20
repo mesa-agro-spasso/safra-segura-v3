@@ -31,3 +31,24 @@ export function useSavePricingSnapshots() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pricing_snapshots'] }),
   });
 }
+
+/**
+ * Insere UMA linha de snapshot. Aceita created_at explícito para entrar
+ * no lote já publicado (Adicionar à tabela) em vez de fundar um lote novo.
+ */
+export function useInsertPricingSnapshot() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (row: Omit<PricingSnapshot, 'id' | 'created_at'> & { created_at?: string }) => {
+      const { error } = await supabase.from('pricing_snapshots').insert(row as never);
+      if (error) throw error;
+      void logActivity('pricing_snapshot.simulation', 'pricing_snapshot', null, {
+        warehouse_id: row.warehouse_id,
+        ticker: row.ticker,
+        joined_batch: row.created_at ?? null,
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pricing_snapshots'] }),
+  });
+}
+
