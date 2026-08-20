@@ -22,7 +22,7 @@ export const DEFAULT_LAYOUT: CockpitLayout = {
   cards: [{ id: 'price_table' }, { id: 'parameters' }, { id: 'market' }],
 };
 
-const VALID_IDS: CockpitCardId[] = ['price_table', 'market', 'physical_prices', 'parameters', 'insurance_options'];
+const VALID_IDS: CockpitCardId[] = ['price_table', 'market', 'physical_prices', 'parameters', 'insurance_options', 'simulation'];
 
 /** Normaliza o JSON salvo: descarta ids desconhecidos e garante o card fixo. */
 export function normalizeLayout(raw: unknown): CockpitLayout {
