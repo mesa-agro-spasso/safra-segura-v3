@@ -142,7 +142,8 @@ export async function exportDrePdf({ outputs, warehouseName, fileTag }: DrePdfOp
       pdf.setFontSize(isTotal ? 12 : 10);
       if (isTotal) pdf.setTextColor(255, 255, 255);
       else pdf.setTextColor(31, 41, 55);
-      const sign = dreSign(line.kind, line.value) === '−' ? '-' : dreSign(line.kind, line.value);
+      const displaySign = dreSign(line.kind, line.value);
+      const sign = line.kind === 'cost' || line.kind === 'adjust' || displaySign !== '+' && displaySign !== '' ? '-' : displaySign;
       const value = `${sign} R$ ${formatBrl(dreAbs(line.value))}`;
       pdf.text(value, pageWidth - margin - 12, y + 20, { align: 'right' });
       y += rowHeight;
