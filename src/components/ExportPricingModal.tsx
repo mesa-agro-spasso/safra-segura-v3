@@ -7,6 +7,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import { Download } from 'lucide-react';
 import type { PricingSnapshot } from '@/types';
+import { pricingMethodLabel } from '@/lib/pricingMethodLabel';
 export interface ExportColumn {
   key: string;
   label: string;
@@ -17,6 +18,7 @@ export interface ExportColumn {
 export const ALL_COLUMNS: ExportColumn[] = [
   { key: 'warehouse', label: 'Praça', defaultOn: true, getValue: (s, wm) => wm[s.warehouse_id] ?? s.warehouse_id },
   { key: 'commodity', label: 'Commodity', defaultOn: true, getValue: (s) => s.commodity === 'soybean' ? 'Soja' : 'Milho' },
+  { key: 'pricing_method', label: 'Método', defaultOn: true, getValue: (s) => pricingMethodLabel((s.outputs_json as Record<string, any> | null)?.pricing_method ?? (s.inputs_json as Record<string, any> | null)?.pricing_method) },
   { key: 'ticker', label: 'Ticker', defaultOn: true, getValue: (s) => s.ticker },
   { key: 'grain_reception_date', label: 'Recepção', defaultOn: true, getValue: (s) => fmtDate(s.grain_reception_date) },
   { key: 'payment_date', label: 'Pagamento', defaultOn: true, getValue: (s) => fmtDate(s.payment_date) },

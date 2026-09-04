@@ -18,6 +18,7 @@ import { GeneratePricingModal } from '@/components/GeneratePricingModal';
 import { ExportPricingModal } from '@/components/ExportPricingModal';
 import { SimulationDialog } from '@/components/simulation/SimulationDialog';
 import { exportDrePdf } from '@/lib/dreExport';
+import { pricingMethodLabel } from '@/lib/pricingMethodLabel';
 
 const B3_CORN_TICKERS = ['CCMF27', 'CCMK27'];
 
@@ -348,6 +349,7 @@ const PricingTable = () => {
                   <TableRow>
                     <TableHead>Praça</TableHead>
                     <TableHead>Commodity</TableHead>
+                    <TableHead>Método</TableHead>
                     <TableHead>Ticker</TableHead>
                     <TableHead className="text-center">Recepção</TableHead>
                     <TableHead className="text-center">Pagamento</TableHead>
@@ -367,6 +369,7 @@ const PricingTable = () => {
                     lastWarehouse = wName;
 
                     const outputs = snap.outputs_json as Record<string, any> | null;
+                    const inputs = snap.inputs_json as Record<string, any> | null;
                     const costs = outputs?.costs as Record<string, any> | null;
                     const totalCosts = costs?.total_brl ?? null;
 
@@ -383,6 +386,9 @@ const PricingTable = () => {
                           <span className={`text-xs px-1.5 py-0.5 rounded ${snap.commodity === 'soybean' ? 'bg-primary/10 text-primary' : 'bg-amber-900/30 text-amber-500'}`}>
                             {snap.commodity === 'soybean' ? 'Soja' : 'Milho'}
                           </span>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {pricingMethodLabel(outputs?.pricing_method ?? inputs?.pricing_method)}
                         </TableCell>
                         <TableCell className="font-mono text-xs">{snap.ticker}</TableCell>
                         <TableCell className="text-center text-xs">{formatDate(snap.grain_reception_date)}</TableCell>

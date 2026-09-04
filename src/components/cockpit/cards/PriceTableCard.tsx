@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { StickyTableScroll, STICKY_HEAD } from '@/components/cockpit/StickyTableScroll';
+import { pricingMethodLabel } from '@/lib/pricingMethodLabel';
 import type { PricingCombination, PricingSnapshot, Warehouse } from '@/types';
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
@@ -108,6 +109,7 @@ export function PriceTableCard({
             <TableRow>
               <TableHead className={cn(STICKY_PRACA, STICKY_HEAD, 'border-b border-border z-40')}>Praça</TableHead>
               <TableHead className={cn(STICKY_COMMODITY, STICKY_HEAD, 'left-40 border-b border-border z-40')}>Commodity</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'border-b border-border')}>Método</TableHead>
               <TableHead className={cn(STICKY_HEAD, 'border-b border-border')}>Ticker</TableHead>
               <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-center')}>Recepção</TableHead>
               <TableHead className={cn(STICKY_HEAD, 'border-b border-border text-center')}>Pagamento</TableHead>
@@ -122,7 +124,7 @@ export function PriceTableCard({
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={11} className="text-center text-sm text-muted-foreground py-8">
                   Nenhuma combinação ativa para os filtros.
                 </TableCell>
               </TableRow>
@@ -157,6 +159,9 @@ export function PriceTableCard({
                     >
                       {COMMODITY_LABELS[combo.commodity] ?? combo.commodity}
                     </span>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {pricingMethodLabel(combo.pricing_method)}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{combo.ticker}</TableCell>
                   <TableCell className="text-center text-xs">{formatDate(reception)}</TableCell>
