@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import type { PricingCombination, Warehouse } from '@/types';
 import { effectiveValue, type CockpitOverrides, type OverridesMap } from '@/lib/cockpitPayload';
 import { StickyTableScroll, STICKY_HEAD } from '@/components/cockpit/StickyTableScroll';
+import { pricingMethodLabel } from '@/lib/pricingMethodLabel';
 
 
 const COMMODITY_LABELS: Record<string, string> = { soybean: 'Soja', corn: 'Milho' };
@@ -152,7 +153,7 @@ export interface ParametersCardProps {
   onValidityChange?: (valid: boolean) => void;
 }
 
-const COLUMN_COUNT = 20;
+const COLUMN_COUNT = 21;
 
 
 export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, onChange, onEditInsurance, inactive = [], onToggleActive, onValidityChange }: ParametersCardProps) {
@@ -241,6 +242,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
           <TableRow>
             <TableHead className={cn(STICKY_PRACA, HEAD, 'z-40')}>Praça</TableHead>
             <TableHead className={cn(STICKY_COMMODITY, HEAD, 'left-40 z-40')}>Commodity</TableHead>
+            <TableHead className={HEAD}>Método</TableHead>
             <TableHead className={HEAD}>Ticker</TableHead>
             <TableHead className={HEAD}>Juros</TableHead>
             <TableHead className={HEAD}>Período</TableHead>
@@ -330,6 +332,9 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                         </TableCell>
                         <TableCell className={cn(STICKY_COMMODITY, 'text-xs')}>
                           {COMMODITY_LABELS[combo.commodity] ?? combo.commodity}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {pricingMethodLabel(combo.pricing_method)}
                         </TableCell>
                         <TableCell className="font-mono text-xs">{combo.ticker}</TableCell>
                         <TableCell>{cell('interest_rate', wh?.interest_rate)}</TableCell>
@@ -464,7 +469,7 @@ export function ParametersCard({ combos, warehouseMap, overrides, pendingMap, on
                       </TableCell>
                       <TableCell className="font-mono text-xs">{combo.ticker}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {combo.pricing_method === 'TARGET_PRICE' ? 'Preço alvo' : 'Long basis'}
+                        {pricingMethodLabel(combo.pricing_method)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
